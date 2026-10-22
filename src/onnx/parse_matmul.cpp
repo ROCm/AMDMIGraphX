@@ -25,6 +25,9 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <algorithm>
+#include <iterator>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -32,6 +35,21 @@ namespace onnx {
 
 struct parse_matmul : op_parser<parse_matmul>
 {
+    // Four signed correction terms are bounded by 65536*K before the final result.
+    static constexpr std::size_t integer_output_signed_limit = 32767;
+    // 16384*K stays within int32; a multiple of four also keeps full chunks eligible for CK.
+    static constexpr std::size_t integer_dot_chunk_size = 131068;
+
+    struct integer_output_state
+    {
+        instruction_ref qa;
+        instruction_ref qb;
+        instruction_ref za_unsigned;
+        instruction_ref zb_unsigned;
+        bool zero_a;
+        bool zero_b;
+    };
+
     std::vector<op_desc> operators() const
     {
         return {{"MatMul", "dot"},
@@ -254,6 +272,90 @@ struct parse_matmul : op_parser<parse_matmul>
         return zp;
     }
 
+    static instruction_ref handle_integer_output_chunk(const onnx_parser::node_info& info,
+                                                       const integer_output_state& state,
+                                                       std::size_t start,
+                                                       std::size_t end)
+    {
+        auto qa = state.qa;
+        auto qb = state.qb;
+        if(start != 0 or end != qa->get_shape().lens().back())
+        {
+            qa = info.add_instruction(
+                make_op("slice",
+                        {{"axes", {static_cast<int64_t>(qa->get_shape().ndim() - 1)}},
+                         {"starts", {static_cast<int64_t>(start)}},
+                         {"ends", {static_cast<int64_t>(end)}}}),
+                qa);
+            qb = info.add_instruction(
+                make_op("slice",
+                        {{"axes", {static_cast<int64_t>(qb->get_shape().ndim() - 2)}},
+                         {"starts", {static_cast<int64_t>(start)}},
+                         {"ends", {static_cast<int64_t>(end)}}}),
+                qb);
+        }
+
+        auto raw_dot = op::builder::add("quant_dot", *info.mod, {qa, qb}).at(0);
+        auto result  = info.add_instruction(
+            make_op("bit_cast", {{"target_type", shape::uint32_type}}), raw_dot);
+
+        // Unsigned operations make every correction wrap modulo 2^32 by definition.
+        if(not state.zero_a)
+        {
+            auto wb =
+                info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), qb);
+            auto sum_b = info.add_instruction(
+                make_op("reduce_sum", {{"axes", {qb->get_shape().ndim() - 2}}}), wb);
+            auto sum_b_unsigned = info.add_instruction(
+                make_op("bit_cast", {{"target_type", shape::uint32_type}}), sum_b);
+            result = info.add_common_op(
+                "sub", result, info.add_common_op("mul", state.za_unsigned, sum_b_unsigned));
+        }
+        if(not state.zero_b)
+        {
+            auto wa =
+                info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), qa);
+            auto sum_a = info.add_instruction(
+                make_op("reduce_sum", {{"axes", {qa->get_shape().ndim() - 1}}}), wa);
+            auto sum_a_unsigned = info.add_instruction(
+                make_op("bit_cast", {{"target_type", shape::uint32_type}}), sum_a);
+            result = info.add_common_op(
+                "sub", result, info.add_common_op("mul", sum_a_unsigned, state.zb_unsigned));
+        }
+        if(not state.zero_a and not state.zero_b)
+        {
+            auto k = info.add_literal(
+                literal{shape{shape::uint32_type}, {static_cast<uint32_t>(end - start)}});
+            auto correction = info.add_common_op(
+                "mul", info.add_common_op("mul", state.za_unsigned, state.zb_unsigned), k);
+            result = info.add_common_op("add", result, correction);
+        }
+        return result;
+    }
+
+    static instruction_ref handle_integer_output_large(const onnx_parser::node_info& info,
+                                                       const integer_output_state& state,
+                                                       std::size_t k)
+    {
+        // The raw quant_dot still accumulates to int32, so keep every reduction within this bound.
+        const auto number_of_chunks = 1 + (k - 1) / integer_dot_chunk_size;
+        std::vector<instruction_ref> chunks;
+        chunks.reserve(number_of_chunks);
+        std::generate_n(
+            std::back_inserter(chunks), number_of_chunks, [&, start = std::size_t{0}]() mutable {
+                const auto end = start + std::min(integer_dot_chunk_size, k - start);
+                auto result    = handle_integer_output_chunk(info, state, start, end);
+                start          = end;
+                return result;
+            });
+        auto result = std::accumulate(
+            std::next(chunks.begin()), chunks.end(), chunks.front(), [&](auto x, auto y) {
+                return info.add_common_op("add", x, y);
+            });
+        return info.add_instruction(make_op("bit_cast", {{"target_type", shape::int32_type}}),
+                                    result);
+    }
+
     static instruction_ref handle_integer_output(const onnx_parser::node_info& info,
                                                  const std::vector<instruction_ref>& args,
                                                  instruction_ref a,
@@ -263,34 +365,54 @@ struct parse_matmul : op_parser<parse_matmul>
         auto zb           = integer_zero_point(info, args, 3, b, false);
         auto qa           = integer_operand(info, a);
         auto qb           = integer_operand(info, b);
-        auto result       = op::builder::add("quant_dot", *info.mod, {qa, qb}).at(0);
         const bool zero_a = is_symmetric_zero_point(za);
         const bool zero_b = is_symmetric_zero_point(zb);
-        // Centering in int8 can overflow; apply the exact correction to the int32 accumulation.
-        if(not zero_a)
+        const auto k      = a->get_shape().lens().back();
+
+        if(k > integer_output_signed_limit and
+           k != b->get_shape().lens()[b->get_shape().ndim() - 2])
         {
-            auto wb =
-                info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), qb);
-            auto sum_b = info.add_instruction(
-                make_op("reduce_sum", {{"axes", {b->get_shape().ndim() - 2}}}), wb);
-            result = info.add_common_op("sub", result, info.add_common_op("mul", za, sum_b));
+            MIGRAPHX_THROW("MatMulInteger: input inner dimensions must match");
         }
-        if(not zero_b)
+
+        if(k <= integer_output_signed_limit)
         {
-            auto wa =
-                info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), qa);
-            auto sum_a = info.add_instruction(
-                make_op("reduce_sum", {{"axes", {a->get_shape().ndim() - 1}}}), wa);
-            result = info.add_common_op("sub", result, info.add_common_op("mul", sum_a, zb));
+            auto result = op::builder::add("quant_dot", *info.mod, {qa, qb}).at(0);
+            if(not zero_a)
+            {
+                auto wb = info.add_instruction(
+                    make_op("convert", {{"target_type", shape::int32_type}}), qb);
+                auto sum_b = info.add_instruction(
+                    make_op("reduce_sum", {{"axes", {b->get_shape().ndim() - 2}}}), wb);
+                result = info.add_common_op("sub", result, info.add_common_op("mul", za, sum_b));
+            }
+            if(not zero_b)
+            {
+                auto wa = info.add_instruction(
+                    make_op("convert", {{"target_type", shape::int32_type}}), qa);
+                auto sum_a = info.add_instruction(
+                    make_op("reduce_sum", {{"axes", {a->get_shape().ndim() - 1}}}), wa);
+                result = info.add_common_op("sub", result, info.add_common_op("mul", sum_a, zb));
+            }
+            if(not zero_a and not zero_b)
+            {
+                auto k_literal =
+                    info.add_literal(literal{shape{shape::int32_type}, {static_cast<int32_t>(k)}});
+                auto correction =
+                    info.add_common_op("mul", info.add_common_op("mul", za, zb), k_literal);
+                result = info.add_common_op("add", result, correction);
+            }
+            return result;
         }
-        if(not zero_a and not zero_b)
-        {
-            auto k          = info.add_literal(literal{
-                shape{shape::int32_type}, {static_cast<int32_t>(a->get_shape().lens().back())}});
-            auto correction = info.add_common_op("mul", info.add_common_op("mul", za, zb), k);
-            result          = info.add_common_op("add", result, correction);
-        }
-        return result;
+
+        integer_output_state state{
+            qa,
+            qb,
+            info.add_instruction(make_op("bit_cast", {{"target_type", shape::uint32_type}}), za),
+            info.add_instruction(make_op("bit_cast", {{"target_type", shape::uint32_type}}), zb),
+            zero_a,
+            zero_b};
+        return handle_integer_output_large(info, state, k);
     }
 
     instruction_ref parse(const op_desc& opd,

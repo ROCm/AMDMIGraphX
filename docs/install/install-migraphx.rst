@@ -701,16 +701,76 @@ environment.
 
          python -m pip install --index-url |WHL_PKG_REPO| \
              "migraphx==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|" \
-            "migraphx-libs==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|"
+             "migraphx-libs==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|"
 
-   3. Verify your installation.
+   3. If you installed ROCm using your Linux distribution's package manager,
+      complete the following post-installation step.
 
-      Confirm that ``migraphx-driver`` is available in your virtual
-      environment and reports the expected version.
+      The ROCm libraries are installed to ``/opt/rocm/core-10.1/lib``, which
+      isn't on the default linker path. Configure environment variables so
+      that the ROCm libraries are added to ``LD_LIBRARY_PATH``.
+
+      .. note::
+
+         Skip this step if you installed ROCm using pip. In that case, the
+         MIGraphX wheel finds the ROCm libraries in the ROCm wheels already
+         installed in your virtual environment.
+
+      .. tab-set::
+
+         .. tab-item:: User (~/.bashrc)
+            :sync: bashrc
+
+            .. code-block:: bash
+
+               # MIGraphX Environment Setup
+               tee --append ~/.bashrc << 'EOF'
+               # BEGIN MIGraphX environment configuration
+               export ROCM_PATH=/opt/rocm/core-10.1
+               export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+               # END MIGraphX environment configuration
+               EOF
+
+               source ~/.bashrc
+
+         .. tab-item:: User (~/.profile)
+            :sync: profile
+
+            .. code-block:: bash
+
+               # MIGraphX Environment Setup
+               tee --append ~/.profile << 'EOF'
+               # BEGIN MIGraphX environment configuration
+               export ROCM_PATH=/opt/rocm/core-10.1
+               export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+               # END MIGraphX environment configuration
+               EOF
+
+               source ~/.profile
+
+         .. tab-item:: System-wide
+            :sync: system
+
+            .. code-block:: bash
+
+               # MIGraphX Environment Setup
+               sudo tee /etc/profile.d/set-migraphx-env.sh << 'EOF'
+               export ROCM_PATH=/opt/rocm/core-10.1
+               export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+               EOF
+
+               sudo chmod +x /etc/profile.d/set-migraphx-env.sh
+               source /etc/profile.d/set-migraphx-env.sh
+
+   4. Verify your installation.
+
+      Confirm that ``migraphx-driver`` and the ``migraphx`` Python module are
+      available in your virtual environment and report the expected version.
 
       .. code-block:: bash
 
          migraphx-driver --version
+         python -c "import migraphx; print(migraphx.__version__)"
 
    .. seealso::
 

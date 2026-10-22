@@ -116,7 +116,21 @@ environment.
          python -m pip install --extra-index-url |WHL_PKG_REPO| \
              |WHL|
 
-   4. Verify your installation.
+   4. If you installed ROCm using your Linux distribution's package manager,
+      complete the following post-installation step.
+
+      The ROCm libraries are installed to ``/opt/rocm/core-10.1/lib``, which
+      isn't on the default linker path. Configure environment variables so
+      that the ROCm libraries are added to ``LD_LIBRARY_PATH``, as described
+      in `Install MIGraphX using pip <install-migraphx.html?i=pip>`_.
+
+      .. note::
+
+         Skip this step if you installed ROCm using pip. In that case, the
+         MIGraphX wheel finds the ROCm libraries in the ROCm wheels already
+         installed in your virtual environment.
+
+   5. Verify your installation.
 
       Confirm that the package imports and reports the expected version.
 

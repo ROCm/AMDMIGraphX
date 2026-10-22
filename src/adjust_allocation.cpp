@@ -64,7 +64,25 @@ void adjust_allocation::apply(module& m) const
         if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
         {
             if(alias_ins != ins and alias_ins->get_shape() != ins->get_shape())
-                log::warn() << "output buffer doesn't match output for " << ins->get_operator();
+            {
+                // Reallocate only when the aliased buffer is genuinely too small for this
+                // instruction's output (e.g. gpu::precompile_op handed an undersized buffer,
+                // which causes an out-of-bounds write -> crash on gfx1150). Legitimate view
+                // aliases (transpose/slice/squeeze) keep an equal-or-larger byte size and must
+                // be left untouched.
+                if(alias_ins->get_shape().bytes() < ins->get_shape().bytes())
+                {
+                    log::warn() << "output buffer too small for " << ins->get_operator()
+                                << "; allocating a correctly sized buffer";
+                    auto out_buf   = ins->inputs().back();
+                    auto alloc_ins = m.insert_instruction(ins, model.allocate(ins->get_shape()));
+                    instruction::replace_argument(ins, out_buf, alloc_ins);
+                }
+                else
+                {
+                    log::warn() << "output buffer doesn't match output for " << ins->get_operator();
+                }
+            }
             continue;
         }
         // shape allocated is different from actual shape

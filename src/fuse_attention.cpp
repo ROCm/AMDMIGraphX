@@ -1155,7 +1155,7 @@ struct find_kv_cache_attention
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k"));
         auto keys_transpose  = match::opaque(match::name("transpose")(match::arg(0)(keys)));
         auto k_transpose     = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
-        auto gemm1           = match::opaque(match::name("dot")(match::arg(1)(k_transpose)));
+        auto gemm1 = match::opaque(match::name("dot")(match::arg(1)(k_transpose)).bind("gemm1"));
         auto gemm1_maybe_cvt = match::opaque(match::skip(match::name("convert"))(gemm1));
         auto scale    = match::opaque(match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt)));
         auto constant = match::opaque(match::is_constant());
@@ -1202,8 +1202,7 @@ struct find_kv_cache_attention
 
     std::string get_count() const { return std::to_string((*counter)++); }
 
-    std::vector<instruction_ref>
-    get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
+    static bool is_valid_attn_op(instruction_ref i)
     {
         static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
                                                                        "broadcast",
@@ -1220,12 +1219,35 @@ struct find_kv_cache_attention
                                                                        "@literal",
                                                                        "unsqueeze",
                                                                        "squeeze"};
+        return i->get_operator().attributes().get("pointwise", false) or
+               contains(valid_attn_ops, i->get_operator().name());
+    }
 
-        auto is_valid_attn_op = [&](auto i) {
-            return i->get_operator().attributes().get("pointwise", false) or
-                   contains(valid_attn_ops, i->get_operator().name());
-        };
+    // Outputs of the capture: captured instructions used elsewhere in the
+    // graph that depend on the first gemm. A captured instruction independent
+    // of it (eg the sequence-length mask chain shared by every layer) is a
+    // common subexpression whose original stays alive outside, not an output.
+    static std::vector<instruction_ref> find_required_outputs(
+        const std::vector<instruction_ref>& attn_inss, instruction_ref gemm1, const_module_ref m)
+    {
+        auto outputs = find_outputs(attn_inss);
+        // attn_inss is in program order, so captured instructions before gemm1
+        // cannot depend on it (reaches also requires start to precede end)
+        std::unordered_set<instruction_ref> before_gemm1(
+            attn_inss.begin(), std::find(attn_inss.begin(), attn_inss.end(), gemm1));
+        outputs.erase(std::remove_if(outputs.begin(),
+                                     outputs.end(),
+                                     [&](instruction_ref i) {
+                                         return contains(before_gemm1, i) or
+                                                not reaches(gemm1, i, m);
+                                     }),
+                      outputs.end());
+        return outputs;
+    }
 
+    std::vector<instruction_ref>
+    get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
+    {
         // Start with instructions on data-dependency paths from start to end.
         auto inss = find_instructions_between(start, end, &m);
         // Expand by walking inputs of instructions already in the set.
@@ -1271,10 +1293,17 @@ struct find_kv_cache_attention
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto total_sl = r.instructions["total_sl"];
+        auto gemm1    = r.instructions["gemm1"];
         auto end      = find_output_end(r.result);
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, end);
+
+        // A capture that grew past the attention block (eg through live
+        // instructions a previous fusion left behind) would put ops mlir
+        // cannot compile into the module, so skip it
+        if(not std::all_of(attn_inss.begin(), attn_inss.end(), &is_valid_attn_op))
+            return;
 
         // Add captured instructions to new submodule
         module m_attn;
@@ -1302,9 +1331,9 @@ struct find_kv_cache_attention
         dead_code_elimination{}.apply(m_attn);
 
         // Define outputs based on instructions that are used elsewhere in the graph
-        auto required_outputs = find_outputs(attn_inss);
-
-        assert(not required_outputs.empty());
+        auto required_outputs = find_required_outputs(attn_inss, gemm1, &mpm.get_module());
+        if(required_outputs.empty())
+            return;
 
         // Attention sinks leave a log/add lse chain hanging off the softmax
         // reductions (see find_attention_sinks); fuse it in and return
@@ -1317,7 +1346,7 @@ struct find_kv_cache_attention
             {
                 m_attn.fuse(lse_inss, &map_mm_to_mattn);
                 attn_inss.insert(attn_inss.end(), lse_inss.begin(), lse_inss.end());
-                required_outputs = find_outputs(attn_inss);
+                required_outputs = find_required_outputs(attn_inss, gemm1, &mpm.get_module());
                 if(required_outputs.size() != 2)
                     return;
                 has_lse = true;

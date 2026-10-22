@@ -345,10 +345,14 @@ struct spatial_tiler
         constexpr auto perm     = find_permutation(InputShape{});
         constexpr auto lens     = reorder_dims(halo_lens_for<InputShape>(), perm);
         constexpr auto row_lens = reorder_dims(halo_row_lens_for<InputShape>(), perm);
-        diff_int d              = lens.size() - 1;
-        while(d > 0 and row_lens[d - 1] != lens[d - 1])
-            d--;
-        return perm[d];
+        // The span consumes a suffix of the memory-order dims, but a singleton inside it
+        // keeps row_lens == lens, so take the outermost dim the span reduced
+        for(index_int d = 0; d < lens.size(); d++)
+        {
+            if(row_lens[d] != lens[d])
+                return perm[d];
+        }
+        return perm[lens.size() - 1];
     }
 
     // Members are whole arrays so vectorized array ops never straddle two members,

@@ -389,6 +389,18 @@ TEST_CASE(channelwise_conv_bool_output_vector)
     EXPECT(verify_bool_output("channelwise_conv_bool_output_vector", 4));
 }
 
+// 3-D NCDHW conv with a singleton H inside the halo span: the copy must clamp the
+// padded depth dim, not the fully covered width
+TEST_CASE(channelwise_conv_ncdhw_singleton)
+{
+    migraphx::shape x_shape{migraphx::shape::float_type, {1, 4, 8, 1, 32}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {4, 1, 3, 1, 1}};
+    migraphx::value solution{
+        {"tile_h", 8}, {"tile_w", 32}, {"noutputs", 1}, {"tile_c", 1}, {"nrows", 1}};
+    EXPECT(verify_solution(
+        "channelwise_conv_ncdhw_singleton", x_shape, w_shape, {1, 0, 0, 1, 0, 0}, solution));
+}
+
 // 1-D convolution on a channels-first input; tile_h defaults to 1
 TEST_CASE(channelwise_conv_1d)
 {

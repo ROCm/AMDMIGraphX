@@ -553,6 +553,36 @@ TEST_CASE(halo_span_padded)
     EXPECT(tiler::template halo_span_dim_for<input_shape>() == 3);
 }
 
+// NCDHW with H=1: the span merges W, the H singleton and the padded D dim, so the
+// bounding dim is D, not W
+TEST_CASE(halo_span_ncdhw_singleton)
+{
+    using output_shape = decltype(migraphx::make_shape(migraphx::index_ints<1, 4, 8, 1, 32>{}));
+    using input_shape  = decltype(migraphx::make_shape(migraphx::index_ints<1, 4, 8, 1, 32>{}));
+    using tiler        = migraphx::spatial_tiler<1,
+                                                 migraphx::index_ints<8, 1, 32>,
+                                                 output_shape,
+                                                 migraphx::index_ints<1, 0, 0, 1, 0, 0>>;
+    EXPECT(tiler::template halo_span_for<input_shape>() == 320);
+    EXPECT(tiler::template halo_row_lens_for<input_shape>() ==
+           migraphx::index_ints<1, 1, 1, 1, 1>{});
+    EXPECT(tiler::template halo_span_dim_for<input_shape>() == 2);
+}
+
+// A trailing singleton dim merges into the span without moving the bounding dim
+TEST_CASE(halo_span_singleton_last)
+{
+    using output_shape = decltype(migraphx::make_shape(migraphx::index_ints<1, 8, 8, 1>{}));
+    using input_shape  = decltype(migraphx::make_shape(migraphx::index_ints<1, 8, 8, 1>{}));
+    using tiler        = migraphx::spatial_tiler<1,
+                                                 migraphx::index_ints<4, 1>,
+                                                 output_shape,
+                                                 migraphx::index_ints<1, 0, 1, 0>>;
+    EXPECT(tiler::template halo_span_for<input_shape>() == 6);
+    EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 1, 1>{});
+    EXPECT(tiler::template halo_span_dim_for<input_shape>() == 2);
+}
+
 // ======== row runs (NRows) ========
 
 // NRows scales the first spatial dim, NTiles the last: tile {4, 4} → region {1, 1, 8, 8}

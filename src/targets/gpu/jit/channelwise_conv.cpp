@@ -28,7 +28,9 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
+#include <array>
 #include <numeric>
+#include <set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -171,7 +173,8 @@ struct channelwise_conv_solutions
 {
     channelwise_conv_problem problem;
     std::size_t wave;
-    std::vector<value> solutions = {};
+    std::vector<value> solutions              = {};
+    std::set<std::array<std::size_t, 6>> seen = {};
 
     static constexpr std::size_t max_block = 1024;
     static constexpr std::size_t max_lds   = 64 * 1024;
@@ -184,12 +187,19 @@ struct channelwise_conv_solutions
              std::size_t nrows,
              std::size_t cvec)
     {
+        // 1-D convolutions have no row dim, so count the threads the kernel launches
         if(problem.num_spatial < 2)
-            nrows = 1;
+        {
+            tile_h = 1;
+            nrows  = 1;
+        }
         auto block_size = tile_h * tile_w * (tile_c / cvec);
         if(block_size < wave or block_size > max_block or (block_size % wave) != 0)
             return;
         if(problem.halo_bytes(tile_h, tile_w, noutputs, tile_c, nrows) > max_lds)
+            return;
+        // Clamping can collapse distinct candidates into the same solution
+        if(not seen.insert({tile_h, tile_w, noutputs, tile_c, nrows, cvec}).second)
             return;
         solutions.push_back({{"tile_h", tile_h},
                              {"tile_w", tile_w},
@@ -235,9 +245,13 @@ struct channelwise_conv_solutions
         if(problem.channels_last())
             sizes = {1, 2};
         transform(range(1, 64), std::back_inserter(sizes), [](auto i) { return i * 4; });
+        // 1-D convolutions have no row dim to tile
+        std::vector<std::size_t> hsizes = {1};
+        if(problem.num_spatial > 1)
+            hsizes = sizes;
         for(auto tile_c : problem.channel_tiles(64))
         {
-            for(auto tile_h : sizes)
+            for(auto tile_h : hsizes)
             {
                 for(auto tile_w : sizes)
                     add_variants(tile_h, tile_w, tile_c);
@@ -325,10 +339,12 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         const auto& out_lens = out_s.lens();
         channelwise_conv_problem problem{inputs, num_spatial};
 
-        // Thread block tile dimensions
-        auto tile_sizes = spatial_tile(num_spatial,
-                                       v.get("tile_h", std::size_t{8}),
-                                       v.get("tile_w", num_spatial == 1 ? 256 : 32));
+        // Thread block tile dimensions; 1-D convolutions have no row dim to tile
+        auto tile_h = v.get("tile_h", num_spatial == 1 ? std::size_t{1} : std::size_t{8});
+        if(num_spatial == 1 and tile_h != 1)
+            MIGRAPHX_THROW("channelwise_conv: tile_h must be 1 for 1-D convolution");
+        auto tile_sizes =
+            spatial_tile(num_spatial, tile_h, v.get("tile_w", num_spatial == 1 ? 256 : 32));
 
         // Outputs per lane along W (last spatial dim)
         auto noutputs = v.get("noutputs", std::size_t{4});

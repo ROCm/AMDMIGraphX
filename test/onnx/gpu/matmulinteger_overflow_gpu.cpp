@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/compile_options.hpp>
 #include <migraphx/register_target.hpp>
 #include <onnx_test.hpp>
 #include <algorithm>
@@ -58,7 +59,9 @@ static std::vector<int32_t> eval_matmulinteger_gpu(
 TEST_CASE(matmulinteger_overflow_gpu_raw_dot)
 {
     auto p = read_onnx("matmulinteger_overflow_int8_150000.onnx");
-    p.compile(migraphx::make_target("gpu"), {true});
+    migraphx::compile_options compile_options;
+    compile_options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), compile_options);
     auto result = eval_matmulinteger_gpu<int8_t, int8_t>(p, 127, 127, 127, 127);
     EXPECT(result == std::vector<int32_t>{0});
 }
@@ -66,7 +69,9 @@ TEST_CASE(matmulinteger_overflow_gpu_raw_dot)
 TEST_CASE(matmulinteger_overflow_gpu_uint8)
 {
     auto p = read_onnx("matmulinteger_overflow_uint8_131072.onnx");
-    p.compile(migraphx::make_target("gpu"), {true});
+    migraphx::compile_options compile_options;
+    compile_options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), compile_options);
     auto result = eval_matmulinteger_gpu<uint8_t, uint8_t>(p, 255, 255);
     // (255 * 255 * 131072) wraps to -66977792 in the int32 output.
     EXPECT(result == std::vector<int32_t>{-66977792});
@@ -79,7 +84,9 @@ TEST_CASE(matmulinteger_overflow_gpu_asymmetric_zero_point)
     options.map_input_dims["a"] = {k};
     options.map_input_dims["b"] = {k};
     auto p = read_onnx("matmulinteger_overflow_int8_70000_vector.onnx", options);
-    p.compile(migraphx::make_target("gpu"), {true});
+    migraphx::compile_options compile_options;
+    compile_options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), compile_options);
     auto result = eval_matmulinteger_gpu<int8_t, int8_t>(p, 1, 1, 0, -128);
     // Each output is (1 - 0) * (1 - -128) * K.
     EXPECT(result == std::vector<int32_t>{16907901});
@@ -94,7 +101,9 @@ TEST_CASE(matmulinteger_overflow_gpu_mixed_batched_zero_points)
     options.map_input_dims["za"] = {1, 1, 2, 1};
     options.map_input_dims["zb"] = {1, 1, 2};
     auto p = read_onnx("matmulinteger_correction_batched_int8_uint8.onnx", options);
-    p.compile(migraphx::make_target("gpu"), {true});
+    migraphx::compile_options compile_options;
+    compile_options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), compile_options);
 
     auto shapes        = p.get_parameter_shapes();
     const auto a_shape = shapes.at("a");

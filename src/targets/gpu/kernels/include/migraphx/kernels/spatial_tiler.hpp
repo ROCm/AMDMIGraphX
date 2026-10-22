@@ -61,15 +61,24 @@ constexpr bool channel_vector_aligned(Shape s)
     }
 }
 
+// Element types the channel fast path can move as one native vector; bools qualify
+// because they are re-typed to uint8, since vec<bool, V> is bit-packed
+template <class T>
+constexpr bool channel_vectorizable()
+{
+    return array_detail::is_vectorizable<T>() or is_same<T, bool>{};
+}
+
 // Load V consecutive channels starting at pos, as one vector when they are contiguous
 template <index_int V, class View, class Pos>
 __device__ auto load_channels(View view, Pos pos)
 {
     using type = typename View::type;
     array<type, V> result;
-    if constexpr(channel_vector_aligned<V>(get_shape_c<View>{}))
+    if constexpr(channel_vector_aligned<V>(get_shape_c<View>{}) and channel_vectorizable<type>())
     {
-        array_detail::array2vec(result) = *as_vec<V>(view.data() + get_shape_c<View>{}.index(pos));
+        *as_vec<V>(remove_bool(result.begin())) =
+            *as_vec<V>(remove_bool(view.data() + get_shape_c<View>{}.index(pos)));
     }
     else
     {
@@ -85,9 +94,11 @@ __device__ auto load_channels(View view, Pos pos)
 template <index_int V, class View, class Pos, class T>
 __device__ void store_channels(View view, Pos pos, const array<T, V>& values)
 {
-    if constexpr(channel_vector_aligned<V>(get_shape_c<View>{}))
+    if constexpr(channel_vector_aligned<V>(get_shape_c<View>{}) and
+                 channel_vectorizable<typename View::type>())
     {
-        *as_vec<V>(view.data() + get_shape_c<View>{}.index(pos)) = array_detail::array2vec(values);
+        *as_vec<V>(remove_bool(view.data() + get_shape_c<View>{}.index(pos))) =
+            *as_vec<V>(remove_bool(values.begin()));
     }
     else
     {

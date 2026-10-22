@@ -76,8 +76,17 @@ __device__ auto channelwise_conv_accumulate(Halo x_ch, Weights wregs, Pos out_mu
     return acc;
 }
 
-// Apply the fused pointwise op to row r of the accumulators and store its channel vector
-template <index_int ChannelVec, class F, class Output, class Pack, class Pos, class Acc, class R>
+// Apply the fused pointwise op to row r of the accumulators and store its channel vector.
+// The conv result is passed to f at the conv's own precision (ConvType) so the post-op
+// matches the reference; f's result converts to the output type at the store.
+template <index_int ChannelVec,
+          class ConvType,
+          class F,
+          class Output,
+          class Pack,
+          class Pos,
+          class Acc,
+          class R>
 __device__ void
 channelwise_conv_store(F f, Output out_ch, Pack xs_pack, Pos pos, const Acc& acc, R r)
 {
@@ -88,8 +97,8 @@ channelwise_conv_store(F f, Output out_ch, Pack xs_pack, Pos pos, const Acc& acc
         pack(load_channels<ChannelVec>(xs, pos)...)([&](auto... xv) {
             array<type, ChannelVec> out;
             repeat(_c<ChannelVec>, [&](auto v) {
-                out[v] =
-                    f(static_cast<type>(acc[acc_shape.index(array<index_int, 2>{r, v})]), xv[v]...);
+                out[v] = f(static_cast<ConvType>(acc[acc_shape.index(array<index_int, 2>{r, v})]),
+                           xv[v]...);
             });
             store_channels<ChannelVec>(out_ch, pos, out);
         });
@@ -121,7 +130,8 @@ channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inpu
     auto out_ch  = tiler.slice(output);
     auto xs_pack = pack(tiler.slice(inputs)...);
 
-    using type = typename Output::type;
+    // Weights stay at the conv's precision; the fused output type may differ
+    using type = typename Input::type;
     array<type, decltype(w_ch.get_shape().elements()){}> wregs_arr;
     auto wregs = make_tensor_view(wregs_arr.begin(), make_packed_shape(w_ch.get_shape()));
     copy(w_ch.begin(), w_ch.end(), wregs.begin());
@@ -138,7 +148,7 @@ channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inpu
                 if(not tiler.contains(pos))
                     return;
             }
-            channelwise_conv_store<ChannelVec>(f, out_ch, xs_pack, pos, acc, r);
+            channelwise_conv_store<ChannelVec, type>(f, out_ch, xs_pack, pos, acc, r);
         });
     });
 }

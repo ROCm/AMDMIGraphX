@@ -24,6 +24,7 @@
  */
 // cppcheck-suppress-file constStatement
 #include <migraphx/kernels/spatial_tiler.hpp>
+#include <migraphx/kernels/float_equal.hpp>
 #include <migraphx/kernels/test.hpp>
 
 // Helper: create a standard 4D shape from lens
@@ -628,4 +629,120 @@ TEST_CASE(halo_vector)
                                             1,
                                             8>;
     EXPECT(partial::template halo_vector_for<input_shape>() == 1);
+}
+
+// ======== load_channels / store_channels ========
+
+// A class element type that must take the element path instead of a native vector
+struct scalar_only
+{
+    float v;
+};
+
+// Bools are eligible by re-typing to uint8; class types are not
+TEST_CASE(channel_vectorizable_types)
+{
+    EXPECT(migraphx::channel_vectorizable<float>());
+    EXPECT(migraphx::channel_vectorizable<migraphx::half>());
+    EXPECT(migraphx::channel_vectorizable<migraphx::index_int>());
+    EXPECT(migraphx::channel_vectorizable<bool>());
+    EXPECT(not migraphx::channel_vectorizable<scalar_only>());
+}
+
+// Aligned bool channels load as one uint8 vector with every byte intact, not as the
+// bit-packed vec<bool, V>
+TEST_CASE(load_channels_bool_vector)
+{
+    constexpr auto s = make_nhwc_shape<1, 8, 2, 2>();
+    EXPECT(migraphx::channel_vector_aligned<4>(s));
+    alignas(8) bool data[32];
+    migraphx::repeat(migraphx::_c<32>, [&](auto i) { data[i] = (i % 3) == 0; });
+    auto view = migraphx::make_tensor_view(data, s);
+    auto values =
+        migraphx::load_channels<4>(view, migraphx::array<migraphx::index_int, 4>{0, 4, 1, 1});
+    EXPECT(values[0] == data[28]);
+    EXPECT(values[1] == data[29]);
+    EXPECT(values[2] == data[30]);
+    EXPECT(values[3] == data[31]);
+}
+
+// Aligned bool channels store one byte per element without clobbering neighbors
+TEST_CASE(store_channels_bool_vector)
+{
+    constexpr auto s = make_nhwc_shape<1, 8, 2, 2>();
+    alignas(8) bool data[32];
+    migraphx::repeat(migraphx::_c<32>, [&](auto i) { data[i] = true; });
+    auto view = migraphx::make_tensor_view(data, s);
+    migraphx::store_channels<4>(view,
+                                migraphx::array<migraphx::index_int, 4>{0, 4, 1, 1},
+                                migraphx::array<bool, 4>{true, false, true, false});
+    EXPECT(data[28]);
+    EXPECT(not data[29]);
+    EXPECT(data[30]);
+    EXPECT(not data[31]);
+    // Neighboring channels keep their values
+    EXPECT(data[24]);
+    EXPECT(data[27]);
+}
+
+// Unaligned channel counts fall back to element loads for bools too
+TEST_CASE(load_channels_bool_scalar)
+{
+    constexpr auto s = make_nhwc_shape<1, 6, 2, 2>();
+    EXPECT(not migraphx::channel_vector_aligned<4>(s));
+    bool data[24];
+    migraphx::repeat(migraphx::_c<24>, [&](auto i) { data[i] = (i % 2) == 0; });
+    auto view = migraphx::make_tensor_view(data, s);
+    auto values =
+        migraphx::load_channels<4>(view, migraphx::array<migraphx::index_int, 4>{0, 1, 1, 1});
+    EXPECT(values[0] == data[19]);
+    EXPECT(values[1] == data[20]);
+    EXPECT(values[2] == data[21]);
+    EXPECT(values[3] == data[22]);
+}
+
+// Aligned float channels round-trip through the vector fast path
+TEST_CASE(load_store_channels_float_vector)
+{
+    constexpr auto s = make_nhwc_shape<1, 8, 2, 2>();
+    alignas(16) float data[32];
+    migraphx::repeat(migraphx::_c<32>, [&](auto i) { data[i] = i; });
+    auto view   = migraphx::make_tensor_view(data, s);
+    auto pos    = migraphx::array<migraphx::index_int, 4>{0, 4, 1, 1};
+    auto values = migraphx::load_channels<4>(view, pos);
+    EXPECT(migraphx::float_equal(values[0], 28));
+    EXPECT(migraphx::float_equal(values[1], 29));
+    EXPECT(migraphx::float_equal(values[2], 30));
+    EXPECT(migraphx::float_equal(values[3], 31));
+    migraphx::store_channels<4>(view, pos, migraphx::array<float, 4>{1, 2, 3, 4});
+    EXPECT(migraphx::float_equal(data[28], 1));
+    EXPECT(migraphx::float_equal(data[29], 2));
+    EXPECT(migraphx::float_equal(data[30], 3));
+    EXPECT(migraphx::float_equal(data[31], 4));
+    EXPECT(migraphx::float_equal(data[27], 27));
+}
+
+// A class element type takes the element path even when the layout is aligned
+TEST_CASE(load_store_channels_custom_type)
+{
+    constexpr auto s = make_nhwc_shape<1, 8, 2, 2>();
+    scalar_only data[32];
+    migraphx::repeat(migraphx::_c<32>, [&](auto i) { data[i].v = i; });
+    auto view   = migraphx::make_tensor_view(data, s);
+    auto pos    = migraphx::array<migraphx::index_int, 4>{0, 4, 1, 1};
+    auto values = migraphx::load_channels<4>(view, pos);
+    EXPECT(migraphx::float_equal(values[0].v, 28));
+    EXPECT(migraphx::float_equal(values[1].v, 29));
+    EXPECT(migraphx::float_equal(values[2].v, 30));
+    EXPECT(migraphx::float_equal(values[3].v, 31));
+    migraphx::store_channels<4>(
+        view,
+        pos,
+        migraphx::array<scalar_only, 4>{
+            scalar_only{1}, scalar_only{2}, scalar_only{3}, scalar_only{4}});
+    EXPECT(migraphx::float_equal(data[28].v, 1));
+    EXPECT(migraphx::float_equal(data[29].v, 2));
+    EXPECT(migraphx::float_equal(data[30].v, 3));
+    EXPECT(migraphx::float_equal(data[31].v, 4));
+    EXPECT(migraphx::float_equal(data[27].v, 27));
 }

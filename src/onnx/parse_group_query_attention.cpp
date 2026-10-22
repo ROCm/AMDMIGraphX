@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,6 +36,11 @@ namespace onnx {
 struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
+
+    static bool has_input(const std::vector<instruction_ref>& args, std::size_t index)
+    {
+        return args.size() > index and not args.at(index)->is_undefined();
+    }
 
     static instruction_ref insert_rotary(module& m,
                                          bool interleaved,
@@ -50,10 +56,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
     }
 
-    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
-                                       const onnx_parser& parser,
-                                       const onnx_parser::node_info& info,
-                                       const std::vector<instruction_ref>& args) const
+    struct gqa_attributes
     {
         bool do_rotary           = false;
         std::size_t kv_num_heads = 0;
@@ -61,6 +64,14 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         std::size_t num_heads    = 0;
         bool rotary_interleaved  = false;
         float scale              = 0.0;
+    };
+
+    static gqa_attributes parse_attributes(const onnx_parser& parser,
+                                           const onnx_parser::node_info& info)
+    {
+        gqa_attributes attrs;
+        auto& [do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale] =
+            attrs;
         if(contains(info.attributes, "do_rotary"))
         {
             do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();
@@ -97,18 +108,65 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         {
             scale = parser.parse_value(info.attributes.at("scale")).at<float>();
         }
-        if(contains(info.attributes, "softcap"))
+        if(contains(info.attributes, "softcap") and
+           not float_equal(parser.parse_value(info.attributes.at("softcap")).at<float>(), 0.0))
         {
-            if(not float_equal(parser.parse_value(info.attributes.at("softcap")).at<float>(), 0.0))
-            {
-                MIGRAPHX_THROW("GroupQueryAttention: non-zero softcap is not yet supported.");
-            }
+            MIGRAPHX_THROW("GroupQueryAttention: non-zero softcap is not yet supported.");
         }
+        return attrs;
+    }
 
-        if(args.size() < 7 or args.size() > 11)
+    static void validate_inputs(const std::vector<instruction_ref>& args)
+    {
+        if(args.size() < 7 or args.size() > 12)
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
         }
+        if(has_input(args, 9))
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: position_ids input is not yet supported.");
+        }
+        if(has_input(args, 10))
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: attention_bias input is not yet supported.");
+        }
+    }
+
+    // head_sink adds a per-head logit to the softmax denominator only (attention sinks):
+    // append it as an extra score column, then drop that column after the softmax
+    static instruction_ref insert_softmax_with_head_sink(const onnx_parser::node_info& info,
+                                                         instruction_ref scores,
+                                                         instruction_ref sink)
+    {
+        const auto lens            = scores->get_shape().lens();
+        const std::size_t nheads   = lens.at(1);
+        const std::int64_t columns = lens.at(3);
+        if(sink->get_shape().elements() != nheads)
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: head_sink must have num_heads elements");
+        }
+        if(sink->get_shape().type() != scores->get_shape().type())
+        {
+            sink = info.add_instruction(
+                make_op("convert", {{"target_type", scores->get_shape().type()}}), sink);
+        }
+        sink = info.add_instruction(make_op("reshape", {{"dims", {1, nheads, 1, 1}}}), sink);
+        sink = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", {lens.at(0), nheads, lens.at(2), 1}}}), sink);
+        auto padded  = info.add_instruction(make_op("concat", {{"axis", 3}}), scores, sink);
+        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), padded);
+        return info.add_instruction(
+            make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {columns}}}), softmax);
+    }
+
+    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
+                                       const onnx_parser& parser,
+                                       const onnx_parser::node_info& info,
+                                       const std::vector<instruction_ref>& args) const
+    {
+        auto [do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale] =
+            parse_attributes(parser, info);
+        validate_inputs(args);
 
         auto qkv = args.at(0);
         if(args.at(1)->get_shape().lens().size() > 1)
@@ -256,7 +314,9 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
         auto where   = info.add_instruction(make_op("where"), mask, ninf, mul);
-        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+        auto softmax = has_input(args, 11)
+                           ? insert_softmax_with_head_sink(info, where, args.at(11))
+                           : info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
         auto scores  = info.add_instruction(make_op("dot"), softmax, v);
         auto out =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
@@ -265,6 +325,60 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             out);
 
         return {out, k_out, v_out};
+    }
+};
+
+// com.ryzenai.GQO: GroupQueryAttention fused with o_proj MatMulNBits.
+// Inputs 0-11 match microsoft GroupQueryAttention, including optional
+// position_ids, attention_bias, and head_sink. o_proj qweight/scales/qzeros
+// stay at 12-14 when bias or the NPU-only packed input is omitted.
+// Outputs: present_key, present_value, o_proj_output
+struct parse_gqo : op_parser<parse_gqo>
+{
+    std::vector<op_desc> operators() const { return {{"GQO"}}; }
+
+    std::vector<instruction_ref> parse(const op_desc& opd,
+                                       const onnx_parser& parser,
+                                       onnx_parser::node_info info,
+                                       const std::vector<instruction_ref>& args) const
+    {
+        // 12 attention slots plus qweight, scales, and qzeros.
+        constexpr std::size_t weight_index = 12;
+        if(args.size() < weight_index + 3)
+            MIGRAPHX_THROW("GQO: expects at least 15 inputs, got " + std::to_string(args.size()));
+
+        std::vector<instruction_ref> gqa_args(args.begin(), args.begin() + weight_index);
+        parse_group_query_attention gqa;
+        auto gqa_outs = gqa.parse(opd, parser, info, gqa_args);
+        assert(gqa_outs.size() == 3);
+
+        auto attn_out = gqa_outs[0];
+        auto k_out    = gqa_outs[1];
+        auto v_out    = gqa_outs[2];
+
+        if(not contains(info.attributes, "o_proj_N") or not contains(info.attributes, "o_proj_K") or
+           not contains(info.attributes, "o_proj_bits") or
+           not contains(info.attributes, "o_proj_block_size"))
+            MIGRAPHX_THROW("GQO: o_proj_N/K/bits/block_size attributes are required");
+
+        std::vector<instruction_ref> mm_args{
+            attn_out, args[weight_index], args[weight_index + 1], args[weight_index + 2]};
+        if(args.size() > weight_index + 3)
+            mm_args.push_back(args[weight_index + 3]);
+        // packed at weight_index + 4 is NPU-only and ignored.
+
+        auto o_proj =
+            op::builder::add(
+                "matmulnbits",
+                *info.mod,
+                mm_args,
+                {{"N", parser.parse_value(info.attributes.at("o_proj_N")).at<int>()},
+                 {"K", parser.parse_value(info.attributes.at("o_proj_K")).at<int>()},
+                 {"bits", parser.parse_value(info.attributes.at("o_proj_bits")).at<int>()},
+                 {"block_size",
+                  parser.parse_value(info.attributes.at("o_proj_block_size")).at<int>()}})
+                .at(0);
+        return {k_out, v_out, o_proj};
     }
 };
 

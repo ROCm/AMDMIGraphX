@@ -176,6 +176,8 @@ jobs:
         CC: clang-cl
         CXX: clang-cl
         CXXFLAGS: "/std:c++17"
+        # To avoid long path issues, we build the dependencies in a short path.
+        CGET_BUILD_PATH: 'D:\b'
       # We disable the assembly files for BLAKE3 in rocmlir. An update to
       # rocmlirs cmake is needed.
       #

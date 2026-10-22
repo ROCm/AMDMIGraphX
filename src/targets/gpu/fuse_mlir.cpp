@@ -36,6 +36,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -900,20 +901,18 @@ struct find_mlir_fused_geg_ops
     bool is_gemm_supported(instruction_ref ins, bool is_second_gemm = false) const
     {
         // convolution is only allowed in first position, and only when ceg_mode is enabled
-        if(contains({"convolution", "quant_convolution"}, ins->name()))
+        if(contains({"convolution", "quant_convolution"}, ins->name()) and
+           (is_second_gemm or not ceg_mode))
         {
-            if(is_second_gemm or not ceg_mode)
-                return false;
+            return false;
         }
 
         // on navi, wmma doesn't support fp32, so skip fp32 GEMMs
         // one gemm being f32 is sufficient to turn off this fusion
-        if(starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12"))
+        if((starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12")) and
+           ins->get_shape().type() == shape::type_t::float_type)
         {
-            if(ins->get_shape().type() == shape::type_t::float_type)
-            {
-                return false;
-            }
+            return false;
         }
         return true;
     }
@@ -1311,12 +1310,8 @@ struct find_pointwise_mlir
                 if(not match::instruction_matches(mpm.get_module(), input, supported_pointwise()))
                     return false;
                 auto* pm = input->module_inputs().front();
-                if(input->inputs().size() > 1 and not is_simple_op(pm, {"dequantizelinear"}))
-                {
-                    if(not enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
-                        return false;
-                }
-                return true;
+                return input->inputs().size() <= 1 or is_simple_op(pm, {"dequantizelinear"}) or
+                       enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{});
             });
         if(pws.empty())
             return;
@@ -1459,6 +1454,23 @@ struct find_mlir_output_reshape_ops
         return match::name("gpu::mlir_op")(atleast_one_reshape);
     }
 
+    // Only fuse the trailing view ops when the simplified transformation
+    // collapses dimensions or requires a transpose; other views can be
+    // handled outside the kernel.
+    static bool requires_output_fusion(instruction_ref mlir_op_ins,
+                                       const std::vector<instruction_ref>& view_instructions)
+    {
+        std::vector<operation> ops;
+        std::transform(view_instructions.begin(),
+                       view_instructions.end(),
+                       std::back_inserter(ops),
+                       [](instruction_ref ins) { return ins->get_operator(); });
+        auto td = shape_transform_descriptor::create(mlir_op_ins->get_shape().lens(), ops);
+        if(td.empty())
+            return true;
+        return td.is_collapsing() or td.is_transposed();
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto mlir_op_ins     = r.result;
@@ -1476,6 +1488,8 @@ struct find_mlir_output_reshape_ops
         }
 
         assert(not reshape_instructions.empty());
+        if(not requires_output_fusion(mlir_op_ins, reshape_instructions))
+            return;
         std::string module_name = mlir_op_module->name();
         std::transform(reshape_instructions.begin(),
                        reshape_instructions.end(),

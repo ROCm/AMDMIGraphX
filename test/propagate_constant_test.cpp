@@ -111,8 +111,8 @@ TEST_CASE(const_add_scalar)
     run_pass(m1);
 
     migraphx::module m2;
-    auto total =
-        m2.add_literal(migraphx::literal{{migraphx::shape::int32_type, {2, 2}}, {3, 3, 3, 3}});
+    auto total = m2.add_literal(
+        migraphx::literal{{migraphx::shape::int32_type, {2, 2}, {0, 0}}, {3, 3, 3, 3}});
     m2.add_instruction(non_const_pass_op{}, total);
     EXPECT(m1 == m2);
 }

@@ -85,6 +85,7 @@ add_library(migraphx
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
+    fuse_topk.cpp
     gemm.cpp
     generate.cpp
     graphviz.cpp
@@ -114,6 +115,7 @@ add_library(migraphx
     preallocate_param.cpp
     process.cpp
     program.cpp
+    program_verify.cpp
     propagate_constant.cpp
     propagate_precision.cpp
     promote_literals.cpp
@@ -230,6 +232,7 @@ register_migraphx_ops(
     gathernd
     get_tuple_elem
     greater
+    gridsample
     group
     identity
     if_op
@@ -304,6 +307,7 @@ register_migraphx_ops(
     scatternd_max
     scatternd_min
     select_module
+    select_module_index
     sigmoid
     sign
     sinh

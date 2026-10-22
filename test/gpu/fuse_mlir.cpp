@@ -1661,6 +1661,120 @@ TEST_CASE(conv_output_reshapes)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_output_split_reshape_not_fused)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 4, 6}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 6, 5}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4, 5}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto x   = mm->add_parameter("x", s3);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add = add_pointwise(p1, "main:pointwise0", {dot, x}, single_pointwise("add"));
+        auto reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 5}}}), add);
+        mm->add_return({reshape});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto x     = mm->add_parameter("x", s3);
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0",
+            {a, b, x},
+            [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
+                return std::make_tuple(dot->get_operator(), add);
+            },
+            "dot_pointwise");
+        auto reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 5}}}), fused);
+        mm->add_return({reshape});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_output_collapse_reshape_fused)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 4, 6}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 6, 5}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4, 5}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto a       = mm->add_parameter("a", s1);
+        auto b       = mm->add_parameter("b", s2);
+        auto x       = mm->add_parameter("x", s3);
+        auto dot     = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add     = add_pointwise(p1, "main:pointwise0", {dot, x}, single_pointwise("add"));
+        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 20}}}), add);
+        mm->add_return({reshape});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto x     = mm->add_parameter("x", s3);
+        auto fused = add_mlir(
+            p2, "mlir_main:pointwise0_reshape", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
+                auto reshape =
+                    pm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 20}}}), add);
+                return std::make_tuple(reshape->get_operator(), reshape);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_output_transpose_fused)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 4, 6}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 6, 5}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4, 5}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto x   = mm->add_parameter("x", s3);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add = add_pointwise(p1, "main:pointwise0", {dot, x}, single_pointwise("add"));
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), add);
+        mm->add_return({transpose});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto x     = mm->add_parameter("x", s3);
+        auto fused = add_mlir(
+            p2, "mlir_main:pointwise0_transpose", {a, b, x}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[2]);
+                auto transpose = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), add);
+                return std::make_tuple(transpose->get_operator(), transpose);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(channel_slice_convolution)
 {
     migraphx::shape s1 = migraphx::shape::from_permutation(

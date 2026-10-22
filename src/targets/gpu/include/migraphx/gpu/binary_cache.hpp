@@ -1,0 +1,124 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+#ifndef MIGRAPHX_GUARD_GPU_BINARY_CACHE_HPP
+#define MIGRAPHX_GUARD_GPU_BINARY_CACHE_HPP
+
+#include <migraphx/gpu/config.hpp>
+#include <migraphx/gpu/compiled_code.hpp>
+#include <migraphx/gpu/binary_cache_entry.hpp>
+#include <migraphx/gpu/binary_cache_backend.hpp>
+#include <migraphx/env.hpp>
+#include <migraphx/optional.hpp>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BINARY_CACHE)
+
+struct context;
+
+/// How the cache behaves for one compile. Supplied through the target's backend options, with
+/// the MIGRAPHX_BINARY_CACHE environment variable as the default for the directory.
+struct binary_cache_settings
+{
+    /// Where entries are kept. Nothing is written to disk when this is empty, though results
+    /// are still shared in memory.
+    std::string path = string_value_of(MIGRAPHX_BINARY_CACHE{});
+    /// Compile even when a result can be reused, and fail if the two disagree.
+    bool verify = false;
+};
+
+/**
+ * Compiled kernels, keyed by a string describing what the compiler was given.
+ *
+ * Results are held in memory for the life of the context and, when a cache path is configured,
+ * written to disk so later runs can reuse them. Things outside the key, such as the compiler and
+ * the embedded kernel headers, are separated by the version the entries are stored under.
+ *
+ * This is not thread safe, and deliberately so. Every key is known before any compile begins, so
+ * the compile pass looks results up and stores them in serial passes on either side of its
+ * parallel compiles, and nothing has to be guarded.
+ */
+struct MIGRAPHX_GPU_EXPORT binary_cache
+{
+    /// Counts of what the cache did.
+    struct stats
+    {
+        /// Served from memory, from an earlier compile or disk read in this process.
+        std::size_t reused = 0;
+        /// Served from the storage backend.
+        std::size_t hits = 0;
+        /// Not found, so the caller had to compile.
+        std::size_t misses = 0;
+        /// Written to the cache after being compiled.
+        std::size_t compiled = 0;
+    };
+
+    /// Nothing is opened here; storage is set up by the first lookup or insert, so a context that
+    /// never compiles never touches the disk or probes the compiler.
+    explicit binary_cache(binary_cache_settings s = {}) : settings(std::move(s)) {}
+
+    /// Look up a key, consulting memory first and then the storage backend.
+    optional<compiled_code> get(const context& ctx, const std::string& key);
+
+    /// Record compiled results under their keys. They are handed to the storage backend
+    /// together, so it can commit them at once rather than one at a time.
+    void insert(const context& ctx, std::vector<binary_cache_entry> es);
+
+    /// True when reused results should be checked against a fresh compile.
+    bool verify() const { return settings.verify; }
+
+    const stats& get_stats() const { return counters; }
+
+    /// Identifies what this build can use: the entry format, the compiler, a digest of the
+    /// embedded kernel headers, and the rocMLIR build. Digests are truncated when a short id is
+    /// requested; the short id names the cache directory, and a database records the full one.
+    /// Empty when the compiler cannot be identified, in which case nothing is read from or
+    /// written to disk, since entries from different compilers could not be told apart.
+    static const std::string& version_id(bool use_short_digest);
+
+    private:
+    /// The storage backend, opened on first use, or null for a memory-only cache.
+    binary_cache_backend* get_backend();
+
+    std::unordered_map<std::string, compiled_code> memo;
+    binary_cache_settings settings;
+    /// The version_id entries are stored under, in the form the backend uses.
+    std::string version;
+    /// Where entries are persisted, or empty for a memory-only cache.
+    optional<binary_cache_backend> backend;
+    /// Whether get_backend has already tried to open the backend, successfully or not.
+    bool backend_opened = false;
+    stats counters;
+};
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_BINARY_CACHE_HPP

@@ -511,15 +511,11 @@ Operator Support Matrix
 +--------------------------+-----------+-----------------+------------------------------+
 | NegativeLogLikelihoodLoss| ❌        |                 |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| NonMaxSuppression        | ✅        | FP8, FP16,      | Different from ONNX          |
-|                          |           | FP32, FP64      | specification: Fixed output  |
-|                          |           |                 | size with arbitrary padding. |
-|                          |           |                 |                              |
+| NonMaxSuppression        | ✅        | FP8, FP16,      |                              |
+|                          |           | FP32, FP64      |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| NonZero                  | ✅        | FP8, FP16,      | Different from ONNX          |
-|                          |           | FP32, FP64      | specification: Fixed output  |
-|                          |           |                 | size with arbitrary padding. |
-|                          |           |                 |                              |
+| NonZero                  | ✅        | FP8, FP16,      |                              |
+|                          |           | FP32, FP64      |                              |
 +--------------------------+-----------+-----------------+------------------------------+
 | Not                      | ✅        | BOOL            |                              |
 +--------------------------+-----------+-----------------+------------------------------+

@@ -583,6 +583,22 @@ TEST_CASE(halo_span_singleton_last)
     EXPECT(tiler::template halo_span_dim_for<input_shape>() == 2);
 }
 
+// An input with no unit stride has no contiguous span, so every halo dim stays a row dim
+TEST_CASE(halo_span_strided)
+{
+    using output_shape = decltype(make_4d_shape<1, 8, 10, 10>());
+    using input_shape  = decltype(migraphx::make_shape(migraphx::index_ints<1, 8, 10, 10>{},
+                                                       migraphx::index_ints<1600, 200, 20, 2>{}));
+    using tiler        = migraphx::spatial_tiler<1,
+                                                 migraphx::index_ints<8, 32>,
+                                                 output_shape,
+                                                 migraphx::index_ints<1, 1, 1, 1>>;
+    EXPECT(tiler::template halo_span_for<input_shape>() == 1);
+    EXPECT(tiler::template halo_row_lens_for<input_shape>() ==
+           migraphx::index_ints<1, 1, 10, 34>{});
+    EXPECT(tiler::template halo_span_dim_for<input_shape>() == 3);
+}
+
 // ======== row runs (NRows) ========
 
 // NRows scales the first spatial dim, NTiles the last: tile {4, 4} → region {1, 1, 8, 8}

@@ -448,7 +448,8 @@ struct spatial_tiler
 
         auto in_ch       = slice_channels<input_channel_tile<input_shape>()>(input);
         auto halo_origin = tile_origin - left_padding();
-        // Only the outer span dim can leave the input; clamp it to a column range
+        // Only the outer span dim can leave the input; clamp it to a column range. When
+        // nothing is spanned, every dim is a row dim and the per-dim check covers it all.
         index_int pad       = left_padding()[outer];
         index_int col_begin = pad > tile_origin[outer] ? (pad - tile_origin[outer]) * inner : 0;
         index_int limit     = in_ch.get_shape().lens[outer] + pad;
@@ -471,8 +472,9 @@ struct spatial_tiler
             bool valid     = true;
             if constexpr(is_padded())
             {
-                valid = col >= col_begin and col < col_end and
-                        in_bounds(pos * row_mask, in_ch.get_shape().lens);
+                valid = in_bounds(pos * row_mask, in_ch.get_shape().lens);
+                if constexpr(row_mask[outer] == 0)
+                    valid = valid and col >= col_begin and col < col_end;
             }
             if constexpr(step > 1)
             {

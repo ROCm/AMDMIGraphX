@@ -401,6 +401,18 @@ TEST_CASE(channelwise_conv_ncdhw_singleton)
         "channelwise_conv_ncdhw_singleton", x_shape, w_shape, {1, 0, 0, 1, 0, 0}, solution));
 }
 
+// Input with no unit stride: there is no contiguous span, so the halo bounds come from
+// the per-dim check instead of the column clamp
+TEST_CASE(channelwise_conv_strided_input)
+{
+    migraphx::shape x_shape{migraphx::shape::float_type, {1, 8, 10, 10}, {1600, 200, 20, 2}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {8, 1, 3, 3}};
+    migraphx::value solution{
+        {"tile_h", 8}, {"tile_w", 32}, {"noutputs", 1}, {"tile_c", 1}, {"nrows", 1}};
+    EXPECT(verify_solution(
+        "channelwise_conv_strided_input", x_shape, w_shape, {1, 1, 1, 1}, solution));
+}
+
 // 1-D convolution on a channels-first input; tile_h defaults to 1
 TEST_CASE(channelwise_conv_1d)
 {

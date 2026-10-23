@@ -42,14 +42,12 @@ struct parse_reshape : op_parser<parse_reshape>
                                                const std::vector<T>& reshape_dims)
     {
         const auto& input_shape = input->get_shape();
-        const auto output_dims  = resolve_reshape_dims(input_shape.to_symbolic(), reshape_dims);
-        std::vector<sym::expr> output_expressions(output_dims.size());
-        transform(
-            output_dims, output_expressions.begin(), [](const auto& dim) { return dim.sym_expr; });
-        const auto resolved_dims = info.add_instruction(
+        const shape output_shape{input_shape.type(),
+                                 resolve_reshape_dims(input_shape.to_symbolic(), reshape_dims)};
+        const auto output_expressions = output_shape.sym_dims();
+        const auto resolved_dims      = info.add_instruction(
             make_op("eval_expr_from_shape", {{"expressions", to_value(output_expressions)}}),
             input);
-        const shape output_shape{input_shape.type(), output_dims};
         auto allocation = info.add_instruction(
             make_op("allocate", {{"shape", to_value(output_shape)}}), resolved_dims);
         return info.add_instruction(make_op("reshape"), input, allocation);

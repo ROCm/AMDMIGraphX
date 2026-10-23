@@ -1,0 +1,37 @@
+matmulnbits_ryzenai_bias_test:‰
+i
+a
+b
+scales
+zp
+biasc"MatMulNBits*
+K *
+N *
+bits *
+
+block_size :com.ryzenaimatmulnbits_ryzenai_bias_testZ
+a
+
+
+Z
+b
+
+
+
+Z
+scales
+
+
+Z
+zp
+
+
+Z
+bias
+
+
+b
+c
+
+
+B

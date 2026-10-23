@@ -24,6 +24,7 @@
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
@@ -32,6 +33,8 @@
 #include <migraphx/liveness.hpp>
 #include <migraphx/algorithm.hpp>
 #include <cstddef>
+#include <iterator>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -106,6 +109,25 @@ estimate_scratch_size(const module& m, std::size_t overhead_percent, std::size_t
     return scratch_size + scratch_size * overhead_percent / 100;
 }
 
+// Code objects with the same module_id share one loaded module; unassigned ones load their own
+static std::size_t estimate_code_object_size(const module& m)
+{
+    std::vector<std::int64_t> ids;
+    transform_if(
+        m.begin(),
+        m.end(),
+        std::back_inserter(ids),
+        [](const instruction& ins) { return ins.name() == "gpu::code_object"; },
+        [](const instruction& ins) {
+            return any_cast<code_object_op>(ins.get_operator()).module_id;
+        });
+    ids.erase(distinct(ids.begin(),
+                       ids.end(),
+                       [](std::int64_t a, std::int64_t b) { return a >= 0 and a == b; }),
+              ids.end());
+    return ids.size() * code_module_bytes;
+}
+
 static std::size_t get_total_literals(const module& m)
 {
     return transform_accumulate(m.begin(),
@@ -113,9 +135,6 @@ static std::size_t get_total_literals(const module& m)
                                 std::size_t{0},
                                 std::plus<>{},
                                 [&](const instruction& ins) -> std::size_t {
-                                    // each code obj takes 2mb of gpu memory
-                                    if(ins.name() == "gpu::code_object")
-                                        return 1024 * 1024 * 2;
                                     if(not contains({"@literal", "@param"}, ins.name()))
                                         return 0;
                                     return ins.get_shape().bytes();
@@ -137,7 +156,7 @@ static std::size_t get_max_literals(const module& m)
 
 static std::size_t get_total_memory(const module& m, std::size_t scratch_overhead_percent)
 {
-    return get_total_literals(m) + get_max_literals(m) * 2 +
+    return get_total_literals(m) + estimate_code_object_size(m) + get_max_literals(m) * 2 +
            estimate_scratch_size(m, scratch_overhead_percent);
 }
 

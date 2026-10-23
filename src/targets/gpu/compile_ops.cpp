@@ -44,12 +44,15 @@
 #include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
+#include <map>
+#include <iterator>
 #include <chrono>
 #include <cstdlib>
 #include <exception>
@@ -982,6 +985,54 @@ static std::vector<module_ref> collect_modules(module_ref root)
     return mods;
 }
 
+struct module_assignment
+{
+    module_ref m;
+    instruction_ref ins;
+    std::int64_t current_id;
+    std::int64_t module_id;
+};
+
+// Group the code objects of mods by binary, numbering the ids by first appearance
+static std::vector<module_assignment> collect_module_ids(const std::vector<module_ref>& mods)
+{
+    // Keyed by reference into the operators, so this must not outlive them
+    std::map<std::reference_wrapper<const value::binary>, std::int64_t, std::less<value::binary>>
+        ids;
+    std::int64_t next_id = 0;
+    std::vector<module_assignment> assigned;
+    for(auto* m : mods)
+    {
+        transform_if(
+            iterator_for(*m).begin(),
+            iterator_for(*m).end(),
+            std::back_inserter(assigned),
+            [](instruction_ref ins) { return ins->name() == "gpu::code_object"; },
+            [&](instruction_ref ins) {
+                const auto& op      = any_cast<code_object_op>(ins->get_operator());
+                auto [it, inserted] = ids.emplace(op.code_object, next_id);
+                if(inserted)
+                    next_id++;
+                return module_assignment{m, ins, op.module_id, it->second};
+            });
+    }
+    return assigned;
+}
+
+// Code objects with the same binary get the same module_id so finalize loads that module once.
+// Ids are numbered by first appearance, so rerunning is a no-op.
+static void assign_module_ids(const std::vector<module_ref>& mods)
+{
+    for(const auto& a : collect_module_ids(mods))
+    {
+        if(a.current_id == a.module_id)
+            continue;
+        auto op      = any_cast<code_object_op>(a.ins->get_operator());
+        op.module_id = a.module_id;
+        a.m->replace_instruction(a.ins, std::move(op), a.ins->inputs());
+    }
+}
+
 void compile_ops::apply(module_pass_manager& mpm) const
 {
     // Compile from the root only, so one batch covers every module and identical kernels in
@@ -1005,6 +1056,7 @@ void compile_ops::apply(module_pass_manager& mpm) const
     assert(cm.cps.empty());
 
     replace_inserted_device_ops(*ctx, mods);
+    assign_module_ids(mods);
 }
 
 } // namespace gpu

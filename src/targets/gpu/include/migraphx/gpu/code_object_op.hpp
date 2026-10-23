@@ -49,6 +49,9 @@ struct code_object_op
     std::int64_t output_arg = -1;
 
     std::map<std::size_t, kernel_argument_value> kernel_args{};
+    // Assigned by compile_ops: code objects with the same module_id hold the same binary and
+    // share one loaded module through the context; -1 loads a private module.
+    std::int64_t module_id = -1;
     // Pre-packed kernarg buffer built in finalize(); not reflected.
     std::vector<char> packed_kernargs{};
     // (runtime arg index, byte offset) pairs for pointer patching in compute().
@@ -66,7 +69,8 @@ struct code_object_op
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
                     f(self.output_arg, "output_arg"),
-                    f(self.kernel_args, "kernel_args"));
+                    f(self.kernel_args, "kernel_args"),
+                    f(self.module_id, "module_id"));
     }
 
     value attributes() const { return {{"group", group()}}; }
@@ -96,6 +100,8 @@ struct code_object_op
         os << "local=" << op.local << ",";
         if(op.output_arg != -1)
             os << "output_arg=" << op.output_arg << ",";
+        if(op.module_id != -1)
+            os << "module_id=" << op.module_id << ",";
         os << "]";
         return os;
     }

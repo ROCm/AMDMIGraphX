@@ -41,6 +41,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/device_description.hpp>
+#include <migraphx/gpu/kernel.hpp>
 #include <unordered_map>
 #include <memory>
 #include <optional>
@@ -501,6 +502,18 @@ struct context
     /// Replace the default cache with one built from the compile options.
     void set_binary_cache(std::shared_ptr<binary_cache> bcache) { bc = std::move(bcache); }
 
+    // The first call for a module_id loads the module and later calls resolve their symbol in it;
+    // a negative id loads a private module. Finalize runs sequentially per program, so the table
+    // needs no locking.
+    kernel load_kernel(std::int64_t module_id,
+                       const value::binary& code_object,
+                       const std::string& symbol_name)
+    {
+        if(module_id < 0)
+            return {code_object, symbol_name};
+        return {shared_modules.try_emplace(module_id, code_object).first->second, symbol_name};
+    }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -516,6 +529,8 @@ struct context
     shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = std::make_shared<auto_save_problem_cache>();
     std::shared_ptr<binary_cache> bc            = make_binary_cache();
+    // Loaded modules keyed by code_object_op::module_id, see load_kernel
+    std::unordered_map<std::int64_t, code_module> shared_modules;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

@@ -73,6 +73,9 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
     
     argument(const std::vector<argument>& args);
 
+    /// A tuple of the arguments with a precomputed tuple shape
+    argument(shape s, const std::vector<argument>& args);
+
     /// Provides a raw pointer to the data
     char* data() const;
 
@@ -105,6 +108,14 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
 
     argument convert(shape::type_t t) const;
 
+    /// Calls f with the data pointer of each tensor in order, descending into
+    /// tuples without constructing the sub arguments
+    template <class F>
+    void visit_pointers(F f) const
+    {
+        visit_pointers(m_shape, m_data, f);
+    }
+
     private:
     void assign_buffer(std::function<char*()> d);
     struct data_t
@@ -114,6 +125,18 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
         data_t share() const;
         static data_t from_args(const std::vector<argument>& args);
     };
+    template <class F>
+    static void visit_pointers(const shape& s, const data_t& d, F& f)
+    {
+        if(s.type() != shape::tuple_type)
+        {
+            f(d.get());
+            return;
+        }
+        assert(s.sub_shapes().size() == d.sub.size());
+        for(std::size_t i = 0; i < d.sub.size(); i++)
+            visit_pointers(s.sub_shapes()[i], d.sub[i], f);
+    }
     argument(const shape& s, const data_t& d);
     shape m_shape;
     data_t m_data{};

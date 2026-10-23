@@ -258,6 +258,7 @@ register_migraphx_ops(
     logsoftmax
     loop
     lrn
+    make_tuple
     max
     min
     mod

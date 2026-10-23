@@ -31,16 +31,20 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
 namespace gpu {
 
 // Eliminate the concat_past_present copy kernel by retargeting the producer
 // kernel to write directly into the kv-cache through a view of the append slot.
+// Two such appends with no dependency between them then merge into one kernel
+// writing both slots.
 struct MIGRAPHX_GPU_EXPORT fuse_concat_past_present
 {
+    bool merge_appends = true;
+
     std::string name() const { return "gpu::fuse_concat_past_present"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu

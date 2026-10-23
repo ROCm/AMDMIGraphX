@@ -137,6 +137,13 @@ argument::argument(const std::vector<argument>& args)
 {
 }
 
+argument::argument(shape s, const std::vector<argument>& args)
+    : m_shape(std::move(s)), m_data(data_t::from_args(args))
+{
+    assert(m_shape.type() == shape::tuple_type);
+    assert(m_shape.sub_shapes().size() == args.size());
+}
+
 char* argument::data() const
 {
     assert(m_shape.type() != shape::tuple_type);

@@ -83,6 +83,7 @@
 #include <migraphx/op/logsoftmax.hpp>
 #include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
+#include <migraphx/op/make_tuple.hpp>
 #include <migraphx/op/max.hpp>
 #include <migraphx/op/min.hpp>
 #include <migraphx/op/mod.hpp>

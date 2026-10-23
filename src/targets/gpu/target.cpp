@@ -139,6 +139,8 @@ struct backend_options
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;
+    // Write the appends of a step into their caches from one kernel.
+    bool merge_cache_appends = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -153,6 +155,7 @@ struct backend_options
                     f(self.standardize_outputs, "standardize_outputs"),
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
+                    f(self.merge_cache_appends, "merge_cache_appends"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
@@ -314,7 +317,9 @@ struct pipeline_factory
 #endif
             fuse_ops{get_context(), options.fast_math},
             dead_code_elimination{},
-            enable_pass(backend_opts.eliminate_concat_past_present, fuse_concat_past_present{}),
+            enable_pass(
+                backend_opts.eliminate_concat_past_present,
+                fuse_concat_past_present{.merge_appends = backend_opts.merge_cache_appends}),
             dead_code_elimination{},
 #if MIGRAPHX_USE_HIPBLASLT
             compile_hipblaslt{get_generic_context()},

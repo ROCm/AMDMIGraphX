@@ -28,6 +28,7 @@
 #include <migraphx/pmr/vector.hpp>
 #include <algorithm>
 #include <cstring>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -54,22 +55,6 @@ shape code_object_op::compute_shape(std::vector<shape> inputs) const
                        "] doesn't match the expected output shape from the kernel [" +
                        to_string(output) + "]");
     return output;
-}
-
-static bool needs_flatten(const std::vector<argument>& args)
-{
-    return std::any_of(args.begin(), args.end(), [&](const argument& arg) {
-        return arg.get_shape().type() == shape::tuple_type;
-    });
-}
-
-template <class F>
-static void visit_flatten_args(const std::vector<argument>& args, F f)
-{
-    if(needs_flatten(args))
-        f(flatten(args));
-    else
-        f(args);
 }
 
 argument
@@ -110,13 +95,14 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
 #else
         pmr::vector<void*> kargs;
 #endif
-        visit_flatten_args(args, [&](const auto& fargs) {
-            kargs.reserve(fargs.size());
-            std::transform(fargs.begin(),
-                           fargs.end(),
-                           std::back_inserter(kargs),
-                           [](const argument& a) { return a.data(); });
-        });
+        // Tuple arguments pass each tensor pointer in order
+        kargs.reserve(std::accumulate(
+            args.begin(), args.end(), std::size_t{0}, [](std::size_t n, const argument& arg) {
+                const auto& s = arg.get_shape();
+                return n + (s.type() == shape::tuple_type ? s.sub_shapes().size() : 1);
+            }));
+        for(const auto& arg : args)
+            arg.visit_pointers([&](char* p) { kargs.push_back(p); });
         auto [start, stop] = ctx.get_perf_events();
         k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
     }

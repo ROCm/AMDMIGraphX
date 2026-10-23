@@ -30,12 +30,18 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/param_utils.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <algorithm>
 #include <cassert>
 #include <numeric>
 #include <string>
+#include <unordered_set>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -92,6 +98,11 @@ namespace {
 // concat_past_present fixes the (batch, kv_heads, seq, head) layout; seq is the append axis
 constexpr std::size_t seq_axis = 2;
 
+bool is_pointwise(instruction_ref ins)
+{
+    return ins->get_operator().to_value().at("op").at("name").to<std::string>() == "pointwise";
+}
+
 struct find_concat_past_present
 {
     auto matcher() const
@@ -124,6 +135,22 @@ struct find_concat_past_present
             return false;
         return cs.lens() == slot_shape(cur, cache).lens() and
                cs.lens()[seq_axis] <= ks.lens()[seq_axis];
+    }
+
+    // The shape after the view chain, if it applies without copying
+    static optional<shape> view_shape(const shape& s, const std::vector<operation>& ops)
+    {
+        try
+        {
+            return std::accumulate(
+                ops.begin(), ops.end(), s, [](const shape& acc, const operation& op) {
+                    return op.compute_shape({acc});
+                });
+        }
+        catch(const migraphx::exception&)
+        {
+            return nullopt;
+        }
     }
 
     // One host copy of the sequence length serves every concat that reads it
@@ -208,11 +235,208 @@ struct find_concat_past_present
     }
 };
 
+shape to_scalar(const shape& s) { return shape{s.type()}; }
+
+// The buffers an instruction's result lives in
+std::vector<instruction_ref> buffers(instruction_ref ins)
+{
+    return instruction::get_output_alias(ins);
+}
+
+bool shares_buffer(instruction_ref ins, const std::vector<instruction_ref>& bufs)
+{
+    auto xs = buffers(ins);
+    return std::any_of(xs.begin(), xs.end(), [&](instruction_ref x) { return contains(bufs, x); });
+}
+
+bool reads_buffer(instruction_ref ins, const std::vector<instruction_ref>& bufs)
+{
+    return std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref x) {
+        return shares_buffer(x, bufs);
+    });
+}
+
+// An append already retargeted to write its cache slot, found by the identity
+// that orders the readers of the cache after the write
+struct fused_append
+{
+    instruction_ref dep;
+    instruction_ref producer;
+    instruction_ref cache;
+
+    static optional<fused_append> from_dep(instruction_ref ins)
+    {
+        if(ins->name() != "identity" or ins->inputs().size() != 2)
+            return nullopt;
+        auto cache    = ins->inputs()[0];
+        auto producer = ins->inputs()[1];
+        if(producer->name() != "gpu::precompile_op" or not is_pointwise(producer))
+            return nullopt;
+        if(producer->outputs().size() != 1 or producer->get_shape().type() == shape::tuple_type)
+            return nullopt;
+        if(producer->inputs().size() < 2 or
+           not shares_buffer(producer->inputs().back(), buffers(cache)))
+            return nullopt;
+        return fused_append{ins, producer, cache};
+    }
+
+    std::vector<instruction_ref> tensor_inputs() const
+    {
+        return {producer->inputs().begin(), std::prev(producer->inputs().end())};
+    }
+
+    // The merged module maps each input to its own parameter
+    bool has_distinct_inputs() const
+    {
+        auto inputs = tensor_inputs();
+        std::unordered_set<instruction_ref> distinct(inputs.begin(), inputs.end());
+        return distinct.size() == inputs.size() and
+               pointwise_module().get_parameter_names().size() == inputs.size();
+    }
+
+    instruction_ref slot() const { return producer->inputs().back(); }
+
+    const module& pointwise_module() const { return *producer->module_inputs().front(); }
+
+    // Every input of the kernel is viewed in the lens it computes in
+    bool can_view(const std::vector<std::size_t>& lens) const
+    {
+        auto op = make_op("reshape_lazy", {{"dims", lens}});
+        return std::all_of(producer->inputs().begin(), producer->inputs().end(), [&](auto x) {
+            return x->get_shape().lens() == lens or
+                   find_concat_past_present::view_shape(x->get_shape(), {op}).has_value();
+        });
+    }
+};
+
+// Two appends of a step writing different caches, merged into one pointwise
+// kernel with an output per slot: the slots are packed by make_tuple so each
+// output aliases its own cache
+struct append_merge
+{
+    fused_append a;
+    fused_append b;
+
+    // The first write moves down to the second producer, which must follow
+    // the first append with nothing in between reading the first cache, and
+    // neither kernel may read the cache the other writes
+    bool ordered() const
+    {
+        if(reads_buffer(a.producer, buffers(b.cache)))
+            return false;
+        auto span  = range(std::next(a.dep), b.dep);
+        auto after = iterator_for(span);
+        if(std::find(after.begin(), after.end(), b.producer) == after.end())
+            return false;
+        auto bufs_a  = buffers(a.cache);
+        auto moved   = range(std::next(a.dep), std::next(b.producer));
+        auto between = iterator_for(moved);
+        return std::none_of(between.begin(), between.end(), [&](instruction_ref ins) {
+            return reads_buffer(ins, bufs_a);
+        });
+    }
+
+    // The lens both kernels can compute in, preferring the first producer's
+    optional<std::vector<std::size_t>> common_lens() const
+    {
+        const auto& sa = a.producer->get_shape();
+        const auto& sb = b.producer->get_shape();
+        if(sa.elements() != sb.elements())
+            return nullopt;
+        if(not a.has_distinct_inputs() or not b.has_distinct_inputs())
+            return nullopt;
+        if(b.can_view(sa.lens()))
+            return sa.lens();
+        if(a.can_view(sb.lens()))
+            return sb.lens();
+        return nullopt;
+    }
+
+    static instruction_ref
+    view(module& m, instruction_ref at, instruction_ref x, const std::vector<std::size_t>& lens)
+    {
+        if(x->get_shape().lens() == lens)
+            return x;
+        return m.insert_instruction(at, make_op("reshape_lazy", {{"dims", lens}}), x);
+    }
+
+    static std::vector<instruction_ref> view_all(module& m,
+                                                 instruction_ref at,
+                                                 const std::vector<instruction_ref>& xs,
+                                                 const std::vector<std::size_t>& lens)
+    {
+        std::vector<instruction_ref> result;
+        std::transform(xs.begin(), xs.end(), std::back_inserter(result), [&](instruction_ref x) {
+            return view(m, at, x, lens);
+        });
+        return result;
+    }
+
+    void apply(module_pass_manager& mpm, const std::vector<std::size_t>& lens) const
+    {
+        auto& m    = mpm.get_module();
+        auto at    = b.producer;
+        auto ins_a = view_all(m, at, a.tensor_inputs(), lens);
+        auto ins_b = view_all(m, at, b.tensor_inputs(), lens);
+        auto slots = view_all(m, at, {a.slot(), b.slot()}, lens);
+
+        // The second module is appended to a copy of the first, returning the
+        // outputs of both
+        module pm    = a.pointwise_module();
+        auto map_ins = pm.get_ins_param_map(ins_a);
+        auto returns = pm.get_returns();
+        auto rb      = pm.fuse(b.pointwise_module(), ins_b, &map_ins, nullptr, &to_scalar);
+        returns.insert(returns.end(), rb.begin(), rb.end());
+        pm.replace_return(returns);
+        auto inputs = find_inputs(map_ins, &m, &pm);
+        inputs.push_back(m.insert_instruction(at, make_op("make_tuple"), slots));
+
+        auto name = a.pointwise_module().name();
+        mpm.rename_module(name, name + ":" + b.pointwise_module().name() + "-deleted");
+        auto* merged = mpm.create_module(name, std::move(pm));
+
+        auto v            = a.producer->get_operator().to_value();
+        v["output_shape"] = to_value(inputs.back()->get_shape());
+        auto fused = m.insert_instruction(at, make_op("gpu::precompile_op", v), inputs, {merged});
+        m.replace_instruction(a.dep, m.insert_instruction(at, make_op("identity"), a.cache, fused));
+        m.replace_instruction(b.dep, m.insert_instruction(at, make_op("identity"), b.cache, fused));
+    }
+
+    bool run(module_pass_manager& mpm) const
+    {
+        if(not ordered())
+            return false;
+        auto lens = common_lens();
+        if(not lens.has_value())
+            return false;
+        apply(mpm, *lens);
+        return true;
+    }
+};
+
+// Consecutive fused appends are merged pairwise
+void merge_sibling_appends(module_pass_manager& mpm)
+{
+    optional<fused_append> prev;
+    for(auto ins : iterator_for(mpm.get_module()))
+    {
+        auto cur = fused_append::from_dep(ins);
+        if(not cur.has_value())
+            continue;
+        if(prev.has_value() and append_merge{*prev, *cur}.run(mpm))
+            prev = nullopt;
+        else
+            prev = cur;
+    }
+}
+
 } // namespace
 
-void fuse_concat_past_present::apply(module& m) const
+void fuse_concat_past_present::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(m, find_concat_past_present{});
+    match::find_matches(mpm.get_module(), find_concat_past_present{});
+    if(merge_appends)
+        merge_sibling_appends(mpm);
 }
 
 } // namespace gpu

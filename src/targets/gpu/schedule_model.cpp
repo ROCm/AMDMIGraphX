@@ -129,7 +129,7 @@ static std::unordered_map<std::string, std::size_t> create_weight_map()
     // Staged literal copies weigh nothing so they sort next to their consumer instead of being
     // hoisted together, which keeps only one staging buffer live at a time
     return {{"hip::load_literal", 0},
-            {"hip::copy", 0},
+            {"hip::copy", 1},
             {"hip::hip_allocate_memory", 0},
             {"hip::hip_load_memory", 0},
             {"hip::allocate", 0},

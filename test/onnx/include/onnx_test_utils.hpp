@@ -502,7 +502,8 @@ inline migraphx::program make_group_norm(
     const std::pair<std::string, migraphx::shape::type_t>& param1 = {"scale",
                                                                      migraphx::shape::float_type},
     const std::pair<std::string, migraphx::shape::type_t>& param2 = {"bias",
-                                                                     migraphx::shape::float_type})
+                                                                     migraphx::shape::float_type},
+    bool is_contrib                                               = false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -512,13 +513,20 @@ inline migraphx::program make_group_norm(
     auto bias  = mm->add_parameter(param2.first, {param2.second, bias_dims});
 
     auto x_dims = x->get_shape().lens();
+    const auto compute_dtype =
+        dtype == migraphx::shape::half_type ? migraphx::shape::float_type : dtype;
+    const auto affine_dtype = is_contrib ? compute_dtype : dtype;
+    if(compute_dtype != dtype)
+        x = mm->add_instruction(migraphx::make_op("convert", {{"target_type", compute_dtype}}), x);
 
-    auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
+    auto eps = mm->add_literal(migraphx::literal{compute_dtype, {eps_value}});
 
-    if(scale->get_shape().type() != dtype)
-        scale = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), scale);
-    if(bias->get_shape().type() != dtype)
-        bias = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), bias);
+    if(scale->get_shape().type() != affine_dtype)
+        scale = mm->add_instruction(migraphx::make_op("convert", {{"target_type", affine_dtype}}),
+                                    scale);
+    if(bias->get_shape().type() != affine_dtype)
+        bias = mm->add_instruction(migraphx::make_op("convert", {{"target_type", affine_dtype}}),
+                                   bias);
 
     auto x_reshaped =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims}}), x);
@@ -531,6 +539,9 @@ inline migraphx::program make_group_norm(
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
     auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
     auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    if(compute_dtype != affine_dtype)
+        result = mm->add_instruction(migraphx::make_op("convert", {{"target_type", affine_dtype}}),
+                                     result);
     auto result_reshaped =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", x_dims}}), result);
     auto scale_bcast = mm->add_instruction(
@@ -538,7 +549,9 @@ inline migraphx::program make_group_norm(
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), bias);
     auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result_reshaped, scale_bcast});
-    mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    auto output = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    if(affine_dtype != dtype)
+        mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), output);
 
     return p;
 }

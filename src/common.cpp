@@ -136,7 +136,7 @@ shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
     return result;
 }
 
-static shape::type_t compute_common_types(const std::vector<shape>& shapes)
+shape::type_t compute_common_types(const std::vector<shape>& shapes)
 {
     assert(not shapes.empty());
     return transform_accumulate(

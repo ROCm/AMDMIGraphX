@@ -77,4 +77,33 @@ TEST_CASE(softmax_topk_normalize_single_kernel)
     EXPECT(migraphx::contains(kernels.front(), "reduce_sum"));
 }
 
+// The router logits keep the unit dims of the gemm output, so the softmax is
+// squeezed before the topk. The squeeze is pushed past the fused reduce and
+// the whole router still compiles to a single kernel.
+TEST_CASE(softmax_squeeze_topk_normalize_single_kernel)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::half_type, {2, 1, 128, 1, 1}};
+    auto x       = mm->add_parameter("x", s);
+    auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), x);
+    auto squeeze =
+        mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 3, 4}}}), softmax);
+    auto topk    = mm->add_instruction(migraphx::make_op("topk", {{"axis", 1}, {"k", 4}}), squeeze);
+    auto values  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
+    auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), topk);
+    auto sum     = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), values);
+    auto sumb    = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", values->get_shape().lens()}}), sum);
+    auto norm = mm->add_instruction(migraphx::make_op("div"), values, sumb);
+    mm->add_return({norm, indices});
+    p.compile(migraphx::make_target("gpu"));
+
+    auto kernels = get_kernel_names(p);
+    EXPECT(kernels.size() == 1);
+    EXPECT(migraphx::contains(kernels.front(), "reduce_max"));
+    EXPECT(migraphx::contains(kernels.front(), "topk"));
+    EXPECT(migraphx::contains(kernels.front(), "reduce_sum"));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

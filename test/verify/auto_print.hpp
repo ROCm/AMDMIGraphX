@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,10 +25,12 @@
 #define MIGRAPHX_GUARD_TEST_AUTO_PRINT_HPP
 
 #include <migraphx/register_target.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <functional>
 
 struct auto_print
 {
+    static std::string make_name(const std::string& target, migraphx::compile_modes mode);
     static std::function<void()>& get_handler(const std::string& name);
     static void set_terminate_handler(const std::string& name);
     std::string name;

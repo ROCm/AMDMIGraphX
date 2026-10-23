@@ -50,6 +50,7 @@
 #include <migraphx/promote_literals.hpp>
 #include <migraphx/promote_storage_type.hpp>
 #include <migraphx/propagate_precision.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
@@ -234,12 +235,19 @@ struct pipeline_factory
         const bool missing_fp32_mma =
             starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
         const bool bf16_missing_valu = not starts_with(gfx_name, "gfx125");
+        // channels_auto scores data-movement ops, not convolution runtime, but NHWC convolutions
+        // were measured slower than NCHW on gfx1100 and gfx1151, so auto keeps NCHW there.
+        const auto convolution_layout =
+            (backend_opts.convolution_layout == layout_convolution::channels_auto and
+             contains({"gfx1100", "gfx1151"}, gfx_name))
+                ? layout_convolution::channels_first
+                : backend_opts.convolution_layout;
         return {
             rewrite_convolution{},
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
-            layout_convolution{.order                          = backend_opts.convolution_layout,
+            layout_convolution{.order                          = convolution_layout,
                                .output_channels_last_threshold = missing_fp32_mma ? 8u : 0u,
                                .output_channels_last_types     = {shape::float_type}},
             dead_code_elimination{},

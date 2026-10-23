@@ -26,6 +26,7 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
 #include <algorithm>
@@ -69,20 +70,22 @@ struct select_module
         template <class GetOutput>
         argument prepare(GetOutput get_output) const
         {
-            if(parameter_shape.type() != shape::tuple_type)
-                return prepare_shape(parameter_shape, get_output(output_indices.front()));
+            std::size_t leaf_index = 0;
+            auto result            = fix<argument>([&](auto self, const shape& expected) {
+                if(expected.type() != shape::tuple_type)
+                    return prepare_shape(expected, get_output(output_indices.at(leaf_index++)));
 
-            const auto& parameter_shapes = parameter_shape.sub_shapes();
-            std::vector<argument> result;
-            result.reserve(parameter_shapes.size());
-            std::transform(parameter_shapes.begin(),
-                           parameter_shapes.end(),
-                           output_indices.begin(),
-                           std::back_inserter(result),
-                           [&](const shape& expected, std::size_t index) {
-                               return prepare_shape(expected, get_output(index));
-                           });
-            return argument{result};
+                const auto& sub_shapes = expected.sub_shapes();
+                std::vector<argument> subobjects;
+                subobjects.reserve(sub_shapes.size());
+                std::transform(sub_shapes.begin(),
+                               sub_shapes.end(),
+                               std::back_inserter(subobjects),
+                               [&](const shape& sub_shape) { return self(sub_shape); });
+                return argument{subobjects};
+            })(parameter_shape);
+            assert(leaf_index == output_indices.size());
+            return result;
         }
     };
 

@@ -615,3 +615,55 @@ TEST_CASE(select_module_nested_tuple_output_buffers_reordered)
     EXPECT(migraphx::verify::verify_rms_range(results.at(0).to_vector<float>(), buffer0_values));
     EXPECT(migraphx::verify::verify_rms_range(results.at(1).to_vector<float>(), buffer1_values));
 }
+
+TEST_CASE(select_module_nested_tuple_output_parameter)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape pair_shape{std::vector<migraphx::shape>{s, s}};
+    migraphx::shape nested_shape{std::vector<migraphx::shape>{pair_shape, s}};
+
+    auto* submod = p.create_module("nested");
+    submod->add_parameter("data", s);
+    auto output = submod->add_parameter("nested:#output_0", nested_shape);
+    auto pair =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), output);
+    auto first = submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pair);
+    auto second =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), pair);
+    auto third =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), output);
+    submod->add_return({third, second, first});
+
+    auto* mm     = p.get_main_module();
+    auto data    = mm->add_parameter("data", s);
+    auto buffer0 = mm->add_parameter("buffer0", s);
+    auto buffer1 = mm->add_parameter("buffer1", s);
+    auto buffer2 = mm->add_parameter("buffer2", s);
+    migraphx::shape output_shape{std::vector<migraphx::shape>{s, s, s}};
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
+        {data, buffer0, buffer1, buffer2},
+        {submod});
+    auto result0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto result1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
+    auto result2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), select);
+    mm->add_return({result0, result1, result2});
+
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data_values(s.elements(), 0);
+    std::vector<float> buffer0_values(s.elements(), 1);
+    std::vector<float> buffer1_values(s.elements(), 2);
+    std::vector<float> buffer2_values(s.elements(), 3);
+    migraphx::parameter_map params;
+    params["data"]    = migraphx::argument{s, data_values.data()};
+    params["buffer0"] = migraphx::argument{s, buffer0_values.data()};
+    params["buffer1"] = migraphx::argument{s, buffer1_values.data()};
+    params["buffer2"] = migraphx::argument{s, buffer2_values.data()};
+    auto results      = p.eval(params);
+    EXPECT(migraphx::verify::verify_rms_range(results.at(0).to_vector<float>(), buffer0_values));
+    EXPECT(migraphx::verify::verify_rms_range(results.at(1).to_vector<float>(), buffer1_values));
+    EXPECT(migraphx::verify::verify_rms_range(results.at(2).to_vector<float>(), buffer2_values));
+}

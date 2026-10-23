@@ -121,16 +121,9 @@ struct select_metadata_entry
 struct select_evaluation_plan
 {
     const_module_ref root = nullptr;
-    mutable std::atomic<std::size_t> observed_generation{0};
     std::vector<module_revision_snapshot> modules;
     std::unordered_map<instruction_ref, std::unique_ptr<select_metadata_entry>> metadata;
     std::size_t result_capacity = 0;
-
-    bool current(const_module_ref candidate_root) const
-    {
-        return root == candidate_root and
-               observed_generation.load(std::memory_order_acquire) == module::mutation_generation();
-    }
 
     bool modules_current() const
     {
@@ -140,11 +133,6 @@ struct select_evaluation_plan
         return std::all_of(modules.begin(), modules.end(), [](const auto& snapshot) {
             return snapshot.current();
         });
-    }
-
-    void refresh_generation() const
-    {
-        observed_generation.store(module::mutation_generation(), std::memory_order_release);
     }
 
     const select_metadata_entry& metadata_entry(instruction_ref ins) const
@@ -184,7 +172,6 @@ struct select_evaluation_plan
                     result->result_capacity += (*largest)->size();
             }
         }
-        result->refresh_generation();
         return result;
     }
 };
@@ -192,10 +179,9 @@ struct select_evaluation_plan
 struct select_evaluation_cache
 {
     std::mutex mutex;
-    // Plans are immutable and retained so a warm-path reader remains valid while another
-    // evaluation installs a replacement after module mutation.
-    std::vector<std::unique_ptr<const select_evaluation_plan>> entries;
+    std::unique_ptr<const select_evaluation_plan> entry;
     std::atomic<const select_evaluation_plan*> last_entry{nullptr};
+    std::atomic<std::size_t> observed_generation{0};
 
     select_evaluation_cache() = default;
     select_evaluation_cache(const select_evaluation_cache&) {}
@@ -217,29 +203,33 @@ struct select_evaluation_cache
     {
         std::lock_guard<std::mutex> lock{mutex};
         last_entry.store(nullptr, std::memory_order_release);
-        entries.clear();
+        observed_generation.store(0, std::memory_order_release);
+        entry.reset();
     }
 
     void update(const_module_ref main)
     {
-        auto* last = last_entry.load(std::memory_order_acquire);
-        if(last != nullptr and last->current(main))
+        auto current_generation = module::mutation_generation();
+        auto* last              = last_entry.load(std::memory_order_acquire);
+        if(last != nullptr and
+           observed_generation.load(std::memory_order_acquire) == current_generation)
             return;
 
         std::lock_guard<std::mutex> lock{mutex};
-        last = last_entry.load(std::memory_order_relaxed);
-        if(last != nullptr and last->current(main))
+        current_generation = module::mutation_generation();
+        if(entry != nullptr and
+           observed_generation.load(std::memory_order_relaxed) == current_generation)
             return;
 
-        if(last != nullptr and last->root == main and last->modules_current())
+        if(entry != nullptr and entry->root == main and entry->modules_current())
         {
-            last->refresh_generation();
+            observed_generation.store(current_generation, std::memory_order_release);
             return;
         }
 
-        entries.push_back(select_evaluation_plan::build(main));
-        last = entries.back().get();
-        last_entry.store(last, std::memory_order_release);
+        entry = select_evaluation_plan::build(main);
+        last_entry.store(entry.get(), std::memory_order_release);
+        observed_generation.store(module::mutation_generation(), std::memory_order_release);
     }
 
     const select_evaluation_plan& get() const

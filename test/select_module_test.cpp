@@ -389,6 +389,52 @@ TEST_CASE(select_module_rebuilds_metadata_after_candidate_mutation)
     EXPECT(second_result == three_vec);
 }
 
+TEST_CASE(select_module_rebuilds_metadata_after_candidate_swap)
+{
+    migraphx::program p;
+    auto* first = p.create_module("first");
+    migraphx::shape one_s{migraphx::shape::float_type, {1}};
+    auto first_data = first->add_parameter("input", one_s);
+    first->rename_parameter(first_data, "data");
+    first->add_return({first_data});
+
+    auto* second = p.create_module("second");
+    migraphx::shape two_s{migraphx::shape::float_type, {2}};
+    auto second_data = second->add_parameter("data", two_s);
+    second->add_return({second_data});
+
+    auto* mm = p.get_main_module();
+    std::vector<migraphx::shape::dynamic_dimension> dims{{1, 3}};
+    migraphx::shape dyn_s{migraphx::shape::float_type, dims};
+    auto data   = mm->add_parameter("data", dyn_s);
+    auto select = mm->add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{dyn_s}})}}),
+        {data},
+        {first, second});
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
+
+    std::vector<float> one_vec{1};
+    auto first_result =
+        p.eval({{"data", migraphx::argument{one_s, one_vec.data()}}}).front().to_vector<float>();
+    EXPECT(first_result == one_vec);
+
+    migraphx::module replacement{"replacement"};
+    migraphx::shape three_s{migraphx::shape::float_type, {3}};
+    auto replacement_data = replacement.add_parameter("data", three_s);
+    replacement.add_return({replacement_data});
+    first->swap(replacement);
+
+    std::vector<float> three_vec{3, 4, 5};
+    auto second_result = p.eval({{"data", migraphx::argument{three_s, three_vec.data()}}})
+                             .front()
+                             .to_vector<float>();
+    EXPECT(second_result == three_vec);
+}
+
 TEST_CASE(select_module_program_metadata_is_isolated)
 {
     auto make_program = [](std::size_t n) {

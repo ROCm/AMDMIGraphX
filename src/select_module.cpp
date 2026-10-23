@@ -75,24 +75,26 @@ struct output_parameter_mapping
         return inputs.at(inputs.size() - output_count + *index);
     }
 
-    // Find the element of this tuple parameter that backs a return. Indices of nested
+    // Find the path through this tuple parameter that backs a return. Indices of nested
     // select_module results are skipped because they identify the inner result, not this
     // parameter's subobject.
-    std::optional<std::size_t>
-    returned_tuple_element(instruction_ref ins,
-                           std::optional<std::size_t> parameter_index = std::nullopt) const
+    std::optional<std::vector<std::size_t>>
+    returned_tuple_path(instruction_ref ins, std::vector<std::size_t> parameter_path = {}) const
     {
         if(ins == parameter)
-            return parameter_index;
+            return parameter_path;
         if(auto buffer = selected_output_buffer(ins))
-            return returned_tuple_element(*buffer, parameter_index);
+            return returned_tuple_path(*buffer, std::move(parameter_path));
         if(auto index = tuple_element_index(ins))
-            return returned_tuple_element(ins->inputs().front(), index);
+        {
+            parameter_path.insert(parameter_path.begin(), *index);
+            return returned_tuple_path(ins->inputs().front(), std::move(parameter_path));
+        }
 
         auto alias_indices = ins->get_operator().output_alias(to_shapes(ins->inputs()));
         for(auto alias : alias_indices)
         {
-            auto result = returned_tuple_element(ins->inputs().at(alias), parameter_index);
+            auto result = returned_tuple_path(ins->inputs().at(alias), parameter_path);
             if(result.has_value())
                 return result;
         }
@@ -104,37 +106,58 @@ struct output_parameter_mapping
         return contains(resolve_output_aliases(ret), parameter);
     }
 
-    // The return slots this output parameter writes. A fused kernel can pack several returns into
-    // one tuple parameter, whose elements need not be consecutive returns.
+    std::vector<std::vector<std::size_t>> parameter_leaf_paths() const
+    {
+        std::vector<std::vector<std::size_t>> result;
+        fix([&](auto self, const shape& current, std::vector<std::size_t> path) {
+            if(current.type() != shape::tuple_type)
+            {
+                result.push_back(std::move(path));
+                return;
+            }
+            const auto& sub_shapes = current.sub_shapes();
+            for(auto index : range(sub_shapes.size()))
+            {
+                auto child_path = path;
+                child_path.push_back(index);
+                self(sub_shapes[index], std::move(child_path));
+            }
+        })(parameter->get_shape(), std::vector<std::size_t>{});
+        return result;
+    }
+
+    // The return slots this output parameter writes, in depth-first leaf order. A fused kernel can
+    // pack several returns into a nested tuple parameter whose leaves need not be consecutive
+    // returns.
     std::vector<std::size_t> output_indices() const
     {
-        const auto& parameter_shape = parameter->get_shape();
-        if(parameter_shape.type() != shape::tuple_type)
-        {
-            auto ret = std::find_if(
-                returns->begin(), returns->end(), [&](instruction_ref r) { return aliases(r); });
-            if(ret == returns->end())
-                MIGRAPHX_THROW("SELECT_MODULE: output parameter \"" + name +
-                               "\" does not alias a module output");
-            return {static_cast<std::size_t>(std::distance(returns->begin(), ret))};
-        }
-
+        auto leaf_paths        = parameter_leaf_paths();
         constexpr auto missing = std::numeric_limits<std::size_t>::max();
-        std::vector<std::size_t> result(parameter_shape.sub_shapes().size(), missing);
+        std::vector<std::size_t> result(leaf_paths.size(), missing);
         auto return_indices = range(returns->size());
-        migraphx::for_each(returns->begin(),
-                           returns->end(),
-                           return_indices.begin(),
-                           [&](instruction_ref ret, std::size_t return_index) {
-                               if(not aliases(ret))
-                                   return;
-                               auto element = returned_tuple_element(ret);
-                               if(element.has_value() and *element < result.size())
-                                   result[*element] = return_index;
-                           });
+        migraphx::for_each(
+            returns->begin(),
+            returns->end(),
+            return_indices.begin(),
+            [&](instruction_ref ret, std::size_t return_index) {
+                if(not aliases(ret))
+                    return;
+                auto path = returned_tuple_path(ret);
+                if(not path.has_value())
+                    return;
+                auto leaf = std::find(leaf_paths.begin(), leaf_paths.end(), *path);
+                if(leaf != leaf_paths.end())
+                    result[static_cast<std::size_t>(std::distance(leaf_paths.begin(), leaf))] =
+                        return_index;
+            });
         if(contains(result, missing))
-            MIGRAPHX_THROW("SELECT_MODULE: tuple output parameter \"" + name +
-                           "\" is not aliased by get_tuple_elem returns for every subobject");
+        {
+            if(parameter->get_shape().type() == shape::tuple_type)
+                MIGRAPHX_THROW("SELECT_MODULE: tuple output parameter \"" + name +
+                               "\" is not aliased by get_tuple_elem returns for every subobject");
+            MIGRAPHX_THROW("SELECT_MODULE: output parameter \"" + name +
+                           "\" does not alias a module output");
+        }
         return result;
     }
 

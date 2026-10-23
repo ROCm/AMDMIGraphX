@@ -76,8 +76,8 @@ struct module_impl
     void notify_changed()
     {
         changed.notify();
-        ++revision;
-        global_mutation_generation().fetch_add(1, std::memory_order_relaxed);
+        revision =
+            global_mutation_generation().fetch_add(1, std::memory_order_relaxed) + std::size_t{1};
     }
 
     bool contains(instruction_ref ins) const
@@ -204,11 +204,20 @@ module::module(const module& m) { assign(m); }
 // copy assignment operator
 module& module::operator=(module m)
 {
-    std::swap(m.impl, this->impl);
+    this->swap(m);
     return *this;
 }
 
-void module::swap(module& rhs) noexcept { std::swap(impl, rhs.impl); }
+void module::swap(module& rhs) noexcept
+{
+    if(this == &rhs)
+        return;
+    std::swap(impl, rhs.impl);
+    if(impl != nullptr)
+        impl->notify_changed();
+    if(rhs.impl != nullptr)
+        rhs.impl->notify_changed();
+}
 
 void module::clear_foreign_inputs_for_program()
 {

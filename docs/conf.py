@@ -103,6 +103,5 @@ myst_substitutions = {
     "ROCM_COMPAT_DOC": "`ROCm 10.1.0 compatibility matrix <https://rocm.docs.amd.com/en/docs-10.1.0/compatibility/compatibility-matrix.html>`__",
     "TORCH_INSTALL_DOC": "`Install PyTorch for ROCm <https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver=10.1.0>`__",
 }
-rst_prolog = "\n".join(
-    f".. |{key}| replace:: {val}" for key, val in myst_substitutions.items()
-)
+rst_prolog = "\n".join(f".. |{key}| replace:: {val}"
+                       for key, val in myst_substitutions.items())

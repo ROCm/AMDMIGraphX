@@ -178,15 +178,15 @@ struct ref_op
         return migraphx::reflect(self.op, f);
     }
     std::string name() const { return "ref::op"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
-    {
-        return op.compute(output_shape, args);
-    }
     value attributes() const { return op.attributes(); }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     std::vector<std::size_t> output_alias(const std::vector<shape>& inputs) const
     {
         return op.output_alias(inputs);
+    }
+    argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
+    {
+        return op.compute(output_shape, args);
     }
     void
     finalize(migraphx::context& ctx, const shape& output_shape, const std::vector<shape>& inputs)

@@ -52,10 +52,7 @@
 #include <queue>
 #include <sstream>
 #include <fstream>
-#include <atomic>
 #include <algorithm>
-#include <memory>
-#include <mutex>
 #include <set>
 #include <unordered_map>
 #include <utility>
@@ -79,174 +76,12 @@ struct mark_instruction_target
     }
 };
 
-struct module_revision_snapshot
-{
-    const_module_ref mod = nullptr;
-    std::size_t revision = 0;
-
-    bool current() const { return mod != nullptr and mod->revision() == revision; }
-};
-
-struct select_metadata_entry
-{
-    mutable std::mutex mutex;
-    mutable std::unique_ptr<const op::select_module::module_set_metadata> metadata;
-    mutable std::atomic<const op::select_module::module_set_metadata*> last_entry{nullptr};
-
-    void initialize(instruction_ref ins) const
-    {
-        auto* result = last_entry.load(std::memory_order_acquire);
-        if(result != nullptr)
-            return;
-
-        std::lock_guard<std::mutex> lock{mutex};
-        result = last_entry.load(std::memory_order_relaxed);
-        if(result != nullptr)
-            return;
-
-        const auto& select = any_cast<op::select_module>(ins->get_operator());
-        metadata           = std::make_unique<const op::select_module::module_set_metadata>(
-            select.build_module_metadata(ins->module_inputs()));
-        last_entry.store(metadata.get(), std::memory_order_release);
-    }
-
-    const op::select_module::module_set_metadata& get() const
-    {
-        auto* result = last_entry.load(std::memory_order_acquire);
-        assert(result != nullptr);
-        return *result;
-    }
-};
-
-struct select_evaluation_plan
-{
-    const_module_ref root = nullptr;
-    std::vector<module_revision_snapshot> modules;
-    std::unordered_map<instruction_ref, std::unique_ptr<select_metadata_entry>> metadata;
-    std::size_t result_capacity = 0;
-
-    bool modules_current() const
-    {
-        // The process-wide generation makes the warm check constant time. Recheck this plan's
-        // modules only after some module changed, so mutations in another program do not rebuild
-        // or otherwise share this program's metadata.
-        return std::all_of(modules.begin(), modules.end(), [](const auto& snapshot) {
-            return snapshot.current();
-        });
-    }
-
-    const select_metadata_entry& metadata_entry(instruction_ref ins) const
-    {
-        return *metadata.at(ins);
-    }
-
-    static std::unique_ptr<select_evaluation_plan> build(const_module_ref main)
-    {
-        auto result             = std::make_unique<select_evaluation_plan>();
-        result->root            = main;
-        result->result_capacity = main->size();
-
-        std::vector<const_module_ref> reachable_modules;
-        auto submodules = main->get_sub_modules();
-        reachable_modules.insert(reachable_modules.end(), submodules.begin(), submodules.end());
-        reachable_modules.insert(reachable_modules.begin(), main);
-        std::unordered_set<const_module_ref> visited;
-        for(auto* mod : reachable_modules)
-        {
-            if(not visited.insert(mod).second)
-                continue;
-            result->modules.push_back({mod, mod->revision()});
-            for(auto ins : iterator_for(*mod))
-            {
-                if(ins->name() != "select_module")
-                    continue;
-                result->metadata.emplace(ins, std::make_unique<select_metadata_entry>());
-                if(mod != main)
-                    continue;
-                const auto& candidates = ins->module_inputs();
-                auto largest           = std::max_element(
-                    candidates.begin(),
-                    candidates.end(),
-                    by(std::less<>{}, [](module_ref candidate) { return candidate->size(); }));
-                if(largest != candidates.end())
-                    result->result_capacity += (*largest)->size();
-            }
-        }
-        return result;
-    }
-};
-
-struct select_evaluation_cache
-{
-    std::mutex mutex;
-    std::unique_ptr<const select_evaluation_plan> entry;
-    std::atomic<const select_evaluation_plan*> last_entry{nullptr};
-    std::atomic<std::size_t> observed_generation{0};
-
-    select_evaluation_cache() = default;
-    select_evaluation_cache(const select_evaluation_cache&) {}
-    select_evaluation_cache(select_evaluation_cache&&) noexcept {}
-
-    select_evaluation_cache& operator=(const select_evaluation_cache&)
-    {
-        clear();
-        return *this;
-    }
-
-    select_evaluation_cache& operator=(select_evaluation_cache&&) noexcept
-    {
-        clear();
-        return *this;
-    }
-
-    void clear()
-    {
-        std::lock_guard<std::mutex> lock{mutex};
-        last_entry.store(nullptr, std::memory_order_release);
-        observed_generation.store(0, std::memory_order_release);
-        entry.reset();
-    }
-
-    void update(const_module_ref main)
-    {
-        auto current_generation = module::mutation_generation();
-        auto* last              = last_entry.load(std::memory_order_acquire);
-        if(last != nullptr and
-           observed_generation.load(std::memory_order_acquire) == current_generation)
-            return;
-
-        std::lock_guard<std::mutex> lock{mutex};
-        current_generation = module::mutation_generation();
-        if(entry != nullptr and
-           observed_generation.load(std::memory_order_relaxed) == current_generation)
-            return;
-
-        if(entry != nullptr and entry->root == main and entry->modules_current())
-        {
-            observed_generation.store(current_generation, std::memory_order_release);
-            return;
-        }
-
-        entry = select_evaluation_plan::build(main);
-        last_entry.store(entry.get(), std::memory_order_release);
-        observed_generation.store(module::mutation_generation(), std::memory_order_release);
-    }
-
-    const select_evaluation_plan& get() const
-    {
-        auto* last = last_entry.load(std::memory_order_acquire);
-        assert(last != nullptr);
-        return *last;
-    }
-};
-
 struct program_impl
 {
     // A map is used to keep references to modules of the program
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
-    mutable select_evaluation_cache evaluation_cache;
 
     program_impl()                               = default;
     program_impl(const program_impl&)            = default;
@@ -722,6 +557,17 @@ static auto get_parameter_argument(const Params& params, const builtin::param& p
     return params.get_parameter(param.order);
 }
 
+template <class Params>
+static argument evaluate_parameter(instruction_ref ins, const Params& params)
+{
+    const auto& param_op = any_cast<builtin::param>(ins->get_operator());
+    auto result          = get_parameter_argument(params, param_op);
+    if(not ins->get_shape().any_of_dynamic() and result.get_shape() != ins->get_shape())
+        MIGRAPHX_THROW("Incorrect shape {" + to_string(result.get_shape()) + "} for parameter: " +
+                       param_op.parameter + " should be: " + to_string(ins->get_shape()));
+    return result;
+}
+
 static argument compute_leaf_instruction(instruction_ref ins, std::vector<context>& ctx)
 {
     if(not ins->inputs().empty() or not ins->module_inputs().empty())
@@ -752,211 +598,211 @@ static bool only_read_by_submodules(const module& m, instruction_ref ins)
     });
 }
 
-struct module_arguments
+static const argument& get_input_argument(instruction_ref input,
+                                          std::vector<context>& ctx,
+                                          pmr::unordered_map<instruction_ref, argument>& results)
 {
-    const void* object;
-    argument (*lookup)(const void*, const builtin::param&);
-
-    template <class Params>
-    static module_arguments from(const Params& params)
-    {
-        return {std::addressof(params), [](const void* object, const builtin::param& parameter) {
-                    return get_parameter_argument(*static_cast<const Params*>(object), parameter);
-                }};
-    }
-
-    argument get_parameter(const builtin::param& parameter) const
-    {
-        return lookup(object, parameter);
-    }
-};
-
-static argument evaluate_parameter(instruction_ref ins, const module_arguments& params)
-{
-    const auto& param_op = any_cast<builtin::param>(ins->get_operator());
-    auto result          = params.get_parameter(param_op);
-    if(not ins->get_shape().any_of_dynamic() and result.get_shape() != ins->get_shape())
-        MIGRAPHX_THROW("Incorrect shape {" + to_string(result.get_shape()) + "} for parameter: " +
-                       param_op.parameter + " should be: " + to_string(ins->get_shape()));
-    return result;
+    auto result = results.find(input);
+    if(result != results.end())
+        return result->second;
+    return results.emplace(input, compute_leaf_instruction(input, ctx)).first->second;
 }
 
-template <class Trace>
-struct program_evaluator
+struct instruction_argument_accessor
 {
-    std::vector<context>* contexts;
+    const std::vector<instruction_ref>* inputs;
+    std::vector<context>* ctx;
     pmr::unordered_map<instruction_ref, argument>* results;
-    const select_evaluation_plan* plan;
-    Trace trace;
 
-    void materialize_argument(instruction_ref input)
+    const argument& operator()(std::size_t index) const
     {
-        if(not contains(*results, input))
-            results->emplace(input, compute_leaf_instruction(input, *contexts));
-    }
-
-    const argument& get_argument(instruction_ref input) const { return results->at(input); }
-
-    void evaluate_instruction(const module* mod,
-                              instruction_ref ins,
-                              const module_arguments& params,
-                              std::vector<argument>& values)
-    {
-        (void)mod;
-        assert(mod->name() != "main" or results->find(ins) == results->end());
-#ifndef NDEBUG
-        results->emplace(ins, argument{});
-#endif
-        const auto& name = ins->name();
-        auto guard       = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
-        if(name == "@literal")
-        {
-            results->insert_or_assign(
-                ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
-        }
-        else if(name == "@param")
-        {
-            results->insert_or_assign(ins,
-                                      trace(ins, [&] { return evaluate_parameter(ins, params); }));
-        }
-        else if(name == "@outline" or name == "@comment")
-        {
-            results->insert_or_assign(
-                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
-        }
-        else if(name == "select_module")
-        {
-            auto positional_module_eval = [&](module_ref smod, const auto& inputs) {
-                auto input_arguments = module_arguments::from(inputs);
-                return eval(smod, input_arguments);
-            };
-            results->insert_or_assign(
-                ins, trace(ins, [&] {
-                    const auto& metadata = plan->metadata_entry(ins);
-                    metadata.initialize(ins);
-                    const auto& select = any_cast<op::select_module>(ins->get_operator());
-                    auto get_input     = [this, ins](std::size_t index) -> const argument& {
-                        auto input = ins->inputs().at(index);
-                        materialize_argument(input);
-                        return get_argument(input);
-                    };
-                    return select.compute_with_positional_parameters(
-                        metadata.get(), ins->inputs().size(), get_input, positional_module_eval);
-                }));
-        }
-        else if(name == "get_tuple_elem" and contains(*results, ins->inputs().front()))
-        {
-            // Avoids copying every element of the tuple just to extract one of them.
-            results->insert_or_assign(
-                ins, trace(ins, [&] {
-                    const auto& op = any_cast<op::get_tuple_elem>(ins->get_operator());
-                    return results->at(ins->inputs().front()).get_sub_object(op.index);
-                }));
-        }
-        else
-        {
-            const auto& mod_args = ins->module_inputs();
-            values.resize(ins->inputs().size());
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           values.begin(),
-                           [&](instruction_ref input) {
-                               assert(contains(*results, input) or not mod->has_instruction(input));
-                               materialize_argument(input);
-                               return get_argument(input);
-                           });
-            auto module_eval = [&](module_ref smod,
-                                   const std::unordered_map<std::string, argument>& inputs) {
-                auto input_arguments = module_arguments::from(inputs);
-                return eval(smod, input_arguments);
-            };
-
-            results->insert_or_assign(
-                ins, trace(ins, [&] {
-                    auto oper = ins->normalized_operator();
-                    if(oper.is_context_free())
-                        return oper.compute(ins->get_shape(), values, mod_args, module_eval);
-                    if(ins->get_target_id() >= contexts->size())
-                        MIGRAPHX_THROW("No context available for " + oper.name());
-                    return oper.compute(contexts->at(ins->get_target_id()),
-                                        ins->get_shape(),
-                                        values,
-                                        mod_args,
-                                        module_eval);
-                }));
-        }
-        assert(results->find(ins) != results->end());
-        assert(is_compatible_shape(results->at(ins).get_shape(), ins->get_shape()));
-    }
-
-    void materialize_returns(instruction_ref ret)
-    {
-        std::for_each(ret->inputs().begin(), ret->inputs().end(), [&](instruction_ref input) {
-            materialize_argument(input);
-        });
-    }
-
-    std::vector<argument> collect_returns(instruction_ref ret) const
-    {
-        std::vector<argument> outputs;
-        outputs.reserve(ret->inputs().size());
-        std::transform(ret->inputs().begin(),
-                       ret->inputs().end(),
-                       std::back_inserter(outputs),
-                       [&](instruction_ref input) { return get_argument(input); });
-        return outputs;
-    }
-
-    std::vector<argument>
-    eval(const module* mod, const module_arguments& params, bool lazy_leaves = false)
-    {
-        assert(mod->validate() == mod->end());
-        std::vector<argument> values;
-        values.reserve(16);
-        for(auto ins : iterator_for(*mod))
-        {
-            if(ins->name() == "@return")
-            {
-                materialize_returns(ins);
-                return collect_returns(ins);
-            }
-            if(lazy_leaves and only_read_by_submodules(*mod, ins))
-                continue;
-            evaluate_instruction(mod, ins, params, values);
-        }
-        return {results->at(std::prev(mod->end()))};
+        assert(index < inputs->size());
+        return get_input_argument(inputs->at(index), *ctx, *results);
     }
 };
+
+template <class GetArgument, class Run>
+static argument evaluate_select_module(instruction_ref ins, GetArgument get_argument, Run run)
+{
+    const auto& select = any_cast<op::select_module>(ins->get_operator());
+    return select.compute_with_positional_parameters(
+        ins->inputs().size(), get_argument, ins->module_inputs(), run);
+}
+
+template <class Params, class F>
+static std::vector<argument> generic_eval(const module* mod,
+                                          std::vector<context>& ctx,
+                                          const Params& params,
+                                          pmr::unordered_map<instruction_ref, argument>& results,
+                                          F trace,
+                                          bool lazy_leaves = false);
+
+// Evaluates one non-return instruction whose inputs are already in results (or are leaves of
+// another module) and stores its value in results.
+template <class Params, class F>
+static void evaluate_instruction([[maybe_unused]] const module* mod,
+                                 instruction_ref ins,
+                                 std::vector<context>& ctx,
+                                 const Params& params,
+                                 pmr::unordered_map<instruction_ref, argument>& results,
+                                 std::vector<argument>& values,
+                                 F trace)
+{
+    assert(mod->name() != "main" or results.find(ins) == results.end());
+#ifndef NDEBUG
+    results.emplace(ins, argument{});
+#endif
+    const auto& name = ins->name();
+    auto guard       = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
+    if(name == "@literal")
+    {
+        results.insert_or_assign(ins,
+                                 trace(ins, [&] { return ins->get_literal().get_argument(); }));
+    }
+    else if(name == "@param")
+    {
+        results.insert_or_assign(ins, trace(ins, [&] { return evaluate_parameter(ins, params); }));
+    }
+    else if(name == "@outline" or name == "@comment")
+    {
+        results.insert_or_assign(ins,
+                                 trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+    }
+    else if(name == "select_module")
+    {
+        auto positional_module_eval = [&](module_ref smod, const auto& inputs) {
+            return generic_eval(smod, ctx, inputs, results, trace);
+        };
+        results.insert_or_assign(
+            ins, trace(ins, [&] {
+                auto get_argument = instruction_argument_accessor{&ins->inputs(), &ctx, &results};
+                return evaluate_select_module(ins, get_argument, positional_module_eval);
+            }));
+    }
+    else if(name == "get_tuple_elem" and contains(results, ins->inputs().front()))
+    {
+        // Avoids copying every element of the tuple just to extract one of them
+        results.insert_or_assign(
+            ins, trace(ins, [&] {
+                const auto& op = any_cast<op::get_tuple_elem>(ins->get_operator());
+                return results.at(ins->inputs().front()).get_sub_object(op.index);
+            }));
+    }
+    else
+    {
+        const auto& mod_args = ins->module_inputs();
+        values.resize(ins->inputs().size());
+        std::transform(
+            ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
+                assert(contains(results, i) or not mod->has_instruction(i));
+                return get_input_argument(i, ctx, results);
+            });
+        auto module_eval = [&](module_ref smod,
+                               const std::unordered_map<std::string, argument>& inputs) {
+            return generic_eval(smod, ctx, inputs, results, trace);
+        };
+
+        results.insert_or_assign(
+            ins, trace(ins, [&] {
+                auto oper = ins->normalized_operator();
+                if(oper.is_context_free())
+                    return oper.compute(ins->get_shape(), values, mod_args, module_eval);
+                if(ins->get_target_id() >= ctx.size())
+                    MIGRAPHX_THROW("No context available for " + oper.name());
+                return oper.compute(
+                    ctx[ins->get_target_id()], ins->get_shape(), values, mod_args, module_eval);
+            }));
+    }
+    assert(results.find(ins) != results.end());
+    assert(is_compatible_shape(results.at(ins).get_shape(), ins->get_shape()));
+}
+
+static std::vector<argument>
+collect_returns(instruction_ref ret, const pmr::unordered_map<instruction_ref, argument>& results)
+{
+    std::vector<argument> outputs;
+    outputs.reserve(ret->inputs().size());
+    std::transform(ret->inputs().begin(),
+                   ret->inputs().end(),
+                   std::back_inserter(outputs),
+                   [&](instruction_ref i) {
+                       assert(results.find(i) != results.end());
+                       return results.at(i);
+                   });
+    return outputs;
+}
+
+template <class Params, class F>
+static std::vector<argument> generic_eval(const module* mod,
+                                          std::vector<context>& ctx,
+                                          const Params& params,
+                                          pmr::unordered_map<instruction_ref, argument>& results,
+                                          F trace,
+                                          bool lazy_leaves)
+{
+    assert(mod->validate() == mod->end());
+    std::vector<argument> values;
+    values.reserve(16);
+    for(auto ins : iterator_for(*mod))
+    {
+        if(ins->name() == "@return")
+        {
+            std::for_each(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref input) {
+                if(not contains(results, input))
+                    get_input_argument(input, ctx, results);
+            });
+            return collect_returns(ins, results);
+        }
+        if(lazy_leaves and only_read_by_submodules(*mod, ins))
+            continue;
+        evaluate_instruction(mod, ins, ctx, params, results, values, trace);
+    }
+    return {results.at(std::prev(mod->end()))};
+}
+
+// The number of instructions the select_module candidates of a module can evaluate in one run,
+// which is the largest candidate of each select_module since only one of them runs. Zero when
+// the module has no select_module.
+static std::size_t select_module_candidates_size(const module& m)
+{
+    return transform_accumulate(
+        m.begin(), m.end(), std::size_t{0}, std::plus<>{}, [](const instruction& ins) {
+            if(ins.name() != "select_module")
+                return std::size_t{0};
+            const auto& candidates = ins.module_inputs();
+            auto largest =
+                std::max_element(candidates.begin(),
+                                 candidates.end(),
+                                 by(std::less<>{}, [](module_ref c) { return c->size(); }));
+            return largest == candidates.end() ? std::size_t{0} : (*largest)->size();
+        });
+}
 
 template <class F>
 static std::vector<argument> generic_eval(const program& p,
-                                          select_evaluation_cache& evaluation_cache,
                                           std::vector<context>& ctx,
                                           const std::unordered_map<std::string, argument>& params,
                                           F trace,
                                           bool select_fast_path = false)
 {
-    auto* mm = p.get_main_module();
-    evaluation_cache.update(mm);
-    const auto& plan = evaluation_cache.get();
-    if(select_fast_path and not plan.metadata.empty())
+    const module* mm = p.get_main_module();
+    if(auto candidates_size = select_fast_path ? select_module_candidates_size(*mm) : 0;
+       candidates_size > 0)
     {
         // Main dispatches to select_module candidates, so the leaves they capture are computed
         // on demand and the results only need room for main and the candidate that runs.
 #if MIGRAPHX_HAS_PMR
-        // The thread-local pool retains its allocations for subsequent evaluations. The
-        // monotonic resource still releases every result at once and permits reentrant evals to
-        // hold disjoint allocations from the same pool.
-        thread_local std::pmr::unsynchronized_pool_resource pool;
-        std::pmr::monotonic_buffer_resource bres(&pool);
+        std::size_t n = mm->size() + candidates_size;
+        // Allocated on first use instead of zero-filled up front, and backed by the heap in case
+        // a candidate has submodules of its own.
+        std::pmr::monotonic_buffer_resource bres(n * (sizeof(instruction_ref) + sizeof(argument)) *
+                                                 4);
         pmr::unordered_map<instruction_ref, argument> results(&bres);
-        results.reserve(plan.result_capacity);
+        results.reserve(n);
 #else
         pmr::unordered_map<instruction_ref, argument> results;
 #endif
-        auto evaluator = program_evaluator<F>{&ctx, &results, &plan, std::move(trace)};
-        auto arguments = module_arguments::from(params);
-        return evaluator.eval(mm, arguments, true);
+        return generic_eval(mm, ctx, params, results, trace, true);
     }
 #if MIGRAPHX_HAS_PMR
     std::size_t n = p.total_instructions();
@@ -968,9 +814,7 @@ static std::vector<argument> generic_eval(const program& p,
 #else
     pmr::unordered_map<instruction_ref, argument> results;
 #endif
-    auto evaluator = program_evaluator<F>{&ctx, &results, &plan, std::move(trace)};
-    auto arguments = module_arguments::from(params);
-    return evaluator.eval(mm, arguments);
+    return generic_eval(mm, ctx, params, results, trace);
 }
 
 std::size_t program::total_instructions() const
@@ -985,8 +829,7 @@ std::size_t program::total_instructions() const
 std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
                                                  const parameter_map& params) const
 {
-    return generic_eval(
-        *this, impl->evaluation_cache, ctx, params, [](auto&&, auto f) { return f(); }, true);
+    return generic_eval(*this, ctx, params, [](auto&&, auto f) { return f(); }, true);
 }
 
 static void print_trace_buffer(const argument& buffer, int trace_level)
@@ -1062,55 +905,47 @@ std::vector<argument> program::eval(const parameter_map& params,
 
     if(exec_env.trace or exec_env.substitute)
     {
-        ret = generic_eval(
-            *this, impl->evaluation_cache, contexts, params, [&](instruction_ref ins, auto f) {
-                const auto& ctx = contexts[ins->get_target_id()];
-                if(trace_level > 0)
-                {
-                    ctx.finish();
-                    // The ins_out map is populated from the main module's
-                    // but when dynamic_code_object_op::compute recursively calls generic_eval
-                    // on its runtime sub-module ins_out don't have it.
-                    if(ins_out.find(ins) != ins_out.end())
-                        std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
-                    else
-                        std::cout << "Run instruction: " << ins->name() << " (submodule)"
-                                  << std::endl;
-                }
-                timer t{};
-                auto result = f();
-                double t1   = t.record<milliseconds>();
+        ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
+            const auto& ctx = contexts[ins->get_target_id()];
+            if(trace_level > 0)
+            {
                 ctx.finish();
-                if(trace_level > 0)
+                // The ins_out map is populated from the main module's
+                // but when dynamic_code_object_op::compute recursively calls generic_eval
+                // on its runtime sub-module ins_out don't have it.
+                if(ins_out.find(ins) != ins_out.end())
+                    std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                else
+                    std::cout << "Run instruction: " << ins->name() << " (submodule)" << std::endl;
+            }
+            timer t{};
+            auto result = f();
+            double t1   = t.record<milliseconds>();
+            ctx.finish();
+            if(trace_level > 0)
+            {
+                double t2 = t.record<milliseconds>();
+                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+            }
+            if(is_inspectable(ins->name()) and not result.empty())
+            {
+                auto host = copy_to_host(result, ins->get_target_id());
+                if(exec_env.trace)
+                    exec_env.trace(ins, host);
+                auto sub =
+                    exec_env.substitute ? exec_env.substitute(ins, host) : optional<argument>{};
+                if(sub)
                 {
-                    double t2 = t.record<milliseconds>();
-                    std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                    assert(sub->get_shape() == result.get_shape());
+                    result = targets.at(ins->get_target_id()).copy_to(*sub);
                 }
-                if(is_inspectable(ins->name()) and not result.empty())
-                {
-                    auto host = copy_to_host(result, ins->get_target_id());
-                    if(exec_env.trace)
-                        exec_env.trace(ins, host);
-                    auto sub =
-                        exec_env.substitute ? exec_env.substitute(ins, host) : optional<argument>{};
-                    if(sub)
-                    {
-                        assert(sub->get_shape() == result.get_shape());
-                        result = targets.at(ins->get_target_id()).copy_to(*sub);
-                    }
-                }
-                return result;
-            });
+            }
+            return result;
+        });
     }
     else
     {
-        ret = generic_eval(
-            *this,
-            impl->evaluation_cache,
-            contexts,
-            params,
-            [&](auto&&, auto f) { return f(); },
-            true);
+        ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); }, true);
     }
 
     if(exec_env.async)
@@ -1374,7 +1209,7 @@ void program::mark(const parameter_map& params, marker m)
     eval(params);
     this->finish();
     m.mark_start(*this);
-    generic_eval(*this, impl->evaluation_cache, ctx, params, [&](auto ins, auto f) {
+    generic_eval(*this, ctx, params, [&](auto ins, auto f) {
         argument result;
         m.mark_start(ins);
         result = f();
@@ -1404,7 +1239,7 @@ void program::perf_report(
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
-    generic_eval(*this, impl->evaluation_cache, ctx, params, [&](auto ins, auto) {
+    generic_eval(*this, ctx, params, [&](auto ins, auto) {
         ins_vec[ins].reserve(n);
         return argument{ins->get_shape(), nullptr};
     });
@@ -1412,7 +1247,7 @@ void program::perf_report(
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
     {
-        generic_eval(*this, impl->evaluation_cache, ctx, params, [&](auto ins, auto f) {
+        generic_eval(*this, ctx, params, [&](auto ins, auto f) {
             argument result;
             ins_vec[ins].push_back(time<milliseconds>([&] {
                 result = f();
@@ -1637,7 +1472,7 @@ void program::print_cpp(std::ostream& os) const
 void program::dry_run(const parameter_map& params) const
 {
     auto& ctx = this->impl->contexts;
-    generic_eval(*this, impl->evaluation_cache, ctx, params, [](auto ins, auto&&...) {
+    generic_eval(*this, ctx, params, [](auto ins, auto&&...) {
         return argument{ins->get_shape(), nullptr};
     });
 }

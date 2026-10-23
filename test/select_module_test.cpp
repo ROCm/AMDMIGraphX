@@ -160,6 +160,36 @@ TEST_CASE(select_module_missing_output_allocations_error)
                                              "missing output allocations"));
 }
 
+TEST_CASE(select_module_output_parameter_read_is_not_alias)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    auto* submod = p.create_module("sub");
+    submod->add_parameter("data", s);
+    auto soutput = submod->add_parameter("sub:#output_0", s);
+    submod->add_return({submod->add_instruction(migraphx::make_op("neg"), soutput)});
+
+    auto* mm    = p.get_main_module();
+    auto data   = mm->add_parameter("data", s);
+    auto output = mm->add_parameter("output", s);
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}})}}),
+        {data, output},
+        {submod});
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
+
+    std::vector<float> data_vec(s.elements(), 1);
+    std::vector<float> output_vec(s.elements(), 0);
+    migraphx::parameter_map params;
+    params["data"]   = migraphx::argument{s, data_vec.data()};
+    params["output"] = migraphx::argument{s, output_vec.data()};
+    EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval(params); },
+                                             "does not alias a module output"));
+}
+
 // Each return writes an element of the tuple parameter through a view of it, and the elements
 // are returned in the opposite order
 TEST_CASE(select_module_tuple_output_parameter_through_alias)
@@ -241,36 +271,6 @@ TEST_CASE(select_module_tuple_output_parameter_unaliased_element_error)
         "is not aliased by get_tuple_elem returns for every subobject"));
 }
 
-TEST_CASE(select_module_output_parameter_read_is_not_alias)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {4}};
-    auto* submod = p.create_module("sub");
-    auto data    = submod->add_parameter("data", s);
-    auto output  = submod->add_parameter("sub:#output_0", s);
-    submod->add_return({submod->add_instruction(migraphx::make_op("add"), data, output)});
-
-    auto* mm           = p.get_main_module();
-    auto input         = mm->add_parameter("data", s);
-    auto output_buffer = mm->add_parameter("output", s);
-    auto select        = mm->add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes",
-                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}})}}),
-        {input, output_buffer},
-        {submod});
-    mm->add_return(
-        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
-
-    std::vector<float> data_vec(s.elements(), 1);
-    std::vector<float> output_vec(s.elements(), 0);
-    migraphx::parameter_map params;
-    params["data"]   = migraphx::argument{s, data_vec.data()};
-    params["output"] = migraphx::argument{s, output_vec.data()};
-    EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval(params); },
-                                             "does not alias a module output"));
-}
-
 TEST_CASE(select_module_output_count_mismatch_error)
 {
     migraphx::program p;
@@ -343,140 +343,6 @@ TEST_CASE(select_module_compute_maps_parameters_by_name)
     EXPECT(seen.at("sub:#output_0").data() == output_arg.data());
     EXPECT(result.get_sub_objects().size() == 1);
     EXPECT(result.get_sub_objects().front().get_shape() == s);
-}
-
-TEST_CASE(select_module_rebuilds_metadata_after_candidate_mutation)
-{
-    migraphx::program p;
-    auto* first = p.create_module("first");
-    migraphx::shape one_s{migraphx::shape::float_type, {1}};
-    auto first_data = first->add_parameter("data", one_s);
-    first->add_return({first_data});
-
-    auto* second = p.create_module("second");
-    migraphx::shape two_s{migraphx::shape::float_type, {2}};
-    auto second_data = second->add_parameter("data", two_s);
-    second->add_return({second_data});
-
-    auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dims{{1, 3}};
-    migraphx::shape dyn_s{migraphx::shape::float_type, dims};
-    auto data   = mm->add_parameter("data", dyn_s);
-    auto select = mm->add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{dyn_s}})}}),
-        {data},
-        {first, second});
-    mm->add_return(
-        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
-
-    std::vector<float> one_vec{1};
-    auto first_result =
-        p.eval({{"data", migraphx::argument{one_s, one_vec.data()}}}).front().to_vector<float>();
-    EXPECT(first_result == one_vec);
-
-    migraphx::shape three_s{migraphx::shape::float_type, {3}};
-    auto replacement = first->add_parameter("replacement", three_s);
-    first->replace_instruction(first_data, replacement);
-    first->remove_instruction(first_data);
-
-    std::vector<float> three_vec{3, 4, 5};
-    auto second_result = p.eval({{"data", migraphx::argument{three_s, three_vec.data()}}})
-                             .front()
-                             .to_vector<float>();
-    EXPECT(second_result == three_vec);
-}
-
-TEST_CASE(select_module_rebuilds_metadata_after_candidate_swap)
-{
-    migraphx::program p;
-    auto* first = p.create_module("first");
-    migraphx::shape one_s{migraphx::shape::float_type, {1}};
-    auto first_data = first->add_parameter("input", one_s);
-    first->rename_parameter(first_data, "data");
-    first->add_return({first_data});
-
-    auto* second = p.create_module("second");
-    migraphx::shape two_s{migraphx::shape::float_type, {2}};
-    auto second_data = second->add_parameter("data", two_s);
-    second->add_return({second_data});
-
-    auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dims{{1, 3}};
-    migraphx::shape dyn_s{migraphx::shape::float_type, dims};
-    auto data   = mm->add_parameter("data", dyn_s);
-    auto select = mm->add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{dyn_s}})}}),
-        {data},
-        {first, second});
-    mm->add_return(
-        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
-
-    std::vector<float> one_vec{1};
-    auto first_result =
-        p.eval({{"data", migraphx::argument{one_s, one_vec.data()}}}).front().to_vector<float>();
-    EXPECT(first_result == one_vec);
-
-    migraphx::module replacement{"replacement"};
-    migraphx::shape three_s{migraphx::shape::float_type, {3}};
-    auto replacement_data = replacement.add_parameter("data", three_s);
-    replacement.add_return({replacement_data});
-    first->swap(replacement);
-
-    std::vector<float> three_vec{3, 4, 5};
-    auto second_result = p.eval({{"data", migraphx::argument{three_s, three_vec.data()}}})
-                             .front()
-                             .to_vector<float>();
-    EXPECT(second_result == three_vec);
-}
-
-TEST_CASE(select_module_program_metadata_is_isolated)
-{
-    auto make_program = [](std::size_t n) {
-        migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {n}};
-        auto* submod = p.create_module("sub");
-        auto subdata = submod->add_parameter("data", s);
-        submod->add_return({submod->add_instruction(migraphx::make_op("neg"), subdata)});
-        auto* mm    = p.get_main_module();
-        auto data   = mm->add_parameter("data", s);
-        auto select = mm->add_instruction(
-            migraphx::make_op(
-                "select_module",
-                {{"output_dyn_shapes",
-                  migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}})}}),
-            {data},
-            {submod});
-        mm->add_return(
-            {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
-        return p;
-    };
-
-    auto first  = make_program(1);
-    auto second = make_program(2);
-    std::vector<float> first_input{1};
-    std::vector<float> second_input{2, 3};
-    migraphx::shape first_shape{migraphx::shape::float_type, {1}};
-    migraphx::shape second_shape{migraphx::shape::float_type, {2}};
-    auto eval_first = [&] {
-        return first.eval({{"data", migraphx::argument{first_shape, first_input.data()}}})
-            .front()
-            .to_vector<float>();
-    };
-    auto eval_second = [&] {
-        return second.eval({{"data", migraphx::argument{second_shape, second_input.data()}}})
-            .front()
-            .to_vector<float>();
-    };
-
-    EXPECT(eval_first() == std::vector<float>{-1});
-    EXPECT(eval_second() == std::vector<float>{-2, -3});
-    EXPECT(eval_first() == std::vector<float>{-1});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

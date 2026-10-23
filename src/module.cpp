@@ -42,7 +42,6 @@
 #include <migraphx/json.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/logger.hpp>
-#include <atomic>
 #include <iostream>
 #include <algorithm>
 #include <array>
@@ -65,20 +64,6 @@ struct module_impl
     bool bypass      = false; // used for skipping compiler passes
     bit_signal<64> changed{};
     std::size_t num_ins_with_debug_symbols = 0;
-    std::size_t revision                   = 0;
-
-    static std::atomic<std::size_t>& global_mutation_generation()
-    {
-        static std::atomic<std::size_t> result{0};
-        return result;
-    }
-
-    void notify_changed()
-    {
-        changed.notify();
-        revision =
-            global_mutation_generation().fetch_add(1, std::memory_order_relaxed) + std::size_t{1};
-    }
 
     bool contains(instruction_ref ins) const
     {
@@ -94,7 +79,7 @@ struct module_impl
     template <class... Ts>
     instruction_ref emplace(instruction_ref pos, Ts&&... xs)
     {
-        notify_changed();
+        changed.notify();
         // cppcheck-suppress redundantInitialization
         auto r = instructions.emplace(pos, std::forward<Ts>(xs)...);
         instruction_set.insert(std::addressof(*r));
@@ -102,6 +87,7 @@ struct module_impl
     }
     instruction_ref insert(instruction_ref pos, const instruction& ins)
     {
+        changed.notify();
         return emplace(pos, ins);
     }
 
@@ -132,7 +118,7 @@ struct module_impl
 
     void reset_instructions()
     {
-        notify_changed();
+        changed.notify();
         instructions.clear();
         instruction_set.clear();
         nparams                    = 0;
@@ -164,7 +150,7 @@ struct module_impl
 
     instruction_ref erase(instruction_ref pos)
     {
-        notify_changed();
+        changed.notify();
         instruction_set.erase(std::addressof(*pos));
         if(num_ins_with_debug_symbols > 0 and not pos->get_debug_symbols().empty())
             --num_ins_with_debug_symbols;
@@ -173,7 +159,7 @@ struct module_impl
 
     instruction_ref erase(instruction_ref start, instruction_ref last)
     {
-        notify_changed();
+        changed.notify();
         std::for_each(start, last, [&](auto& ins) {
             instruction_set.erase(std::addressof(ins));
             if(num_ins_with_debug_symbols > 0 and not ins.get_debug_symbols().empty())
@@ -204,20 +190,11 @@ module::module(const module& m) { assign(m); }
 // copy assignment operator
 module& module::operator=(module m)
 {
-    this->swap(m);
+    std::swap(m.impl, this->impl);
     return *this;
 }
 
-void module::swap(module& rhs) noexcept
-{
-    if(this == &rhs)
-        return;
-    std::swap(impl, rhs.impl);
-    if(impl != nullptr)
-        impl->notify_changed();
-    if(rhs.impl != nullptr)
-        rhs.impl->notify_changed();
-}
+void module::swap(module& rhs) noexcept { std::swap(impl, rhs.impl); }
 
 void module::clear_foreign_inputs_for_program()
 {
@@ -552,7 +529,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             std::vector<instruction_ref> args,
                                             std::vector<module_ref> module_args)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
     auto guard     = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
@@ -573,7 +550,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 
 instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     assert(has_instruction(ins));
     assert(ins != rep);
 
@@ -627,7 +604,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 std::vector<instruction_ref>
 module::batch_replace_instruction(const std::vector<instruction_replacement>& replacers)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     std::vector<instruction_ref> ret;
     std::unordered_set<instruction_ref> old_max_splices;
     std::unordered_set<instruction_ref> new_max_splices;
@@ -722,7 +699,7 @@ instruction_ref module::remove_instructions(instruction_ref first, instruction_r
 
 instruction_ref module::move_instruction(instruction_ref src, instruction_ref dst)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     assert(has_instruction(src));
     assert(has_instruction(dst) or is_end(dst, this->end()));
     impl->instructions.splice(dst, impl->instructions, src);
@@ -904,7 +881,7 @@ instruction_ref module::insert_parameter(instruction_ref ins, std::string name, 
 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")
@@ -993,7 +970,7 @@ std::vector<instruction_ref> module::get_parameters() const
 
 void module::rename_parameter(instruction_ref ins, const std::string& name)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     assert(ins->name() == "@param");
     auto op      = any_cast<builtin::param>(ins->get_operator());
     op.parameter = name;
@@ -1020,11 +997,6 @@ std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 bool module::has_instruction(instruction_ref ins) const { return impl->contains(ins); }
 
 std::size_t module::size() const { return impl->instructions.size(); }
-std::size_t module::revision() const { return impl->revision; }
-std::size_t module::mutation_generation()
-{
-    return module_impl::global_mutation_generation().load(std::memory_order_relaxed);
-}
 instruction_ref module::begin() const { return impl->instructions.begin(); }
 instruction_ref module::end() const { return impl->instructions.end(); }
 instruction_ref module::insert_end() const

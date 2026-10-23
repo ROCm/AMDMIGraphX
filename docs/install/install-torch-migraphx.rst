@@ -28,10 +28,8 @@ Prerequisites
 
 Torch-MIGraphX |TORCH_MIGRAPHX_VERSION| is supported on the same AMD GPUs as
 MIGraphX |MIGRAPHX_VERSION|. See the :doc:`MIGraphX installation page
-<install-migraphx>` for the list of supported architectures and the `ROCm
-compatibility matrix`_ for more information.
-
-.. _ROCm compatibility matrix: https://rocm.docs.amd.com/en/docs-10.1.0/compatibility/compatibility-matrix.html
+<install-migraphx>` for the list of supported architectures and the
+|ROCM_COMPAT_DOC| for more information.
 
 .. selected:: i=pip
 
@@ -46,11 +44,9 @@ Install Torch-MIGraphX on Linux
 Install ROCm
 ------------
 
-For instructions, see `Install AMD ROCm`_ |ROCM_VERSION|. Use the selector
+For instructions, see |ROCM_INSTALL_DOC|. Use the selector
 panel on that page to view instructions appropriate for your system
 environment.
-
-.. _Install AMD ROCm: https://rocm.docs.amd.com/en/docs-10.1.0/install/rocm.html?fam=all
 
 .. selected:: i=pip
    :heading: Install Torch-MIGraphX 1.2 using pip
@@ -104,8 +100,8 @@ environment.
                python3.10 -m venv .venv
                source .venv/bin/activate
 
-   2. Install a ROCm-enabled PyTorch release into the environment. See the
-      `PyTorch installation guide`_.
+   2. Install a ROCm-enabled PyTorch release into the environment. See
+      |TORCH_INSTALL_DOC|.
 
    3. Install the ``torch_migraphx`` wheel. This also installs the matching
       MIGraphX |MIGRAPHX_VERSION| wheels.
@@ -141,8 +137,6 @@ environment.
             export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
 
          To make this permanent, add these lines to your shell startup script.
-
-.. _PyTorch installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver=10.1.0
 
 .. selected:: i=pip
    :heading: Uninstall Torch-MIGraphX

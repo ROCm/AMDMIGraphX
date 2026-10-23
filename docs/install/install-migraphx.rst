@@ -13,9 +13,6 @@ Installing MIGraphX using prebuilt packages is sufficient for most users
 who want to use the MIGraphX API. If you plan to develop for MIGraphX or
 contribute to the source code, see `Developing for MIGraphX <../dev/contributing-to-migraphx.html>`_.
 
-For a containerized build environment with prerequisites preinstalled, see
-:doc:`Build MIGraphX in a Docker container <./build-migraphx-docker>`.
-
 .. selector:: Installation method
    :key: i
 
@@ -46,9 +43,7 @@ MIGraphX |MIGRAPHX_VERSION| is currently supported on:
 
 * ``gfx1153``, ``gfx1152``, ``gfx1151``, and ``gfx1150`` Ryzen AI processors.
 
-See the `ROCm compatibility matrix`_ for more information.
-
-.. _ROCm compatibility matrix: https://rocm.docs.amd.com/en/docs-10.1.0/compatibility/compatibility-matrix.html
+See the |ROCM_COMPAT_DOC| for more information.
 
 .. selected:: i=pip
 
@@ -65,11 +60,9 @@ MIGraphX requires ROCm to be installed on your system first.
 Install ROCm
 ------------
 
-For instructions, see `Install AMD ROCm`_ |ROCM_VERSION|. Use the selector
+For instructions, see |ROCM_INSTALL_DOC|. Use the selector
 panel on that page to view instructions appropriate for your system
 environment.
-
-.. _Install AMD ROCm: https://rocm.docs.amd.com/en/docs-10.1.0/install/rocm.html?fam=all
 
 .. selected:: i=pkgman
    :heading: Install MIGraphX via package manager
@@ -544,13 +537,11 @@ environment.
       learning inference using the MIGraphX execution provider on
       ROCm-supported GPUs. See the `ONNX Runtime installation guide`_.
 
-      .. note::
-
-         The ONNX Runtime MIGraphX execution provider requires MIGraphX to
-         be installed using pip. The ``onnxruntime-ep-migraphx`` wheel
-         depends on ``migraphx-libs``, which pip can't resolve from a
-         package manager installation. To use the execution provider,
-         install MIGraphX using pip instead.
+      The ONNX Runtime MIGraphX execution provider requires MIGraphX to
+      be installed using pip. The ``onnxruntime-ep-migraphx`` wheel
+      depends on ``migraphx-libs``, which pip can't resolve from a
+      package manager installation. To use the execution provider,
+      install MIGraphX using pip instead.
 
 .. _ONNX Runtime installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html?rocm-ver=10.1.0
 
@@ -900,30 +891,151 @@ environment.
 
                sudo rm -f /etc/profile.d/set-migraphx-env.sh
 
+
+.. _build-from-source:
+
 Build MIGraphX from source
 ==========================
 
 .. note::
 
-   This method for building MIGraphX requires using ``sudo``.
+   For reproducibility, we recommend using the provided Docker environment
+   with MIGraphX build prerequisites preinstalled. See
+   :doc:`./build-migraphx-docker`.
 
-1. Install ``rocm-cmake``, ``pip3``, ``rocblas``, and ``miopen-hip``:
+See the `MIGraphX README <https://github.com/ROCm/AMDMIGraphX>`__ for more
+information.
+
+1. Complete the appropriate :doc:`ROCm installation prerequisites
+   <rocm:install/rocm>` for your system environment
+   and register AMD package repositories.
+
+2. Install required ROCm development packages:
+
+   .. tab-set::
+
+      .. tab-item:: Debian-based distros
+         :sync: deb
+
+         .. code-block:: shell
+            :substitutions:
+
+            sudo apt install amdrocm-runtime-dev|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-blas-dev|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-blas-host|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-dnn-dev|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-dnn-host|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-hipblas-common-dev|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-core|ROCM_VERSION_PKG_SUFFIX|
+
+      .. tab-item:: RHEL-based distros
+         :sync: rhel
+
+         .. code-block:: shell
+            :substitutions:
+
+            sudo dnf install amdrocm-runtime-devel|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-blas-devel|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-blas-host|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-dnn-devel|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-dnn-host|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-hipblas-common-devel|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-core|ROCM_VERSION_PKG_SUFFIX|
+
+      .. tab-item:: SLES
+         :sync: zypper
+
+         .. code-block:: shell
+            :substitutions:
+
+            sudo zypper install amdrocm-runtime-devel|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-blas-devel|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-blas-host|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-dnn-devel|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-dnn-host|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-hipblas-common-devel|ROCM_VERSION_PKG_SUFFIX| \
+                amdrocm-core|ROCM_VERSION_PKG_SUFFIX|
+
+   ``amdrocm-core`` provides the GPU device code and links ``/opt/rocm/bin``,
+   ``/opt/rocm/llvm``, and the other ``/opt/rocm`` entry points to this
+   release, so the paths used in the remaining steps resolve.
+
+   .. note::
+
+      :substitution-code:`amdrocm-core|ROCM_VERSION_PKG_SUFFIX|` installs the device code for
+      every supported architecture. Append your GPU's architecture to install
+      only the device code that architecture needs, which is a much smaller
+      download:
+
+      .. code-block:: shell
+         :substitutions:
+
+         sudo apt install amdrocm-core|ROCM_VERSION_PKG_SUFFIX|-gfx942
+
+      Run ``rocminfo | grep -o -m1 'gfx.*'`` to find the architecture of an
+      installed GPU. The suffixed package sets up the same ``/opt/rocm`` links.
+
+3. Install the host build tools. The ROCm packages don't provide CMake, Git, or
+   the Python headers and ``venv`` module that the following steps need.
+
+   .. tab-set::
+
+      .. tab-item:: Debian-based distros
+         :sync: deb
+
+         .. code-block:: shell
+
+            sudo apt install build-essential cmake git pkg-config \
+                python3-dev python3-pip python3-venv
+
+      .. tab-item:: RHEL-based distros
+         :sync: rhel
+
+         .. code-block:: shell
+
+            sudo dnf install gcc-c++ make cmake git \
+                python3-devel python3-pip
+
+      .. tab-item:: SLES
+         :sync: zypper
+
+         .. code-block:: shell
+
+            sudo zypper install gcc-c++ make cmake git \
+                python3-devel python3-pip
+
+4. Clone the MIGraphX source code:
 
    .. code-block:: shell
 
-      sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
+      git clone https://github.com/ROCm/AMDMIGraphX.git
+      cd AMDMIGraphX
 
-2. Install `rbuild <https://github.com/RadeonOpenCompute/rbuild>`__:
-
-   .. code-block:: shell
-
-      pip3 install --prefix /usr/local https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
-
-3. Build MIGraphX source code:
+5. Install `rbuild <https://github.com/RadeonOpenCompute/rbuild>`__ into a Python
+   virtual environment.
 
    .. code-block:: shell
 
-      sudo rbuild build -d depend -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+      python3 -m venv venv_rbuild
+      source venv_rbuild/bin/activate
+
+      pip install https://github.com/pfultz2/cget/archive/master.tar.gz
+      pip install https://github.com/ROCm/rbuild/archive/master.tar.gz
+
+   Install ``cget`` first on Python 3.14 or newer. ``rbuild`` accepts any
+   ``cget`` from 0.2.0 up, but that release predates the removal of
+   ``urllib.request.FancyURLopener`` in Python 3.14 and fails on import, so
+   ``cget`` has to come from source until a newer version is released.
+
+6. Build MIGraphX source code. Run this from the root of the checkout, because
+   ``rbuild`` builds the source directory you invoke it from:
+
+   .. code-block:: shell
+
+      rbuild build -d depend -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+
+Once completed, all prerequisites are in the ``depend`` folder and MIGraphX is in
+the ``build`` directory.
 
 If you plan to develop for MIGraphX or contribute to the source code, see
 :doc:`Developing for MIGraphX <../dev/contributing-to-migraphx>`.

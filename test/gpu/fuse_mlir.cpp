@@ -1596,6 +1596,106 @@ TEST_CASE(lse_attention)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// Attention block of the kv_cache_attention_sink_gate test: softmax attention
+// with a transpose/reshape output tail and the {output, lse} tuple outputs
+// fuse_attention produces for attention sinks
+static std::pair<migraphx::instruction_ref, migraphx::instruction_ref>
+add_sink_attention(migraphx::module_ref gm, const std::vector<migraphx::instruction_ref>& inputs)
+{
+    auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+    auto lens  = gemm1->get_shape().lens();
+    auto rmax  = gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+    auto bc_rm =
+        gm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), rmax);
+    auto sub  = gm->add_instruction(migraphx::make_op("sub"), gemm1, bc_rm);
+    auto exp  = gm->add_instruction(migraphx::make_op("exp"), sub);
+    auto rsum = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+    auto bc_rs =
+        gm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), rsum);
+    auto div   = gm->add_instruction(migraphx::make_op("div"), exp, bc_rs);
+    auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+    auto tsp_out =
+        gm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);
+    auto rsp_out =
+        gm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4}}}), tsp_out);
+    auto log_sum = gm->add_instruction(migraphx::make_op("log"), rsum);
+    auto lse     = gm->add_instruction(migraphx::make_op("add"), rmax, log_sum);
+    return {rsp_out, lse};
+}
+
+// The shape transforms carrying the gate to the attention output of
+// add_sink_attention
+static migraphx::instruction_ref add_sink_gate_views(migraphx::module_ref mm,
+                                                     migraphx::instruction_ref gate)
+{
+    auto factor =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gate);
+    factor = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2}}}),
+                                 factor);
+    return mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4}}}), factor);
+}
+
+// The attention-sink gate sigmoid(lse - sinks) left outside the group by
+// fuse_attention is fused into the kv-cache attention module as an epilogue on
+// the lse output. The mul applying the gate to the attention output also
+// depends on the lse output through shape transforms, so fusing it would make
+// the mlir_op an input of itself; it must stay outside.
+TEST_CASE(kv_cache_attention_sink_gate)
+{
+    migraphx::shape s_q{migraphx::shape::half_type, {1, 2, 1, 4}};
+    migraphx::shape s_k{migraphx::shape::half_type, {1, 2, 4, 4}};
+    migraphx::shape s_v{migraphx::shape::half_type, {1, 2, 4, 2}};
+    migraphx::shape s_sinks{migraphx::shape::half_type, {1, 2, 1, 1}};
+
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_k);
+        auto v     = mm->add_parameter("v", s_v);
+        auto sinks = mm->add_parameter("sinks", s_sinks);
+        auto group = add_group(
+            p1, "attn0", "kv_cache_attention", {q, k, v}, [=](auto* gm, const auto& inputs) {
+                auto [rsp_out, lse] = add_sink_attention(gm, inputs);
+                return std::vector<migraphx::instruction_ref>{rsp_out, lse};
+            });
+        auto out = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
+        auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto gate =
+            add_pointwise(p1, "main:pointwise0", {lse, sinks}, [=](auto* pm, const auto& inputs) {
+                auto diff = pm->add_instruction(migraphx::make_op("sub"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("sigmoid"), diff);
+            });
+        auto factor = add_sink_gate_views(mm, gate);
+        auto scaled = add_pointwise(p1, "main:pointwise1", {out, factor}, single_pointwise("mul"));
+        mm->add_return({scaled});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_k);
+        auto v     = mm->add_parameter("v", s_v);
+        auto sinks = mm->add_parameter("sinks", s_sinks);
+        auto fused =
+            add_mlir(p2, "mlir_attn0", {q, k, v, sinks}, [=](auto* pm, const auto& inputs) {
+                auto [rsp_out, lse] = add_sink_attention(pm, inputs);
+                auto diff           = pm->add_instruction(migraphx::make_op("sub"), lse, inputs[3]);
+                auto gate           = pm->add_instruction(migraphx::make_op("sigmoid"), diff);
+                return std::make_tuple(migraphx::make_op("group", {{"tag", "kv_cache_attention"}}),
+                                       std::vector<migraphx::instruction_ref>{rsp_out, gate});
+            });
+        auto out  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto gate = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto factor = add_sink_gate_views(mm, gate);
+        auto scaled = add_pointwise(p2, "main:pointwise1", {out, factor}, single_pointwise("mul"));
+        mm->add_return({scaled});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(conv_output_reshapes)
 {
     migraphx::shape s1 = migraphx::shape::from_permutation(

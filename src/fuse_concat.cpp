@@ -185,12 +185,14 @@ struct find_concat_pointwise : concat_counter<0>
                                                         std::to_string(get_noop_counter()));
                            auto x   = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
+                           pm->set_bypass();
                            return pm;
                        });
         auto* post_pm =
             mpm.create_module(module_prefix + "noop:concat" + std::to_string(get_noop_counter()));
         auto x = post_pm->add_parameter("!x0", shape{concat_ins->get_shape().type()});
         post_pm->add_return({x});
+        post_pm->set_bypass();
         module_inputs.push_back(post_pm);
         mpm.get_module().replace_instruction(
             concat_ins,
@@ -245,6 +247,7 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                                                         std::to_string(get_noop_counter()));
                            auto x   = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
+                           pm->set_bypass();
                            return pm;
                        });
 

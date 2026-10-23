@@ -92,7 +92,7 @@ struct analyze_scatternd : analyzer<analyze_scatternd>
     static instruction_ref freeze(module& m,
                                   instruction_ref source,
                                   const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>&)
+                                  const freezer_context&)
     {
         assert(args.size() == 3);
         const auto& index_shape = source->inputs().at(1)->get_shape();

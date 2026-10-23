@@ -48,3 +48,27 @@ struct test_concat_past_present : verify_program<test_concat_past_present<DType>
 
 template struct test_concat_past_present<migraphx::shape::half_type>;
 template struct test_concat_past_present<migraphx::shape::fp8e4m3fn_type>;
+
+struct test_concat_past_present_runtime_sequence
+    : verify_program<test_concat_past_present_runtime_sequence>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto present =
+            mm->add_parameter("present", migraphx::shape{migraphx::shape::half_type, {1, 2, 4, 4}});
+        auto cache =
+            mm->add_parameter("cache", migraphx::shape{migraphx::shape::half_type, {1, 2, 8, 4}});
+        auto slk = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1, 1}}, {0}});
+        auto sequence_length = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {2}});
+        mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}),
+                            present,
+                            slk,
+                            sequence_length,
+                            cache);
+        return p;
+    }
+};

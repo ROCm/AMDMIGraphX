@@ -41,6 +41,7 @@
 #include <functional>
 #include <iterator>
 #include <optional>
+#include <set>
 #include <unordered_map>
 #include <vector>
 
@@ -51,11 +52,19 @@ namespace split_sym {
 enum class fill_kind
 {
     dont_care,
+    neg_one,
     zero,
     lowest,
     neg_inf,
     highest,
     one
+};
+
+enum class padding_semantics
+{
+    exact,
+    max_neutral,
+    min_neutral
 };
 
 enum class mask_role
@@ -79,8 +88,9 @@ struct axis_desc
     fill_kind fill         = fill_kind::dont_care;
     // Padded values on this axis cannot leak into the result, so a cross-block input need not be
     // sliced back to its runtime extent.
-    bool coalesce_safe = false;
-    mask_role role     = mask_role::contracted;
+    bool coalesce_safe          = false;
+    mask_role role              = mask_role::contracted;
+    padding_semantics semantics = padding_semantics::exact;
 };
 
 axis_desc padded_axis(fill_kind fill, bool coalesce_safe);
@@ -106,6 +116,25 @@ struct axis_mask
     }
 };
 
+struct padding_requirement
+{
+    std::size_t axis;
+    sym::expr extent;
+    std::set<fill_kind> fills;
+    padding_semantics semantics;
+    // False when the requirement must be transformed by an upstream operation before padding.
+    bool materializable = true;
+};
+
+struct input_padding_requirement
+{
+    std::size_t input;
+    padding_requirement requirement;
+};
+
+using padding_propagator = std::function<std::optional<std::vector<input_padding_requirement>>(
+    instruction_ref, const padding_requirement&)>;
+
 struct operand_plan
 {
     std::optional<float> pad_value;
@@ -114,6 +143,7 @@ struct operand_plan
     std::vector<std::size_t> retained_slice_axes;
     // Runtime masks applied inside the clone instead of relying on the pad fill.
     std::vector<axis_mask> masks;
+    std::vector<padding_requirement> padding_requirements;
 
     bool zeros_contracted_region(const axis_mask& consumer) const
     {
@@ -122,12 +152,15 @@ struct operand_plan
     }
 };
 
+struct freezer_context
+{
+    const std::unordered_map<sym::expr, std::size_t>* values   = nullptr;
+    const std::vector<instruction_ref>* runtime_extent_sources = nullptr;
+};
+
 // Re-emits the operation in static form for the given fixed symbol values.
-using op_freezer =
-    std::function<instruction_ref(module&,
-                                  instruction_ref,
-                                  const std::vector<instruction_ref>&,
-                                  const std::unordered_map<sym::expr, std::size_t>&)>;
+using op_freezer = std::function<instruction_ref(
+    module&, instruction_ref, const std::vector<instruction_ref>&, const freezer_context&)>;
 
 struct symbolic_op_info
 {
@@ -137,8 +170,10 @@ struct symbolic_op_info
     std::vector<std::size_t> output_symbolic_axes;
     std::vector<operand_plan> operands;
     op_freezer freezer;
+    padding_propagator propagate_padding;
     // Inputs that only carry shape metadata, such as allocate dims; they are not operands.
     std::vector<std::size_t> shape_input_indices;
+    std::vector<sym::expr> runtime_extent_expressions;
     bool supported = false;
 
     const shape& get_output_shape() const { return ins->get_shape(); }
@@ -174,9 +209,31 @@ struct symbolic_op_info
 
 bool is_variable_axis(const shape::dynamic_dimension& d);
 
+bool supports_fill(shape::type_t type, fill_kind fill);
+
 bool supports_mask(shape::type_t type, fill_kind fill);
 
 float fill_value(fill_kind fill);
+
+std::optional<std::vector<input_padding_requirement>>
+propagate_padding_to_input(instruction_ref ins,
+                           std::size_t input,
+                           std::size_t input_axis,
+                           const padding_requirement& requirement,
+                           std::set<fill_kind> fills,
+                           padding_semantics semantics,
+                           bool materializable = true);
+
+std::optional<std::vector<input_padding_requirement>>
+propagate_padding_to_input(instruction_ref ins,
+                           std::size_t input,
+                           const padding_requirement& requirement,
+                           std::set<fill_kind> fills,
+                           padding_semantics semantics,
+                           bool materializable = true);
+
+std::optional<std::vector<input_padding_requirement>>
+preserve_padding(instruction_ref ins, const padding_requirement& requirement);
 
 std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank);
 
@@ -242,6 +299,8 @@ symbolic_op_info analyze_axes(instruction_ref ins,
                 operand.retained_slice_axes.push_back(axis);
             if(desc.fill == fill_kind::dont_care)
                 continue;
+            operand.padding_requirements.push_back(
+                {axis, dimension.sym_expr, {desc.fill}, desc.semantics});
             if(fill != fill_kind::dont_care and fill != desc.fill)
                 MIGRAPHX_THROW("SPLIT_SYM_DIM: conflicting padding fills on one operand");
             fill = desc.fill;

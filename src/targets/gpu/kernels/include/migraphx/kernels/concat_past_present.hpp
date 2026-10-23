@@ -62,17 +62,18 @@ __device__ void update_cache(const Present present,
                              SeqLensK seqlens_k,
                              Cache cache,
                              Params params,
+                             index_int sequence_length,
                              index_int head_size,
                              index_int idx)
 {
     const index_int batch_size                     = params.batch_size;
-    const index_int sequence_length                = params.sequence_length;
     const index_int past_buffer_sequence_length    = params.seqlen_present_kv_cache;
     const index_int present_buffer_sequence_length = past_buffer_sequence_length;
     const index_int kv_num_heads                   = params.kv_num_heads;
     const bool is_prompt                           = sequence_length != 1;
-    const index_int packed_batch_stride            = kv_num_heads * sequence_length * head_size;
-    const index_int kv_input_chunk_length          = sequence_length * head_size;           // L x H
+    const index_int packed_batch_stride       = kv_num_heads * params.sequence_length * head_size;
+    const index_int input_head_stride         = params.sequence_length * head_size;
+    const index_int kv_input_chunk_length     = sequence_length * head_size;                // L x H
     const index_int present_buff_chunk_length = present_buffer_sequence_length * head_size; // T x H
 
     const index_int loop_len = batch_size * kv_num_heads;
@@ -88,8 +89,7 @@ __device__ void update_cache(const Present present,
             return;
         const index_int past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
 
-        auto current =
-            present + packed_batch_stride * batch_index + kv_input_chunk_length * head_index;
+        auto current = present + packed_batch_stride * batch_index + input_head_stride * head_index;
 
         concat_state_chunk concat{
             present_buff_chunk_length, past_chunk_length, kv_input_chunk_length, i};
@@ -110,7 +110,48 @@ concat_past_present(Past past, const Present present, SeqLensK seqlens_k, Params
     auto elements =
         params.batch_size * params.kv_num_heads * params.sequence_length * vec_head_size;
     ind.global_stride(elements, [&](auto idx) {
-        update_cache(current.begin(), seqlens_k, cache.begin(), params, vec_head_size, idx);
+        update_cache(current.begin(),
+                     seqlens_k,
+                     cache.begin(),
+                     params,
+                     params.sequence_length,
+                     vec_head_size,
+                     idx);
+    });
+}
+
+template <index_int N,
+          class Past,
+          class Present,
+          class SeqLensK,
+          class RuntimeSequenceLength,
+          class Params>
+__device__ void concat_past_present(Past past,
+                                    const Present present,
+                                    SeqLensK seqlens_k,
+                                    RuntimeSequenceLength runtime_sequence_length,
+                                    Params params)
+{
+    auto ind                          = make_index();
+    constexpr index_int head_size     = params.head_size;
+    constexpr index_int vec_head_size = head_size / N;
+    auto cache                        = as_vec<N>(past, _c<3>);
+    auto current                      = as_vec<N>(present, _c<3>);
+    const auto sequence_length        = static_cast<index_int>(runtime_sequence_length[0]);
+    if(sequence_length > params.sequence_length)
+        return;
+    const auto max_elements =
+        params.batch_size * params.kv_num_heads * params.sequence_length * vec_head_size;
+    const auto elements = params.batch_size * params.kv_num_heads * sequence_length * vec_head_size;
+    ind.global_stride(max_elements, [&](auto idx) {
+        if(idx < elements)
+            update_cache(current.begin(),
+                         seqlens_k,
+                         cache.begin(),
+                         params,
+                         sequence_length,
+                         vec_head_size,
+                         idx);
     });
 }
 

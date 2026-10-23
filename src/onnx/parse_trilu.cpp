@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/onnx/checks.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <vector>
 
 namespace migraphx {
@@ -68,6 +69,31 @@ struct parse_trilu : op_parser<parse_trilu>
         return result;
     }
 
+    static instruction_ref add_mask(const onnx_parser::node_info& info,
+                                    instruction_ref diagonal,
+                                    instruction_ref k,
+                                    bool upper)
+    {
+        auto excluded = info.add_instruction(make_op(upper ? "less" : "greater"), diagonal, k);
+        if(excluded->get_shape().type() != shape::bool_type)
+        {
+            excluded = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
+                                            excluded);
+        }
+        return info.add_instruction(make_op("not"), excluded);
+    }
+
+    static instruction_ref select_masked_values(const onnx_parser::node_info& info,
+                                                instruction_ref mask,
+                                                instruction_ref input)
+    {
+        auto zero = info.add_literal(literal{shape{input->get_shape().type()}, {0}});
+        return migraphx::add_common_op(*info.mod,
+                                       make_op("where"),
+                                       {mask, input, zero},
+                                       {/*common_type=*/false, /*common_lens=*/true});
+    }
+
     instruction_ref parse(const op_desc&,
                           const onnx_parser&,
                           const onnx_parser::node_info& info,
@@ -75,22 +101,22 @@ struct parse_trilu : op_parser<parse_trilu>
     {
         const auto input_shape = args[0]->get_shape();
         assert(input_shape.ndim() >= 2);
-        std::int64_t k = 0;
-        bool upper     = true;
+        std::optional<std::int64_t> k = 0;
+        bool upper                    = true;
 
-        if(args.size() > 1)
+        if(args.size() > 1 and not args[1]->is_undefined())
         {
             const auto arg_k = args[1]->eval();
-            check_arg_empty(arg_k, "PARSE_TRILU: dynamic k not supported");
-            k = arg_k.at<std::int64_t>();
+            if(arg_k.empty())
+                k.reset();
+            else
+                k = arg_k.at<std::int64_t>();
         }
 
         if(contains(info.attributes, "upper"))
         {
             upper = info.attributes.at("upper").i() != 0;
         }
-
-        const auto output_type = input_shape.type();
 
         std::size_t num_rows = 0;
         std::size_t num_cols = 0;
@@ -114,13 +140,24 @@ struct parse_trilu : op_parser<parse_trilu>
             }
         }
 
-        if(fixed_matrix)
+        if(fixed_matrix and k.has_value())
         {
             const auto diagonal_values = make_diagonal_values(num_rows, num_cols);
-            const auto mask_values     = make_mask_values(diagonal_values, k, upper);
-            const auto mask =
-                info.add_literal(literal{shape{output_type, {num_rows, num_cols}}, mask_values});
-            return info.add_broadcastable_binary_op("mul", mask, args[0]);
+            const auto mask_values     = make_mask_values(diagonal_values, *k, upper);
+            const auto mask            = info.add_literal(
+                literal{shape{shape::bool_type, {num_rows, num_cols}}, mask_values});
+            return select_masked_values(info, mask, args[0]);
+        }
+
+        if(fixed_matrix)
+        {
+            const auto diagonal =
+                info.add_literal(literal{shape{shape::int64_type, {num_rows, num_cols}},
+                                         make_diagonal_values(num_rows, num_cols)});
+            const auto k_input = info.add_instruction(
+                make_op("multibroadcast", {{"out_lens", {num_rows, num_cols}}}), args[1]);
+            auto mask = add_mask(info, diagonal, k_input, upper);
+            return select_masked_values(info, mask, args[0]);
         }
 
         if(not input_shape.symbolic())
@@ -162,28 +199,19 @@ struct parse_trilu : op_parser<parse_trilu>
             row_indices,
             col_matrix);
         auto diagonal = info.add_instruction(make_op("sub"), col_matrix, row_matrix);
-        auto k_input  = info.add_literal(literal{shape{shape::int64_type, {1}, {0}}, {k}});
+        auto k_input  = k.has_value()
+                            ? info.add_literal(literal{shape{shape::int64_type, {1}, {0}}, {*k}})
+                            : args[1];
         k_input       = info.add_instruction(
             make_op("multibroadcast", {{"out_dyn_dims", to_value(matrix_shape)}}),
             k_input,
             diagonal);
-        auto excluded =
-            info.add_instruction(make_op(upper ? "less" : "greater"), diagonal, k_input);
-        if(excluded->get_shape().type() != shape::bool_type)
-        {
-            excluded = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
-                                            excluded);
-        }
-        auto mask = info.add_instruction(make_op("not"), excluded);
-        if(output_type != shape::bool_type)
-        {
-            mask = info.add_instruction(make_op("convert", {{"target_type", output_type}}), mask);
-        }
-        mask = info.add_instruction(
+        auto mask = add_mask(info, diagonal, k_input, upper);
+        mask      = info.add_instruction(
             make_op("multibroadcast", {{"out_dyn_dims", to_value(input_shape.dyn_dims())}}),
             mask,
             args[0]);
-        return info.add_instruction(make_op("mul"), args[0], mask);
+        return select_masked_values(info, mask, args[0]);
     }
 };
 

@@ -41,6 +41,9 @@ struct module;
  */
 struct MIGRAPHX_EXPORT eliminate_pad
 {
+    // Also fold pads whose begin and end amounts differ, giving the op asymmetric padding
+    bool asym_pad = true;
+
     std::string name() const { return "eliminate_pad"; }
 
     void apply(module& m) const;

@@ -3187,7 +3187,7 @@ TEST_CASE(kv_cache_attention_sinks)
                 auto lse     = gm->add_instruction(migraphx::make_op("add"), rdc_max, log_sum);
                 return std::vector<migraphx::instruction_ref>{rsp_out, lse};
             });
-        auto out = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
+        auto out  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
         auto lse  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
         auto diff = mm->add_instruction(migraphx::make_op("sub"), lse, bc_sinks);
         auto factor = mm->add_instruction(migraphx::make_op("sigmoid"), diff);
@@ -3526,7 +3526,7 @@ TEST_CASE(gemm_softmax_sinks_gemm)
                 auto lse     = gm->add_instruction(migraphx::make_op("add"), rmax, log_sum);
                 return std::vector<migraphx::instruction_ref>{gemm2, lse};
             });
-        auto out = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
+        auto out  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
         auto lse  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
         auto diff = mm->add_instruction(migraphx::make_op("sub"), lse, bc_sinks);
         auto sigma  = mm->add_instruction(migraphx::make_op("sigmoid"), diff);

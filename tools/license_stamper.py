@@ -31,8 +31,9 @@
 # it will add a stamp at the begenning of the file with the year set to the current year.
 #####################################################################################
 import os
+import sys
 import argparse
-from stamp_status import StampStatus, stamp_check, update_year, current_year
+from stamp_status import StampStatus, stamp_check, update_year, update_copyright_year, current_year
 from git_tools import get_all_files, get_changed_files, get_latest_commit_year, get_top
 
 delimiters = {
@@ -121,6 +122,7 @@ def bottom_footer(comment_char):
 
 
 # Simple just open and write stuff to each file with the license stamp
+# Returns True if the file was modified
 def stamp_file(rfile,
                message,
                comment_char,
@@ -155,7 +157,7 @@ def stamp_file(rfile,
     except (OSError, UnicodeDecodeError) as e:
         if debug:
             print(f"{e} \n Skipping file")
-        return
+        return False
 
     year = get_latest_commit_year(
         rfile) if use_last_commit_year else current_year()
@@ -165,10 +167,13 @@ def stamp_file(rfile,
                   StampStatus.WRONG_YEAR):
         if status == StampStatus.WRONG_YEAR:
             update_year(filename, year)
-        return
+        return status == StampStatus.WRONG_YEAR
 
     if debug:
         print("Writing header")
+
+    # The LICENSE message may carry a stale year, so stamp with the target year
+    message = [update_copyright_year(line, year) for line in message]
 
     with open(filename, 'w', encoding='utf-8') as contents:
         if add_shebang:
@@ -177,7 +182,7 @@ def stamp_file(rfile,
             contents.write(''.join(save_markdown_lines))
         delim = top_header(comment_char)
         if delim:
-            contents.write(delim)
+            contents.write(update_copyright_year(delim, year))
         if not modify_markdown:
             for line in message:
                 contents.write(f"{comment_char} {line}\n"
@@ -186,6 +191,7 @@ def stamp_file(rfile,
         if delim:
             contents.write(delim)
         contents.write(save)
+    return True
 
     if debug is True:
         print("Done")
@@ -205,17 +211,23 @@ def main(args):
         print("Target file list:\n" + '\n'.join(filelist))
         print("Output Message:\n" + '\n'.join(message))
 
+    changed = []
     for rfile in filelist:
         comment_delim = get_delimiter(rfile)
         if comment_delim is not None:
             print(f"Updating file: {rfile}")
-            stamp_file(rfile,
-                       message,
-                       comment_delim,
-                       use_last_commit_year=args.all,
-                       debug=args.debug)
+            if stamp_file(rfile,
+                          message,
+                          comment_delim,
+                          use_last_commit_year=args.all,
+                          debug=args.debug):
+                changed.append(rfile)
         else:
             print(f"No valid delimeter for file: {rfile}")
+
+    if changed and not args.exit_zero:
+        print(f"\n{len(changed)} files updated:\n" + '\n'.join(changed))
+        sys.exit(1)
 
 
 if __name__ == "__main__":
@@ -225,6 +237,9 @@ if __name__ == "__main__":
                         '--all',
                         action='store_true',
                         help='Update all files')
+    parser.add_argument('--exit-zero',
+                        action='store_true',
+                        help='Exit 0 even when files are updated')
     parser.add_argument('--debug',
                         action='store_true',
                         help='Enable debug output')

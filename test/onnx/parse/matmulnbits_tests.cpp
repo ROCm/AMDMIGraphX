@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,7 @@ TEST_CASE(matmulnbits_mm_test)
     auto a      = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {2, 16}});
     auto b      = mm->add_parameter("b", migraphx::shape{migraphx::shape::uint8_type, {4, 1, 8}});
     auto scales = mm->add_parameter("scales", migraphx::shape{migraphx::shape::float_type, {4}});
-    auto zp     = mm->add_parameter("zp", migraphx::shape{migraphx::shape::uint8_type, {4}});
+    auto zp     = mm->add_parameter("zp", migraphx::shape{migraphx::shape::uint8_type, {4, 1}});
 
     scales = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), scales);
     scales = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scales);
@@ -169,6 +169,83 @@ TEST_CASE(matmulnbits_bmm_test)
     mm->add_instruction(migraphx::make_op("dot"), a, b);
 
     auto prog = optimize_onnx("matmulnbits_bmm_test.onnx");
+
+    p.sort();
+    prog.sort();
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmulnbits_ryzenai_bias_test)
+{
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto a      = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {2, 16}});
+    auto b      = mm->add_parameter("b", migraphx::shape{migraphx::shape::uint8_type, {4, 1, 8}});
+    auto scales = mm->add_parameter("scales", migraphx::shape{migraphx::shape::float_type, {4}});
+    auto zp     = mm->add_parameter("zp", migraphx::shape{migraphx::shape::uint8_type, {4}});
+    auto bias   = mm->add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {4}});
+
+    scales = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), scales);
+    scales = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scales);
+    scales = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 16}}}),
+                                 scales);
+    scales = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), scales);
+
+    zp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), zp);
+    zp = mm->add_instruction(migraphx::make_op("unpack_int4"), zp);
+    zp = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), zp);
+    zp = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), zp);
+    zp = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 16}}}), zp);
+    zp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), zp);
+
+    b        = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), b);
+    b        = mm->add_instruction(migraphx::make_op("unpack_int4"), b);
+    b        = mm->add_instruction(migraphx::make_op("dequantizelinear"), b, scales, zp);
+    b        = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), b);
+    auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+    add_common_op(*mm, migraphx::make_op("add"), {dot, bias});
+
+    auto prog = optimize_onnx("matmulnbits_ryzenai_bias_test.onnx");
+
+    p.sort();
+    prog.sort();
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmulnbits_microsoft_bias_test)
+{
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto a      = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {2, 16}});
+    auto b      = mm->add_parameter("b", migraphx::shape{migraphx::shape::uint8_type, {4, 1, 8}});
+    auto scales = mm->add_parameter("scales", migraphx::shape{migraphx::shape::float_type, {4}});
+    auto zp     = mm->add_parameter("zp", migraphx::shape{migraphx::shape::uint8_type, {4}});
+    auto bias   = mm->add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_instruction(migraphx::make_op("undefined"));
+
+    scales = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), scales);
+    scales = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scales);
+    scales = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 16}}}),
+                                 scales);
+    scales = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), scales);
+
+    zp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), zp);
+    zp = mm->add_instruction(migraphx::make_op("unpack_int4"), zp);
+    zp = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), zp);
+    zp = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), zp);
+    zp = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 16}}}), zp);
+    zp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), zp);
+
+    b        = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), b);
+    b        = mm->add_instruction(migraphx::make_op("unpack_int4"), b);
+    b        = mm->add_instruction(migraphx::make_op("dequantizelinear"), b, scales, zp);
+    b        = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), b);
+    auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+    add_common_op(*mm, migraphx::make_op("add"), {dot, bias});
+
+    auto prog = optimize_onnx("matmulnbits_microsoft_bias_test.onnx");
 
     p.sort();
     prog.sort();

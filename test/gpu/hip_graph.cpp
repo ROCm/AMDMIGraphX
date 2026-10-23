@@ -66,14 +66,15 @@ add_layers(migraphx::module& m, migraphx::instruction_ref x, const migraphx::sha
     return cur;
 }
 
-// True when the compiled program contains a hip::graph instruction.
-static bool captured_hip_graph(const migraphx::program& p)
+// True when the compiled program's main module contains an instruction named `name`.
+static bool has_op(const migraphx::program& p, const std::string& name)
 {
     auto instructions = migraphx::iterator_for(*p.get_main_module());
-    return std::any_of(instructions.begin(), instructions.end(), [](auto ins) {
-        return ins->name() == "hip::graph";
-    });
+    return std::any_of(
+        instructions.begin(), instructions.end(), [&](auto ins) { return ins->name() == name; });
 }
+
+static bool captured_hip_graph(const migraphx::program& p) { return has_op(p, "hip::graph"); }
 
 // Compile copies of `p` for the gpu (with hip graphs enabled) and for the ref
 // target, confirming the gpu program captured a hip::graph.
@@ -370,6 +371,67 @@ TEST_CASE(rebind_aliased_inputs)
     EXPECT(migraphx::verify::verify_rms_range(eval_gpu(v1, v1), eval_ref(1, 1)));
     EXPECT(migraphx::verify::verify_rms_range(eval_gpu(v2, v3), eval_ref(2, 3)));
     EXPECT(migraphx::verify::verify_rms_range(eval_gpu(v1, v1), eval_ref(1, 1)));
+}
+
+// A decode kv-cache append fused into its pointwise producer writes through a
+// view placed by a host-read sequence length. The view and the writer must
+// stay outside the captured graphs: a replay would append at the first run's
+// slot. Each run appends at a different position into the same cache, so the
+// gpu and ref caches accumulate the same writes.
+TEST_CASE(runtime_view_replay)
+{
+    migraphx::shape s{migraphx::shape::half_type, {1, 2, 1, 4}};
+    migraphx::shape cs{migraphx::shape::half_type, {1, 2, 8, 4}};
+    migraphx::shape is{migraphx::shape::int32_type, {1, 1}};
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", s);
+    auto y     = mm->add_parameter("y", s);
+    auto slk   = mm->add_parameter("slk", is);
+    auto cache = mm->add_parameter("cache", cs);
+    // Gathers rotating an axis are separate kernels that fuse with neither
+    // each other nor pointwise ops, so four of them form a capturable run
+    auto head_idx = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {4}}, {1, 2, 3, 0}});
+    auto x1  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 3}}), x, head_idx);
+    auto x2  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 3}}), x1, head_idx);
+    auto x3  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 3}}), x2, head_idx);
+    auto x4  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 3}}), x3, head_idx);
+    auto mul = mm->add_instruction(migraphx::make_op("mul"), x4, y);
+    auto cpp = mm->add_instruction(
+        migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), mul, slk, cache);
+    auto seq_idx = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::int32_type, {8}}, {1, 2, 3, 4, 5, 6, 7, 0}});
+    auto c1      = mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), cpp, seq_idx);
+    auto c2      = mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), c1, seq_idx);
+    auto c3      = mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), c2, seq_idx);
+    auto c4      = mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), c3, seq_idx);
+    mm->add_return({c4});
+
+    auto [p_gpu, p_ref] = compile_gpu_ref(p, false);
+    // The append was fused; otherwise the plain copy kernel would pass trivially.
+    EXPECT(has_op(p_gpu, "hip::load_scalar"));
+
+    migraphx::parameter_map ref_params = {{"x", migraphx::generate_argument(s, 1)},
+                                          {"y", migraphx::generate_argument(s, 2)},
+                                          {"cache", migraphx::generate_argument(cs, 3)}};
+    migraphx::parameter_map gpu_params;
+    for(auto&& [name, ps] : p_gpu.get_parameter_shapes())
+        gpu_params[name] = migraphx::gpu::allocate_gpu(ps);
+    for(const auto& name : {"x", "y", "cache"})
+        gpu_params[name] = migraphx::gpu::to_gpu(ref_params.at(name));
+
+    auto append = [&, &p_gpu = p_gpu, &p_ref = p_ref](int pos) {
+        migraphx::literal seqlen{is, {pos}};
+        ref_params["slk"] = seqlen.get_argument();
+        gpu_params["slk"] = migraphx::gpu::to_gpu(seqlen.get_argument());
+        auto ref          = p_ref.eval(ref_params).back().to_vector<float>();
+        auto gpu = migraphx::gpu::from_gpu(p_gpu.eval(gpu_params).back()).to_vector<float>();
+        EXPECT(migraphx::verify::verify_rms_range(gpu, ref));
+    };
+    append(3); // captures the graphs around the eager append
+    append(5); // replay: the append must land in the new slot
+    append(1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

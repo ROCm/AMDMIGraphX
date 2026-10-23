@@ -1438,6 +1438,23 @@ TEST_CASE(shape_is_compatible_diff_lens_tuple)
     EXPECT(actual != expected);
     EXPECT(not migraphx::shape::is_compatible(actual, expected));
 }
+TEST_CASE(shape_is_compatible_type_and_lens_static)
+{
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 8}, {1, 1, 1}};
+    migraphx::shape different_strides{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};
+    EXPECT(migraphx::shape::is_compatible_type_and_lens(expected, expected));
+    EXPECT(not migraphx::shape::is_compatible_type_and_lens(different_strides, expected));
+}
+TEST_CASE(shape_is_compatible_type_and_lens_dynamic)
+{
+    migraphx::shape expected{migraphx::shape::float_type, {{1, 1}, {2, 4}, {3, 9}, {16, 32}}};
+    migraphx::shape compatible{migraphx::shape::float_type, {1, 2, 4, 32}};
+    migraphx::shape incompatible_lens{migraphx::shape::float_type, {1, 6, 4, 32}};
+    migraphx::shape incompatible_type{migraphx::shape::half_type, {1, 2, 4, 32}};
+    EXPECT(migraphx::shape::is_compatible_type_and_lens(compatible, expected));
+    EXPECT(not migraphx::shape::is_compatible_type_and_lens(incompatible_lens, expected));
+    EXPECT(not migraphx::shape::is_compatible_type_and_lens(incompatible_type, expected));
+}
 TEST_CASE(shape_is_compatible_lens_static)
 {
     migraphx::shape actual1{migraphx::shape{migraphx::shape::float_type, {1, 2, 8}}};
@@ -1687,6 +1704,21 @@ TEST_CASE(test_symbolic_stride_auto_compute)
     EXPECT(sh.dyn_strides()[0] == s * 4);
 }
 
+TEST_CASE(test_has_fixed_strides)
+{
+    migraphx::shape static_shape{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape range_shape{migraphx::shape::float_type, {{1, 8}, {4, 4}}};
+    auto fixed = var("fixed", {3, 3});
+    migraphx::shape fixed_symbolic{migraphx::shape::float_type, {dd{fixed}, dd{lit(4)}}};
+    auto n = var("n", {1, 8});
+    migraphx::shape variable_symbolic{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(4)}}};
+
+    EXPECT(static_shape.has_fixed_strides());
+    EXPECT(not range_shape.has_fixed_strides());
+    EXPECT(fixed_symbolic.has_fixed_strides());
+    EXPECT(not variable_symbolic.has_fixed_strides());
+}
+
 TEST_CASE(test_symbolic_to_static)
 {
     auto n = var("n", {1, 8});
@@ -1697,6 +1729,17 @@ TEST_CASE(test_symbolic_to_static)
     EXPECT(not s_static.dynamic());
     EXPECT(s_static.lens() == std::vector<std::size_t>{2, 8, 4});
     EXPECT(s_static.strides() == std::vector<std::size_t>{32, 4, 1});
+}
+
+TEST_CASE(test_fixed_symbolic_standard_to_static)
+{
+    auto n      = var("n", {3, 4});
+    auto extent = (n - 1) / 2 + 1;
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{extent}}};
+
+    EXPECT(s.is_fixed());
+    EXPECT(s.standard());
+    EXPECT(s.to_static() == migraphx::shape{migraphx::shape::float_type, {1, 1, 2}});
 }
 
 TEST_CASE(test_symbolic_shape_serialize)
@@ -2496,6 +2539,16 @@ TEST_CASE(shape_is_compatible_lens_static_vs_symbolic)
     EXPECT(not migraphx::shape::is_compatible_lens(actual2, expected));
 }
 
+TEST_CASE(shape_is_compatible_lens_repeated_symbol)
+{
+    auto n = var("n", {1, 4});
+    migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{n}}};
+    migraphx::shape matching{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape mismatching{migraphx::shape::float_type, {2, 3}};
+    EXPECT(migraphx::shape::is_compatible_lens(matching, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(mismatching, expected));
+}
+
 TEST_CASE(make_bcast_shape_static)
 {
     migraphx::shape input{migraphx::shape::float_type, {1, 1, 3, 4}};
@@ -2552,6 +2605,14 @@ TEST_CASE(make_bcast_shape_static_input_via_to_symbolic)
            (std::vector<migraphx::sym::expr>{lit(12), lit(0), lit(4), lit(1)}));
 }
 
+TEST_CASE(can_multibroadcast)
+{
+    EXPECT(migraphx::can_multibroadcast({1, 1, 384, 384}, {1, 12, 384, 384}));
+    EXPECT(not migraphx::can_multibroadcast({1, 1, 384, 384}, {1, 12, 2, 384, 192}));
+    EXPECT(migraphx::can_multibroadcast({1}, {1, 12, 384, 384}));
+    EXPECT(not migraphx::can_multibroadcast({1, 12, 2, 384}, {1, 12, 384, 384}));
+}
+
 TEST_CASE(to_symbolic_static)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
@@ -2583,6 +2644,175 @@ TEST_CASE(to_symbolic_range_based_throws)
 {
     migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}}};
     EXPECT(test::throws([&] { s.to_symbolic(); }));
+}
+
+static bool value_shape_roundtrips(const migraphx::shape& s)
+{
+    return migraphx::from_value<migraphx::shape>(migraphx::to_value(s)) == s;
+}
+
+TEST_CASE(value_roundtrip_static)
+{
+    EXPECT(value_shape_roundtrips({migraphx::shape::float_type, {2, 3, 4}}));
+}
+
+TEST_CASE(value_roundtrip_static_non_standard_strides)
+{
+    EXPECT(value_shape_roundtrips({migraphx::shape::float_type, {2, 3, 4}, {0, 4, 1}}));
+}
+
+TEST_CASE(value_roundtrip_dyn_range)
+{
+    EXPECT(value_shape_roundtrips({migraphx::shape::float_type, {{1, 4, {2, 4}}, {3, 3}}}));
+}
+
+TEST_CASE(value_roundtrip_symbolic)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    EXPECT(s.symbolic());
+    EXPECT(not s.dyn_strides().empty());
+    EXPECT(value_shape_roundtrips(s));
+}
+
+TEST_CASE(value_roundtrip_symbolic_compound_expr)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {2, 16}, {4, 8});
+    EXPECT(value_shape_roundtrips({migraphx::shape::float_type, {dd{n * 3 + 1}, dd{m}}}));
+}
+
+TEST_CASE(value_roundtrip_symbolic_non_standard_strides)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(1), n}};
+    EXPECT(not s.standard());
+    EXPECT(value_shape_roundtrips(s));
+}
+
+TEST_CASE(mixed_dynamic_dimensions_throw)
+{
+    auto n = var("n", {1, 8});
+    EXPECT(test::throws(
+        [&] { return migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{3, 5}}}; }));
+}
+
+TEST_CASE(non_symbolic_dynamic_dimensions_with_strides_throw)
+{
+    EXPECT(test::throws([] {
+        return migraphx::shape{migraphx::shape::float_type,
+                               std::vector<dd>{{1, 4}, {3, 5}},
+                               std::vector<migraphx::sym::expr>{lit(3), lit(1)}};
+    }));
+}
+
+TEST_CASE(make_symbolic_shape_dims)
+{
+    auto s =
+        migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n[1..8]{2, 4}", "3"});
+    EXPECT(s == (migraphx::shape{
+                    migraphx::shape::float_type,
+                    {dd{var("n", {1, 8}, {std::int64_t{2}, std::int64_t{4}})}, dd{lit(3)}}}));
+    EXPECT(s.standard());
+}
+
+TEST_CASE(make_symbolic_shape_compound_expression)
+{
+    auto n = var("n", {1, 8});
+    EXPECT(migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"3*n[1..8] + 1"}) ==
+           (migraphx::shape{migraphx::shape::float_type, {dd{n * 3 + 1}}}));
+}
+
+// A stride carries the same self-contained symbolic variable as the dimension.
+TEST_CASE(make_symbolic_shape_strides)
+{
+    auto n = var("n", {1, 8});
+    auto s = migraphx::shape::make_symbolic_shape(
+        migraphx::shape::float_type, {"n[1..8]", "3"}, {"1", "n[1..8]"});
+    EXPECT(s == (migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(1), n}}));
+    EXPECT(not s.standard());
+}
+
+TEST_CASE(make_symbolic_shape_multiple_constraints)
+{
+    auto s =
+        migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n[1..20][2..10]{4}"});
+    EXPECT(s.dyn_dims().front() ==
+           dd{var("n", std::vector<migraphx::sym::interval>{{1, 20}, {2, 10}}, {std::int64_t{4}})});
+}
+
+static bool expression_strings_roundtrip(const migraphx::shape& s)
+{
+    std::vector<std::string> dims;
+    std::transform(s.dyn_dims().begin(),
+                   s.dyn_dims().end(),
+                   std::back_inserter(dims),
+                   [](const auto& d) { return d.sym_expr.to_string(); });
+    std::vector<std::string> strides;
+    std::transform(s.dyn_strides().begin(),
+                   s.dyn_strides().end(),
+                   std::back_inserter(strides),
+                   [](const auto& e) { return e.to_string(); });
+    if(s.standard())
+        strides.clear();
+    return migraphx::shape::make_symbolic_shape(s.type(), dims, strides) == s;
+}
+
+TEST_CASE(symbolic_shape_expression_strings_roundtrip)
+{
+    auto n = var("n", {1, 8}, {2, 4});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    EXPECT(expression_strings_roundtrip(s));
+}
+
+TEST_CASE(symbolic_shape_compound_expression_strings_roundtrip)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {2, 4});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n * 3 + 1}, dd{m}}};
+    EXPECT(expression_strings_roundtrip(s));
+}
+
+TEST_CASE(symbolic_shape_stride_expression_strings_roundtrip)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(1), n}};
+    EXPECT(not s.standard());
+    EXPECT(expression_strings_roundtrip(s));
+}
+
+TEST_CASE(symbolic_shape_multiple_constraints_expression_strings_roundtrip)
+{
+    auto n = var("n", std::vector<migraphx::sym::interval>{{1, 20}, {2, 10}}, {4});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}}};
+    EXPECT(expression_strings_roundtrip(s));
+}
+
+// Same-named variables can carry different metadata in separate expressions; printing each
+// expression independently preserves that distinction.
+TEST_CASE(symbolic_shape_same_name_different_constraints_roundtrip)
+{
+    migraphx::shape s{migraphx::shape::float_type, {dd{var("n", {1, 8})}, dd{var("n", {1, 4})}}};
+    EXPECT(expression_strings_roundtrip(s));
+}
+
+TEST_CASE(make_symbolic_shape_errors)
+{
+    EXPECT(test::throws(
+        [] { return migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {""}); }));
+    // One stride per dimension or none at all.
+    EXPECT(test::throws([] {
+        return migraphx::shape::make_symbolic_shape(
+            migraphx::shape::float_type, {"n[1..8]", "3"}, {"1"});
+    }));
+}
+
+TEST_CASE(value_roundtrip_tuple_of_symbolic)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s0{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    migraphx::shape s1{migraphx::shape::int64_type, {2, 2}};
+    EXPECT(value_shape_roundtrips(migraphx::shape{{s0, s1}}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

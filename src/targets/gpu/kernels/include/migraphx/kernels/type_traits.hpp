@@ -287,6 +287,32 @@ constexpr auto numeric_lowest() -> decltype(numeric_max<T>())
     }
 }
 
+/// Unsigned integer type of exactly N bytes; other sizes are a compile error
+template <index_int N>
+struct sized_uint;
+template <>
+struct sized_uint<1>
+{
+    using type = uint8_t;
+};
+template <>
+struct sized_uint<2>
+{
+    using type = uint16_t;
+};
+template <>
+struct sized_uint<4>
+{
+    using type = uint32_t;
+};
+template <>
+struct sized_uint<8>
+{
+    using type = uint64_t;
+};
+template <index_int N>
+using sized_uint_t = typename sized_uint<N>::type;
+
 } // namespace migraphx
 
 #endif

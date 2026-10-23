@@ -61,7 +61,7 @@ struct concat_past_present
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
+        check_shapes{inputs, *this, true}.has(3);
         return inputs.back();
     }
 

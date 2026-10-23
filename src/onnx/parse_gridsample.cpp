@@ -314,8 +314,8 @@ struct linear_sampler : grid_sampler
             nc_values_data.push_back(n);
             nc_values_data.push_back(c);
         });
-        size_t num_indices  = m_batch * m_out_height * m_out_width * m_channel;
-        auto xy_indices_t   = info.add_literal(
+        size_t num_indices = m_batch * m_out_height * m_out_width * m_channel;
+        auto xy_indices_t  = info.add_literal(
             migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 3}}, xy_indices_data});
         auto weight_index_t = info.add_literal(
             migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 3}}, weight_indices_data});
@@ -681,6 +681,14 @@ struct parse_gridsample : op_parser<parse_gridsample>
             mode = info.attributes.at("mode").s();
         }
 
+        // Opset 16 spells the modes "bilinear"/"bicubic", opset 20 renamed them
+        // to "linear"/"cubic".  Normalize to the opset-20 spelling so the rest
+        // of the pipeline only ever sees one name per mode.
+        if(mode == "bilinear")
+            mode = "linear";
+        else if(mode == "bicubic")
+            mode = "cubic";
+
         if(contains(info.attributes, "padding_mode"))
         {
             padding_mode = info.attributes.at("padding_mode").s();
@@ -702,6 +710,22 @@ struct parse_gridsample : op_parser<parse_gridsample>
         if(x_dims != 4)
         {
             MIGRAPHX_THROW("PARSE_GRID_SAMPLE: only 4-D inputs are supported");
+        }
+
+        // "cubic" is a substring of "bicubic" so a single check covers both
+        // opset-16/opset-20+ spellings, same as for "nearest"/"linear".
+        bool supported_modes =
+            contains(mode, "nearest") or contains(mode, "linear") or contains(mode, "cubic");
+        bool is_dynamic = x->get_shape().dynamic() or grid_shape.dynamic();
+
+        if(supported_modes and x->get_shape().type() == grid_shape.type() and not is_dynamic)
+        {
+            return info.add_instruction(make_op("gridsample",
+                                                {{"mode", mode},
+                                                 {"padding_mode", padding_mode},
+                                                 {"align_corners", align_corners}}),
+                                        x,
+                                        grid);
         }
 
         return contains(mode, "nearest")

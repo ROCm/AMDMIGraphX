@@ -132,9 +132,9 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         {
             auto dims   = to_value(xs.dyn_dims());
             scale_bcast = info.add_instruction(
-                make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), scale);
+                make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), scale, x);
             bias_bcast = info.add_instruction(
-                make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), bias);
+                make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), bias, x);
         }
         else if(xs.dynamic())
         {

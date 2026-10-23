@@ -2679,11 +2679,15 @@ TEST_CASE(split_sym_dim_global_max_pooling_preserves_runtime_spatial_extent)
                          migraphx::shape{migraphx::shape::float_type,
                                          {dd{lit(1)}, dd{lit(1)}, dd{clone_n}, dd{lit(1)}}});
         auto clone_extent = migraphx::sym::min(clone_n, lit(clone.max));
+        auto boundary_stride = migraphx::sym::min(clone_n, target_n);
         auto boundary =
             sm.add_parameter("#split_sym_dim_input_1_0",
                              migraphx::shape{migraphx::shape::float_type,
                                              {dd{lit(1)}, dd{lit(1)}, dd{clone_extent}, dd{lit(1)}},
-                                             {target_n, target_n, lit(1), lit(1)}});
+                                             {boundary_stride,
+                                              boundary_stride,
+                                              lit(1),
+                                              lit(1)}});
         boundary = sm.add_instruction(
             migraphx::make_op("fixed_pad", {{"value", std::numeric_limits<float>::lowest()}}),
             boundary);

@@ -149,6 +149,7 @@ add_library(migraphx
     simplify_reshapes.cpp
     simplify_symbolic_dimensions.cpp
     split_single_dyn_dim.cpp
+    symbolic_shape_helpers.cpp
     sym.cpp
     sym_argument.cpp
     target.cpp

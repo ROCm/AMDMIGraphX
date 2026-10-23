@@ -442,7 +442,7 @@ struct cpu_apply
                 apply_convolution_backwards(it);
             }
 #endif
-            else if(it->name() == "reshape")
+            else if(it->name() == "reshape" and it->inputs().size() == 1)
             {
                 apply_reshape(it);
             }

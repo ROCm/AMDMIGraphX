@@ -103,6 +103,7 @@ struct miopen_apply
 
         add_extend_op("fixed_pad");
         add_generic_op("contiguous");
+        add_reshape_op();
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
@@ -211,26 +212,24 @@ struct miopen_apply
         }
     }
 
+    instruction_ref lower_to_host(instruction_ref ins, const operation& op) const
+    {
+        std::vector<instruction_ref> cpu_inputs;
+        auto inputs = ins->inputs();
+        auto output = inputs.back();
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+            return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+        });
+        cpu_inputs.front() = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+        auto cpu_out       = mod->insert_instruction(ins, op, cpu_inputs);
+        auto gpu_out = mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
+        return mod->replace_instruction(ins, gpu_out);
+    }
+
     instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const
     {
-        const auto& custom_op = ins->get_operator();
         if(attrs.at("target") == "cpu")
-        {
-            auto s = ins->get_shape();
-            std::vector<instruction_ref> cpu_inputs;
-            auto inputs = ins->inputs();
-            auto output = inputs.back();
-            std::transform(
-                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
-                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
-                });
-            cpu_inputs.front() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-            auto cpu_out = mod->insert_instruction(ins, custom_op, cpu_inputs);
-            auto gpu_out =
-                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
-            return mod->replace_instruction(ins, gpu_out);
-        }
+            return lower_to_host(ins, ins->get_operator());
         return ins;
     }
 
@@ -338,6 +337,15 @@ struct miopen_apply
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name), refs);
+        });
+    }
+
+    void add_reshape_op()
+    {
+        apply_map.emplace("reshape", [=](instruction_ref ins) {
+            if(ins->inputs().size() != 2)
+                return ins;
+            return lower_to_host(ins, ins->get_operator());
         });
     }
 

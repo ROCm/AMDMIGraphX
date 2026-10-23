@@ -22,9 +22,16 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include <tf_test.hpp>
 
-TEST_CASE(raw_data_short_test)
+TEST_CASE(float_val_too_many_test)
 {
-    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("raw_data_short_test.onnx"); }));
+    EXPECT(
+        test::throws<migraphx::exception>([&] { parse_tf("float_val_too_many_test.pb", false); }));
+}
+
+TEST_CASE(tensor_content_short_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { parse_tf("tensor_content_short_test.pb", false); }));
 }

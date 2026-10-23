@@ -21,11 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/program.hpp>
+#include <test.hpp>
 
-#include <onnx_test.hpp>
-
-TEST_CASE(external_data_length_large_test)
+static migraphx::program create_program()
 {
-    EXPECT(test::throws<migraphx::exception>(
-        [&] { read_onnx("external_data_length_large_test.onnx"); }));
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    auto x = mm->add_instruction(migraphx::gpu::hip_allocate{s});
+    auto y = mm->add_instruction(migraphx::gpu::hip_allocate{s});
+    mm->add_return({x, y});
+    return p;
 }
+
+TEST_CASE(cse_preserves_gpu_allocations)
+{
+    auto p        = create_program();
+    auto expected = create_program();
+
+    migraphx::run_passes(
+        p, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
+
+    EXPECT(p == expected);
+}
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

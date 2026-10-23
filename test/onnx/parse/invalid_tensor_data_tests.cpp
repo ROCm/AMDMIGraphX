@@ -22,10 +22,41 @@
  * THE SOFTWARE.
  */
 
-#include <tf_test.hpp>
+#include <onnx_test.hpp>
 
-TEST_CASE(tensor_content_short_test)
+TEST_CASE(raw_data_short_test)
+{
+    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("raw_data_short_test.onnx"); }));
+}
+
+TEST_CASE(raw_data_long_test)
+{
+    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("raw_data_long_test.onnx"); }));
+}
+
+TEST_CASE(float_data_too_many_test)
+{
+    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("float_data_too_many_test.onnx"); }));
+}
+
+TEST_CASE(float_data_too_few_test)
+{
+    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("float_data_too_few_test.onnx"); }));
+}
+
+TEST_CASE(external_data_short_test)
+{
+    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("external_data_short_test.onnx"); }));
+}
+
+TEST_CASE(external_data_length_large_test)
 {
     EXPECT(test::throws<migraphx::exception>(
-        [&] { parse_tf("tensor_content_short_test.pb", false); }));
+        [&] { read_onnx("external_data_length_large_test.onnx"); }));
+}
+
+TEST_CASE(external_data_shape_large_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { read_onnx("external_data_shape_large_test.onnx"); }));
 }

@@ -21,11 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/split_sym/analyzer.hpp>
 
-#include <onnx_test.hpp>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace split_sym {
+namespace {
 
-TEST_CASE(external_data_shape_large_test)
+struct analyze_concat_past_present : analyzer<analyze_concat_past_present>
 {
-    EXPECT(test::throws<migraphx::exception>(
-        [&] { read_onnx("external_data_shape_large_test.onnx"); }));
-}
+    bool matches(const operation& op) const { return op.name() == "concat_past_present"; }
+
+    symbolic_op_info analyze(instruction_ref ins) const
+    {
+        if(ins->inputs().size() != 3)
+            return symbolic_op_info{ins};
+        return analyze_axes(ins, [](std::size_t input, std::size_t axis) {
+            // Padding the present sequence changes how many elements are written into the cache.
+            return input == 0 and axis == 2 ? axis_desc{} : parallel_axis();
+        });
+    }
+};
+
+} // namespace
+} // namespace split_sym
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

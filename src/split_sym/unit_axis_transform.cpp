@@ -21,10 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/split_sym/analyzer.hpp>
 
-#include <onnx_test.hpp>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace split_sym {
+namespace {
 
-TEST_CASE(raw_data_long_test)
+struct analyze_unit_axis_transform : analyzer<analyze_unit_axis_transform>
 {
-    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("raw_data_long_test.onnx"); }));
-}
+    bool matches(const operation& op) const
+    {
+        return op.name() == "squeeze" or op.name() == "unsqueeze";
+    }
+
+    symbolic_op_info analyze(instruction_ref ins) const
+    {
+        if(ins->inputs().size() != 1)
+            return symbolic_op_info{ins};
+        if(ins->name() == "unsqueeze")
+        {
+            auto steps = ins->get_operator().to_value().at("steps").to_vector<int64_t>();
+            if(any_of(steps, [](auto step) { return step != 1; }))
+                return symbolic_op_info{ins};
+        }
+        return analyze_axes(ins);
+    }
+};
+
+} // namespace
+} // namespace split_sym
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

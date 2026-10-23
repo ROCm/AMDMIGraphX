@@ -1256,6 +1256,8 @@ struct find_kv_cache_attention
         // its outputs are already in the set. This pulls in constants,
         // broadcasts, and side inputs that feed exclusively into the
         // attention, while excluding ops with external consumers.
+        // Reductions are only valid on the softmax path, so an upstream
+        // reduce (e.g. a Q rmsnorm) is never absorbed as an input fusion.
         auto expand = fix([&](auto self, auto ins) {
             for(auto input : ins->inputs())
             {
@@ -1267,6 +1269,8 @@ struct find_kv_cache_attention
                 // constants (eg a bias) stay inputs of the group
                 if(not is_inlinable_constant(input) and
                    input->get_shape().type() != shape::bool_type)
+                    continue;
+                if(input->get_operator().attributes().get("reduce", false))
                     continue;
                 if(input->can_eval() or std::all_of(input->outputs().begin(),
                                                     input->outputs().end(),
@@ -1323,8 +1327,8 @@ struct find_kv_cache_attention
                        strides.begin(), strides.end() - 1, [](auto s) { return s == 0; }) and
                    strides.back() == 1)
                 {
-                    auto new_lit = m_attn.add_literal(
-                        literal{shape{lit_s.type(), {lit_s.lens().back()}}, ins->eval().data()});
+                    auto new_lit = m_attn.add_literal(literal::from_raw_buffer(
+                        shape{lit_s.type(), {lit_s.lens().back()}}, ins->eval().data()));
                     m_attn.replace_instruction(
                         ins, make_op("multibroadcast", {{"out_lens", lit_s.lens()}}), {new_lit});
                 }

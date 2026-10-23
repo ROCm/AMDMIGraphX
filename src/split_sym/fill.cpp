@@ -21,10 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/split_sym/analyzer.hpp>
 
-#include <onnx_test.hpp>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace split_sym {
+namespace {
 
-TEST_CASE(float_data_too_many_test)
+struct analyze_fill : analyzer<analyze_fill>
 {
-    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("float_data_too_many_test.onnx"); }));
-}
+    bool matches(const operation& op) const { return op.name() == "fill"; }
+
+    symbolic_op_info analyze(instruction_ref ins) const
+    {
+        if(ins->inputs().size() != 2)
+            return symbolic_op_info{ins};
+        return analyze_axes(ins);
+    }
+};
+
+} // namespace
+} // namespace split_sym
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

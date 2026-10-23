@@ -6521,6 +6521,41 @@ TEST_CASE(slice_reshaped_concat)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(slice_reshaped_concat_segment_run)
+{
+    migraphx::module m1;
+    {
+        auto a       = m1.add_parameter("a", {migraphx::shape::float_type, {6}});
+        auto b       = m1.add_parameter("b", {migraphx::shape::float_type, {2}});
+        auto c       = m1.add_parameter("c", {migraphx::shape::float_type, {2}});
+        auto concat  = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b, c);
+        auto reshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {5, 2}}}), concat);
+        auto transpose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape);
+        // The first slice spans the segments of a and b, the second is c
+        auto sab = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), transpose);
+        auto sc = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {5}}}), transpose);
+        m1.add_return({sab, sc});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a      = m2.add_parameter("a", {migraphx::shape::float_type, {6}});
+        auto b      = m2.add_parameter("b", {migraphx::shape::float_type, {2}});
+        auto c      = m2.add_parameter("c", {migraphx::shape::float_type, {2}});
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto rab    = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 2}}}), concat);
+        auto tab =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), rab);
+        auto rc = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), c);
+        m2.add_return({tab, rc});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(slice_reshaped_concat_misaligned)
 {
     migraphx::module m1;

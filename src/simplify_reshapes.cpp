@@ -1009,9 +1009,11 @@ std::vector<std::size_t> concat_offsets(const std::vector<instruction_ref>& inpu
     return result;
 }
 
-// Forward a slice that reads exactly one segment of a concat through the view
-// ops in between, so the concat can be removed entirely. This shows up when a
-// model repacks tensors (such as qkv) that an op decomposition then re-slices.
+// Forward a slice that reads whole segments of a concat through the view ops
+// in between: one segment reads its input directly, a run of segments reads a
+// concat of just those inputs, so the full concat can be removed entirely.
+// This shows up when a model repacks tensors (such as qkv) that an op
+// decomposition then re-slices.
 struct find_slice_reshaped_concat
 {
     static const auto& view_ops()
@@ -1068,19 +1070,25 @@ struct find_slice_reshaped_concat
             return;
         auto [lo, hi] = *selected;
 
-        // The selected range must be exactly one segment of the concat
+        // The selected range must start and end on segment boundaries
         const auto& inputs = concat_ins->inputs();
         auto prefix        = concat_offsets(inputs, axis);
-        auto it            = std::find(prefix.begin(), std::prev(prefix.end()), lo);
-        if(it == std::prev(prefix.end()))
+        auto first         = std::find(prefix.begin(), std::prev(prefix.end()), lo);
+        if(first == std::prev(prefix.end()))
             return;
-        auto idx = std::distance(prefix.begin(), it);
-        if(prefix[idx + 1] != hi)
+        auto last = std::find(std::next(first), prefix.end(), hi);
+        if(last == prefix.end())
             return;
-        auto seg = inputs[idx];
-
         if(desc.lens() != slice_ins->get_shape().lens())
             return;
+
+        auto seg_begin = inputs.begin() + std::distance(prefix.begin(), first);
+        auto seg_end   = inputs.begin() + std::distance(prefix.begin(), last);
+        auto seg       = *seg_begin;
+        if(std::distance(seg_begin, seg_end) > 1)
+            seg = m.insert_instruction(slice_ins,
+                                       concat_ins->get_operator(),
+                                       std::vector<instruction_ref>(seg_begin, seg_end));
         desc.simplify();
         auto y = insert_ops(m, slice_ins, desc.generate(), seg);
         m.replace_instruction(slice_ins, y);

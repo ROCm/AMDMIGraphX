@@ -26,6 +26,7 @@
 #include <migraphx/dim_like.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -1122,6 +1123,42 @@ TEST_CASE(split_sym_dim_coalesces_into_symbolic_broadcast_with_dims)
     expected_main.add_return({expected_output});
 
     EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_preserves_rank_extended_broadcast_layout)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto data =
+        m.add_parameter("data",
+                        migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(1)}}});
+    auto dims =
+        m.add_parameter("dims", migraphx::shape{migraphx::shape::int64_type, {std::size_t{3}}});
+    auto output = m.add_instruction(
+        migraphx::make_op(
+            "broadcast_with_dims",
+            {{"out_dyn_dims", migraphx::to_value(std::vector<dd>{dd{lit(2)}, dd{n}, dd{n}})}}),
+        data,
+        dims);
+    m.add_return({output});
+
+    run_pass(p);
+
+    auto selections = migraphx::find_all(
+        migraphx::iterator_for(m), [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 1);
+    if(selections.size() == 1)
+    {
+        auto outputs = migraphx::from_value<migraphx::shape>(
+                           selections.front()->get_operator().to_value().at("output_dyn_shapes"))
+                           .sub_shapes();
+        auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
+        migraphx::shape expected{migraphx::shape::float_type,
+                                 {dd{lit(2)}, dd{target_n}, dd{target_n}},
+                                 {lit(0), lit(1), lit(0)}};
+        EXPECT(outputs == std::vector<migraphx::shape>{expected});
+    }
 }
 
 TEST_CASE(split_sym_dim_materializes_symbolic_allocate)

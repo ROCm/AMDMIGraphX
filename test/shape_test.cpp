@@ -1731,6 +1731,18 @@ TEST_CASE(test_symbolic_to_static)
     EXPECT(s_static.strides() == std::vector<std::size_t>{32, 4, 1});
 }
 
+TEST_CASE(test_symbolic_to_static_root_symbol_stride)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {n * 4, lit(1)}};
+    std::unordered_map<migraphx::sym::expr, std::size_t> values = {
+        {migraphx::sym::as_symbol(n), 2}};
+
+    auto result = s.to_static(values);
+
+    EXPECT(result == (migraphx::shape{migraphx::shape::float_type, {2, 4}, {8, 1}}));
+}
+
 TEST_CASE(test_fixed_symbolic_standard_to_static)
 {
     auto n      = var("n", {3, 4});

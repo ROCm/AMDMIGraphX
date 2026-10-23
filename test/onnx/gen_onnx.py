@@ -5865,6 +5865,13 @@ def group_norm_3d_half_test():
                            dtype=TensorProto.FLOAT16)
 
 
+@onnx_test(opset_version=21)
+def group_norm_v21_fp16_test():
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
+                           2,
+                           dtype=TensorProto.FLOAT16)
+
+
 @onnx_test()
 def group_norm_3d_bf16_test():
     return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],

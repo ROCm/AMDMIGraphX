@@ -56,7 +56,7 @@ TEST_CASE(symbolic_reshape_zero_dim_test)
         }));
 }
 
-TEST_CASE(symbolic_reshape_zero_dim_without_direct_root_test)
+TEST_CASE(symbolic_reshape_zero_dim_compound_input_test)
 {
     using migraphx::sym::lit;
     using migraphx::sym::var;
@@ -85,4 +85,47 @@ TEST_CASE(symbolic_reshape_zero_dim_without_direct_root_test)
                 target_dims);
             m.add_return({m.add_instruction(migraphx::make_op("reshape"), x, allocation)});
         }));
+}
+
+TEST_CASE(symbolic_reshape_attribute_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto batch = var("batch", {1, 4});
+    const migraphx::shape input_shape{migraphx::shape::float_type,
+                                      sym_dims({batch, lit(int64_t{4})})};
+
+    EXPECT(check_parse(
+        "symbolic_reshape_attribute_test.onnx",
+        {{"x", input_shape}},
+        [&](migraphx::module& m, const std::vector<migraphx::instruction_ref>& args) {
+            auto x = args.front();
+            const auto expressions =
+                migraphx::to_value(std::vector<migraphx::sym::expr>{batch, lit(4)});
+            auto target_dims = m.add_instruction(
+                migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), x);
+            auto allocation = m.add_instruction(
+                migraphx::make_op("allocate", {{"shape", migraphx::to_value(input_shape)}}),
+                target_dims);
+            m.add_return({m.add_instruction(migraphx::make_op("reshape"), x, allocation)});
+        }));
+}
+
+TEST_CASE(symbolic_reshape_invalid_elements_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto batch = var("batch", {1, 4});
+    const migraphx::shape input_shape{migraphx::shape::float_type,
+                                      sym_dims({batch, lit(int64_t{6})})};
+
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            check_parse("symbolic_reshape_invalid_elements_test.onnx",
+                        {{"x", input_shape}},
+                        [](migraphx::module&, const std::vector<migraphx::instruction_ref>&) {});
+        },
+        "PARSE_RESHAPE: Wrong number of elements"));
 }

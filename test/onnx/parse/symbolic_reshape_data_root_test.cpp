@@ -22,33 +22,50 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/argument.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/register_target.hpp>
 #include <onnx_test.hpp>
-
-#include <vector>
 
 TEST_CASE(symbolic_reshape_data_root_test)
 {
-    auto p   = read_onnx("symbolic_reshape_data_root_test.onnx");
-    auto& mm = *p.get_main_module();
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
 
-    auto evaluations = migraphx::find_all(
-        migraphx::iterator_for(mm), [](auto ins) { return ins->name() == "eval_expr_from_shape"; });
-    EXPECT(evaluations.size() == 1);
-    if(evaluations.size() == 1)
-    {
-        EXPECT(evaluations.front()->inputs().size() == 1);
-        EXPECT(evaluations.front()->inputs().front()->name() == "transpose");
-    }
+    const auto count        = var("main_NonZero_1", {0, 4});
+    const auto sliced_count = migraphx::sym::min(count, lit(4));
+    migraphx::program p;
+    auto* mm       = p.get_main_module();
+    auto condition = mm->add_parameter("condition", {migraphx::shape::bool_type, {4}});
+    auto nonzero   = mm->add_instruction(migraphx::make_op("nonzero"), condition);
+    auto indices =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+    auto num_nonzero =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero);
+    auto starts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto sliced = mm->add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(count)}}}),
+        indices,
+        starts,
+        num_nonzero);
+    auto transposed =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), sliced);
+    auto transposed_shape = mm->add_instruction(
+        migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 2}}), transposed);
+    auto trailing_dims =
+        mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {2}}, {1, 1}});
+    mm->add_instruction(
+        migraphx::make_op("concat", {{"axis", 0}}), transposed_shape, trailing_dims);
+    const auto expressions =
+        migraphx::to_value(std::vector<migraphx::sym::expr>{sliced_count, lit(1), lit(1), lit(1)});
+    auto target_dims = mm->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), transposed);
+    const migraphx::shape output_shape{migraphx::shape::int64_type,
+                                       {dd{sliced_count}, dd{lit(1)}, dd{lit(1)}, dd{lit(1)}}};
+    auto allocation = mm->add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}), target_dims);
+    mm->add_return({mm->add_instruction(migraphx::make_op("reshape"), transposed, allocation)});
 
-    p.compile(migraphx::make_target("ref"));
-    std::vector<char> condition = {1, 0, 1, 0};
-    migraphx::parameter_map params;
-    params["condition"] = migraphx::argument{{migraphx::shape::bool_type, {4}}, condition.data()};
-    auto result         = p.eval(params).back();
-    EXPECT(result.get_shape().lens() == std::vector<std::size_t>{2, 1, 1, 1});
-    EXPECT(result.to_vector<int64_t>() == std::vector<int64_t>{0, 2});
+    EXPECT(p == read_onnx("symbolic_reshape_data_root_test.onnx"));
 }

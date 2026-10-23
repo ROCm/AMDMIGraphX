@@ -17140,6 +17140,42 @@ def symbolic_reshape_zero_dim_test():
     return (nodes, [x], [y])
 
 
+@onnx_test(opset_version=1)
+def symbolic_reshape_attribute_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+    node = helper.make_node('Reshape',
+                            inputs=['x'],
+                            outputs=['y'],
+                            shape=[-1, 4])
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_cross_root_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+    nodes = [
+        helper.make_node('Flatten', ['x'], ['flattened'], axis=0),
+        helper.make_node('Shape', ['x'], ['target_shape']),
+        helper.make_node('Reshape', ['flattened', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_invalid_elements_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 2, 2])
+    target = helper.make_tensor('target_value', TensorProto.INT64, [3],
+                                [0, 2, 2])
+    nodes = [
+        helper.make_node('Constant', [], ['target_shape'], value=target),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
 @onnx_test()
 def symbolic_reshape_negative_one_dim_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
@@ -17233,6 +17269,30 @@ def symbolic_reshape_loop_test():
                             ['carried_output'],
                             body=body)
     return ([node], [max_trip_count, cond, carried, x], [carried_output])
+
+
+@onnx_test()
+def symbolic_reshape_data_root_test():
+    condition = helper.make_tensor_value_info('condition', TensorProto.BOOL,
+                                              [4])
+    output = helper.make_tensor_value_info('output', TensorProto.INT64,
+                                           ['count', 1, 1, 1])
+    trailing_dims = helper.make_tensor('trailing_dims_value',
+                                       TensorProto.INT64, [2], [1, 1])
+    nodes = [
+        helper.make_node('NonZero', ['condition'], ['nonzero_indices']),
+        helper.make_node('Transpose', ['nonzero_indices'], ['transposed'],
+                         perm=[1, 0]),
+        helper.make_node('Shape', ['transposed'], ['transposed_shape']),
+        helper.make_node('Constant', [], ['trailing_dims'],
+                         value=trailing_dims),
+        helper.make_node('Concat', ['transposed_shape', 'trailing_dims'],
+                         ['target_shape'],
+                         axis=0),
+        helper.make_node('Reshape', ['transposed', 'target_shape'],
+                         ['output']),
+    ]
+    return (nodes, [condition], [output])
 
 
 @onnx_test()

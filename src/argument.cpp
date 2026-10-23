@@ -202,10 +202,14 @@ std::vector<argument> argument::get_sub_objects() const
                    m_shape.sub_shapes().end(),
                    m_data.sub.begin(),
                    std::back_inserter(result),
-                   [](auto&& s, auto&& d) {
-                       return argument{s, d};
-                   });
+                   [](auto&& s, auto&& d) { return argument{s, d}; });
     return result;
+}
+
+argument argument::get_sub_object(std::size_t index) const
+{
+    assert(m_shape.sub_shapes().size() == m_data.sub.size());
+    return {m_shape.sub_shapes().at(index), m_data.sub.at(index)};
 }
 
 argument argument::element(std::size_t i) const

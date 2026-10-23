@@ -62,9 +62,7 @@ struct get_tuple_elem
     argument compute(const shape&, std::vector<argument> args) const
     {
         assert(args.size() == 1);
-        auto vec_args = args.at(0).get_sub_objects();
-        assert(index < vec_args.size());
-        return vec_args.at(index);
+        return args.at(0).get_sub_object(index);
     }
 
     std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }

@@ -1014,6 +1014,8 @@ information.
 5. Install `rbuild <https://github.com/RadeonOpenCompute/rbuild>`__ into a Python
    virtual environment.
 
+   On Python 3.14 or newer, install ``cget`` from source.
+
    .. code-block:: shell
 
       python3 -m venv venv_rbuild
@@ -1021,11 +1023,6 @@ information.
 
       pip install https://github.com/pfultz2/cget/archive/master.tar.gz
       pip install https://github.com/ROCm/rbuild/archive/master.tar.gz
-
-   Install ``cget`` first on Python 3.14 or newer. ``rbuild`` accepts any
-   ``cget`` from 0.2.0 up, but that release predates the removal of
-   ``urllib.request.FancyURLopener`` in Python 3.14 and fails on import, so
-   ``cget`` has to come from source until a newer version is released.
 
 6. Build MIGraphX source code. Run this from the root of the checkout, because
    ``rbuild`` builds the source directory you invoke it from:

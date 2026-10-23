@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/make_op.hpp>
@@ -244,10 +245,7 @@ TEST_CASE(param_error_test)
 
     mm->add_instruction(sum_op{}, x, y);
     EXPECT(test::throws<migraphx::exception>(
-        [&] {
-            p.eval({{"x", migraphx::literal{1}.get_argument()}});
-        },
-        "Parameter not found: y"));
+        [&] { p.eval({{"x", migraphx::literal{1}.get_argument()}}); }, "Parameter not found: y"));
 }
 
 TEST_CASE(param_error_shape_test)
@@ -805,6 +803,222 @@ TEST_CASE(finalize_target_no_passes)
     // sum(2, 1) == 3, if compile(invert_target) had run, it would have produced minus(2, 1) == 1.
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
+}
+
+struct fill_leaf_op
+{
+    std::string name() const { return "fill_leaf"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        return {migraphx::shape::float_type, {1}};
+    }
+    migraphx::argument compute(const migraphx::shape& output,
+                               const std::vector<migraphx::argument>&) const
+    {
+        return migraphx::literal{output, {3.0f}}.get_argument();
+    }
+};
+
+struct fill_leaf_ctx_op
+{
+    std::string name() const { return "fill_leaf_ctx"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        return {migraphx::shape::float_type, {1}};
+    }
+    migraphx::argument compute(id_target::context&,
+                               const migraphx::shape& output,
+                               const std::vector<migraphx::argument>&) const
+    {
+        return migraphx::literal{output, {3.0f}}.get_argument();
+    }
+};
+
+struct side_effect_leaf_op
+{
+    static std::size_t calls;
+
+    std::string name() const { return "side_effect_leaf"; }
+    migraphx::value attributes() const { return {{"side_effect", true}}; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        return {migraphx::shape::float_type, {1}};
+    }
+    migraphx::argument compute(const migraphx::shape& output,
+                               const std::vector<migraphx::argument>&) const
+    {
+        ++calls;
+        return migraphx::literal{output, {3.0f}}.get_argument();
+    }
+};
+
+std::size_t side_effect_leaf_op::calls = 0;
+
+// The leaf is read only by the select_module candidate, so it is computed when the candidate
+// reads it
+TEST_CASE(select_module_lazy_leaf)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    auto* mm     = p.get_main_module();
+    auto leaf    = mm->add_instruction(fill_leaf_op{});
+    auto* submod = p.create_module("sub");
+    auto sdata   = submod->add_parameter("data", s);
+    auto bcast   = submod->add_instruction(migraphx::make_op("multibroadcast"), leaf, sdata);
+    submod->add_return({submod->add_instruction(migraphx::make_op("mul"), sdata, bcast)});
+
+    auto data   = mm->add_parameter("data", s);
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}})}}),
+        {data},
+        {submod});
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
+
+    std::vector<float> data_vec{1, 2, 3, 4};
+    migraphx::parameter_map params;
+    params["data"] = migraphx::argument{s, data_vec.data()};
+    auto result    = p.eval(params).back();
+    EXPECT(result.to_vector<float>() == std::vector<float>{3, 6, 9, 12});
+}
+
+TEST_CASE(select_module_lazy_leaf_returned_directly)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    auto* mm     = p.get_main_module();
+    auto leaf    = mm->add_instruction(fill_leaf_op{});
+    auto* submod = p.create_module("sub");
+    submod->add_parameter("data", s);
+    submod->add_return({leaf});
+
+    auto data   = mm->add_parameter("data", s);
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}})}}),
+        {data},
+        {submod});
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
+
+    std::vector<float> data_vec{1};
+    migraphx::parameter_map params;
+    params["data"] = migraphx::argument{s, data_vec.data()};
+    auto result    = p.eval(params).back();
+    EXPECT(result.to_vector<float>() == std::vector<float>{3});
+}
+
+TEST_CASE(select_module_side_effect_leaf_in_unselected_candidate)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto leaf = mm->add_instruction(side_effect_leaf_op{});
+
+    migraphx::shape small_s{migraphx::shape::float_type, {1}};
+    auto* selected      = p.create_module("selected");
+    auto selected_input = selected->add_parameter("data", small_s);
+    selected->add_return({selected_input});
+
+    migraphx::shape large_s{migraphx::shape::float_type, {2}};
+    auto* unselected      = p.create_module("unselected");
+    auto unselected_input = unselected->add_parameter("data", large_s);
+    auto broadcast =
+        unselected->add_instruction(migraphx::make_op("multibroadcast"), leaf, unselected_input);
+    unselected->add_return(
+        {unselected->add_instruction(migraphx::make_op("add"), unselected_input, broadcast)});
+
+    migraphx::shape dynamic_s{migraphx::shape::float_type,
+                              {migraphx::shape::dynamic_dimension{1, 2}}};
+    auto data   = mm->add_parameter("data", dynamic_s);
+    auto select = mm->add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{dynamic_s}})}}),
+        {data},
+        {selected, unselected});
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
+    p.compile(migraphx::make_target("ref"));
+    side_effect_leaf_op::calls = 0;
+
+    std::vector<float> data_vec{7};
+    migraphx::parameter_map params;
+    params["data"] = migraphx::argument{small_s, data_vec.data()};
+    auto result    = p.eval(params).back();
+    EXPECT(side_effect_leaf_op::calls == 1);
+    EXPECT(result.to_vector<float>() == data_vec);
+}
+
+TEST_CASE(select_module_lazy_leaf_with_context)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    auto* mm     = p.get_main_module();
+    auto leaf    = mm->add_instruction(fill_leaf_ctx_op{});
+    auto* submod = p.create_module("sub");
+    auto sdata   = submod->add_parameter("data", s);
+    auto bcast   = submod->add_instruction(migraphx::make_op("multibroadcast"), leaf, sdata);
+    submod->add_return({submod->add_instruction(migraphx::make_op("mul"), sdata, bcast)});
+
+    auto data   = mm->add_parameter("data", s);
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}})}}),
+        {data},
+        {submod});
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
+    p.compile(id_target{});
+
+    std::vector<float> data_vec{1, 2, 3, 4};
+    migraphx::parameter_map params;
+    params["data"] = migraphx::argument{s, data_vec.data()};
+    std::vector<migraphx::context> ctx{p.get_context()};
+    auto result = p.eval_with_context(ctx, params).back();
+    EXPECT(result.to_vector<float>() == std::vector<float>{3, 6, 9, 12});
+}
+
+TEST_CASE(select_module_lazy_leaf_without_context_error)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    auto* mm     = p.get_main_module();
+    auto leaf    = mm->add_instruction(fill_leaf_ctx_op{});
+    auto* submod = p.create_module("sub");
+    auto sdata   = submod->add_parameter("data", s);
+    auto bcast   = submod->add_instruction(migraphx::make_op("multibroadcast"), leaf, sdata);
+    submod->add_return({submod->add_instruction(migraphx::make_op("mul"), sdata, bcast)});
+
+    auto data   = mm->add_parameter("data", s);
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}})}}),
+        {data},
+        {submod});
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
+
+    std::vector<float> data_vec{1, 2, 3, 4};
+    migraphx::parameter_map params;
+    params["data"] = migraphx::argument{s, data_vec.data()};
+    EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval(params); },
+                                             "No context available for fill_leaf_ctx"));
+}
+
+TEST_CASE(eval_without_context_error)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    mm->add_instruction(id_ctx_op{}, one);
+    EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval({}); },
+                                             "No context available"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

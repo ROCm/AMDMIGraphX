@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -123,6 +123,9 @@ TEST_CASE(tuple)
     auto a3 = make_tuple(3, 4.0);
     EXPECT(a1 != a3);
     EXPECT(a1.to_string() != a3.to_string());
+
+    EXPECT(a1.get_sub_object(0) == as_argument(3));
+    EXPECT(a1.get_sub_object(1) == as_argument(3.0));
 }
 
 TEST_CASE(nested_tuple)

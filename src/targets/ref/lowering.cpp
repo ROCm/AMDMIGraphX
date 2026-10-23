@@ -183,6 +183,11 @@ struct ref_op
     {
         return op.compute(output_shape, args);
     }
+    value attributes() const { return op.attributes(); }
+    std::vector<std::size_t> output_alias(const std::vector<shape>& inputs) const
+    {
+        return op.output_alias(inputs);
+    }
     void
     finalize(migraphx::context& ctx, const shape& output_shape, const std::vector<shape>& inputs)
     {

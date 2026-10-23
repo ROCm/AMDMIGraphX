@@ -39,6 +39,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/match/dq_helpers.hpp>
+#include <migraphx/reshape_dims.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -108,11 +109,66 @@ rebias_uint8_to_int8(module& m, instruction_ref pos, instruction_ref qdata, inst
 
 struct match_find_quantizable_ops
 {
-    static bool
-    is_valid_qparam(instruction_ref qparam, std::vector<std::size_t> lens, std::size_t axis)
+    static optional<shape> reshape_qparam(const shape& input, const std::vector<std::size_t>& lens)
     {
-        return qparam->get_shape().elements() == 1 or
-               qparam->get_shape().elements() == lens.at(axis);
+        // Singleton strides do not constrain the logical layout of a quantization parameter.
+        auto squeezed = make_op("squeeze").compute_shape({input});
+        std::vector<std::size_t> dims;
+        std::copy_if(
+            lens.begin(), lens.end(), std::back_inserter(dims), [](auto n) { return n != 1; });
+        auto layout = reshape_dims(squeezed, dims, {.lazy = true});
+        if(not layout.has_value())
+            return nullopt;
+        auto result = layout->symbolic() ? layout->to_static() : *layout;
+        std::vector<std::size_t> strides(lens.size());
+        std::transform(
+            lens.begin(),
+            lens.end(),
+            strides.begin(),
+            [stride = result.strides().begin()](auto n) mutable { return n == 1 ? 0 : *stride++; });
+        return shape{input.type(), lens, strides};
+    }
+
+    static bool is_valid_qparam(instruction_ref qparam,
+                                instruction_ref dq,
+                                std::size_t index,
+                                instruction_ref operand,
+                                std::size_t axis)
+    {
+        const auto& lens = qparam->get_shape().lens();
+        if(qparam->get_shape().elements() == 1)
+            return true;
+        if(std::count_if(lens.begin(), lens.end(), [](auto n) { return n != 1; }) != 1 or
+           qparam->get_shape().elements() != operand->get_shape().lens().at(axis))
+            return false;
+        auto expanded          = qparam->get_shape();
+        auto between           = get_between_ins(dq, operand);
+        auto parameter_between = get_between_ins(qparam, dq->inputs().at(index));
+        between.insert(between.end(), parameter_between.begin(), parameter_between.end());
+        for(auto ins : reverse_iterator_for(between))
+        {
+            // Materialization changes storage strides, but not which parameter values repeat.
+            if((*ins)->name() == "contiguous")
+                continue;
+            auto output = (*ins)->get_operator().compute_shape({expanded});
+            if((*ins)->name() == "reshape")
+            {
+                auto layout = reshape_qparam(expanded, output.lens());
+                if(not layout.has_value())
+                    return false;
+                expanded = *layout;
+            }
+            else
+                expanded = output;
+        }
+        if(expanded.lens() != operand->get_shape().lens())
+            return false;
+        for(std::size_t i = 0; i < expanded.ndim(); ++i)
+        {
+            if(expanded.lens()[i] != 1 and i != axis and expanded.strides()[i] != 0)
+                return false;
+        }
+        return expanded.strides()[axis] != 0;
     }
 
     static bool is_symmetric_zero_point(instruction_ref zp)
@@ -128,17 +184,19 @@ struct match_find_quantizable_ops
         return all_zeros;
     }
 
-    static auto
-    qparam_broadcast_op(instruction_ref qparam, std::vector<std::size_t> lens, std::size_t axis)
+    static instruction_ref insert_qparam_broadcast(module& m,
+                                                   instruction_ref pos,
+                                                   instruction_ref qparam,
+                                                   const std::vector<std::size_t>& lens,
+                                                   std::size_t axis)
     {
-        if(qparam->get_shape().scalar())
-        {
-            return migraphx::make_op("multibroadcast", {{"out_lens", lens}});
-        }
-        else
-        {
-            return migraphx::make_op("broadcast", {{"out_lens", lens}, {"axis", axis}});
-        }
+        // Per-axis ONNX parameters carry singleton dimensions belonging to the operand rank.
+        if(qparam->get_shape().ndim() > 1)
+            qparam = m.insert_instruction(pos, make_op("squeeze"), qparam);
+        auto op = qparam->get_shape().elements() == 1
+                      ? make_op("multibroadcast", {{"out_lens", lens}})
+                      : make_op("broadcast", {{"out_lens", lens}, {"axis", axis}});
+        return m.insert_instruction(pos, op, qparam);
     }
 
     auto matcher() const
@@ -160,8 +218,26 @@ struct match_find_quantizable_ops
         auto zp1    = r.instructions["zp1"];
         auto zp2    = r.instructions["zp2"];
 
-        // Propagate q1 and q2 through any broadcasts and transposes before qop
-        auto qop_args      = qop->inputs();
+        auto qop_args = qop->inputs();
+        if(qop->name() == "convolution")
+        {
+            if(scale1->get_shape().elements() != 1 or zp1->get_shape().elements() != 1 or
+               not is_valid_qparam(scale2, dq2, 1, qop_args[1], 0) or
+               not is_valid_qparam(zp2, dq2, 2, qop_args[1], 0))
+                return;
+        }
+        else
+        {
+            if(qop_args[0]->get_shape().ndim() < 2 or qop_args[1]->get_shape().ndim() < 2)
+                return;
+            auto axis1 = qop_args[0]->get_shape().ndim() - 2;
+            auto axis2 = qop_args[1]->get_shape().ndim() - 1;
+            if(not is_valid_qparam(scale1, dq1, 1, qop_args[0], axis1) or
+               not is_valid_qparam(zp1, dq1, 2, qop_args[0], axis1) or
+               not is_valid_qparam(scale2, dq2, 1, qop_args[1], axis2) or
+               not is_valid_qparam(zp2, dq2, 2, qop_args[1], axis2))
+                return;
+        }
         bool is_fp16_model = false;
         if(dq1->get_shape().type() != qop->get_shape().type() and
            qop->get_shape().type() == migraphx::shape::half_type)
@@ -212,17 +288,11 @@ struct match_find_quantizable_ops
             // Input is of shape [n, c, x1, ..., xn]. Only scalar quantization allowed
             // Weight is of shape [k, c, y1, ... , yn]. Valid quantization axis is k
 
-            if(not(scale1->get_shape().elements() == 1 and zp1->get_shape().elements() == 1 and
-                   is_valid_qparam(scale2, arg2_lens, 0) and is_valid_qparam(zp2, arg2_lens, 0)))
-                return;
-
             // This implementation supports affine quantization for both input and weight
             // In practice, weight is quantized symmetrically
 
-            auto s1_bcast =
-                m.insert_instruction(qop, qparam_broadcast_op(scale1, out_lens, 1), scale1);
-            auto s2_bcast =
-                m.insert_instruction(qop, qparam_broadcast_op(scale2, out_lens, 1), scale2);
+            auto s1_bcast = insert_qparam_broadcast(m, qop, scale1, out_lens, 1);
+            auto s2_bcast = insert_qparam_broadcast(m, qop, scale2, out_lens, 1);
 
             out_scale = m.insert_instruction(qop, migraphx::make_op("mul"), s1_bcast, s2_bcast);
 
@@ -231,8 +301,8 @@ struct match_find_quantizable_ops
             out_zp        = m.insert_instruction(
                 qop, make_op("multibroadcast", {{"out_lens", dq->get_shape().lens()}}), zero_lit);
 
-            auto inp_zp_bc = m.insert_instruction(qop, qparam_broadcast_op(zp1, arg1_lens, 1), zp1);
-            auto w_zp_bc   = m.insert_instruction(qop, qparam_broadcast_op(zp2, arg2_lens, 0), zp2);
+            auto inp_zp_bc = insert_qparam_broadcast(m, qop, zp1, arg1_lens, 1);
+            auto w_zp_bc   = insert_qparam_broadcast(m, qop, zp2, arg2_lens, 0);
 
             if(not is_symmetric_zero_point(zp1))
             {
@@ -262,21 +332,11 @@ struct match_find_quantizable_ops
 
             // For (..., M, N) x (..., N, K) dot, valid quantization axes are M for input1 and K for
             // input 2
-            if(not(is_valid_qparam(scale1, out_lens, out_lens.size() - 2) and
-                   is_valid_qparam(zp1, out_lens, out_lens.size() - 2) and
-                   is_valid_qparam(scale2, out_lens, out_lens.size() - 1) and
-                   is_valid_qparam(zp2, out_lens, out_lens.size() - 1)))
-            {
-                return;
-            }
-
             // This implementation supports both arguments being per-axis affine quantized
             // In practice, inputs are per-tensor affine and weights are per-axis symmetric
 
-            auto s1_bcast = m.insert_instruction(
-                qop, qparam_broadcast_op(scale1, out_lens, out_lens.size() - 2), scale1);
-            auto s2_bcast = m.insert_instruction(
-                qop, qparam_broadcast_op(scale2, out_lens, out_lens.size() - 1), scale2);
+            auto s1_bcast = insert_qparam_broadcast(m, qop, scale1, out_lens, out_lens.size() - 2);
+            auto s2_bcast = insert_qparam_broadcast(m, qop, scale2, out_lens, out_lens.size() - 1);
 
             out_scale = m.insert_instruction(qop, migraphx::make_op("mul"), s1_bcast, s2_bcast);
 
@@ -285,10 +345,8 @@ struct match_find_quantizable_ops
             out_zp        = m.insert_instruction(
                 qop, make_op("multibroadcast", {{"out_lens", dq->get_shape().lens()}}), zero_lit);
 
-            auto zp1_bc = m.insert_instruction(
-                qop, qparam_broadcast_op(zp1, arg1_lens, arg1_lens.size() - 2), zp1);
-            auto zp2_bc = m.insert_instruction(
-                qop, qparam_broadcast_op(zp2, arg2_lens, arg2_lens.size() - 1), zp2);
+            auto zp1_bc = insert_qparam_broadcast(m, qop, zp1, arg1_lens, arg1_lens.size() - 2);
+            auto zp2_bc = insert_qparam_broadcast(m, qop, zp2, arg2_lens, arg2_lens.size() - 1);
 
             if(not is_symmetric_zero_point(zp1))
             {

@@ -148,31 +148,33 @@ static const op_usage& env_op_usage()
     return ops;
 }
 
-bool mlir_attention_enabled(context* ctx, const std::vector<std::string>& use_specific_ops)
+// Attention fusion is enabled by default on every device; a "!attention" entry disables it.
+// The env var takes priority over the compile option, so an env request cannot be rejected
+// by the option.
+bool mlir_attention_enabled(const std::vector<std::string>& use_specific_ops)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
         return false;
     if(env_op_usage().is_rejected("attention"))
         return false;
-    if(ctx != nullptr)
-    {
-        // Enable attention by default for mi300/350
-        const auto supported_prefixes = {"gfx94", "gfx95"};
-        const auto& device_name       = ctx->get_current_device().get_gfx_name();
-        if(std::any_of(supported_prefixes.begin(),
-                       supported_prefixes.end(),
-                       [&](const char* prefix) { return starts_with(device_name, prefix); }))
-            return true;
-    }
     if(env_op_usage().is_requested("attention"))
         return true;
-    // compile_options is checked last: unlike the env var rejection above, a rejection here
-    // runs after the gfx94/gfx95 default and so cannot switch attention off on those chips.
-    const auto ops = parse_op_usage(use_specific_ops);
-    if(ops.is_rejected("attention"))
+    return not parse_op_usage(use_specific_ops).is_rejected("attention");
+#else
+    return false;
+#endif
+}
+
+// An explicit "attention" entry asks for every attention block to fuse, bypassing the
+// fuse_attention profitability gate; a rejection still disables the fusion entirely.
+bool mlir_attention_requested(const std::vector<std::string>& use_specific_ops)
+{
+#ifdef MIGRAPHX_MLIR
+    if(not mlir_attention_enabled(use_specific_ops))
         return false;
-    return ops.is_requested("attention");
+    return env_op_usage().is_requested("attention") or
+           parse_op_usage(use_specific_ops).is_requested("attention");
 #else
     return false;
 #endif

@@ -156,9 +156,11 @@ TEST_CASE(dyn_slice_ends_in_bounds_test)
     EXPECT(result.to_vector<int32_t>() == std::vector<int32_t>{1, 2, 3});
 
     ends_data.front() = 4;
-    EXPECT(test::throws([&] { p.eval(params); }));
+    EXPECT(test::throws<migraphx::exception>([&] { p.eval(params); },
+                                             "DYN_SLICE: end 4 is outside axis 0 with length 3"));
     ends_data.front() = -1;
-    EXPECT(test::throws([&] { p.eval(params); }));
+    EXPECT(test::throws<migraphx::exception>([&] { p.eval(params); },
+                                             "DYN_SLICE: end -1 is outside axis 0 with length 3"));
 }
 
 TEST_CASE(dyn_slice_sym_starts_test)

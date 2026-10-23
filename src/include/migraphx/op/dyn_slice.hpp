@@ -170,13 +170,15 @@ struct dyn_slice
             auto runtime_ends = args[2].to_vector<int64_t>();
             migraphx::for_each(
                 axes.begin(), axes.end(), runtime_ends.begin(), [&](auto axis, auto end) {
-                    auto rank            = static_cast<int64_t>(input_shape.ndim());
+                    auto rank            = input_shape.ndim();
                     auto normalized_axis = axis < 0 ? axis + rank : axis;
                     if(normalized_axis < 0 or normalized_axis >= rank)
                         MIGRAPHX_THROW("DYN_SLICE: axis is out of range");
-                    if(end < 0 or
-                       static_cast<std::size_t>(end) > input_shape.lens().at(normalized_axis))
-                        MIGRAPHX_THROW("DYN_SLICE: ends_in_bounds end is outside the input axis");
+                    auto axis_length = input_shape.lens().at(normalized_axis);
+                    if(end < 0 or end > axis_length)
+                        MIGRAPHX_THROW("DYN_SLICE: end " + migraphx::to_string(end) +
+                                       " is outside axis " + migraphx::to_string(normalized_axis) +
+                                       " with length " + migraphx::to_string(axis_length));
                 });
         }
         // The attributes only describe these inputs at compile time; slice by the inputs.

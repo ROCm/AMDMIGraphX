@@ -49,7 +49,7 @@ static std::function<F> compile_function(std::string_view src, const std::string
     compiler.flags.emplace_back("-std=c++14");
 #ifndef _WIN32
     compiler.flags.emplace_back("-fPIC");
-    compiler.flags.emplace_back("-DEXPORT=\"\"");
+    compiler.flags.emplace_back("-DEXPORT=");
 #else
     compiler.flags.emplace_back("-DEXPORT=__declspec(dllexport)");
 #endif

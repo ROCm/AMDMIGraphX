@@ -58,6 +58,15 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
 
+// One argument per flag, without the empty ones that repeated or trailing spaces leave behind. The
+// compiler is spawned directly, so there is no shell to split a flag list or drop an empty argument.
+static std::vector<std::string> split_flags(const std::string& flags)
+{
+    auto result = split_string(flags, ' ');
+    result.erase(std::remove(result.begin(), result.end(), ""), result.end());
+    return result;
+}
+
 std::vector<std::string> compile_hip_options(const std::vector<std::string>& params,
                                              const std::string& arch)
 {
@@ -77,8 +86,7 @@ std::vector<std::string> compile_hip_options(const std::vector<std::string>& par
     options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
     options.push_back("--offload-arch=" + arch);
-    std::vector<std::string> extra_flags =
-        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
+    auto extra_flags = split_flags(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""));
     options.insert(options.end(), extra_flags.begin(), extra_flags.end());
 
     return options;
@@ -356,7 +364,9 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     compiler.flags.emplace_back("-c");
     compiler.flags.emplace_back("--cuda-device-only");
     compiler.flags.emplace_back("-Wno-unused-command-line-argument");
-    compiler.flags.emplace_back(MIGRAPHX_HIP_COMPILER_FLAGS);
+    auto hip_compiler_flags = split_flags(MIGRAPHX_HIP_COMPILER_FLAGS);
+    compiler.flags.insert(
+        compiler.flags.end(), hip_compiler_flags.begin(), hip_compiler_flags.end());
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {

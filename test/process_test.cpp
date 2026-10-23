@@ -165,6 +165,40 @@ TEST_CASE(environment_variable)
     EXPECT(buffer == reversed);
 }
 
+static void set_test_environment_variable(const char* value)
+{
+#ifdef _WIN32
+    _putenv_s("MIGRAPHX_PROCESS_TEST_ENVIRONMENT_VARIABLE", value);
+#else
+    setenv("MIGRAPHX_PROCESS_TEST_ENVIRONMENT_VARIABLE", value, 1);
+#endif
+}
+
+// A variable we already have must be replaced, not shadowed: an environment holding both NAME=0 and
+// NAME=1 resolves to whichever comes first, which is the inherited one.
+TEST_CASE(environment_variable_overrides_inherited)
+{
+    set_test_environment_variable("0");
+    std::string buffer;
+    migraphx::process{executable, {"--stdout"}}
+        .env({"MIGRAPHX_PROCESS_TEST_ENVIRONMENT_VARIABLE=1"})
+        .read([&buffer](const char* buf, std::size_t size) { buffer = std::string{buf, size}; });
+    set_test_environment_variable("");
+    std::string reversed(string_data);
+    std::reverse(reversed.begin(), reversed.end());
+    EXPECT(buffer == reversed);
+}
+
+#ifndef _WIN32
+TEST_CASE(environment_variable_without_value_throws)
+{
+    EXPECT(test::throws([&] {
+        migraphx::process{executable, {"--stdout"}}.env({"NOT_AN_ASSIGNMENT"}).read(
+            [](const char*, std::size_t) {});
+    }));
+}
+#endif
+
 // read_write: stdin and stdout pumped at the same time.
 
 // Introduces every child mode below, so all other argv stays with the modes above and with
@@ -179,6 +213,26 @@ static std::vector<char> make_payload(std::size_t n)
     std::size_t i = 0;
     std::generate(
         result.begin(), result.end(), [&] { return static_cast<char>((i++ * 31 + 7) % 256); });
+    return result;
+}
+
+// The "args" child mode writes each argument followed by a null byte.
+static std::vector<std::string> split_at_nul(const std::vector<char>& data)
+{
+    std::vector<std::string> result;
+    std::string current;
+    for(auto c : data)
+    {
+        if(c == '\0')
+        {
+            result.push_back(current);
+            current.clear();
+        }
+        else
+        {
+            current.push_back(c);
+        }
+    }
     return result;
 }
 
@@ -293,22 +347,7 @@ TEST_CASE(read_write_argv_round_trip)
     std::vector<std::string> mode_args = {"args"};
     mode_args.insert(mode_args.end(), args.begin(), args.end());
 
-    // The child writes each argument followed by a null byte.
-    std::vector<std::string> got;
-    std::string current;
-    for(auto c : read_write_child(mode_args, {}))
-    {
-        if(c == '\0')
-        {
-            got.push_back(current);
-            current.clear();
-        }
-        else
-        {
-            current.push_back(c);
-        }
-    }
-    EXPECT(got == args);
+    EXPECT(split_at_nul(read_write_child(mode_args, {})) == args);
 }
 
 // Concurrent spawns must not inherit each other's pipe ends, or somebody never sees EOF. The
@@ -362,6 +401,96 @@ TEST_CASE(read_write_concurrent_spawns)
     }
 }
 
+// read, write, and exec: one pipe each, the command spawned directly rather than through a shell.
+
+static std::vector<char> read_child(const std::vector<std::string>& mode_args,
+                                    const migraphx::fs::path& cwd = {})
+{
+    std::vector<std::string> args{child_flag};
+    args.insert(args.end(), mode_args.begin(), mode_args.end());
+    std::vector<char> result;
+    migraphx::process{executable, args}.cwd(cwd).read([&](const char* buf, std::size_t n) {
+        // data() may be null when the child wrote nothing.
+        if(n > 0)
+            result.assign(buf, buf + n);
+    });
+    return result;
+}
+
+// The Windows read goes through a file and stops after the first chunk of output, so this covers
+// only the POSIX pipe: larger than its buffer, so it has to be drained while the child runs, and
+// holding every byte value, so it must be handed on by length rather than as a C string.
+#ifndef _WIN32
+TEST_CASE(read_large_binary_stdout)
+{
+    auto tmp  = migraphx::tmp_dir{};
+    auto in   = (tmp.path / "input.bin").string();
+    auto data = make_payload(256 * 1024);
+    migraphx::write_buffer(in, data);
+    EXPECT(read_child({"cat", in}) == data);
+}
+#endif
+
+// Shell syntax in an argument reaches the child unchanged. None of these has a space or a quote,
+// which the Windows command line joins without quoting.
+TEST_CASE(read_shell_metacharacters_are_not_interpreted)
+{
+    std::vector<std::string> args = {"a;b", "$HOME", "`false`", "$(false)", "*", "a|b", ">out", "&"};
+    std::vector<std::string> mode_args = {"args"};
+    mode_args.insert(mode_args.end(), args.begin(), args.end());
+
+    auto tmp = migraphx::tmp_dir{};
+    EXPECT(split_at_nul(read_child(mode_args, tmp.path)) == args);
+    // A shell would have created this for ">out".
+    EXPECT(not migraphx::fs::exists(tmp.path / "out"));
+}
+
+TEST_CASE(write_cwd_with_shell_metacharacters)
+{
+    constexpr auto filename = "output.txt";
+    auto tmp                = migraphx::tmp_dir{};
+    auto dir                = tmp.path / "a;b $x";
+    migraphx::fs::create_directories(dir);
+
+    migraphx::process{executable, {"--stdin", filename}}.cwd(dir).write(
+        [&](const auto& writer) { writer(string_data.data(), string_data.size()); });
+
+    EXPECT(migraphx::read_string((dir / filename).string()) == string_data);
+}
+
+TEST_CASE(read_nonzero_exit_code_throws)
+{
+    EXPECT(test::throws([&] { read_child({"fail"}); }));
+}
+
+// A child killed by a signal has no exit status, and must not be mistaken for one that exited 0.
+TEST_CASE(read_abnormal_termination_throws)
+{
+    EXPECT(test::throws([&] { read_child({"crash"}); }));
+}
+
+TEST_CASE(read_missing_executable_throws)
+{
+    auto missing = executable.parent_path() / "migraphx-no-such-program";
+    EXPECT(test::throws([&] { migraphx::process{missing}.read([](const char*, std::size_t) {}); }));
+}
+
+// A child that exits without reading its stdin must surface as its exit status rather than as a
+// SIGPIPE that takes the whole test binary down.
+TEST_CASE(write_child_ignores_stdin)
+{
+    auto data = make_payload(1024 * 1024);
+    EXPECT(test::throws([&] {
+        migraphx::process{executable, {child_flag, "ignore-stdin"}}.write(
+            [&](const auto& writer) { writer(data.data(), data.size()); });
+    }));
+}
+
+TEST_CASE(exec_nonzero_exit_code_throws)
+{
+    EXPECT(test::throws([&] { migraphx::process{executable, {child_flag, "fail"}}.exec(); }));
+}
+
 static void set_binary_mode()
 {
 #ifdef _WIN32
@@ -403,6 +532,12 @@ static int run_child(const std::vector<std::string>& args)
             std::fwrite(it->data(), 1, it->size(), stdout);
             std::fputc('\0', stdout);
         }
+        std::fflush(stdout);
+        return 0;
+    }
+    if(mode == "cat")
+    {
+        child_write(migraphx::read_buffer(args.at(1)));
         std::fflush(stdout);
         return 0;
     }

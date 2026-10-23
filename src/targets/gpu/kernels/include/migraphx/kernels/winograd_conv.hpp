@@ -27,6 +27,7 @@
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/bit_cast.hpp>
 #include <migraphx/kernels/buffer_load.hpp>
+#include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/vec.hpp>
@@ -36,6 +37,22 @@
 #include <migraphx/kernels/integral_constant.hpp>
 
 namespace migraphx {
+
+#if defined(__gfx1151__)
+__device__ inline vec<half, 16> pack_wmma_fragment_gfx1151(vec<half, 8> x)
+{
+    auto peer = readlane_xor<16>(x);
+    return __builtin_shufflevector(
+        x, peer, 0, 1, 8, 9, 2, 3, 10, 11, 4, 5, 12, 13, 6, 7, 14, 15);
+}
+
+__device__ inline vec<float, 8>
+wmma_gfx1151(vec<half, 8> a, vec<half, 8> b, vec<float, 8> c)
+{
+    return __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(
+        pack_wmma_fragment_gfx1151(a), pack_wmma_fragment_gfx1151(b), c);
+}
+#endif
 
 // Quad of WMMAs in a single inline-asm block. Forces the compiler to issue
 // them back-to-back (each is 8-cycle wait state but to a DIFFERENT
@@ -57,12 +74,19 @@ __device__ inline void wmma_quad_asm(vec<half, 8> a0,
                                      vec<float, 8>& m2,
                                      vec<float, 8>& m3)
 {
+#if defined(__gfx1151__)
+    m0 = wmma_gfx1151(a0, b0, m0);
+    m1 = wmma_gfx1151(a1, b1, m1);
+    m2 = wmma_gfx1151(a2, b2, m2);
+    m3 = wmma_gfx1151(a3, b3, m3);
+#else
     asm volatile("v_wmma_f32_16x16x16_f16 %0, %4, %5, %0\n\t"
                  "v_wmma_f32_16x16x16_f16 %1, %6, %7, %1\n\t"
                  "v_wmma_f32_16x16x16_f16 %2, %8, %9, %2\n\t"
                  "v_wmma_f32_16x16x16_f16 %3, %10, %11, %3"
                  : "+v"(m0), "+v"(m1), "+v"(m2), "+v"(m3)
                  : "v"(a0), "v"(b0), "v"(a1), "v"(b1), "v"(a2), "v"(b2), "v"(a3), "v"(b3));
+#endif
 }
 
 // Octet of WMMAs in a single inline-asm block. Costs 8 live fp32 vec<8>
@@ -93,6 +117,16 @@ __device__ inline void wmma_octet_asm(vec<half, 8> a0,
                                       vec<float, 8>& m6,
                                       vec<float, 8>& m7)
 {
+#if defined(__gfx1151__)
+    m0 = wmma_gfx1151(a0, b0, m0);
+    m1 = wmma_gfx1151(a1, b1, m1);
+    m2 = wmma_gfx1151(a2, b2, m2);
+    m3 = wmma_gfx1151(a3, b3, m3);
+    m4 = wmma_gfx1151(a4, b4, m4);
+    m5 = wmma_gfx1151(a5, b5, m5);
+    m6 = wmma_gfx1151(a6, b6, m6);
+    m7 = wmma_gfx1151(a7, b7, m7);
+#else
     asm volatile("v_wmma_f32_16x16x16_f16 %0, %8, %9, %0\n\t"
                  "v_wmma_f32_16x16x16_f16 %1, %10, %11, %1\n\t"
                  "v_wmma_f32_16x16x16_f16 %2, %12, %13, %2\n\t"
@@ -118,6 +152,7 @@ __device__ inline void wmma_octet_asm(vec<half, 8> a0,
                    "v"(b6),
                    "v"(a7),
                    "v"(b7));
+#endif
 }
 
 // F(2x2, 3x3) Winograd transforms used inline by the WMMA path.
@@ -892,7 +927,13 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // Reuse the per-lane (n_idx, th_idx, tw_idx) computed up at V-load setup.
     // For SK>1 only the wave_sk_part==0 wave of each NT-group has the summed y.
     using out_type               = typename Output::type;
-    const index_int k_row_offset = c_off; // (lane / 16) * 8, same lane mapping
+#if defined(__gfx1151__)
+    const index_int k_row_offset       = lane / 16;
+    constexpr index_int k_row_stride   = 2; // Alternating K rows per lane
+#else
+    const index_int k_row_offset       = c_off;
+    constexpr index_int k_row_stride   = 1;
+#endif
     if(not nt_active)
         return;
     if constexpr(SK > 1)
@@ -935,7 +976,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // fall through to the packed NCHW store below.
         if(sk == 1)
         {
-            const bool k_pack = (out_c % 8 == 0);
+            const bool k_pack = (k_row_stride == 1) and (out_c % 8 == 0);
             repeat_c<KW>([&](auto k_idx_val) {
                 constexpr int k_idx     = k_idx_val;
                 const index_int k_first = k_base + k_idx * bk + k_row_offset;
@@ -976,7 +1017,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                         else
                         {
                             repeat_c<8>([&](auto ki) {
-                                const index_int k = k_first + index_int{ki};
+                                const index_int k = k_first + index_int{ki} * k_row_stride;
                                 if(k < out_c)
                                 {
                                     const array<index_int, 4> oid{n_idx, k, h_out, w_out};
@@ -999,10 +1040,11 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                       (2 * th_idx) * sh + (2 * tw_idx) * sw;
         const bool w_pair_in = (2 * tw_idx + 1 < out_w) and (sw == 1);
         repeat_c<8>([&](auto ki) {
-            const index_int k = k_base + k_idx * bk + k_row_offset + ki;
+            const index_int k =
+                k_base + k_idx * bk + k_row_offset + index_int{ki} * k_row_stride;
             if(k < out_c)
             {
-                const index_int kbase = base_offset + ki * sk;
+                const index_int kbase = base_offset + index_int{ki} * k_row_stride * sk;
                 repeat_c<2>([&](auto i) {
                     const index_int h_out = 2 * th_idx + i;
                     if(h_out < out_h)

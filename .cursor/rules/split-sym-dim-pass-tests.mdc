@@ -1,0 +1,17 @@
+---
+description: Enforce structural testing for the split_sym_dim transformation pass
+globs: test/split_sym_dim_test.cpp
+alwaysApply: false
+---
+
+# split_sym_dim Pass Tests
+
+- Test the pass by constructing the input program, running `split_sym_dim` plus required cleanup,
+  constructing the complete expected program explicitly, and comparing them with
+  `EXPECT(actual.sort() == expected.sort())`.
+- Never call `program::compile`, `program::eval`, or create runtime parameter maps in this file.
+- Do not replace the explicit expected graph with property checks or numerical assertions.
+- Put numerical execution coverage in an appropriate `test/verify/` or target behavior test; it
+  supplements but does not replace the structural pass test.
+- Reuse the existing `add_clones` helper when expected split modules require it, while keeping each
+  test's graph construction visible in the test case.

@@ -147,20 +147,20 @@ std::vector<std::size_t> output_indices(const std::string& name,
     auto leaf_paths        = parameter_leaf_paths(parameter_shape);
     std::vector<std::size_t> result(leaf_paths.size(), missing);
     auto return_indices = range(returns.size());
-    migraphx::for_each(returns.begin(),
-                       returns.end(),
-                       return_indices.begin(),
-                       [&](instruction_ref ret, std::size_t r) {
-                           if(not aliases_parameter(ret, parameter))
-                               return;
-                           auto path = returned_tuple_path(ret, parameter);
-                           if(not path.has_value())
-                               return;
-                           auto leaf = std::find(leaf_paths.begin(), leaf_paths.end(), *path);
-                           if(leaf != leaf_paths.end())
-                               result[static_cast<std::size_t>(
-                                   std::distance(leaf_paths.begin(), leaf))] = r;
-                       });
+    migraphx::for_each(
+        returns.begin(),
+        returns.end(),
+        return_indices.begin(),
+        [&](instruction_ref ret, std::size_t r) {
+            if(not aliases_parameter(ret, parameter))
+                return;
+            auto path = returned_tuple_path(ret, parameter);
+            if(not path.has_value())
+                return;
+            auto leaf = std::find(leaf_paths.begin(), leaf_paths.end(), *path);
+            if(leaf != leaf_paths.end())
+                result[static_cast<std::size_t>(std::distance(leaf_paths.begin(), leaf))] = r;
+        });
     if(contains(result, missing))
         MIGRAPHX_THROW("SELECT_MODULE: tuple output parameter \"" + name +
                        "\" is not aliased by get_tuple_elem returns for every subobject");

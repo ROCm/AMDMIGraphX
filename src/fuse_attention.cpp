@@ -216,17 +216,6 @@ std::vector<instruction_ref> get_lse_instructions(const std::vector<instruction_
         return lse_inss;
     auto add = log_outs.front();
     lse_inss.insert(lse_inss.end(), {*log, add});
-    // Capture the attention-sink gate sigmoid(lse - sink) that follows the lse
-    // so the group returns the gate instead of the lse
-    auto path      = get_output_path(add);
-    auto gate_last = std::adjacent_find(
-        path.begin(), path.end(), [](instruction_ref prev, instruction_ref next) {
-            return not contains({"sub", "add", "sigmoid", "convert"}, next->name()) or
-                   next->inputs().front() != prev;
-        });
-    auto gate_end = gate_last == path.end() ? path.end() : std::next(gate_last);
-    std::copy(std::next(path.begin()), gate_end, std::back_inserter(lse_inss));
-
     return lse_inss;
 }
 
@@ -291,9 +280,10 @@ struct find_quant_attention
 // where lse = reduce_max(scores) + log(reduce_sum(exp(scores - max))). The
 // sigmoid factor is constant along the reduction axis, so it commutes past the
 // second gemm (and its transpose/reshape output tail) and is applied there as a
-// small pointwise epilogue. The log/add lse chain and the sigmoid gate hang off
-// the softmax reductions and are captured into the fused attention group, which
-// returns the gate as a second output.
+// small pointwise epilogue. The log/add lse chain hangs off the softmax
+// reductions and is captured into the fused attention group, which returns the
+// lse as a second output; the sigmoid gate stays outside so the backend can
+// fuse it (eg into the mlir attention module as an output epilogue).
 struct find_attention_sinks
 {
     // ext and exp are each matched twice, so erase each level with opaque to
@@ -576,7 +566,7 @@ struct find_attention
             attn_inss.insert(attn_inss.end(), lse_inss.begin(), lse_inss.end());
             required_outputs = find_outputs(attn_inss);
 
-            // Final outputs are the second gemm and the end of the lse/gate chain
+            // Final outputs are the second gemm and the lse
             if(required_outputs.size() != 2)
                 return;
         }
@@ -1347,9 +1337,9 @@ struct find_kv_cache_attention
         if(required_outputs.empty())
             return;
 
-        // Attention sinks leave a log/add lse chain and its sigmoid gate hanging
-        // off the softmax reductions (see find_attention_sinks); fuse them in and
-        // return {output, gate} as a tuple.
+        // Attention sinks leave a log/add lse chain hanging off the softmax
+        // reductions (see find_attention_sinks); fuse it in and return
+        // {output, lse} as a tuple.
         bool has_lse = false;
         if(has_lse_outputs(required_outputs, "reshape"))
         {

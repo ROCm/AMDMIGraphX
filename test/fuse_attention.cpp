@@ -2971,7 +2971,7 @@ TEST_CASE(kv_cache_attention_sinks)
             p2,
             "attn0",
             "kv_cache_attention",
-            {rope, cpp_k, slk, cpp_v, bc_sinks},
+            {rope, cpp_k, slk, cpp_v},
             [=](auto* gm, const auto& inputs) {
                 auto half = gm->add_literal(migraphx::literal{s1, {0.5}});
                 auto ninf = gm->add_literal(
@@ -3026,16 +3026,14 @@ TEST_CASE(kv_cache_attention_sinks)
                     migraphx::make_op("reshape", {{"dims", {2, 1, 4}}}), tsp_out);
                 auto log_sum = gm->add_instruction(migraphx::make_op("log"), rdc_sum);
                 auto lse     = gm->add_instruction(migraphx::make_op("add"), rdc_max, log_sum);
-                auto diff    = gm->add_instruction(migraphx::make_op("sub"), lse, inputs.at(4));
-                auto sigma   = gm->add_instruction(migraphx::make_op("sigmoid"), diff);
-                auto gate    = gm->add_instruction(
-                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-                    sigma);
-                return std::vector<migraphx::instruction_ref>{rsp_out, gate};
+                return std::vector<migraphx::instruction_ref>{rsp_out, lse};
             });
         auto out = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
-        auto factor =
-            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto lse  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto diff = mm->add_instruction(migraphx::make_op("sub"), lse, bc_sinks);
+        auto factor = mm->add_instruction(migraphx::make_op("sigmoid"), diff);
+        factor      = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), factor);
         factor = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), factor);
         factor = mm->add_instruction(
@@ -3201,7 +3199,7 @@ static migraphx::program sinks_shared_mask_expected()
             p2,
             "attn0",
             "kv_cache_attention",
-            {rope, cpp_k, slk, cpp_v, bc_sinks},
+            {rope, cpp_k, slk, cpp_v},
             [=](auto* gm, const auto& inputs) {
                 auto half = gm->add_literal(migraphx::literal{s1, {0.5}});
                 auto ninf = gm->add_literal(
@@ -3256,16 +3254,14 @@ static migraphx::program sinks_shared_mask_expected()
                     migraphx::make_op("reshape", {{"dims", {2, 1, 4}}}), tsp_out);
                 auto log_sum = gm->add_instruction(migraphx::make_op("log"), rdc_sum);
                 auto lse     = gm->add_instruction(migraphx::make_op("add"), rdc_max, log_sum);
-                auto diff    = gm->add_instruction(migraphx::make_op("sub"), lse, inputs.at(4));
-                auto sigma   = gm->add_instruction(migraphx::make_op("sigmoid"), diff);
-                auto gate    = gm->add_instruction(
-                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-                    sigma);
-                return std::vector<migraphx::instruction_ref>{rsp_out, gate};
+                return std::vector<migraphx::instruction_ref>{rsp_out, lse};
             });
         auto out = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
-        auto factor =
-            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto lse  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto diff = mm->add_instruction(migraphx::make_op("sub"), lse, bc_sinks);
+        auto factor = mm->add_instruction(migraphx::make_op("sigmoid"), diff);
+        factor      = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), factor);
         factor = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), factor);
         factor = mm->add_instruction(
@@ -3351,8 +3347,8 @@ TEST_CASE(gemm_softmax_sinks_gemm)
             p2,
             "attn0",
             "attention",
-            {a, b, b1, bc_sinks},
-            {"x0", "x1", "x2", "x3"},
+            {a, b, b1},
+            {"x0", "x1", "x2"},
             [=](auto* gm, const auto& inputs) {
                 auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto rmax =
@@ -3369,13 +3365,12 @@ TEST_CASE(gemm_softmax_sinks_gemm)
                 auto gemm2   = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
                 auto log_sum = gm->add_instruction(migraphx::make_op("log"), rsum);
                 auto lse     = gm->add_instruction(migraphx::make_op("add"), rmax, log_sum);
-                auto diff    = gm->add_instruction(migraphx::make_op("sub"), lse, inputs[3]);
-                auto sigma   = gm->add_instruction(migraphx::make_op("sigmoid"), diff);
-                return std::vector<migraphx::instruction_ref>{gemm2, sigma};
+                return std::vector<migraphx::instruction_ref>{gemm2, lse};
             });
         auto out = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
-        auto sigma =
-            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto lse  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto diff = mm->add_instruction(migraphx::make_op("sub"), lse, bc_sinks);
+        auto sigma  = mm->add_instruction(migraphx::make_op("sigmoid"), diff);
         auto factor = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), sigma);
         auto scaled = mm->add_instruction(migraphx::make_op("mul"), out, factor);

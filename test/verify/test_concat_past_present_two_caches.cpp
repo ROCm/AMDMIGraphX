@@ -46,11 +46,10 @@ struct test_concat_past_present_two_caches : verify_program<test_concat_past_pre
         auto value = mm->add_parameter("value", cs);
         auto slk   = mm->add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1, 1}}, {3}});
-        auto mul = mm->add_instruction(migraphx::make_op("mul"), x, y);
-        auto k_in =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s.lens()}}), mul);
-        auto add = mm->add_instruction(migraphx::make_op("add"), z, w);
-        auto k   = mm->add_instruction(
+        auto mul  = mm->add_instruction(migraphx::make_op("mul"), x, y);
+        auto k_in = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s.lens()}}), mul);
+        auto add  = mm->add_instruction(migraphx::make_op("add"), z, w);
+        auto k    = mm->add_instruction(
             migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), k_in, slk, key);
         auto v = mm->add_instruction(
             migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), add, slk, value);

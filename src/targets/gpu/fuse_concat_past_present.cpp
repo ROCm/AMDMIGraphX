@@ -41,9 +41,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// A size-1 slice of the input along axis at a runtime index. An index outside
-// the axis is invalid input: concat_past_present skips such writes, but a view
-// cannot skip, so it throws instead of silently targeting another slot.
+// A size-1 slice of the input along axis at a runtime index, writable by a
+// fused producer. concat_past_present silently skips a write whose index is
+// outside the axis (eg a decode step past the cache's current length); this
+// view-based replacement cannot skip, so an out-of-range index redirects the
+// write into a dedicated scratch slot instead, leaving the cache untouched.
 struct slice_at
 {
     std::size_t axis = 0;
@@ -58,15 +60,18 @@ struct slice_at
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
-        const auto& s = inputs.front();
+        check_shapes{inputs, *this}.has(3);
+        const auto& s = inputs[0];
         if(axis >= s.ndim())
             MIGRAPHX_THROW("SLICE_AT: axis out of range");
-        if(inputs.back().elements() != 1 or not shape::is_integral(inputs.back().type()))
+        if(inputs[1].elements() != 1 or not shape::is_integral(inputs[1].type()))
             MIGRAPHX_THROW("SLICE_AT: index must be a single integer");
         auto lens  = s.lens();
         lens[axis] = 1;
-        return {s.type(), lens, s.strides()};
+        shape result{s.type(), lens, s.strides()};
+        if(inputs[2].lens() != result.lens() or inputs[2].type() != result.type())
+            MIGRAPHX_THROW("SLICE_AT: scratch input must match the sliced shape");
+        return result;
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -74,8 +79,10 @@ struct slice_at
         const auto& s = args[0].get_shape();
         auto idx      = args[1].at<std::int64_t>();
         if(idx < 0 or idx >= static_cast<std::int64_t>(s.lens()[axis]))
-            MIGRAPHX_THROW("SLICE_AT: index " + std::to_string(idx) + " out of range [0, " +
-                           std::to_string(s.lens()[axis]) + ")");
+        {
+            const auto& scratch = args[2];
+            return {output_shape, [=] { return scratch.data(); }};
+        }
         std::vector<std::size_t> start(s.ndim(), 0);
         start[axis]       = idx;
         auto offset       = s.index(start) * s.type_size();
@@ -83,7 +90,7 @@ struct slice_at
         return {output_shape, [=] { return input.data() + offset; }};
     }
 
-    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0, 2}; }
 };
 MIGRAPHX_REGISTER_OP(slice_at);
 
@@ -173,10 +180,14 @@ struct find_concat_past_present
             // host and slice the cache at that offset
             if(cur->get_shape().lens()[0] != 1 or slk->get_shape().elements() != 1)
                 return;
+            auto slot_s = slot_shape(cur, cache);
+            auto scratch =
+                m.insert_instruction(ins, make_op("allocate", {{"shape", to_value(slot_s)}}));
             view = m.insert_instruction(ins,
                                         make_op("gpu::slice_at", {{"axis", seq_axis}}),
                                         cache,
-                                        load_scalar(m, ins, slk));
+                                        load_scalar(m, ins, slk),
+                                        scratch);
         }
         else
         {

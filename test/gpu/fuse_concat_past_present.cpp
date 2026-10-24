@@ -99,8 +99,10 @@ TEST_CASE(fuse_decode)
         auto cache = mm->add_parameter("cache", cache_shape());
         auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
         auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
-        auto view =
-            mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar);
+        auto scratch = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(slot_shape(1))}}));
+        auto view = mm->add_instruction(
+            migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar, scratch);
         auto pw = mm->add_instruction(
             make_precompile_op(migraphx::make_op("pointwise"), slot_shape(1)), {x, y, view}, {pm});
         auto dep = mm->add_instruction(migraphx::make_op("identity"), cache, pw);
@@ -188,8 +190,10 @@ TEST_CASE(fuse_decode_reshaped_producer)
         auto cache = mm->add_parameter("cache", cache_shape());
         auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
         auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
-        auto slot =
-            mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar);
+        auto scratch = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(slot_shape(1))}}));
+        auto slot = mm->add_instruction(
+            migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar, scratch);
         auto view = mm->add_instruction(
             migraphx::make_op("reshape_lazy", {{"dims", split_shape.lens()}}), slot);
         migraphx::shape split_slot{migraphx::shape::half_type, {1, 2, 1, 2, 2}, {64, 32, 4, 2, 1}};
@@ -239,8 +243,10 @@ TEST_CASE(fuse_decode_reshaped_producer_strided)
         auto cache = mm->add_parameter("cache", cache_shape());
         auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
         auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
-        auto slot =
-            mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar);
+        auto scratch = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(slot_shape(1))}}));
+        auto slot = mm->add_instruction(
+            migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar, scratch);
         auto split = mm->add_instruction(
             migraphx::make_op("reshape_lazy", {{"dims", {1, 2, 1, 2, 2}}}), slot);
         auto view = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), split);
@@ -290,8 +296,10 @@ TEST_CASE(fuse_transposed_producer)
         auto cache = mm->add_parameter("cache", cache_shape());
         auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
         auto scalar = mm->add_instruction(migraphx::make_op("hip::load_scalar"), slk);
-        auto slot =
-            mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar);
+        auto scratch = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(slot_shape(1))}}));
+        auto slot = mm->add_instruction(
+            migraphx::make_op("gpu::slice_at", {{"axis", 2}}), cache, scalar, scratch);
         auto view = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 3, 2, 1}}}), slot);
         migraphx::shape transposed_slot{migraphx::shape::half_type, {1, 4, 1, 2}, {64, 1, 4, 32}};
@@ -430,9 +438,13 @@ TEST_CASE(backend_option_enabled) { EXPECT(compiles_to_fused_append(true)); }
 
 TEST_CASE(backend_option_disabled) { EXPECT(not compiles_to_fused_append(false)); }
 
-// The fused append rejects a position outside the cache, on either bound,
-// where the copy kernel would silently skip the write.
-TEST_CASE(out_of_range_position_throws)
+// A position outside the cache, on either bound, is where the original
+// concat_past_present copy kernel silently skips the write; the fused
+// append must do the same (no throw, no corruption of an in-range slot)
+// instead of raising, since the position can legitimately be out of range
+// whenever the cache buffer isn't pre-allocated with slack beyond the
+// current decode length.
+TEST_CASE(out_of_range_position_skips_write)
 {
     auto p = make_decode_program();
     migraphx::compile_options options;
@@ -451,8 +463,9 @@ TEST_CASE(out_of_range_position_throws)
     auto cache_len = cache_shape().lens()[2];
     append(0);
     append(cache_len - 1);
-    EXPECT(test::throws([&] { append(-1); }));
-    EXPECT(test::throws([&] { append(cache_len); }));
+    // Out-of-range positions must no longer throw
+    append(-1);
+    append(cache_len);
     // A rejected position leaves the program usable
     append(0);
 }

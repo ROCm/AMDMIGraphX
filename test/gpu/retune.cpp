@@ -25,6 +25,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
@@ -36,6 +37,8 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <test.hpp>
 
+#include <algorithm>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -131,6 +134,62 @@ static void expect_matches_ref(const migraphx::program& p)
     EXPECT(results.size() == expected.size());
     for(std::size_t i = 0; i < results.size(); i++)
         EXPECT(migraphx::verify::verify_rms_range(to_vector(results[i]), to_vector(expected[i])));
+}
+
+// Lowering fills the output of nms_compact before the kernel runs
+static migraphx::program make_nms_program()
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    migraphx::shape scalar_s{migraphx::shape::float_type, {1}};
+    migraphx::shape int_scalar_s{migraphx::shape::int64_type, {1}};
+    auto boxes  = mm->add_parameter("boxes", boxes_s);
+    auto scores = mm->add_parameter("scores", scores_s);
+    auto max_out =
+        mm->add_literal(migraphx::literal{int_scalar_s, std::vector<std::int64_t>{4}});
+    auto iou   = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.5f}});
+    auto score = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.0f}});
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes,
+                            scores,
+                            max_out,
+                            iou,
+                            score);
+    auto idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto cnt = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    mm->add_return({idx, cnt});
+    return p;
+}
+
+static void expect_nms_result(const migraphx::program& p)
+{
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    std::vector<float> boxes  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                 0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    std::vector<float> scores = {0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
+    auto results              = run_program(p,
+                                            {{"boxes", migraphx::argument(boxes_s, boxes.data())},
+                                             {"scores", migraphx::argument(scores_s, scores.data())}});
+    EXPECT(results.size() == 2);
+    std::vector<std::int64_t> indices;
+    results[0].visit([&](auto v) { indices.assign(v.begin(), v.end()); });
+    std::int64_t num_selected = 0;
+    results[1].visit([&](auto v) { num_selected = static_cast<std::int64_t>(v[0]); });
+    EXPECT(num_selected == 3);
+    indices.resize(9);
+    EXPECT(indices == std::vector<std::int64_t>{0, 0, 3, 0, 0, 0, 0, 0, 5});
+}
+
+static bool has_kernel(const migraphx::program& p, const std::string& symbol)
+{
+    auto kernels = get_kernels(p);
+    return std::any_of(kernels.begin(), kernels.end(), [&](const auto& co) {
+        return co.symbol_name == symbol;
+    });
 }
 
 TEST_CASE(gfx_generation)
@@ -304,6 +363,26 @@ TEST_CASE(load_version_8_program)
     q.from_value(v);
     EXPECT(q.is_compiled());
     expect_matches_ref(q);
+}
+
+TEST_CASE(retune_kernel_with_lowering_fill)
+{
+    auto p = compile_program(migraphx::make_target("gpu"), recipe_options(), make_nms_program());
+    EXPECT(has_kernel(p, "nms_compact_kernel"));
+    migraphx::file_options fo;
+    fo.finalize = false;
+    auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
+    q.retune(migraphx::make_target("gpu"), force_options());
+    EXPECT(has_kernel(q, "nms_compact_kernel"));
+    expect_nms_result(q);
+}
+
+TEST_CASE(retarget_kernel_with_lowering_fill)
+{
+    auto p = compile_program(cross_target("gfx1151"), recipe_options(), make_nms_program());
+    p.retune(cross_target("gfx1100"));
+    EXPECT(compiled_arch(p) == "gfx1100");
+    EXPECT(has_kernel(p, "nms_compact_kernel"));
 }
 
 TEST_CASE(retune_requires_compiled_program)

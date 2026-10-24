@@ -64,14 +64,15 @@ struct recompiled_kernel
 {
     // The new gpu::code_object, with the recipe of the old one and the new solution
     operation code_object;
-    // Candidates dropped because they change the kernel signature (for example split-K)
+    // Candidates dropped because they take different arguments or need a fill the program does
+    // not have (for example split-K)
     std::size_t excluded = 0;
     bool benchmarked     = false;
 };
 
 /// Recompile gpu::code_object instructions from their recipes for the device of ctx, without
-/// changing the program. Only candidates with the same inputs, output and prefills as the
-/// original kernel are kept. Throws if a kernel has no such candidate.
+/// changing the program. Only candidates with the same inputs and output as the original kernel,
+/// and whose fills are already in the program, are kept. Throws if a kernel has no such candidate.
 MIGRAPHX_GPU_EXPORT std::vector<recompiled_kernel>
 recompile_kernels(context& ctx, const std::vector<recompile_request>& requests);
 

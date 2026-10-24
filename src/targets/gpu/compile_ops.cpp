@@ -42,6 +42,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/json.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -1075,21 +1076,27 @@ void compile_ops::apply(module_pass_manager& mpm) const
 
 namespace {
 
-// What must not change when a kernel is swapped in place: its arguments and the prefills
-// (split-K) of its arguments, as (argument index, fill value)
+// The arguments of a kernel and the fills of its arguments, as (argument index, fill value)
 struct kernel_signature
 {
     std::vector<shape> inputs;
     shape output;
     std::int64_t output_arg = -1;
     std::vector<std::pair<std::size_t, double>> prefills;
-
-    friend bool operator==(const kernel_signature& x, const kernel_signature& y)
-    {
-        return x.inputs == y.inputs and x.output == y.output and x.output_arg == y.output_arg and
-               x.prefills == y.prefills;
-    }
 };
+
+// A candidate can replace a kernel in place when it takes the same arguments and every fill it
+// needs is already in the program. The fills stay when the kernel is swapped, so the program can
+// have fills the candidate does not need: one from a split-K config the candidate does not use,
+// or one inserted by lowering (nms_compact), which a candidate compiled alone does not see.
+bool fits_in_place(const kernel_signature& kernel, const kernel_signature& candidate)
+{
+    return kernel.inputs == candidate.inputs and kernel.output == candidate.output and
+           kernel.output_arg == candidate.output_arg and
+           std::all_of(candidate.prefills.begin(), candidate.prefills.end(), [&](const auto& f) {
+               return contains(kernel.prefills, f);
+           });
+}
 
 operation recipe_source(const code_object_op& co)
 {
@@ -1233,7 +1240,7 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
                 if(not has_result(cp.results[j]))
                     continue;
                 auto k = candidate_kernel(*cp.results[j]->result, cp.ins, olds[i].source_inputs);
-                if(k.has_value() and k->second == sigs[i])
+                if(k.has_value() and fits_in_place(sigs[i], k->second))
                 {
                     kernels[j] = k->first;
                     continue;
@@ -1245,7 +1252,8 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
             if(excluded > 0)
                 log::info() << "retune: excluded " << excluded << " candidates for "
                             << olds[i].symbol_name
-                            << " that change the kernel signature (for example split-K)";
+                            << " that take different arguments or need a fill the program does "
+                               "not have (for example split-K)";
             if(std::none_of(cp.results.begin(), cp.results.end(), &has_result))
                 MIGRAPHX_THROW("retune: no candidate for kernel " + olds[i].symbol_name +
                                " keeps its signature; recompile from the model");

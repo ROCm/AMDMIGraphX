@@ -607,37 +607,54 @@ struct find_entry_shape_transform_op
         shape_transform_descriptor desc;
     };
 
+    static optional<entry_transform> candidate_entry_transform(instruction_ref ins,
+                                                               instruction_ref input)
+    {
+        std::vector<operation> ops;
+        auto base = input;
+        while(contains(find_op_shape_transform_op::shape_transform_ops(), base->name()))
+        {
+            ops.push_back(base->get_operator());
+            base = base->inputs().front();
+        }
+        if(ops.empty())
+            return nullopt;
+        if(find_op_shape_transform_op::matches_op(base))
+            return nullopt;
+        // shape_transform_descriptor doesnt handle scalars for now
+        if(base->get_shape().scalar() or input->get_shape().scalar())
+            return nullopt;
+        std::reverse(ops.begin(), ops.end());
+        auto desc = shape_transform_descriptor::create(base->get_shape().lens(), ops);
+        if(desc.empty())
+            return nullopt;
+        if(desc.elements() != ins->get_shape().elements())
+            return nullopt;
+        // Only rewrite when the op hides merged axes that the common
+        // dims space would expose
+        if(desc.common_dims() == ins->get_shape().lens())
+            return nullopt;
+        return entry_transform{input, base, std::move(desc)};
+    }
+
+    // Only one input may supply the common-dims mapping: when a second,
+    // independent per-group operand (eg a block-quantized int4 weight's own
+    // zero_point, broadcast per-group rather than as a scalar) also has a
+    // non-trivial entry chain, remapping it through the first chain's
+    // descriptor silently computes the wrong element correspondence instead
+    // of its own. Bail out rather than guess which chain is authoritative.
     static optional<entry_transform> find_entry_transform(instruction_ref ins)
     {
+        std::vector<entry_transform> candidates;
         for(auto input : ins->inputs())
         {
-            std::vector<operation> ops;
-            auto base = input;
-            while(contains(find_op_shape_transform_op::shape_transform_ops(), base->name()))
-            {
-                ops.push_back(base->get_operator());
-                base = base->inputs().front();
-            }
-            if(ops.empty())
-                continue;
-            if(find_op_shape_transform_op::matches_op(base))
-                continue;
-            // shape_transform_descriptor doesnt handle scalars for now
-            if(base->get_shape().scalar() or input->get_shape().scalar())
-                continue;
-            std::reverse(ops.begin(), ops.end());
-            auto desc = shape_transform_descriptor::create(base->get_shape().lens(), ops);
-            if(desc.empty())
-                continue;
-            if(desc.elements() != ins->get_shape().elements())
-                continue;
-            // Only rewrite when the op hides merged axes that the common
-            // dims space would expose
-            if(desc.common_dims() == ins->get_shape().lens())
-                continue;
-            return entry_transform{input, base, std::move(desc)};
+            auto et = candidate_entry_transform(ins, input);
+            if(et.has_value())
+                candidates.push_back(std::move(*et));
         }
-        return nullopt;
+        if(candidates.size() != 1)
+            return nullopt;
+        return std::move(candidates.front());
     }
 
     void apply(module& m, const match::matcher_result& r) const

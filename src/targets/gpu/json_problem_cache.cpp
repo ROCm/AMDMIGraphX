@@ -75,7 +75,14 @@ void json_problem_cache::save(const std::string& path) const
 {
     if(path.empty())
         return;
-    write_string(path, to_pretty_json_string(to_value(cache)));
+    // Never persist a null mark() sentinel: on reload it would make an op skip
+    // compilation. save() is const, so prune into a copy rather than in place.
+    std::unordered_map<cache_device_key, std::unordered_map<value, value>> pruned;
+    for(const auto& bucket : cache)
+        for(const auto& entry : bucket.second)
+            if(not entry.second.is_null())
+                pruned[bucket.first][entry.first] = entry.second;
+    write_string(path, to_pretty_json_string(to_value(pruned)));
 }
 
 void json_problem_cache::insert(const cache_device_key& dk, const value& key, const value& solution)

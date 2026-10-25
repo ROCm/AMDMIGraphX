@@ -47,7 +47,7 @@ TEST_CASE(rotary_embedding_verify_non_interleaved_test)
         migraphx::op::builder::add(
             "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", false}});
 
-        migraphx::program p{std::move(mm)};
+        migraphx::program p{mm};
         p.compile(migraphx::make_target("ref"));
 
         std::vector<float> in_data        = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
@@ -76,7 +76,7 @@ TEST_CASE(rotary_embedding_verify_non_interleaved_test)
         migraphx::op::builder::add(
             "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", false}});
 
-        migraphx::program p{std::move(mm)};
+        migraphx::program p{mm};
         p.compile(migraphx::make_target("ref"));
 
         // With cos=0, sin=1: output[i] = sign[i] * input[rotate(i)]
@@ -119,7 +119,7 @@ TEST_CASE(rotary_embedding_verify_interleaved_test)
         migraphx::op::builder::add(
             "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", true}});
 
-        migraphx::program p{std::move(mm)};
+        migraphx::program p{mm};
         p.compile(migraphx::make_target("ref"));
 
         // in = [1, 2, 3, 4], cos = [1,1,1,1], sin = [0,0,0,0]
@@ -150,7 +150,7 @@ TEST_CASE(rotary_embedding_verify_interleaved_test)
         migraphx::op::builder::add(
             "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", true}});
 
-        migraphx::program p{std::move(mm)};
+        migraphx::program p{mm};
         p.compile(migraphx::make_target("ref"));
 
         // With cos=0, sin=1: signs=[-1,1,-1,1], rotated=[2,1,4,3]
@@ -191,7 +191,7 @@ TEST_CASE(rotary_embedding_verify_mixed_cos_sin_test)
     migraphx::op::builder::add(
         "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", false}});
 
-    migraphx::program p{std::move(mm)};
+    migraphx::program p{mm};
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> in_data        = {1.0f, 0.0f, 0.0f, 1.0f};
@@ -231,7 +231,7 @@ TEST_CASE(rotary_embedding_4arg_cache_gather_verify_test)
     migraphx::op::builder::add(
         "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", false}});
 
-    migraphx::program p{std::move(mm)};
+    migraphx::program p{mm};
     p.compile(migraphx::make_target("ref"));
 
     // cos_cache row 0 = [1, 1] -> doubled = [1,1,1,1]
@@ -286,7 +286,7 @@ TEST_CASE(rotary_embedding_4arg_offset_seq_gt1_test)
     migraphx::op::builder::add(
         "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", false}});
 
-    migraphx::program p{std::move(mm)};
+    migraphx::program p{mm};
     p.compile(migraphx::make_target("ref"));
 
     // cos_cache rows: [0.1,0.2], [0.3,0.4], [0.5,0.6], [0.7,0.8]
@@ -327,7 +327,7 @@ TEST_CASE(rotary_embedding_4arg_per_batch_offset_test)
     migraphx::op::builder::add(
         "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", false}});
 
-    migraphx::program p{std::move(mm)};
+    migraphx::program p{mm};
     p.compile(migraphx::make_target("ref"));
 
     // cos_cache rows: [1,0], [0,1], [-1,0], [0,-1], [0.5,0.5], [-0.5,-0.5]
@@ -368,7 +368,7 @@ TEST_CASE(rotary_embedding_4arg_explicit_2d_positions_test)
     migraphx::op::builder::add(
         "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", false}});
 
-    migraphx::program p{std::move(mm)};
+    migraphx::program p{mm};
     p.compile(migraphx::make_target("ref"));
 
     // cos_cache rows: [1,0], [0,1], [-1,0], [0,-1]
@@ -409,7 +409,7 @@ TEST_CASE(rotary_embedding_4arg_offset_nontrivial_cos_sin_test)
     migraphx::op::builder::add(
         "rotary_embedding", mm, {input, pos_ids, cos_c, sin_c}, {{"interleaved", false}});
 
-    migraphx::program p{std::move(mm)};
+    migraphx::program p{mm};
     p.compile(migraphx::make_target("ref"));
 
     // cos_cache rows: [1,1], [0.5,0.5], [1,1], [0,0]

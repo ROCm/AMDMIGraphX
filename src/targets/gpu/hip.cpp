@@ -27,6 +27,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
+#include <migraphx/gpu/device/fill.hpp>
 #include <migraphx/gpu/device/generate_random.hpp>
 #if MIGRAPHX_USE_MIOPEN
 #include <miopen/miopen.h>
@@ -42,6 +43,7 @@ namespace gpu {
 MIGRAPHX_REGISTER_OP(hip_allocate)
 MIGRAPHX_REGISTER_OP(hip_fill)
 MIGRAPHX_REGISTER_OP(hip_sync_stream)
+MIGRAPHX_REGISTER_OP(hip_load_scalar)
 MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy)
@@ -232,6 +234,18 @@ void gpu_sync()
 
 void gpu_sync(const context& ctx) { ctx.finish(); }
 
+void gpu_spin_sync(context& ctx)
+{
+    for(;;)
+    {
+        auto status = hipStreamQuery(ctx.get_stream().get());
+        if(status == hipSuccess)
+            return;
+        if(status != hipErrorNotReady)
+            MIGRAPHX_THROW("hip stream query failed: " + hip_error(status));
+    }
+}
+
 static void hip_async_memset(context& ctx, const argument& dst, int value)
 {
     std::size_t dst_size = dst.get_shape().bytes();
@@ -292,9 +306,17 @@ void gpu_fill(context& ctx, const argument& dst, int value)
 {
     if(dst.get_sub_objects().empty())
     {
-        // TODO: Handle non-packed tensor when value is not 0
-        assert(dst.get_shape().packed() and value == 0);
-        hip_async_memset(ctx, dst, value);
+        if(dst.get_shape().packed())
+        {
+            // A packed tensor can be zeroed bytewise; memset with other values
+            // would fill bytes, not elements
+            assert(value == 0);
+            hip_async_memset(ctx, dst, value);
+        }
+        else
+        {
+            device::fill(ctx.get_stream().get(), dst, value);
+        }
     }
     else
     {

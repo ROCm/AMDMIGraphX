@@ -1,0 +1,45 @@
+
+moe_sparse_mixer_test:ó
+à
+input
+router_probs
+fc1_experts_weights
+fc1_experts_bias
+fc2_experts_weights
+fc2_experts_biasoutput"MoE*
+activation_type"relu *
+k * 
+normalize_routing_weights *
+use_sparse_mixer :com.microsoftmoe_sparse_mixer_testZ
+input
+
+
+
+Z
+router_probs
+
+
+Z)
+fc1_experts_weights
+
+
+
+Z"
+fc1_experts_bias
+
+
+Z)
+fc2_experts_weights
+
+
+
+Z"
+fc2_experts_bias
+
+
+b
+output
+
+
+
+B

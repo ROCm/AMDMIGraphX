@@ -25,8 +25,12 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/module_ref.hpp>
 #include <cstddef>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,12 +44,29 @@ struct MIGRAPHX_EXPORT fuse_reduce
 
     bool enable_rewrite_reshapes   = true;
     bool enable_rewrite_broadcasts = false;
+    // Move the gathers feeding the reduce into it. A reduce with gathered
+    // inputs can no longer be remapped by the reshape and broadcast rewrites,
+    // so this is left to the last reduce fusion of a pipeline.
+    bool enable_gather = true;
     /// Fusing a trailing pointwise whose output is larger than what the
     /// reduction reads makes the kernel write that output with one workgroup
     /// per reduction output, so it is only fused when there are at least
     /// this many reduction outputs to stream it well
     std::size_t min_fused_outputs = 1;
 };
+
+/// Inserts the submodule of ins into sm with its parameters mapped to the inputs of ins
+MIGRAPHX_EXPORT std::vector<instruction_ref>
+insert_module_in_submodule(module_ref sm,
+                           instruction_ref ins,
+                           std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr);
+
+/// Removes the duplicate and dead instructions left by fusing into a reduce module
+MIGRAPHX_EXPORT void finalize_reduce_module(module_ref m);
+
+/// Rewrites the reshapes between fused_reduce instructions and fuses the
+/// adjacent reductions, as an iteration of the fuse_reduce pass does
+MIGRAPHX_EXPORT void fuse_adjacent_reduces(module_pass_manager& mpm);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

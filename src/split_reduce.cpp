@@ -423,7 +423,19 @@ void split_reduce::apply(module_pass_manager& mpm) const
             continue;
         if(ins->get_shape().dynamic())
             continue;
-        auto* rm         = ins->module_inputs().front();
+        auto* rm = ins->module_inputs().front();
+        // TODO: Support splitting reductions with packed or gathered inputs
+        if(std::any_of(rm->begin(), rm->end(), [](const auto& i) {
+               return contains({"unpack_int4", "gather"}, i.name());
+           }))
+            continue;
+        // The reductions of the module must all cover the same axes to split
+        auto first_reduce = std::find_if(rm->begin(), rm->end(), &is_reduce);
+        if(std::any_of(rm->begin(), rm->end(), [&](const auto& i) {
+               return is_reduce(i) and i.get_operator() != first_reduce->get_operator();
+           }))
+            continue;
+
         auto reduce_size = get_reduce_size(rm);
         if(reduce_size < split_size and reduce_size < lower_split_size)
             continue;

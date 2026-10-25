@@ -164,8 +164,9 @@ template <class T, class U, class Operator>
 struct expression
 {
     using self_t = expression;
-    T lhs;
-    U rhs;
+    // Capture by reference so operands of any type are captured without copies.
+    T lhs; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    U rhs; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
 
     template <class Stream>
     friend constexpr Stream& operator<<(Stream& s, const expression& self)
@@ -211,7 +212,8 @@ template <class T, class Operator>
 struct lhs_expression
 {
     using self_t = lhs_expression;
-    T lhs;
+    // Capture by reference so operands of any type are captured without copies.
+    T lhs; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     constexpr explicit lhs_expression(T e) : lhs(static_cast<T&&>(e)) {}
 
     template <class Stream>
@@ -337,6 +339,14 @@ struct test_manager
 #define TEST_CASE(...)                                   \
     __device__ [[maybe_unused]] static void __VA_ARGS__( \
         [[maybe_unused]] migraphx::test::test_manager& migraphx_private_test_manager)
+
+// NOLINTNEXTLINE
+#define TEST_CASE_TEMPLATE(...)                          \
+    __device__ [[maybe_unused]] static void __VA_ARGS__( \
+        [[maybe_unused]] migraphx::test::test_manager& migraphx_private_test_manager)
+
+// NOLINTNEXTLINE
+#define TEST_CASE_REGISTER(...)
 
 } // namespace test
 } // namespace migraphx

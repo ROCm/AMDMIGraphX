@@ -142,6 +142,27 @@ TEST_CASE(hip_fill_kernel_runs)
     EXPECT(result == migraphx::literal{s, expected}.get_argument());
 }
 
+TEST_CASE(hip_fill_nonpacked_kernel_runs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}, {3, 1}};
+    EXPECT(not s.packed());
+
+    migraphx::gpu::context ctx;
+    auto co = migraphx::gpu::compile_op("hip::fill", ctx, {s}, {{"value", 7}});
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto y   = mm->add_parameter("output", s);
+    mm->add_instruction(co, y);
+    p.finalize(migraphx::make_target("gpu"));
+
+    auto result =
+        migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(s)}}).front());
+
+    std::vector<float> expected(s.elements(), 7.0f);
+    EXPECT(result == migraphx::literal{s, expected}.get_argument());
+}
+
 TEST_CASE(lower_hip_fill_tuple)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};

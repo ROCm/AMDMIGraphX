@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 
 #include <migraphx/env.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
@@ -63,7 +64,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
-        concat_past_present(xs..., make_gqa_parameters(${gqa_params}));
+        concat_past_present<${vec_size}>(xs..., make_gqa_parameters(${gqa_params}));
     });
 }
 
@@ -86,12 +87,21 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
         auto params         = init_params(inputs, v);
         auto gqa_params_str = params.make_init_str();
 
+        // Every chunk offset is a multiple of head_size, so copy in the widest
+        // vector dividing it, capped at 4 since memory coloring only aligns
+        // buffers to 4 elements. The fp8 class types cannot form a vector type.
+        std::size_t vec_size = 1;
+        if(not contains(fp8_types{}.get(), inputs.front().type()))
+            vec_size = params.head_size % 4 == 0 ? 4 : params.head_size % 2 == 0 ? 2 : 1;
+        auto nelements = params.batch_size * params.kv_num_heads * params.sequence_length *
+                         params.head_size / vec_size;
+        // Large copies take 4 vectors per thread (global_stride loop): one load
+        // per wave cannot hide memory latency. Small decode copies keep one per
+        // thread since fewer waves would only add latency.
+        const std::size_t elements_per_thread = nelements >= 8192 ? 4 : 1;
+
         hip_compile_options options;
-        options.set_launch_params(
-            v,
-            compute_global_for(ctx,
-                               params.batch_size * params.kv_num_heads * params.sequence_length *
-                                   params.head_size));
+        options.set_launch_params(v, compute_global_for(ctx, nelements / elements_per_thread));
         options.inputs      = inputs;
         options.output      = inputs.back();
         options.kernel_name = v.get("kernel", "concat_past_present_kernel");
@@ -100,6 +110,7 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
                                       {{"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"gqa_params", gqa_params_str},
+                                       {"vec_size", std::to_string(vec_size)},
                                        {"kernel", options.kernel_name}});
         return compile_hip_code_object(ctx, src, options);
     }

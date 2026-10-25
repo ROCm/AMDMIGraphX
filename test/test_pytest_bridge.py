@@ -54,8 +54,10 @@ def _migraphx_lib_dir():
 
 def _ctest_env(test_dir):
     env = dict(os.environ)
-    lib_dirs = [d for d in (os.path.join(test_dir, "lib"), _migraphx_lib_dir())
-                if d and os.path.isdir(d)]
+    lib_dirs = [
+        d for d in (os.path.join(test_dir, "lib"), _migraphx_lib_dir())
+        if d and os.path.isdir(d)
+    ]
     if lib_dirs:
         existing = env.get("LD_LIBRARY_PATH", "")
         env["LD_LIBRARY_PATH"] = os.pathsep.join(
@@ -84,8 +86,11 @@ def test_migraphx():
             "build or installed-tests directory.")
     _ensure_executable(test_dir)
     result = subprocess.run(
-        ["ctest", "--test-dir", test_dir, "-j", str(os.cpu_count() or 1),
-         "--timeout", "5000", "--output-on-failure"],
+        [
+            "ctest", "--test-dir", test_dir, "-j",
+            str(os.cpu_count() or 1), "--timeout", "5000",
+            "--output-on-failure"
+        ],
         env=_ctest_env(test_dir),
     )
     assert result.returncode == 0, f"ctest reported failures (exit {result.returncode})"

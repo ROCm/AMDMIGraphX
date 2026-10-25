@@ -52,7 +52,10 @@ copyright = "Copyright (c) 2024 Advanced Micro Devices, Inc. All rights reserved
 version = version_number
 release = version_number
 
-extensions = ["rocm_docs", "rocm_docs.doxygen", "sphinx_collapse", "sphinxcontrib.datatemplates"]
+extensions = [
+    "rocm_docs", "rocm_docs.doxygen", "sphinx_collapse",
+    "sphinxcontrib.datatemplates"
+]
 external_toc_path = "./sphinx/_toc.yml"
 doxygen_root = "doxygen"
 doxysphinx_enabled = False

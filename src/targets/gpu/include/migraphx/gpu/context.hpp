@@ -52,6 +52,11 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
 
+struct binary_cache;
+
+/// Lets a context own a cache without seeing its definition.
+MIGRAPHX_GPU_EXPORT std::shared_ptr<binary_cache> make_binary_cache();
+
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
 struct hip_device
@@ -342,6 +347,12 @@ struct context
 
     void set_exhaustive_tune_flag(bool t) { exhaustive_tune = t; }
 
+    // When true, compile_hip_src skips spawning migraphx-hiprtc-driver and compiles in-process.
+    // Set via compile_options::backend_options["hiprtc_disable_processes"].
+    bool get_disable_processes() const { return disable_processes; }
+
+    void set_disable_processes(bool v) { disable_processes = v; }
+
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
 
@@ -489,12 +500,23 @@ struct context
         pc->load(read_only_paths, writable_paths);
     }
 
+    /// Compiled kernels shared across every module compiled with this context.
+    binary_cache& get_binary_cache()
+    {
+        assert(bc != nullptr);
+        return *bc;
+    }
+
+    /// Replace the default cache with one built from the compile options.
+    void set_binary_cache(std::shared_ptr<binary_cache> bcache) { bc = std::move(bcache); }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool exhaustive_tune = false;
-    bool measure_perf    = false;
+    bool exhaustive_tune   = false;
+    bool disable_processes = false;
+    bool measure_perf      = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;
@@ -502,6 +524,7 @@ struct context
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = std::make_shared<auto_save_problem_cache>();
+    std::shared_ptr<binary_cache> bc            = make_binary_cache();
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

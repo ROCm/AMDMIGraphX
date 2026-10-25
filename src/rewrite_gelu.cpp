@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -66,7 +66,10 @@ static void replace_with_tanh_exp_gelu(module& m, const match::matcher_result& r
  */
 struct find_gelu_erf
 {
-    auto matcher() const { return match::any_of(match::gelu_erf(), match::gelu_tanh()); }
+    auto matcher() const
+    {
+        return match::any_of(match::opaque(match::gelu_erf()), match::opaque(match::gelu_tanh()));
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -86,7 +89,7 @@ struct find_gelu_erf
  */
 struct find_tanh_fast_gelu
 {
-    auto matcher() const { return match::gelu_tanh(); }
+    auto matcher() const { return match::opaque(match::gelu_tanh()); }
 
     void apply(module& m, const match::matcher_result& r) const
     {

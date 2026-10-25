@@ -8902,6 +8902,264 @@ def lessorequal_test():
     return ([node], [x1, x2], [y])
 
 
+@onnx_test(opset_version=27)
+def linear_attention_linear_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [2, 3, 4])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [2, 3, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [2, 3, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 3, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [2, 2, 2, 2])
+
+    node = onnx.helper.make_node('LinearAttention',
+                                 inputs=['query', 'key', 'value'],
+                                 outputs=['output', 'present_state'],
+                                 q_num_heads=2,
+                                 kv_num_heads=2,
+                                 update_rule='linear')
+
+    return ([node], [query, key, value], [output, present_state])
+
+
+@onnx_test(opset_version=27)
+def linear_attention_gated_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 3, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 3, 6])
+    decay = helper.make_tensor_value_info('decay', TensorProto.FLOAT,
+                                          [1, 3, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 6])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 3])
+
+    node = onnx.helper.make_node('LinearAttention',
+                                 inputs=['query', 'key', 'value', '', 'decay'],
+                                 outputs=['output', 'present_state'],
+                                 q_num_heads=2,
+                                 kv_num_heads=2,
+                                 update_rule='gated')
+
+    return ([node], [query, key, value, decay], [output, present_state])
+
+
+@onnx_test(opset_version=27)
+def linear_attention_gated_channel_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 2, 4])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 2, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 2, 4])
+    past_state = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                               [1, 2, 2, 2])
+    decay = helper.make_tensor_value_info('decay', TensorProto.FLOAT,
+                                          [1, 2, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 2, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', 'past_state', 'decay'],
+        outputs=['output', 'present_state'],
+        q_num_heads=2,
+        kv_num_heads=2,
+        update_rule='gated')
+
+    return ([node], [query, key, value, past_state,
+                     decay], [output, present_state])
+
+
+@onnx_test(opset_version=27)
+def linear_attention_delta_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 3, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [1, 3, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', '', '', 'beta'],
+        outputs=['output', 'present_state'],
+        q_num_heads=2,
+        kv_num_heads=2,
+        update_rule='delta')
+
+    return ([node], [query, key, value, beta], [output, present_state])
+
+
+@onnx_test(opset_version=27)
+def linear_attention_gated_delta_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 3, 8])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 3, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    past_state = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                               [1, 2, 2, 2])
+    decay = helper.make_tensor_value_info('decay', TensorProto.FLOAT,
+                                          [1, 3, 2])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [1, 3, 1])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 8])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', 'past_state', 'decay', 'beta'],
+        outputs=['output', 'present_state'],
+        q_num_heads=4,
+        kv_num_heads=2,
+        scale=0.5)
+
+    return ([node], [query, key, value, past_state, decay,
+                     beta], [output, present_state])
+
+
+@onnx_test(opset_version=27)
+def linear_attention_decode_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT16,
+                                          [1, 1, 4])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT16, [1, 1, 2])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT16,
+                                          [1, 1, 2])
+    past_state = helper.make_tensor_value_info('past_state',
+                                               TensorProto.FLOAT16,
+                                               [1, 1, 2, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 1, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 1, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', 'past_state'],
+        outputs=['output', 'present_state'],
+        q_num_heads=2,
+        kv_num_heads=1,
+        update_rule='linear')
+
+    return ([node], [query, key, value, past_state], [output, present_state])
+
+
+def linear_attention_invalid_test(inputs,
+                                  input_infos,
+                                  update_rule=None,
+                                  **attrs):
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+    if update_rule is not None:
+        attrs['update_rule'] = update_rule
+
+    node = onnx.helper.make_node('LinearAttention',
+                                 inputs=inputs,
+                                 outputs=['output', 'present_state'],
+                                 **attrs)
+
+    return ([node], input_infos, [output, present_state])
+
+
+def linear_attention_qkv_infos():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 3, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    return [query, key, value]
+
+
+@onnx_test(opset_version=27)
+def linear_attention_bad_rule_test():
+    return linear_attention_invalid_test(['query', 'key', 'value'],
+                                         linear_attention_qkv_infos(),
+                                         update_rule='softmax',
+                                         q_num_heads=2,
+                                         kv_num_heads=2)
+
+
+@onnx_test(opset_version=27)
+def linear_attention_missing_heads_test():
+    return linear_attention_invalid_test(['query', 'key', 'value'],
+                                         linear_attention_qkv_infos(),
+                                         update_rule='linear',
+                                         q_num_heads=2)
+
+
+@onnx_test(opset_version=27)
+def linear_attention_bad_heads_test():
+    return linear_attention_invalid_test(['query', 'key', 'value'],
+                                         linear_attention_qkv_infos(),
+                                         update_rule='linear',
+                                         q_num_heads=3,
+                                         kv_num_heads=2)
+
+
+@onnx_test(opset_version=27)
+def linear_attention_missing_decay_test():
+    return linear_attention_invalid_test(['query', 'key', 'value'],
+                                         linear_attention_qkv_infos(),
+                                         update_rule='gated',
+                                         q_num_heads=2,
+                                         kv_num_heads=2)
+
+
+@onnx_test(opset_version=27)
+def linear_attention_forbidden_beta_test():
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [1, 3, 2])
+    return linear_attention_invalid_test(
+        ['query', 'key', 'value', '', '', 'beta'],
+        linear_attention_qkv_infos() + [beta],
+        update_rule='linear',
+        q_num_heads=2,
+        kv_num_heads=2)
+
+
+@onnx_test(opset_version=27)
+def linear_attention_bad_decay_test():
+    decay = helper.make_tensor_value_info('decay', TensorProto.FLOAT,
+                                          [1, 3, 3])
+    return linear_attention_invalid_test(
+        ['query', 'key', 'value', '', 'decay'],
+        linear_attention_qkv_infos() + [decay],
+        update_rule='gated',
+        q_num_heads=2,
+        kv_num_heads=2)
+
+
+@onnx_test(opset_version=27)
+def linear_attention_bad_past_test():
+    past_state = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                               [1, 2, 3, 2])
+    return linear_attention_invalid_test(
+        ['query', 'key', 'value', 'past_state'],
+        linear_attention_qkv_infos() + [past_state],
+        update_rule='linear',
+        q_num_heads=2,
+        kv_num_heads=2)
+
+
 @onnx_test()
 def log_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])

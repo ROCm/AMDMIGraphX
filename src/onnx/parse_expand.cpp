@@ -41,12 +41,12 @@ struct parse_expand : op_parser<parse_expand>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
+        const auto& input_shape  = args[0]->get_shape();
         migraphx::argument arg_s = args[1]->eval();
         if(arg_s.empty())
         {
             // variable dims input
             const auto symbolic_dims = args[1]->sym_eval();
-            const auto& input_shape  = args[0]->get_shape();
             if(not symbolic_dims.empty() and (not input_shape.dynamic() or input_shape.symbolic()))
             {
                 const auto expressions = symbolic_dims.get();
@@ -61,21 +61,29 @@ struct parse_expand : op_parser<parse_expand>
             }
             return info.add_instruction(make_op("broadcast_with_dims"), args[0], args[1]);
         }
-        else
+
+        std::vector<std::size_t> dims;
+        arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+        if(not input_shape.dynamic())
         {
-            const shape& shape_0 = args[0]->get_shape();
-            if(shape_0.dynamic())
-            {
-                MIGRAPHX_THROW(
-                    "PARSE_EXPAND: dynamic input tensor with fixed dims input not supported");
-            }
-            const auto& in_lens = shape_0.lens();
-            std::vector<std::size_t> dims;
-            arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
-            auto out_lens = compute_broadcasted_lens(in_lens, dims);
+            auto out_lens = compute_broadcasted_lens(input_shape.lens(), dims);
             return info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}),
                                         args[0]);
         }
+        if(input_shape.symbolic())
+        {
+            std::vector<shape::dynamic_dimension> target_dims;
+            std::transform(dims.begin(),
+                           dims.end(),
+                           std::back_inserter(target_dims),
+                           [](std::size_t dim) { return shape::dynamic_dimension{sym::lit(dim)}; });
+            const auto output_dims =
+                compute_broadcasted_dyn_dims(input_shape.dyn_dims(), target_dims);
+            return info.add_instruction(
+                make_op("multibroadcast", {{"out_dyn_dims", to_value(output_dims)}}), args[0]);
+        }
+        // Range-based dynamic input: the broadcast is resolved at runtime from the dims values
+        return info.add_instruction(make_op("broadcast_with_dims"), args[0], args[1]);
     }
 };
 

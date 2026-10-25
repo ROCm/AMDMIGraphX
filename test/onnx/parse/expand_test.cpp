@@ -69,9 +69,39 @@ TEST_CASE(expand_dyn_input_dyn_output_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(expand_dyn_input_static_dims_throw)
+TEST_CASE(expand_dyn_input_static_dims_test)
 {
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s(migraphx::shape::float_type, {{3, 8}, {1, 1}, {1, 1}});
+    auto param = mm->add_parameter("x", s);
+    auto dims  = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {3}}, {3, 4, 4}});
+    auto ret = mm->add_instruction(migraphx::make_op("broadcast_with_dims"), param, dims);
+    mm->add_return({ret});
+
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {3, 8};
-    EXPECT(test::throws([&] { read_onnx("expand_dyn_input_static_dims_throw.onnx", options); }));
+    auto prog                     = read_onnx("expand_dyn_input_static_dims_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(expand_sym_input_static_dims_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    const auto batch = var("batch", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, sym_dims({batch, lit(1), lit(1)})};
+    EXPECT(check_parse("expand_sym_input_static_dims_test.onnx",
+                       {{"x", s}},
+                       [&](migraphx::module& m, const auto& args) {
+                           m.add_literal(migraphx::literal{
+                               migraphx::shape{migraphx::shape::int64_type, {3}}, {1, 4, 5}});
+                           auto out_dims = sym_dims({batch, lit(4), lit(5)});
+                           auto ret      = m.add_instruction(
+                               migraphx::make_op("multibroadcast",
+                                                 {{"out_dyn_dims", migraphx::to_value(out_dims)}}),
+                               args[0]);
+                           m.add_return({ret});
+                       }));
 }

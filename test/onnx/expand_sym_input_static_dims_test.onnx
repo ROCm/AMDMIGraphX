@@ -1,0 +1,17 @@
+
+!expand_sym_input_static_dims_test:®
+6shape"Constant*#
+value*:Bshape_tensor 
+
+x
+shapey"Expand!expand_sym_input_static_dims_testZ
+x
+
+batch
+
+b
+y
+
+batch
+
+B

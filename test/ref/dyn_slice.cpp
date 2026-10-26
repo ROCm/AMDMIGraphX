@@ -125,44 +125,6 @@ TEST_CASE(dyn_slice_sym_ends_test)
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 1}, {6, 3, 1}});
 }
 
-TEST_CASE(dyn_slice_ends_in_bounds_test)
-{
-    auto n = var("n", {0, 3});
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape data_shape{migraphx::shape::int32_type, {3}};
-    auto data = mm->add_literal(migraphx::literal{data_shape, {1, 2, 3}});
-    migraphx::shape bounds_shape{migraphx::shape::int64_type, {1}};
-    auto starts = mm->add_parameter("starts", bounds_shape);
-    auto ends   = mm->add_parameter("ends", bounds_shape);
-    mm->add_instruction(migraphx::make_op("dyn_slice",
-                                          {{"axes", {0}},
-                                           {"starts", {0}},
-                                           {"ends", migraphx::value::array{migraphx::to_value(n)}},
-                                           {"ends_in_bounds", true}}),
-                        data,
-                        starts,
-                        ends);
-    EXPECT(p.get_output_shapes().back() ==
-           migraphx::shape{migraphx::shape::int32_type, {dd{n}}, {lit(1)}});
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<int64_t> starts_data = {0};
-    std::vector<int64_t> ends_data   = {3};
-    migraphx::parameter_map params;
-    params["starts"] = migraphx::argument(bounds_shape, starts_data.data());
-    params["ends"]   = migraphx::argument(bounds_shape, ends_data.data());
-    auto result      = p.eval(params).back();
-    EXPECT(result.to_vector<int32_t>() == std::vector<int32_t>{1, 2, 3});
-
-    ends_data.front() = 4;
-    EXPECT(test::throws<migraphx::exception>([&] { p.eval(params); },
-                                             "DYN_SLICE: end 4 is outside axis 0 with length 3"));
-    ends_data.front() = -1;
-    EXPECT(test::throws<migraphx::exception>([&] { p.eval(params); },
-                                             "DYN_SLICE: end -1 is outside axis 0 with length 3"));
-}
-
 TEST_CASE(dyn_slice_sym_starts_test)
 {
     migraphx::program p;

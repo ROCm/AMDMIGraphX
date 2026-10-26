@@ -8926,6 +8926,33 @@ def linear_attention_linear_test():
 
 
 @onnx_test(opset_version=27)
+def linear_attention_linear_fp16_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT16,
+                                          [1, 4, 8])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT16, [1, 4, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT16,
+                                          [1, 4, 4])
+    past_state = helper.make_tensor_value_info('past_state',
+                                               TensorProto.FLOAT16,
+                                               [1, 2, 2, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 4, 8])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', 'past_state'],
+        outputs=['output', 'present_state'],
+        q_num_heads=4,
+        kv_num_heads=2,
+        update_rule='linear')
+
+    return ([node], [query, key, value, past_state], [output, present_state])
+
+
+@onnx_test(opset_version=27)
 def linear_attention_gated_test():
     query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
                                           [1, 3, 4])

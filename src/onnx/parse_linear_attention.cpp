@@ -26,6 +26,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/shape_for_each.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -33,11 +34,15 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-// Unified linear attention (ai.onnx opset 27). The sequential recurrence
+// Unified linear attention (ai.onnx opset 27). The recurrence
 //   S_t = exp(g_t) * S_{t-1} + k_t (x) beta_t * (v_t - S_{t-1}^T k_t)
 //   o_t = scale * q_t^T S_t
-// is unrolled over the sequence axis, vectorized over batch and heads, and
-// accumulated in float as the onnx reference implementation prescribes.
+// is accumulated in float as the onnx reference implementation prescribes.
+// The linear rule has the closed form
+//   O = scale * (tril(Q K^T) V + Q S_0),  present = S_0 + K^T V
+// emitted as batched matmuls with a causal mask in between so the backends
+// can fuse it like attention; the gated and delta rules (and single-step
+// decode) unroll the recurrence over the sequence axis instead.
 struct parse_linear_attention : op_parser<parse_linear_attention>
 {
     std::vector<op_desc> operators() const { return {{"LinearAttention"}}; }
@@ -222,6 +227,116 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             make_op("slice", {{"axes", {axis}}, {"starts", {i}}, {"ends", {i + 1}}}), ins);
     }
 
+    // (B, Hkv, x, y) -> (B, Hkv, group, x, y): broadcast kv-head tensors
+    // across the query group axis so the batched dots pair every query head
+    // with its kv head
+    static instruction_ref
+    broadcast_group(const onnx_parser::node_info& info, instruction_ref ins, std::size_t group)
+    {
+        auto r = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), ins);
+        if(group == 1)
+            return r;
+        auto lens  = r->get_shape().lens();
+        lens.at(2) = group;
+        return info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), r);
+    }
+
+    // Zero the score entries where the key position is ahead of the query
+    // position: where(upper_triangle, 0, scores) over the trailing (T, T)
+    // axes, the same select form attention causal masks canonicalize to
+    static instruction_ref
+    apply_causal_mask(const onnx_parser::node_info& info, instruction_ref scores, std::size_t t)
+    {
+        const auto& lens = scores->get_shape().lens();
+        shape mask_shape{shape::bool_type, {t, t}};
+        std::vector<int8_t> upper(mask_shape.elements());
+        shape_for_each(mask_shape,
+                       [&](const auto& idx, std::size_t i) { upper[i] = idx[1] > idx[0] ? 1 : 0; });
+        auto mask = info.add_literal(literal{mask_shape, upper});
+        mask      = info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), mask);
+        auto zero = info.add_literal(literal{shape{scores->get_shape().type(), {1}}, {0.0f}});
+        zero      = info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), zero);
+        return info.add_instruction(make_op("where"), mask, zero, scores);
+    }
+
+    // Parallel emission for the linear rule: two batched matmuls with a
+    // causal mask in between. The matmuls run in the input type with their
+    // results accumulated in float, so the score matrix is rounded to the
+    // input type once between the two (a fused gemm-gemm kernel keeps it in
+    // the accumulation type instead).
+    std::vector<instruction_ref> parse_masked(const onnx_parser::node_info& info,
+                                              const linear_attention_attributes& attrs,
+                                              const linear_attention_dims& dims,
+                                              const std::vector<instruction_ref>& args) const
+    {
+        const auto b     = dims.batch_size;
+        const auto t     = dims.sequence_length;
+        const auto d_k   = dims.head_size_k;
+        const auto d_v   = dims.head_size_v;
+        const auto heads = attrs.kv_num_heads;
+        const auto group = attrs.group_size();
+
+        const auto in_type    = args.at(0)->get_shape().type();
+        const auto state_type = has_input(args, 3) ? args.at(3)->get_shape().type() : in_type;
+
+        // query: (B, T, Hq*dk) -> (B, Hkv, group, T, dk)
+        auto q = info.add_instruction(make_op("reshape", {{"dims", {b, t, heads, group, d_k}}}),
+                                      args.at(0));
+        q      = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), q);
+        // key: (B, T, Hkv*dk) -> (B, Hkv, dk, T), value: (B, T, Hkv*dv) -> (B, Hkv, T, dv)
+        auto k_cols = to_columns(info, args.at(1), dims, heads, d_k);
+        auto v =
+            info.add_instruction(make_op("reshape", {{"dims", {b, t, heads, d_v}}}), args.at(2));
+        v = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), v);
+
+        // scores tril(Q K^T): (B, Hkv, group, T, T). The mask stage runs in
+        // float; the convert back to the input type feeds the second matmul
+        // (a fused gemm-gemm kernel elides this round trip and keeps the
+        // scores in the accumulation type).
+        auto scores = info.add_instruction(make_op("dot"), q, broadcast_group(info, k_cols, group));
+        scores      = to_float(info, scores);
+        scores      = apply_causal_mask(info, scores, t);
+        scores      = from_float(info, scores, in_type);
+
+        auto output = info.add_instruction(make_op("dot"), scores, broadcast_group(info, v, group));
+        output      = to_float(info, output);
+
+        // initial state contribution Q S_0
+        if(has_input(args, 3))
+        {
+            auto s05  = broadcast_group(info, args.at(3), group);
+            auto init = info.add_instruction(make_op("dot"), q, s05);
+            init      = to_float(info, init);
+            output    = info.add_instruction(make_op("add"), output, init);
+        }
+
+        auto scale_val = float_equal(attrs.scale, 0.0f) ? 1.0f / std::sqrt(static_cast<float>(d_k))
+                                                        : attrs.scale;
+        auto scale_lit = info.add_literal(literal{shape{shape::float_type, {1}}, {scale_val}});
+        scale_lit      = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", output->get_shape().lens()}}), scale_lit);
+        output = info.add_instruction(make_op("mul"), output, scale_lit);
+
+        // (B, Hkv, group, T, dv) -> (B, T, Hq*dv)
+        output =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2, 4}}}), output);
+        output = info.add_instruction(
+            make_op("reshape", {{"dims", {b, t, attrs.q_num_heads * d_v}}}), output);
+        output = from_float(info, output, in_type);
+
+        // present state S_0 + K^T V: (B, Hkv, dk, T) x (B, Hkv, T, dv)
+        auto state   = info.add_instruction(make_op("dot"), k_cols, v);
+        auto present = state;
+        if(has_input(args, 3))
+        {
+            auto state_f = to_float(info, state);
+            auto s0      = to_float(info, args.at(3));
+            auto sum     = info.add_instruction(make_op("add"), state_f, s0);
+            present      = from_float(info, sum, state_type);
+        }
+        return {output, present};
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
@@ -229,6 +344,11 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
     {
         auto attrs = parse_attributes(parser, info);
         auto dims  = validate_inputs(args, attrs);
+
+        // the linear rule's recurrence has a closed form over the whole
+        // sequence; a single step is cheaper as one state update
+        if(attrs.update_rule == "linear" and dims.sequence_length > 1)
+            return parse_masked(info, attrs, dims, args);
 
         const auto b     = dims.batch_size;
         const auto t     = dims.sequence_length;

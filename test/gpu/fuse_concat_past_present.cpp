@@ -452,22 +452,57 @@ TEST_CASE(out_of_range_position_skips_write)
     p.compile(migraphx::make_target("gpu"), options);
     EXPECT(has_fused_append(p));
 
-    auto append = [&](int pos) {
-        migraphx::parameter_map params;
-        params["x"]     = migraphx::generate_argument(present_shape(1), 1);
-        params["y"]     = migraphx::generate_argument(present_shape(1), 2);
-        params["cache"] = migraphx::generate_argument(cache_shape(), 3);
-        params["slk"]   = migraphx::literal{index_shape(), {pos}}.get_argument();
-        p.eval(params);
+    auto as_vec = [](const migraphx::argument& a) {
+        std::vector<float> v(a.get_shape().elements());
+        a.visit([&](auto out) { v.assign(out.begin(), out.end()); });
+        return v;
     };
-    auto cache_len = cache_shape().lens()[2];
-    append(0);
-    append(cache_len - 1);
-    // Out-of-range positions must no longer throw
-    append(-1);
-    append(cache_len);
-    // A rejected position leaves the program usable
-    append(0);
+
+    auto x_arg     = migraphx::generate_argument(present_shape(1), 1);
+    auto y_arg     = migraphx::generate_argument(present_shape(1), 2);
+    auto cache_arg = migraphx::generate_argument(cache_shape(), 3);
+
+    auto append = [&](int pos, const migraphx::argument& cache) {
+        migraphx::parameter_map params;
+        params["x"]     = x_arg;
+        params["y"]     = y_arg;
+        params["cache"] = cache;
+        params["slk"]   = migraphx::literal{index_shape(), {pos}}.get_argument();
+        return p.eval(params).front();
+    };
+
+    auto cache_len   = cache_shape().lens()[2];
+    auto before       = as_vec(cache_arg);
+    // Out-of-range positions must no longer throw, and must leave the entire cache
+    // unchanged rather than corrupting an in-range slot
+    auto after_low   = append(-1, cache_arg);
+    EXPECT(as_vec(after_low) == before);
+    auto after_high  = append(cache_len, after_low);
+    EXPECT(as_vec(after_high) == before);
+
+    // A subsequent valid append on the retained cache writes the expected slot, and
+    // leaves every other slot exactly as it was
+    auto result     = append(0, after_high);
+    auto result_vec = as_vec(result);
+    auto x_vec       = as_vec(x_arg);
+    auto y_vec       = as_vec(y_arg);
+    const auto& s   = cache_shape();
+    for(std::size_t b = 0; b < s.lens()[0]; b++)
+        for(std::size_t h = 0; h < s.lens()[1]; h++)
+            for(std::size_t sq = 0; sq < s.lens()[2]; sq++)
+                for(std::size_t d = 0; d < s.lens()[3]; d++)
+                {
+                    auto idx = s.index({b, h, sq, d});
+                    if(sq == 0)
+                    {
+                        auto slot_idx = present_shape(1).index({b, h, 0, d});
+                        EXPECT(result_vec[idx] == x_vec[slot_idx] * y_vec[slot_idx]);
+                    }
+                    else
+                    {
+                        EXPECT(result_vec[idx] == before[idx]);
+                    }
+                }
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

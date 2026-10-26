@@ -330,7 +330,11 @@ TEST_CASE(runtime_view_boundary)
         auto i   = mm->add_parameter("i", is);
         auto c   = add_chain(*mm, x, 4);
         auto idx = mm->add_instruction(migraphx::make_op("hip::load_scalar"), i);
-        auto v   = mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 0}}), c, idx);
+        auto scratch0 =
+            mm->add_instruction(migraphx::make_op(
+                "allocate", {{"shape", migraphx::to_value(migraphx::shape{s.type(), {1}})}}));
+        auto v =
+            mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 0}}), c, idx, scratch0);
         auto w   = mm->add_instruction(kernel_stub{}, x, v);
         auto dep = mm->add_instruction(migraphx::make_op("identity"), c, w);
         auto d   = add_chain(*mm, dep, 4);
@@ -349,7 +353,11 @@ TEST_CASE(runtime_view_boundary)
         auto g0 = mm->add_instruction(
             migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
         auto idx = mm->add_instruction(migraphx::make_op("hip::load_scalar"), i);
-        auto v   = mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 0}}), g0, idx);
+        auto scratch0 =
+            mm->add_instruction(migraphx::make_op(
+                "allocate", {{"shape", migraphx::to_value(migraphx::shape{s.type(), {1}})}}));
+        auto v = mm->add_instruction(
+            migraphx::make_op("gpu::slice_at", {{"axis", 0}}), g0, idx, scratch0);
         auto w   = mm->add_instruction(kernel_stub{}, x, v);
         auto dep = mm->add_instruction(migraphx::make_op("identity"), g0, w);
         auto* sub1 = p2.create_module("main:hipgraph1");

@@ -69,7 +69,11 @@ struct slice_at
         auto lens  = s.lens();
         lens[axis] = 1;
         shape result{s.type(), lens, s.strides()};
-        if(inputs[2].lens() != result.lens() or inputs[2].type() != result.type())
+        // Matching only lens and type is not enough: an out-of-range read/write walks
+        // `result`'s own strides over whatever buffer args[2] points to, so a scratch
+        // input with different (eg packed) strides either indexes out of its bounds or
+        // silently covers less of the stride range than the real cache view would.
+        if(inputs[2] != result)
             MIGRAPHX_THROW("SLICE_AT: scratch input must match the sliced shape");
         return result;
     }
@@ -101,6 +105,27 @@ constexpr std::size_t seq_axis = 2;
 
 struct find_concat_past_present
 {
+    // One discard buffer per distinct scratch shape, shared across every decode-append
+    // site in the module: `slot_shape` carries the cache's own strides, so its byte
+    // footprint can approach the whole cache (eg when a mid-layout axis like kv_heads
+    // has a large stride). Allocating a fresh one per site would scale that cost with
+    // layer count; every site redirects invalid writes here instead, since none of them
+    // read the result back.
+    mutable std::vector<std::pair<shape, instruction_ref>> scratch_cache;
+
+    instruction_ref get_scratch(module& m, instruction_ref ins, const shape& slot_s) const
+    {
+        auto it = std::find_if(scratch_cache.begin(), scratch_cache.end(), [&](const auto& p) {
+            return p.first == slot_s;
+        });
+        if(it != scratch_cache.end())
+            return it->second;
+        auto scratch =
+            m.insert_instruction(ins, make_op("allocate", {{"shape", to_value(slot_s)}}));
+        scratch_cache.emplace_back(slot_s, scratch);
+        return scratch;
+    }
+
     auto matcher() const
     {
         auto view =
@@ -180,9 +205,8 @@ struct find_concat_past_present
             // host and slice the cache at that offset
             if(cur->get_shape().lens()[0] != 1 or slk->get_shape().elements() != 1)
                 return;
-            auto slot_s = slot_shape(cur, cache);
-            auto scratch =
-                m.insert_instruction(ins, make_op("allocate", {{"shape", to_value(slot_s)}}));
+            auto slot_s  = slot_shape(cur, cache);
+            auto scratch = get_scratch(m, ins, slot_s);
             view = m.insert_instruction(ins,
                                         make_op("gpu::slice_at", {{"axis", seq_axis}}),
                                         cache,

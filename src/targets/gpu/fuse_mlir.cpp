@@ -379,6 +379,55 @@ enum class mlir_mode
     none
 };
 
+// Profitability band for attention-shaped gemm-gemm (GEG) fusion, shared by
+// check_heuristic and the large-k exemption in is_mlir_dot. See the measured
+// table in check_heuristic.
+constexpr std::int64_t geg_attn_k_max  = 256;
+constexpr std::int64_t geg_attn_g_max  = 256;
+constexpr std::int64_t geg_attn_mn_min = 32;
+
+// A dot producing the GEG chain's first gemm: contracts over a head dim
+// within the band's k cap.
+bool is_geg_band_first_gemm(instruction_ref ins)
+{
+    ins = strip_layout_ops(ins);
+    if(not contains({"dot", "quant_dot"}, ins->name()))
+        return false;
+    return ins->inputs().front()->get_shape().lens().back() <= geg_attn_k_max;
+}
+
+// True when ins is the second gemm of an attention-shaped gemm-gemm chain:
+// its A operand, through layout ops and the elementwise stage (a pointwise
+// module, or an mlir_op this pass formed already), is produced by a dot that
+// fits the GEG band. For these chains the second gemm's k is the sequence
+// length, so the large-k rejection in is_mlir_dot would block exactly the
+// shapes where fusing saves the most (the m x n roundtrip is quadratic in it).
+bool is_geg_second_gemm(instruction_ref ins)
+{
+    if(enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return false;
+    auto a_lens    = ins->inputs().front()->get_shape().lens();
+    std::int64_t m = a_lens[a_lens.size() - 2];
+    std::int64_t g = ins->inputs().back()->get_shape().lens().back();
+    if(g > geg_attn_g_max or m < geg_attn_mn_min)
+        return false;
+    auto prev = strip_layout_ops(ins->inputs().front());
+    if(prev->name() == "pointwise")
+    {
+        const auto& inputs = prev->inputs();
+        return std::any_of(inputs.begin(), inputs.end(), &is_geg_band_first_gemm);
+    }
+    if(prev->name() == "gpu::mlir_op")
+    {
+        auto* pm = prev->module_inputs().front();
+        return std::any_of(pm->begin(), pm->end(), [](const auto& i) {
+            return contains({"dot", "quant_dot"}, i.name()) and
+                   i.inputs().front()->get_shape().lens().back() <= geg_attn_k_max;
+        });
+    }
+    return is_geg_band_first_gemm(prev);
+}
+
 auto is_mlir_dot(mlir_mode mode)
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
@@ -409,6 +458,10 @@ auto is_mlir_dot(mlir_mode mode)
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // TODO: Investigate a more precise strategy
+        // Exempt the second gemm of a GEG chain, where k is the sequence
+        // length; it must become an mlir_op for the GEG fusion to claim it.
+        if(k >= 1024 and is_geg_second_gemm(ins))
+            return true;
         if(k > 1535)
             return false;
         if(k < 1024)
@@ -1069,20 +1122,23 @@ struct find_mlir_fused_geg_ops
         // (m x n) score matrix DRAM roundtrip, which grows quadratically with
         // the sequence while every other operand is linear in it.
         //
-        // Measured with tools/bench_geg_attention.py on gfx1201 (fp16, causal,
-        // median fused/unfused ratio; fusing wins at every T for d <= 256 and
-        // loses everywhere at d = 512, the same head-dim cliff as attention):
+        // Measured with tools/bench_geg_attention.py (causal, median
+        // fused/unfused ratio).
+        // gfx1201 fp16: fusing wins at every T in 32..4096 for d <= 256
+        // (0.10-0.97, improving with T) and loses everywhere at d = 512
+        // (1.4-1.6, the same head-dim cliff as attention):
         //       T:     32    64   128   256   512  1024  2048  4096
         //   d=32..64  0.6   0.4   0.3   0.3   0.3   0.3   0.2   0.1
         //   d=128     0.6   0.5   0.4   0.4   0.5   0.4   0.3   0.3
         //   d=256      -    0.6   0.5   0.5   0.9   0.6   0.5   0.5
         //   d=512      -     -     -    1.5    -    1.6    -    1.4
-        // TODO: rerun on MI300 and widen the head-dim cap per-arch if it
-        // holds wider shapes.
-        constexpr std::int64_t attn_k_max  = 256;
-        constexpr std::int64_t attn_g_max  = 256;
-        constexpr std::int64_t attn_mn_min = 32;
-        return k <= attn_k_max and g <= attn_g_max and m >= attn_mn_min and n >= attn_mn_min;
+        // gfx942 fp16 and fp32: wins at every measured shape for d <= 256
+        // (0.25-0.97) except two low-batch boundary cells at H=8, d=256
+        // (fp16 T=512: 1.14, fp32 T=256: 1.29). T >= 1024 reaches this
+        // heuristic only through the GEG exemption in is_mlir_dot (gemm1's
+        // k is the sequence length) and is unmeasured on gfx942 so far.
+        return k <= geg_attn_k_max and g <= geg_attn_g_max and m >= geg_attn_mn_min and
+               n >= geg_attn_mn_min;
     }
 
     /*

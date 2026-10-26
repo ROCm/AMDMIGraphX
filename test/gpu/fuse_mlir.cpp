@@ -2177,6 +2177,53 @@ TEST_CASE(dot_causal_mask_dot)
     EXPECT(program_str.find("bool_type, {64, 64}") == std::string::npos);
 }
 
+TEST_CASE(dot_causal_mask_dot_long_seq)
+// Long-sequence GEG chain: the second gemm contracts over the sequence
+// (k = 1024), which mlir_mode::fast would reject on non-navi without the GEG
+// exemption in is_mlir_dot, blocking the fusion where it saves the most
+{
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    migraphx::shape qs{migraphx::shape::half_type, {4, 1024, 64}};
+    migraphx::shape ks{migraphx::shape::half_type, {4, 64, 1024}};
+    migraphx::shape vs{migraphx::shape::half_type, {4, 1024, 64}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", qs);
+        auto k   = mm->add_parameter("k", ks);
+        auto v   = mm->add_parameter("v", vs);
+        migraphx::shape ms{migraphx::shape::bool_type, {1024, 1024}};
+        std::vector<int8_t> mask_data(ms.elements());
+        migraphx::shape_for_each(
+            ms, [&](const auto& idx, std::size_t i) { mask_data[i] = idx[1] > idx[0] ? 1 : 0; });
+        auto mask   = mm->add_literal(migraphx::literal{ms, mask_data});
+        auto mask_b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 1024, 1024}}}), mask);
+        auto zero = mm->add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {0.0f}});
+        auto zero_b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 1024, 1024}}}), zero);
+        auto dot1   = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto masked = add_pointwise(
+            p1, "main:pointwise0", {dot1, mask_b, zero_b}, [](auto* pm, const auto& inputs) {
+                auto cvt = pm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    inputs[0]);
+                auto w = pm->add_instruction(migraphx::make_op("where"), inputs[1], inputs[2], cvt);
+                return pm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
+            });
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), masked, v);
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    std::stringstream ss;
+    ss << p1;
+    std::string program_str = ss.str();
+    EXPECT(program_str.find("geg") != std::string::npos);
+    EXPECT(program_str.find("greater") != std::string::npos);
+}
+
 TEST_CASE(dot_add_dot_cab)
 // MLIR currently does not support C*(A*B) GEG patterns
 {

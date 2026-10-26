@@ -114,6 +114,24 @@ struct expression_sets
                     result.emplace(expressions[i], expressions[canonical]);
             }
         }
+
+        // iterate over substitutions to resolve when there are expressions that can substitue into
+        // those of other sets. Example A == B and 2*B == C to get C -> 2*A.
+        constexpr int max_iterations = 20;
+        for(int i = 0; i < max_iterations; ++i)
+        {
+            substitutions next;
+            std::transform(result.begin(),
+                           result.end(),
+                           std::inserter(next, next.end()),
+                           [&](const auto& item) {
+                               const auto& [expression, replacement] = item;
+                               return std::make_pair(expression, replacement.subs(result));
+                           });
+            if(next == result)
+                break;
+            result = std::move(next);
+        }
         return result;
     }
 };

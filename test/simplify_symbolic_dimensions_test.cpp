@@ -320,6 +320,105 @@ TEST_CASE(simplify_symbolic_dimensions_converging_producers)
     EXPECT(m1 == m2);
 }
 
+// Resolve replacement expressions through other equivalence classes before rebuilding the graph.
+// Otherwise C -> 2*B remains stale after B -> A and a second pass changes it to 2*A.
+TEST_CASE(simplify_symbolic_dimensions_nested_substitutions_idempotent)
+{
+    using migraphx::sym::var;
+
+    const auto a = var("a", {1, 8});
+    const auto b = var("b", {1, 8});
+    const auto c = var("c", {2, 16});
+
+    migraphx::module m1;
+    {
+        auto start =
+            m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+        auto limit =
+            m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{8}}});
+        auto concat_limit =
+            m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{16}}});
+        auto delta =
+            m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{1}}});
+        auto a_range = m1.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{a})}}),
+            start,
+            limit,
+            delta);
+        auto b_range = m1.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{b})}}),
+            start,
+            limit,
+            delta);
+        auto ab = m1.add_instruction(migraphx::make_op("add"), a_range, b_range);
+        auto twice_b =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), b_range, b_range);
+        auto c_range = m1.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 16},
+                 {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{c})}}),
+            start,
+            concat_limit,
+            delta);
+        auto twice_b_c = m1.add_instruction(migraphx::make_op("add"), twice_b, c_range);
+        m1.add_return({ab, twice_b_c});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto start =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+        auto limit =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{8}}});
+        auto concat_limit =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{16}}});
+        auto delta =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{1}}});
+        auto a_range = m2.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{a})}}),
+            start,
+            limit,
+            delta);
+        auto b_range = m2.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{a})}}),
+            start,
+            limit,
+            delta);
+        auto ab = m2.add_instruction(migraphx::make_op("add"), a_range, b_range);
+        auto twice_a =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), b_range, b_range);
+        auto c_range = m2.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 16},
+                 {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{2 * a})}}),
+            start,
+            concat_limit,
+            delta);
+        auto twice_a_c = m2.add_instruction(migraphx::make_op("add"), twice_a, c_range);
+        m2.add_return({ab, twice_a_c});
+    }
+    EXPECT(m1 == m2);
+
+    auto snapshot = m1;
+    run_pass(m1);
+    EXPECT(m1 == snapshot);
+}
+
 // An unrelated symbolic equality must not reinterpret range-based broadcast attributes as
 // symbolic expressions.
 TEST_CASE(simplify_symbolic_dimensions_preserve_range_broadcast_dimensions)

@@ -2646,7 +2646,7 @@ TEST_CASE(kv_cache_attention_q_rmsnorm_reduce_stays_outside)
         auto q_rdc = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), q_sq);
         auto group = add_group(
             p2,
-            "attn0",
+            "main:attn0",
             "kv_cache_attention",
             {q_rdc, query, cpp_k, slk, cpp_v},
             [=](auto* gm, const auto& inputs) {
@@ -3169,7 +3169,7 @@ static migraphx::program sinks_shared_mask_expected()
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 1}}}), sinks);
         auto group = add_group(
             p2,
-            "attn0",
+            "main:attn0",
             "kv_cache_attention",
             {rope, cpp_k, slk, cpp_v},
             [=](auto* gm, const auto& inputs) {

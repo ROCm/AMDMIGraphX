@@ -112,9 +112,9 @@ struct convert : unary<convert>
                                   double dx = x;
                                   // The half constructor implements IEEE round-to-nearest,
                                   // including overflow.
-                                  if constexpr(std::is_same<output_type, half>{})
+                                  if(not saturate)
                                   {
-                                      if(not saturate)
+                                      if constexpr(std::is_same<output_type, half>{})
                                           return output_type(dx);
                                   }
                                   if(std::isnan(dx))

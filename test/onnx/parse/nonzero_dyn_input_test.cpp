@@ -38,9 +38,7 @@ TEST_CASE(nonzero_dyn_input_test)
         auto starts = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
         auto ends   = migraphx::value::array{migraphx::to_value(var("main_NonZero_1", {0, 8}))};
         auto r      = m.add_instruction(
-            migraphx::make_op(
-                "dyn_slice",
-                {{"axes", {1}}, {"starts", {0}}, {"ends", ends}, {"ends_in_bounds", true}}),
+            migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", ends}}),
             indices,
             starts,
             num_nonzero);

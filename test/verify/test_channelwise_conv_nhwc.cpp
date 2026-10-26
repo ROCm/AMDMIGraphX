@@ -21,11 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <tf_test.hpp>
-
-TEST_CASE(float_val_too_many_test)
+// Depthwise conv with channels-last (NHWC) input and weights
+template <migraphx::shape::type_t DType>
+struct test_channelwise_conv_nhwc : verify_program<test_channelwise_conv_nhwc<DType>>
 {
-    EXPECT(
-        test::throws<migraphx::exception>([&] { parse_tf("float_val_too_many_test.pb", false); }));
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto input = mm->add_parameter(
+            "x", migraphx::shape::from_permutation(DType, {2, 6, 8, 8}, {0, 2, 3, 1}));
+        auto weights = mm->add_parameter(
+            "w", migraphx::shape::from_permutation(DType, {6, 1, 3, 3}, {0, 2, 3, 1}));
+        mm->add_instruction(migraphx::make_op("convolution", {{"group", 6}}), input, weights);
+        return p;
+    }
+    std::string section() const { return "conv"; }
+};
+template struct test_channelwise_conv_nhwc<migraphx::shape::float_type>;
+template struct test_channelwise_conv_nhwc<migraphx::shape::half_type>;

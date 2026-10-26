@@ -50,6 +50,7 @@
 #include <migraphx/compile_modes.hpp>
 #include <migraphx/version.h>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/logger.hpp>
 #include <algorithm>
 #include <iterator>
 #ifdef HAVE_GPU
@@ -480,10 +481,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
+        // The argument only stores a pointer into the buffer, so keep the buffer object alive
+        // for as long as the argument exists.
         .def(py::init([](py::buffer b) {
-            py::buffer_info info = b.request();
-            return migraphx::argument(to_shape(info), info.ptr);
-        }))
+                 py::buffer_info info = b.request();
+                 return migraphx::argument(to_shape(info), info.ptr);
+             }),
+             py::keep_alive<1, 2>())
         .def("get_shape", &migraphx::argument::get_shape)
         .def("data_ptr",
              [](migraphx::argument& x) { return reinterpret_cast<std::uintptr_t>(x.data()); })
@@ -549,7 +553,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             [](migraphx::module& mm,
                migraphx::argument a,
                const std::vector<std::string>& debug_symbols) {
-                auto ins = mm.add_literal(a.get_shape(), a.data());
+                auto ins =
+                    mm.add_literal(migraphx::literal::from_raw_buffer(a.get_shape(), a.data()));
                 if(not debug_symbols.empty())
                     mm.add_debug_symbols(ins, {debug_symbols.begin(), debug_symbols.end()});
                 return ins;
@@ -563,7 +568,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                const std::vector<std::string>& debug_symbols) {
                 py::buffer_info info = data.request();
                 auto literal_shape   = to_shape(info);
-                auto ins = mm.add_literal(literal_shape, reinterpret_cast<char*>(info.ptr));
+                auto ins             = mm.add_literal(migraphx::literal::from_raw_buffer(
+                    literal_shape, reinterpret_cast<char*>(info.ptr)));
                 if(not debug_symbols.empty())
                     mm.add_debug_symbols(ins, {debug_symbols.begin(), debug_symbols.end()});
                 return ins;
@@ -830,6 +836,38 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         },
         py::arg("shape"),
         py::arg("address"));
+
+    py::enum_<migraphx::log::severity>(m, "log_level", "Severity levels for the MIGraphX logger")
+        .value("none", migraphx::log::severity::none)
+        .value("error", migraphx::log::severity::error)
+        .value("warn", migraphx::log::severity::warn)
+        .value("info", migraphx::log::severity::info)
+        .value("debug", migraphx::log::severity::debug)
+        .value("trace", migraphx::log::severity::trace);
+
+    m.def(
+        "set_log_level",
+        [](migraphx::log::severity level, size_t sink_id) {
+            migraphx::log::set_severity(level, sink_id);
+        },
+        "Set the severity level for a logger sink (sink 0 is the default stderr sink). "
+        "Lower the level (e.g. log_level.warn) to silence INFO messages.",
+        py::arg("level"),
+        py::arg("sink_id") = 0);
+
+    m.def(
+        "add_file_logger",
+        [](const std::string& filename, migraphx::log::severity level) {
+            return migraphx::log::add_file_logger(filename, level);
+        },
+        "Add a file sink to the logger and return its sink id",
+        py::arg("filename"),
+        py::arg("level") = migraphx::log::severity::info);
+
+    m.def("is_log_enabled",
+          &migraphx::log::is_enabled,
+          "Return whether any sink is enabled at the given severity level",
+          py::arg("level"));
 
 #ifdef MIGRAPHX_ENABLE_TENSORFLOW
     m.def(

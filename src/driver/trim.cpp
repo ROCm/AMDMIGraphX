@@ -58,7 +58,7 @@ static instruction_ref add_placeholder(module& m, instruction_ref ins)
     if(ins->can_eval())
     {
         auto e = ins->eval();
-        return m.add_literal(literal{e.get_shape(), e.data()});
+        return m.add_literal(literal::from_raw_buffer(e.get_shape(), e.data()));
     }
     return m.add_parameter("x" + std::to_string(m.get_parameters().size()), ins->get_shape());
 }

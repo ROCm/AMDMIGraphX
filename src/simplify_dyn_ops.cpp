@@ -414,7 +414,7 @@ struct find_const_alloc_fill : match::supports_dynamic_shapes
     {
         auto fill_ins = mr.result;
         auto fill_arg = fill_ins->eval(false);
-        auto l        = m.add_literal(fill_arg.get_shape(), fill_arg.data());
+        auto l = m.add_literal(literal::from_raw_buffer(fill_arg.get_shape(), fill_arg.data()));
         m.replace_instruction(fill_ins, l);
     }
 };

@@ -3834,6 +3834,40 @@ TEST_CASE(pointwise_reshape_unary)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(pointwise_reshape_unary_reduce)
+{
+    // The unary between the pointwise and the reduce moves up to the
+    // pointwise, so the reduce is rewritten in the pointwise's dimensions
+    migraphx::shape s{migraphx::shape::half_type, {2, 4, 8}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto y   = m1.add_parameter("y", s);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto reshape_ins =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32}}}), mul);
+        auto convert = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+            reshape_ins);
+        auto rsum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), convert);
+        m1.add_return({rsum});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", s);
+        auto y       = m2.add_parameter("y", s);
+        auto mul     = m2.add_instruction(migraphx::make_op("mul"), x, y);
+        auto convert = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mul);
+        auto rsum =
+            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), convert);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsum);
+        m2.add_return({squeeze});
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(pointwise_module_reshape_unary)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {2, 8}};

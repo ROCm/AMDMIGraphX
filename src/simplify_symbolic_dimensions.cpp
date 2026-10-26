@@ -193,6 +193,8 @@ struct broadcast_replacement
             from_value<std::vector<shape::dynamic_dimension>>(attributes.at("out_dyn_dims"));
         auto result = dims;
         std::transform(dims.begin(), dims.end(), result.begin(), [&](const auto& d) {
+            if(not d.is_symbolic())
+                return d;
             return shape::dynamic_dimension{d.sym_expr.subs(values)};
         });
         if(result == dims)

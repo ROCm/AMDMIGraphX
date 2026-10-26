@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <migraphx/half.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
@@ -143,4 +144,69 @@ TEST_CASE(group_norm_v21_fp16_affine_rounding_test)
     EXPECT(result_vector.at(3) == half{0});
     EXPECT(result_vector.at(7) == half{0});
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(group_norm_contrib_fp16_affine_overflow_test)
+{
+    using migraphx::half;
+    auto p = read_onnx("group_norm_contrib_3d_channel_last_half_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape x_shape{migraphx::shape::half_type, {1, 4, 2}};
+    migraphx::shape scale_shape{migraphx::shape::half_type, {2}};
+    std::vector<half> x_data{
+        half{1}, half{-1}, half{-1}, half{1}, half{1}, half{-1}, half{-1}, half{1}};
+    std::vector<half> gamma{half{65504}, half{65504}};
+    std::vector<half> beta{half{65504}, half{-65504}};
+    migraphx::parameter_map params;
+    params["x"]     = migraphx::argument(x_shape, x_data.data());
+    params["gamma"] = migraphx::argument(scale_shape, gamma.data());
+    params["beta"]  = migraphx::argument(scale_shape, beta.data());
+
+    auto result = p.eval(params).back();
+    std::vector<float> values;
+    result.visit([&](auto output) { values.assign(output.begin(), output.end()); });
+    // The affine result exceeds half range in both directions; it must not saturate.
+    const auto inf = std::numeric_limits<float>::infinity();
+    EXPECT(values.at(0) == inf);
+    EXPECT(values.at(1) == -inf);
+    EXPECT(values.at(4) == inf);
+    EXPECT(values.at(5) == -inf);
+    EXPECT(std::abs(values.at(2) - 0.328125f) < 0.001f);
+    EXPECT(std::abs(values.at(3) + 0.328125f) < 0.001f);
+    EXPECT(std::abs(values.at(6) - 0.328125f) < 0.001f);
+    EXPECT(std::abs(values.at(7) + 0.328125f) < 0.001f);
+}
+
+TEST_CASE(group_norm_small_eps_fp16_nonzero_variance_test)
+{
+    using migraphx::half;
+    auto p = read_onnx("group_norm_small_eps_half_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape x_shape{migraphx::shape::half_type, {1, 4, 2}};
+    migraphx::shape scale_shape{migraphx::shape::half_type, {4}};
+    // Variance is 2^-24: epsilon=1e-12 preserves +/-1 after half rounding,
+    // whereas the old 1e-7 epsilon clamp changes the magnitude to about 0.61.
+    std::vector<half> x_data{half{0.000244140625f},
+                             half{-0.000244140625f},
+                             half{0.000244140625f},
+                             half{-0.000244140625f},
+                             half{0.000244140625f},
+                             half{-0.000244140625f},
+                             half{0.000244140625f},
+                             half{-0.000244140625f}};
+    std::vector<half> scale(4, half{1});
+    std::vector<half> bias(4, half{0});
+    migraphx::parameter_map params;
+    params["x"]     = migraphx::argument(x_shape, x_data.data());
+    params["scale"] = migraphx::argument(scale_shape, scale.data());
+    params["bias"]  = migraphx::argument(scale_shape, bias.data());
+
+    auto result = p.eval(params).back();
+    std::vector<half> values;
+    result.visit([&](auto output) { values.assign(output.begin(), output.end()); });
+    std::vector<half> gold{
+        half{1}, half{-1}, half{1}, half{-1}, half{1}, half{-1}, half{1}, half{-1}};
+    EXPECT(migraphx::verify::verify_rms_range(values, gold));
 }

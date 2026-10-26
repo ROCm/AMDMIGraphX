@@ -2457,6 +2457,10 @@ struct find_mul_add_shape_op_dot
     void apply(module& m, const match::matcher_result& r) const
     {
         auto shape_ins = r.result;
+        // IEEE narrowing must remain after affine arithmetic, where overflow is determined.
+        if(shape_ins->name() == "convert" and
+           not shape_ins->get_operator().to_value().at("saturate").to<bool>())
+            return;
         auto pw        = r.instructions["pw"];
         auto constant  = r.instructions["const"];
         auto input     = r.instructions["input"];

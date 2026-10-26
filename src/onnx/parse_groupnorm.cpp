@@ -205,6 +205,9 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             auto sigmoid = info.add_instruction(make_op("sigmoid"), output);
             output       = info.add_instruction(make_op("mul"), output, sigmoid);
         }
+        if(is_contrib and x_dtype == shape::half_type)
+            return info.add_instruction(
+                make_op("convert", {{"target_type", x_dtype}, {"saturate", false}}), output);
         return convert_tensor_type(info, output, x_dtype);
     }
 };

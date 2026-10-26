@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_CONVERT_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/half.hpp>
 #include <migraphx/op/unary.hpp>
 #include <migraphx/sym_argument.hpp>
 #include <cmath>
@@ -38,17 +39,22 @@ struct convert : unary<convert>
     static constexpr bool enable_symbolic_compute = true;
 
     shape::type_t target_type = shape::half_type;
+    // Preserve legacy reference clamping by default; false selects IEEE float-to-half conversion.
+    bool saturate = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.target_type, "target_type"));
+        return pack(f(self.target_type, "target_type"), f(self.saturate, "saturate"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
         const auto& input = inputs.at(0);
+        if(not saturate and (input.type() != shape::float_type or target_type != shape::half_type))
+            MIGRAPHX_THROW(
+                "convert: non-saturating conversion requires float input and half output");
         if(input.symbolic())
         {
             return {target_type, input.dyn_dims(), input.dyn_strides()};
@@ -99,19 +105,28 @@ struct convert : unary<convert>
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
                 using output_type = typename decltype(output)::value_type;
-                par_transform(
-                    input.begin(), input.end(), output.begin(), [](auto x) -> output_type {
-                        double dx = x;
-                        if(std::isnan(dx))
-                            return std::numeric_limits<output_type>::quiet_NaN();
-                        if(not std::is_integral<output_type>{} and std::isinf(dx))
-                            return output_type(x);
-                        if(dx >= std::numeric_limits<output_type>::max())
-                            return std::numeric_limits<output_type>::max();
-                        if(dx <= std::numeric_limits<output_type>::lowest())
-                            return std::numeric_limits<output_type>::lowest();
-                        return output_type(dx);
-                    });
+                par_transform(input.begin(),
+                              input.end(),
+                              output.begin(),
+                              [saturate = saturate](auto x) -> output_type {
+                                  double dx = x;
+                                  // The half constructor implements IEEE round-to-nearest,
+                                  // including overflow.
+                                  if constexpr(std::is_same<output_type, half>{})
+                                  {
+                                      if(not saturate)
+                                          return output_type(dx);
+                                  }
+                                  if(std::isnan(dx))
+                                      return std::numeric_limits<output_type>::quiet_NaN();
+                                  if(not std::is_integral<output_type>{} and std::isinf(dx))
+                                      return output_type(x);
+                                  if(dx >= std::numeric_limits<output_type>::max())
+                                      return std::numeric_limits<output_type>::max();
+                                  if(dx <= std::numeric_limits<output_type>::lowest())
+                                      return std::numeric_limits<output_type>::lowest();
+                                  return output_type(dx);
+                              });
             });
         });
         return result;

@@ -551,7 +551,8 @@ inline migraphx::program make_group_norm(
     auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result_reshaped, scale_bcast});
     auto output = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
     if(affine_dtype != dtype)
-        mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), output);
+        mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", dtype}, {"saturate", false}}), output);
 
     return p;
 }

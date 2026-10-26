@@ -59,6 +59,40 @@ TEST_CASE(nop_convert)
     EXPECT(m0 == m1);
 }
 
+TEST_CASE(preserve_non_saturating_narrowing)
+{
+    migraphx::module m1;
+    auto x        = m1.add_parameter("x", {migraphx::shape::float_type, {4}});
+    auto narrowed = m1.add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::shape::half_type}, {"saturate", false}}),
+        x);
+    auto widened = m1.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), narrowed);
+    auto widened_again = m1.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::double_type}}), widened);
+    m1.add_return({widened_again});
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(preserve_non_saturating_output)
+{
+    migraphx::module m1;
+    auto x       = m1.add_parameter("x", {migraphx::shape::half_type, {4}});
+    auto widened = m1.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+    auto narrowed = m1.add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::shape::half_type}, {"saturate", false}}),
+        widened);
+    m1.add_return({narrowed});
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(nop_convert_dynamic)
 {
     migraphx::module m0;

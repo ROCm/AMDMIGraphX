@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-#include <cstdlib>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
@@ -88,7 +88,11 @@ TEST_CASE(dynamic_code_object_zero_output)
     mm->add_return({r});
 
     auto target = migraphx::make_target("gpu");
-    p.compile(target);
+    migraphx::compile_options options;
+    options.backend_options["disable_range_based_splitting"] = true;
+    p.compile(target, options);
+    EXPECT(migraphx::any_of(migraphx::iterator_for(*p.get_main_module()),
+                            [](auto ins) { return ins->name() == "gpu::dynamic_code_object_op"; }));
 
     std::vector<float> x_data       = {1.0f, 2.0f, 3.0f, 4.0f};
     std::vector<float> roi_data     = {0.0f, 0.0f, 1.0f, 1.0f};
@@ -120,12 +124,4 @@ TEST_CASE(dynamic_code_object_zero_output)
     EXPECT(empty_result.get_shape().elements() == 0);
 }
 
-int main(int argc, const char* argv[])
-{
-#ifdef _WIN32
-    _putenv_s("MIGRAPHX_ENABLE_FULL_DYNAMIC", "1");
-#else
-    setenv("MIGRAPHX_ENABLE_FULL_DYNAMIC", "1", 1);
-#endif
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

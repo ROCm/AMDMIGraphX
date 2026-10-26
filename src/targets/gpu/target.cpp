@@ -135,6 +135,8 @@ struct backend_options
     // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with pointwise ops.
     bool enable_skinny_dot   = false;
     bool standardize_outputs = false;
+    // Keep range-based dynamic shapes for runtime compilation instead of specializing ranges.
+    bool disable_range_based_splitting = false;
     // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
@@ -154,6 +156,7 @@ struct backend_options
                     f(self.convolution_layout, "convolution_layout"),
                     f(self.enable_skinny_dot, "enable_skinny_dot"),
                     f(self.standardize_outputs, "standardize_outputs"),
+                    f(self.disable_range_based_splitting, "disable_range_based_splitting"),
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
                     f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
@@ -194,7 +197,9 @@ struct pipeline_factory
     {
         return {
             split_sym_dim{},
-            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+            enable_pass(not backend_opts.disable_range_based_splitting and
+                            disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
+                        split_single_dyn_dim{}),
             dead_code_elimination{},
             simplify_dyn_ops{},
             dead_code_elimination{},

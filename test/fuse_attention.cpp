@@ -825,6 +825,96 @@ TEST_CASE(kv_cache_attention_unsqueezed_output)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(kv_flash_decoding_unsupported_seqlens_broadcast)
+{
+    migraphx::shape s_half1{migraphx::shape::half_type, {1}};
+    migraphx::shape s_range{migraphx::shape::int32_type, {1, 1, 1, 4}};
+    migraphx::shape s_cmask{migraphx::shape::bool_type, {3, 4}};
+    migraphx::shape s_slk{migraphx::shape::int32_type, {1, 1}};
+    migraphx::shape s_past{migraphx::shape::half_type, {1, 2, 4, 2}};
+    migraphx::shape s_q{migraphx::shape::half_type, {1, 2, 3, 2}};
+    migraphx::shape s_kv{migraphx::shape::half_type, {1, 2, 1, 2}};
+
+    migraphx::program p;
+    {
+        auto* mm       = p.get_main_module();
+        auto range_lit = mm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3}});
+        auto cmask_lit =
+            mm->add_literal(migraphx::literal{s_cmask, {0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1}});
+        auto scale_lit = mm->add_literal(migraphx::literal{s_half1, {0.125f}});
+        auto ninf_lit =
+            mm->add_literal(migraphx::literal{s_half1, {-std::numeric_limits<float>::infinity()}});
+        auto slk    = mm->add_parameter("seqlens_k", s_slk);
+        auto past_v = mm->add_parameter("past_value", s_past);
+        auto past_k = mm->add_parameter("past_key", s_past);
+        auto q      = mm->add_parameter("q", s_q);
+        auto k      = mm->add_parameter("k", s_kv);
+        auto v      = mm->add_parameter("v", s_kv);
+
+        auto bc_scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3, 4}}}), scale_lit);
+        auto bc_cmask = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3, 4}}}), cmask_lit);
+        auto bc_ninf = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3, 4}}}), ninf_lit);
+        auto unsq_slk = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), slk);
+        auto bc_slk   = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"out_lens", {1, 1, 1, 4}}}), unsq_slk);
+        auto grtr      = mm->add_instruction(migraphx::make_op("greater"), range_lit, bc_slk);
+        auto conv_grtr = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), grtr);
+        auto bc_grtr = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3, 4}}}), conv_grtr);
+        auto cpp_k = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), k, slk, past_k);
+        auto cpp_v = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), v, slk, past_v);
+        auto tsp_k = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), cpp_k);
+        auto gemm1     = mm->add_instruction(migraphx::make_op("dot"), q, tsp_k);
+        auto scaled    = mm->add_instruction(migraphx::make_op("mul"), gemm1, bc_scale);
+        auto causal    = mm->add_instruction(migraphx::make_op("where"), bc_cmask, bc_ninf, scaled);
+        auto mask      = mm->add_instruction(migraphx::make_op("where"), bc_grtr, bc_ninf, causal);
+        auto conv_mask = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mask);
+        auto rdc_max =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), conv_mask);
+        auto bc_rm = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3, 4}}}), rdc_max);
+        auto sub     = mm->add_instruction(migraphx::make_op("sub"), conv_mask, bc_rm);
+        auto exp     = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rdc_sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto bc_rs   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3, 4}}}), rdc_sum);
+        auto div     = mm->add_instruction(migraphx::make_op("div"), exp, bc_rs);
+        auto conv_sm = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+        auto gemm2    = mm->add_instruction(migraphx::make_op("dot"), conv_sm, cpp_v);
+        auto unsq_out = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), gemm2);
+        auto tsp_out  = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), unsq_out);
+        auto rsp_out =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 1, 4}}}), tsp_out);
+        mm->add_return({rsp_out, cpp_k, cpp_v});
+    }
+
+    run_pass(p,
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = 2,
+              .flash_decoding_threshold  = 1});
+
+    const auto* mod                  = p.get_main_module();
+    const bool has_kv_flash_decoding = std::any_of(mod->begin(), mod->end(), [](const auto& ins) {
+        if(ins.name() != "group")
+            return false;
+        const auto& module_inputs = ins.module_inputs();
+        return not module_inputs.empty() and
+               module_inputs.front()->name().find("flash_decoding") != std::string::npos;
+    });
+    EXPECT(not has_kv_flash_decoding);
+}
+
 TEST_CASE(gemm_multi_use_pw_softmax_gemm)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 4, 16, 8}};
@@ -4137,6 +4227,572 @@ TEST_CASE(transposed_attention)
         auto result = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), group);
         mm->add_return({result});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// Packed post-RoPE query and key, with the grouped key/value head repeat, as fused
+// from the decode graphs of Deepseek, llama3.1, qwen3, and SmolVLM. Flash decoding
+// stays off: the pass is asked only to fuse the attention.
+TEST_CASE(kv_cache_attention_packed_gqa)
+{
+    // q_heads 4, kv_heads 2, head 4, cache length 8. The packed tensor is Q then K.
+    migraphx::shape s_half{migraphx::shape::half_type, {1}};
+    migraphx::shape s_range{migraphx::shape::int32_type, {8}};
+    migraphx::shape s_sl{migraphx::shape::int32_type, {1}};
+    migraphx::shape s_rope{migraphx::shape::half_type, {1, 6, 1, 4}};
+    migraphx::shape s_cur_v{migraphx::shape::half_type, {1, 2, 1, 4}};
+    migraphx::shape s_cache{migraphx::shape::half_type, {1, 2, 8, 4}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto ninf =
+            mm->add_literal(migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
+        auto scale = mm->add_literal(migraphx::literal{s_half, {0.5}});
+        auto range = mm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
+        auto sl    = mm->add_parameter("sl", s_sl);
+        auto rope  = mm->add_parameter("rope", s_rope);
+        auto slc_k = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), rope);
+        auto past_k = mm->add_parameter("past_k", s_cache);
+        auto cpp_k  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, sl, past_k);
+        auto cur_v  = mm->add_parameter("cur_v", s_cur_v);
+        auto past_v = mm->add_parameter("past_v", s_cache);
+        auto cpp_v  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cur_v, sl, past_v);
+        auto slc_q = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), rope);
+        auto unsq_v = mm->add_instruction(
+            migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {}}}), cpp_v);
+        auto bc_v = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 8, 4}}}), unsq_v);
+        auto rsp_v =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 8, 4}}}), bc_v);
+        auto unsq_k = mm->add_instruction(
+            migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {}}}), cpp_k);
+        auto tsp_k = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 4, 3}}}), unsq_k);
+        auto bc_k = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 4, 8}}}), tsp_k);
+        auto rsp_k =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 4, 8}}}), bc_k);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), slc_q, rsp_k);
+        auto bc_ninf = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), ninf);
+        auto bc_scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), scale);
+        auto cvt_scores = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), gemm1);
+        auto cvt_scale = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bc_scale);
+        auto scaled = mm->add_instruction(migraphx::make_op("mul"), cvt_scores, cvt_scale);
+        auto bc_sl =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8}}}), sl);
+        auto grtr     = mm->add_instruction(migraphx::make_op("greater"), range, bc_sl);
+        auto cvt_grtr = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), grtr);
+        auto bc_grtr = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), cvt_grtr);
+        auto cvt_ninf = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bc_ninf);
+        auto mask    = mm->add_instruction(migraphx::make_op("where"), bc_grtr, cvt_ninf, scaled);
+        auto rdc_max = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mask);
+        auto bc_rm   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), rdc_max);
+        auto sub     = mm->add_instruction(migraphx::make_op("sub"), mask, bc_rm);
+        auto exp     = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rdc_sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto bc_rs   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), rdc_sum);
+        auto div    = mm->add_instruction(migraphx::make_op("div"), exp, bc_rs);
+        auto cvt_sm = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+        auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), cvt_sm, rsp_v);
+        auto tsp_out = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);
+        auto rsp_out =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 16}}}), tsp_out);
+        mm->add_return({rsp_out, cpp_k, cpp_v});
+    }
+    run_pass(p1, {.attn_enabled = true});
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto sl    = mm->add_parameter("sl", s_sl);
+        auto rope  = mm->add_parameter("rope", s_rope);
+        auto slc_k = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), rope);
+        auto past_k = mm->add_parameter("past_k", s_cache);
+        auto cpp_k  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, sl, past_k);
+        auto cur_v  = mm->add_parameter("cur_v", s_cur_v);
+        auto past_v = mm->add_parameter("past_v", s_cache);
+        auto cpp_v  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cur_v, sl, past_v);
+        auto group = add_group(
+            p2,
+            "attn0",
+            "kv_cache_attention",
+            {rope, cpp_v, cpp_k, sl},
+            [=](auto* gm, const auto& inputs) {
+                auto ninf = gm->add_literal(
+                    migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
+                auto scale = gm->add_literal(migraphx::literal{s_half, {0.5}});
+                auto range = gm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
+                auto slc_q = gm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}),
+                    inputs.at(0));
+                auto unsq_v = gm->add_instruction(
+                    migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {}}}), inputs.at(1));
+                auto bc_v = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 8, 4}}}), unsq_v);
+                auto rsp_v = gm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 4, 8, 4}}}), bc_v);
+                auto unsq_k = gm->add_instruction(
+                    migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {}}}), inputs.at(2));
+                auto tsp_k = gm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 4, 3}}}), unsq_k);
+                auto bc_k = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 4, 8}}}), tsp_k);
+                auto rsp_k = gm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 4, 4, 8}}}), bc_k);
+                auto gemm1   = gm->add_instruction(migraphx::make_op("dot"), slc_q, rsp_k);
+                auto bc_ninf = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), ninf);
+                auto bc_scale = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), scale);
+                auto cvt_scores = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    gemm1);
+                auto cvt_scale = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    bc_scale);
+                auto scaled = gm->add_instruction(migraphx::make_op("mul"), cvt_scores, cvt_scale);
+                auto bc_sl  = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {8}}}), inputs.at(3));
+                auto grtr     = gm->add_instruction(migraphx::make_op("greater"), range, bc_sl);
+                auto cvt_grtr = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+                    grtr);
+                auto bc_grtr = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), cvt_grtr);
+                auto cvt_ninf = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    bc_ninf);
+                auto mask =
+                    gm->add_instruction(migraphx::make_op("where"), bc_grtr, cvt_ninf, scaled);
+                auto rdc_max =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mask);
+                auto bc_rm = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), rdc_max);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), mask, bc_rm);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rdc_sum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                auto bc_rs = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), rdc_sum);
+                auto div    = gm->add_instruction(migraphx::make_op("div"), exp, bc_rs);
+                auto cvt_sm = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                    div);
+                auto gemm2   = gm->add_instruction(migraphx::make_op("dot"), cvt_sm, rsp_v);
+                auto tsp_out = gm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);
+                auto rsp_out = gm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 1, 16}}}), tsp_out);
+                return std::vector<migraphx::instruction_ref>{rsp_out};
+            });
+        mm->add_return({group, cpp_k, cpp_v});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// Grouped-head cache. The sequence axis of the packed cache is split before the
+// head repeat is broadcast, and the mask vector is split before it is broadcast.
+TEST_CASE(kv_flash_decoding_packed_gqa)
+{
+    migraphx::shape s_half{migraphx::shape::half_type, {1}};
+    migraphx::shape s_range{migraphx::shape::int32_type, {8}};
+    migraphx::shape s_sl{migraphx::shape::int32_type, {1}};
+    migraphx::shape s_rope{migraphx::shape::half_type, {1, 6, 1, 4}};
+    migraphx::shape s_cur_v{migraphx::shape::half_type, {1, 2, 1, 4}};
+    migraphx::shape s_cache{migraphx::shape::half_type, {1, 2, 8, 4}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto ninf =
+            mm->add_literal(migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
+        auto scale = mm->add_literal(migraphx::literal{s_half, {0.5}});
+        auto range = mm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
+        auto sl    = mm->add_parameter("sl", s_sl);
+        auto rope  = mm->add_parameter("rope", s_rope);
+        auto slc_k = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), rope);
+        auto past_k = mm->add_parameter("past_k", s_cache);
+        auto cpp_k  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, sl, past_k);
+        auto cur_v  = mm->add_parameter("cur_v", s_cur_v);
+        auto past_v = mm->add_parameter("past_v", s_cache);
+        auto cpp_v  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cur_v, sl, past_v);
+        auto slc_q = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), rope);
+        auto unsq_v = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), cpp_v);
+        auto bc_v   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 8, 4}}}), unsq_v);
+        auto rsp_v =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 8, 4}}}), bc_v);
+        auto unsq_k = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), cpp_k);
+        auto tsp_k  = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 4, 3}}}), unsq_k);
+        auto bc_k = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 4, 8}}}), tsp_k);
+        auto rsp_k =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 4, 8}}}), bc_k);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), slc_q, rsp_k);
+        auto bc_ninf = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), ninf);
+        auto bc_scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), scale);
+        auto cvt_scores = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), gemm1);
+        auto cvt_scale = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bc_scale);
+        auto scaled = mm->add_instruction(migraphx::make_op("mul"), cvt_scores, cvt_scale);
+        auto bc_sl =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8}}}), sl);
+        auto grtr     = mm->add_instruction(migraphx::make_op("greater"), range, bc_sl);
+        auto cvt_grtr = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), grtr);
+        auto bc_grtr = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), cvt_grtr);
+        auto cvt_ninf = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bc_ninf);
+        auto mask    = mm->add_instruction(migraphx::make_op("where"), bc_grtr, cvt_ninf, scaled);
+        auto rdc_max = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mask);
+        auto bc_rm   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), rdc_max);
+        auto sub     = mm->add_instruction(migraphx::make_op("sub"), mask, bc_rm);
+        auto exp     = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rdc_sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto bc_rs   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), rdc_sum);
+        auto div    = mm->add_instruction(migraphx::make_op("div"), exp, bc_rs);
+        auto cvt_sm = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+        auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), cvt_sm, rsp_v);
+        auto tsp_out = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);
+        auto rsp_out =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 16}}}), tsp_out);
+        mm->add_return({rsp_out, cpp_k, cpp_v});
+    }
+    run_pass(
+        p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto sl    = mm->add_parameter("sl", s_sl);
+        auto rope  = mm->add_parameter("rope", s_rope);
+        auto slc_k = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), rope);
+        auto past_k = mm->add_parameter("past_k", s_cache);
+        auto cpp_k  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, sl, past_k);
+        auto cur_v  = mm->add_parameter("cur_v", s_cur_v);
+        auto past_v = mm->add_parameter("past_v", s_cache);
+        auto cpp_v  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cur_v, sl, past_v);
+        auto group = add_group(
+            p2,
+            "attn0_kv_flash_decoding",
+            "kv_cache_attention",
+            {rope, cpp_v, cpp_k, sl},
+            [=](auto* gm, const auto& inputs) {
+                auto ninf = gm->add_literal(
+                    migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
+                auto scale = gm->add_literal(migraphx::literal{s_half, {0.5}});
+                auto range = gm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
+                auto k_split = gm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 2, 2, 4, 4}}}), inputs.at(2));
+                auto k_unsq =
+                    gm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), k_split);
+                auto k_tsp = gm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 3, 5, 4}}}), k_unsq);
+                auto k_bc = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2, 4, 4}}}), k_tsp);
+                auto k = gm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 4, 2, 4, 4}}}), k_bc);
+                auto v_split = gm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 2, 2, 4, 4}}}), inputs.at(1));
+                auto v_unsq =
+                    gm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), v_split);
+                auto v_bc = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2, 4, 4}}}),
+                    v_unsq);
+                auto v = gm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 4, 2, 4, 4}}}), v_bc);
+                auto slc_q = gm->add_instruction(
+                    migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}),
+                    inputs.at(0));
+                auto q_unsq =
+                    gm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), slc_q);
+                auto q = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 1, 4}}}), q_unsq);
+                auto gemm1   = gm->add_instruction(migraphx::make_op("dot"), q, k);
+                auto bc_ninf = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 1, 4}}}), ninf);
+                auto bc_scale = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 1, 4}}}), scale);
+                auto cvt_scores = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    gemm1);
+                auto cvt_scale = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    bc_scale);
+                auto scaled = gm->add_instruction(migraphx::make_op("mul"), cvt_scores, cvt_scale);
+                auto bc_sl  = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {8}}}), inputs.at(3));
+                auto grtr     = gm->add_instruction(migraphx::make_op("greater"), range, bc_sl);
+                auto cvt_grtr = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+                    grtr);
+                auto mask_split =
+                    gm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4}}}), cvt_grtr);
+                auto mask_unsq = gm->add_instruction(
+                    migraphx::make_op("unsqueeze", {{"axes", {1}}}), mask_split);
+                auto bc_grtr = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 1, 4}}}),
+                    mask_unsq);
+                auto cvt_ninf = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    bc_ninf);
+                auto where =
+                    gm->add_instruction(migraphx::make_op("where"), bc_grtr, cvt_ninf, scaled);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), where);
+                auto bc_rm = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 1, 4}}}), rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), where, bc_rm);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {4}}}), exp);
+                auto bc_rs = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 1, 4}}}), rsum);
+                auto div    = gm->add_instruction(migraphx::make_op("div"), exp, bc_rs);
+                auto cvt_sm = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                    div);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), cvt_sm, v);
+                auto log   = gm->add_instruction(migraphx::make_op("log"), rsum);
+                auto lse   = gm->add_instruction(migraphx::make_op("add"), rmax, log);
+                return std::vector<migraphx::instruction_ref>{gemm2, lse};
+            });
+        auto o_prime =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
+        auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto k2_max    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), lse);
+        auto k2_max_bc = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 1, 1}}}), k2_max);
+        auto k2_sub    = mm->add_instruction(migraphx::make_op("sub"), lse, k2_max_bc);
+        auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
+        auto k2_exp_bc = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 1, 4}}}), k2_exp);
+        auto k2_cvt = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_exp_bc);
+        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_prime, k2_cvt);
+        auto k2_num = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), k2_mul);
+        auto k2_den = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), k2_cvt);
+        auto k2_div = mm->add_instruction(migraphx::make_op("div"), k2_num, k2_den);
+        auto squeezed = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), k2_div);
+        auto tsp_out  = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), squeezed);
+        auto rsp_out =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 16}}}), tsp_out);
+        mm->add_return({rsp_out, cpp_k, cpp_v});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// One key/value head per query head. K is a transpose of the cache and V is the cache.
+TEST_CASE(kv_flash_decoding_nongrouped)
+{
+    migraphx::shape s_half{migraphx::shape::half_type, {1}};
+    migraphx::shape s_range{migraphx::shape::int32_type, {8}};
+    migraphx::shape s_sl{migraphx::shape::int32_type, {1}};
+    migraphx::shape s_q{migraphx::shape::half_type, {1, 2, 1, 4}};
+    migraphx::shape s_cur{migraphx::shape::half_type, {1, 2, 1, 4}};
+    migraphx::shape s_cache{migraphx::shape::half_type, {1, 2, 8, 4}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto ninf =
+            mm->add_literal(migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
+        auto scale  = mm->add_literal(migraphx::literal{s_half, {0.5}});
+        auto range  = mm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
+        auto sl     = mm->add_parameter("sl", s_sl);
+        auto q      = mm->add_parameter("q", s_q);
+        auto cur_k  = mm->add_parameter("cur_k", s_cur);
+        auto past_k = mm->add_parameter("past_k", s_cache);
+        auto cpp_k  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cur_k, sl, past_k);
+        auto cur_v  = mm->add_parameter("cur_v", s_cur);
+        auto past_v = mm->add_parameter("past_v", s_cache);
+        auto cpp_v  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cur_v, sl, past_v);
+        auto tsp_k = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), cpp_k);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), q, tsp_k);
+        auto bc_ninf = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 1, 8}}}), ninf);
+        auto bc_scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 1, 8}}}), scale);
+        auto cvt_scores = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), gemm1);
+        auto cvt_scale = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bc_scale);
+        auto scaled = mm->add_instruction(migraphx::make_op("mul"), cvt_scores, cvt_scale);
+        auto bc_sl =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8}}}), sl);
+        auto grtr     = mm->add_instruction(migraphx::make_op("greater"), range, bc_sl);
+        auto cvt_grtr = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), grtr);
+        auto bc_grtr = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 1, 8}}}), cvt_grtr);
+        auto cvt_ninf = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bc_ninf);
+        auto mask    = mm->add_instruction(migraphx::make_op("where"), bc_grtr, cvt_ninf, scaled);
+        auto rdc_max = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mask);
+        auto bc_rm   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 1, 8}}}), rdc_max);
+        auto sub     = mm->add_instruction(migraphx::make_op("sub"), mask, bc_rm);
+        auto exp     = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rdc_sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto bc_rs   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 1, 8}}}), rdc_sum);
+        auto div    = mm->add_instruction(migraphx::make_op("div"), exp, bc_rs);
+        auto cvt_sm = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+        auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), cvt_sm, cpp_v);
+        auto tsp_out = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);
+        auto rsp_out =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 8}}}), tsp_out);
+        mm->add_return({rsp_out, cpp_k, cpp_v});
+    }
+    run_pass(
+        p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto sl     = mm->add_parameter("sl", s_sl);
+        auto q      = mm->add_parameter("q", s_q);
+        auto cur_k  = mm->add_parameter("cur_k", s_cur);
+        auto past_k = mm->add_parameter("past_k", s_cache);
+        auto cpp_k  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cur_k, sl, past_k);
+        auto cur_v  = mm->add_parameter("cur_v", s_cur);
+        auto past_v = mm->add_parameter("past_v", s_cache);
+        auto cpp_v  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cur_v, sl, past_v);
+        auto group = add_group(
+            p2,
+            "attn0_kv_flash_decoding",
+            "kv_cache_attention",
+            {cpp_k, q, sl, cpp_v},
+            [=](auto* gm, const auto& inputs) {
+                auto ninf = gm->add_literal(
+                    migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
+                auto scale  = gm->add_literal(migraphx::literal{s_half, {0.5}});
+                auto range  = gm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
+                auto q_unsq = gm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}),
+                                                  inputs.at(1));
+                auto q_bc   = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 1, 4}}}), q_unsq);
+                auto k_split = gm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 2, 2, 4, 4}}}), inputs.at(0));
+                auto k = gm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 4, 3}}}), k_split);
+                auto v = gm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 2, 2, 4, 4}}}), inputs.at(3));
+                auto gemm1   = gm->add_instruction(migraphx::make_op("dot"), q_bc, k);
+                auto bc_ninf = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 1, 4}}}), ninf);
+                auto bc_scale = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 1, 4}}}), scale);
+                auto cvt_scores = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    gemm1);
+                auto cvt_scale = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    bc_scale);
+                auto scaled = gm->add_instruction(migraphx::make_op("mul"), cvt_scores, cvt_scale);
+                auto bc_sl  = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {8}}}), inputs.at(2));
+                auto grtr     = gm->add_instruction(migraphx::make_op("greater"), range, bc_sl);
+                auto cvt_grtr = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+                    grtr);
+                auto mask_split =
+                    gm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4}}}), cvt_grtr);
+                auto mask_unsq = gm->add_instruction(
+                    migraphx::make_op("unsqueeze", {{"axes", {1}}}), mask_split);
+                auto bc_grtr = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 1, 4}}}),
+                    mask_unsq);
+                auto cvt_ninf = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    bc_ninf);
+                auto where =
+                    gm->add_instruction(migraphx::make_op("where"), bc_grtr, cvt_ninf, scaled);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), where);
+                auto bc_rm = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 1, 4}}}), rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), where, bc_rm);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {4}}}), exp);
+                auto bc_rs = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 1, 4}}}), rsum);
+                auto div    = gm->add_instruction(migraphx::make_op("div"), exp, bc_rs);
+                auto cvt_sm = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                    div);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), cvt_sm, v);
+                auto log   = gm->add_instruction(migraphx::make_op("log"), rsum);
+                auto lse   = gm->add_instruction(migraphx::make_op("add"), rmax, log);
+                return std::vector<migraphx::instruction_ref>{gemm2, lse};
+            });
+        auto o_prime =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
+        auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto k2_max    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), lse);
+        auto k2_max_bc = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 1, 1}}}), k2_max);
+        auto k2_sub    = mm->add_instruction(migraphx::make_op("sub"), lse, k2_max_bc);
+        auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
+        auto k2_exp_bc = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 1, 4}}}), k2_exp);
+        auto k2_cvt = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_exp_bc);
+        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_prime, k2_cvt);
+        auto k2_num = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), k2_mul);
+        auto k2_den = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), k2_cvt);
+        auto k2_div = mm->add_instruction(migraphx::make_op("div"), k2_num, k2_den);
+        auto squeezed = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), k2_div);
+        auto tsp_out  = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), squeezed);
+        auto rsp_out =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 8}}}), tsp_out);
+        mm->add_return({rsp_out, cpp_k, cpp_v});
     }
     EXPECT(p1.sort() == p2.sort());
 }

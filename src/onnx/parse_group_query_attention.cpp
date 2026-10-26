@@ -119,6 +119,43 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
     }
 
+    static instruction_ref add_query_positions(const onnx_parser::node_info& info,
+                                               instruction_ref q,
+                                               instruction_ref past_length)
+    {
+        const auto q_dims = q->get_shape().to_symbolic().dyn_dims();
+        auto sequence_length =
+            info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), q);
+        auto zero =
+            info.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{0}});
+        auto one =
+            info.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{1}});
+        auto sequence_range =
+            info.add_instruction(make_op("dynamic_range", {{"output_dim", to_value(q_dims.at(2))}}),
+                                 zero,
+                                 sequence_length,
+                                 one);
+
+        std::vector<shape::dynamic_dimension> sequence_range_dims{
+            shape::dynamic_dimension{sym::lit(1)}, q_dims.at(2)};
+        sequence_range = add_reshape(info, sequence_range, sequence_range_dims, {q});
+        std::vector<shape::dynamic_dimension> position_dims{q_dims.at(0), q_dims.at(2)};
+        sequence_range = add_multibroadcast(info, sequence_range, position_dims, {q});
+
+        past_length = info.add_instruction(make_op("convert", {{"target_type", shape::int64_type}}),
+                                           past_length);
+        std::vector<shape::dynamic_dimension> past_length_dims{
+            q_dims.at(0), shape::dynamic_dimension{sym::lit(1)}};
+        past_length = add_reshape(info, past_length, past_length_dims, {q});
+        past_length = add_multibroadcast(info, past_length, position_dims, {q});
+
+        auto is_prompt = info.add_instruction(make_op("greater"), sequence_length, one);
+        is_prompt = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
+                                         is_prompt);
+        is_prompt = add_multibroadcast(info, is_prompt, position_dims, {q});
+        return info.add_instruction(make_op("where"), is_prompt, sequence_range, past_length);
+    }
+
     static instruction_ref add_attention_mask(const onnx_parser::node_info& info,
                                               instruction_ref q,
                                               instruction_ref k,
@@ -126,7 +163,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                               int local_window_size,
                                               instruction_ref logits,
                                               instruction_ref ninf,
-                                              instruction_ref scale)
+                                              instruction_ref scale,
+                                              const std::optional<instruction_ref>& query_positions)
     {
         const auto q_dims     = q->get_shape().to_symbolic().dyn_dims();
         const auto cache_dims = k->get_shape().to_symbolic().dyn_dims();
@@ -170,18 +208,21 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         {
             auto sequence_length =
                 info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), q);
-            sequence_range = info.add_instruction(
-                make_op("dynamic_range", {{"output_dim", to_value(q_dims.at(2))}}),
-                zero,
-                sequence_length,
-                one);
-            std::vector<shape::dynamic_dimension> sequence_range_dims{
-                shape::dynamic_dimension{sym::lit(1)},
-                shape::dynamic_dimension{sym::lit(1)},
-                q_dims.at(2),
-                shape::dynamic_dimension{sym::lit(1)}};
-            sequence_range = add_reshape(info, sequence_range, sequence_range_dims);
-            sequence_range = add_multibroadcast(info, sequence_range, attention_dims, {logits});
+            if(not query_positions.has_value())
+            {
+                sequence_range = info.add_instruction(
+                    make_op("dynamic_range", {{"output_dim", to_value(q_dims.at(2))}}),
+                    zero,
+                    sequence_length,
+                    one);
+                std::vector<shape::dynamic_dimension> sequence_range_dims{
+                    shape::dynamic_dimension{sym::lit(1)},
+                    shape::dynamic_dimension{sym::lit(1)},
+                    q_dims.at(2),
+                    shape::dynamic_dimension{sym::lit(1)}};
+                sequence_range = add_reshape(info, sequence_range, sequence_range_dims);
+                sequence_range = add_multibroadcast(info, sequence_range, attention_dims, {logits});
+            }
 
             past_length = info.add_instruction(
                 make_op("convert", {{"target_type", shape::int64_type}}), past_length);
@@ -196,13 +237,43 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             auto is_prompt = info.add_instruction(make_op("greater"), sequence_length, one);
             is_prompt      = info.add_instruction(
                 make_op("convert", {{"target_type", shape::bool_type}}), is_prompt);
-            is_prompt = add_multibroadcast(info, is_prompt, attention_dims, {logits});
-            auto query_positions =
-                info.add_instruction(make_op("where"), is_prompt, sequence_range, mask_comp);
-            auto causal_mask = info.add_instruction(make_op("greater"), range, query_positions);
+            instruction_ref positions;
+            if(query_positions.has_value())
+            {
+                std::vector<shape::dynamic_dimension> position_dims{
+                    q_dims.at(0),
+                    shape::dynamic_dimension{sym::lit(1)},
+                    q_dims.at(2),
+                    shape::dynamic_dimension{sym::lit(1)}};
+                positions = add_reshape(info, *query_positions, position_dims, {q, logits});
+                positions = add_multibroadcast(info, positions, attention_dims, {logits});
+            }
+            else
+            {
+                auto is_prompt_b = add_multibroadcast(info, is_prompt, attention_dims, {logits});
+                positions =
+                    info.add_instruction(make_op("where"), is_prompt_b, sequence_range, mask_comp);
+            }
+            auto causal_mask = info.add_instruction(make_op("greater"), range, positions);
             causal_mask      = info.add_instruction(
                 make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
             logits = info.add_instruction(make_op("where"), causal_mask, ninf, logits);
+
+            if(local_window_size > 0)
+            {
+                auto prompt_offset =
+                    info.add_literal(literal{shape{shape::int64_type, {1}}, {-local_window_size}});
+                auto decode_offset = info.add_literal(
+                    literal{shape{shape::int64_type, {1}}, {-(local_window_size + 1)}});
+                auto window_offset =
+                    info.add_instruction(make_op("where"), is_prompt, prompt_offset, decode_offset);
+                window_offset = add_multibroadcast(info, window_offset, attention_dims, {logits});
+                auto window_comp = info.add_instruction(make_op("add"), positions, window_offset);
+                auto window_mask = info.add_instruction(make_op("greater"), window_comp, range);
+                window_mask      = info.add_instruction(
+                    make_op("convert", {{"target_type", shape::bool_type}}), window_mask);
+                logits = info.add_instruction(make_op("where"), window_mask, ninf, logits);
+            }
         }
         else
         {
@@ -314,11 +385,16 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         return attrs;
     }
 
-    static void validate_inputs(const std::vector<instruction_ref>& args)
+    static void validate_inputs(const std::vector<instruction_ref>& args, bool do_rotary)
     {
         if(args.size() < 7 or args.size() > 12)
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
+        }
+        if(do_rotary and (not has_input(args, 7) or not has_input(args, 8)))
+        {
+            MIGRAPHX_THROW(
+                "GroupQueryAttention: do_rotary requires cos_cache and sin_cache inputs.");
         }
         if(has_input(args, 9))
         {
@@ -386,14 +462,9 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
     {
         auto [do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale] =
             parse_attributes(parser, info);
-        validate_inputs(args);
+        validate_inputs(args, do_rotary);
 
         const bool symbolic = args.at(0)->get_shape().symbolic();
-        if(symbolic and do_rotary)
-            MIGRAPHX_THROW(
-                "GroupQueryAttention: symbolic internal rotary embedding is not supported");
-        if(symbolic and local_window_size > 0)
-            MIGRAPHX_THROW("GroupQueryAttention: symbolic local window attention is not supported");
         if(kv_num_heads == 0 or num_heads == 0 or num_heads % kv_num_heads != 0)
             MIGRAPHX_THROW("GroupQueryAttention: num_heads must be divisible by kv_num_heads");
 
@@ -433,12 +504,27 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                                    {"ends", {num_heads + (2 * kv_num_heads)}}}),
                                           transposed_qkv);
 
+        std::optional<instruction_ref> query_positions;
+        if(symbolic)
+            query_positions = add_query_positions(info, qk, args.at(5));
+
         if(do_rotary)
         {
-            qk = insert_rotary(*info.mod,
-                               rotary_interleaved,
-                               q_shape.lens().at(1),
-                               {qk, args.at(5), args.at(7), args.at(8)});
+            if(symbolic)
+            {
+                qk = op::builder::add("rotary_embedding",
+                                      *info.mod,
+                                      {qk, *query_positions, args.at(7), args.at(8)},
+                                      {{"interleaved", rotary_interleaved}})
+                         .at(0);
+            }
+            else
+            {
+                qk = insert_rotary(*info.mod,
+                                   rotary_interleaved,
+                                   q_shape.lens().at(1),
+                                   {qk, args.at(5), args.at(7), args.at(8)});
+            }
         }
 
         auto q = info.add_instruction(
@@ -475,14 +561,14 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         if(symbolic and not k->get_shape().dynamic())
         {
-            const auto& q_dims = q->get_shape().dyn_dims();
-            const auto& k_lens = k->get_shape().lens();
+            const auto& query_dims = q->get_shape().dyn_dims();
+            const auto& k_lens     = k->get_shape().lens();
             if(fixed_dimension(q->get_shape(), 0, "GroupQueryAttention", "batch size") !=
                k_lens.at(0))
                 MIGRAPHX_THROW(
                     "GroupQueryAttention: query and static cache batch sizes must match");
             std::vector<shape::dynamic_dimension> cache_dims{
-                q_dims.at(0),
+                query_dims.at(0),
                 shape::dynamic_dimension{sym::lit(k_lens.at(1))},
                 shape::dynamic_dimension{sym::lit(k_lens.at(2))},
                 shape::dynamic_dimension{sym::lit(k_lens.at(3))}};
@@ -528,8 +614,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             scale = 1.0f / std::sqrt(static_cast<float>(head_size));
         }
         auto scale_ins = info.add_literal(literal{scalar_s, {scale}});
-        auto where =
-            add_attention_mask(info, q, k_out, past_sl, local_window_size, gemm1, ninf, scale_ins);
+        auto where     = add_attention_mask(
+            info, q, k_out, past_sl, local_window_size, gemm1, ninf, scale_ins, query_positions);
         auto softmax = has_input(args, 11)
                            ? insert_softmax_with_head_sink(info, where, args.at(11))
                            : info.add_instruction(make_op("softmax", {{"axis", 3}}), where);

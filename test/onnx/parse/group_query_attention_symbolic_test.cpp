@@ -127,3 +127,27 @@ TEST_CASE(group_query_attention_head_sink_symbolic_parse_test)
                return ins.name() == "dyn_slice";
            }) == 1);
 }
+
+TEST_CASE(group_query_attention_rotary_local_window_symbolic_parse_test)
+{
+    auto sequence = migraphx::sym::var("sequence", {1, 8});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes = true;
+    options.map_dyn_input_dims["qkv"] =
+        sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(96)});
+
+    auto p = read_onnx("group_query_attention_prefill_local_test.onnx", options);
+    auto expected_output =
+        migraphx::shape{migraphx::shape::half_type,
+                        sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(32)})};
+    auto expected_cache = migraphx::shape{migraphx::shape::half_type, {1, 2, 10, 16}};
+    EXPECT(p.get_output_shapes() ==
+           std::vector<migraphx::shape>{expected_output, expected_cache, expected_cache});
+    EXPECT(std::count_if(p.get_main_module()->begin(), p.get_main_module()->end(), [](auto ins) {
+               return ins.name() == "gathernd";
+           }) == 2);
+    EXPECT(std::count_if(p.get_main_module()->begin(), p.get_main_module()->end(), [](auto ins) {
+               return ins.name() == "dynamic_range";
+           }) == 2);
+}

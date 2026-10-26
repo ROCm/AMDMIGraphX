@@ -86,8 +86,6 @@ struct rotary_embedding : op_builder<rotary_embedding>
             MIGRAPHX_THROW("rotary_embedding: expected input of rank 4 with layout "
                            "[batch, heads, seq, head_size] in 4-arg mode");
         const bool symbolic = input_shape.symbolic();
-        if(symbolic and interleaved)
-            MIGRAPHX_THROW("rotary_embedding: interleaved symbolic input is not supported");
 
         auto head_size = fixed_dimension(input_shape, 3, "rotary_embedding", "head_size");
         if(head_size % 2 != 0)
@@ -135,6 +133,19 @@ struct rotary_embedding : op_builder<rotary_embedding>
         return result;
     }
 
+    static instruction_ref
+    insert_symbolic_reshape(module& m,
+                            instruction_ref ins,
+                            instruction_ref input,
+                            const std::vector<shape::dynamic_dimension>& dims,
+                            const std::vector<instruction_ref>& shape_sources)
+    {
+        auto result = try_insert_runtime_reshape(m, ins, input, dims, shape_sources);
+        if(not result.has_value())
+            MIGRAPHX_THROW("rotary_embedding: runtime reshape dimensions have no shape source");
+        return *result;
+    }
+
     static instruction_ref insert_reshape(module& m,
                                           instruction_ref ins,
                                           instruction_ref input,
@@ -145,10 +156,7 @@ struct rotary_embedding : op_builder<rotary_embedding>
     {
         if(not context.symbolic)
             return m.insert_instruction(ins, make_op("reshape", {{"dims", lens}}), input);
-        auto result = try_insert_runtime_reshape(m, ins, input, dims, shape_sources);
-        if(not result.has_value())
-            MIGRAPHX_THROW("rotary_embedding: runtime reshape dimensions have no shape source");
-        return *result;
+        return insert_symbolic_reshape(m, ins, input, dims, shape_sources);
     }
 
     static instruction_ref build_gather_indices(module& m,
@@ -215,16 +223,35 @@ struct rotary_embedding : op_builder<rotary_embedding>
         auto sin =
             m.insert_instruction(ins, make_op("gathernd", {{"batch_dims", 0}}), sin_cache, indices);
 
-        if(interleaved)
+        if(interleaved and context.symbolic)
         {
-            auto cos_elems = cos->get_shape().elements();
-            auto sin_elems = sin->get_shape().elements();
-            cos = m.insert_instruction(ins, make_op("reshape", {{"dims", {cos_elems, 1}}}), cos);
-            sin = m.insert_instruction(ins, make_op("reshape", {{"dims", {sin_elems, 1}}}), sin);
+            std::vector<shape::dynamic_dimension> doubled_dims{
+                context.input_dims.at(0),
+                context.input_dims.at(2),
+                shape::dynamic_dimension{sym::lit(context.head_size)}};
+            auto double_values = [&](instruction_ref values) {
+                values = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {3}}}), values);
+                values =
+                    m.insert_instruction(ins, make_op("concat", {{"axis", 3}}), values, values);
+                return insert_symbolic_reshape(m, ins, values, doubled_dims, {in});
+            };
+            cos = double_values(cos);
+            sin = double_values(sin);
         }
-
-        cos = m.insert_instruction(ins, make_op("concat", {{"axis", -1}}), cos, cos);
-        sin = m.insert_instruction(ins, make_op("concat", {{"axis", -1}}), sin, sin);
+        else
+        {
+            if(interleaved)
+            {
+                auto cos_elems = cos->get_shape().elements();
+                auto sin_elems = sin->get_shape().elements();
+                cos =
+                    m.insert_instruction(ins, make_op("reshape", {{"dims", {cos_elems, 1}}}), cos);
+                sin =
+                    m.insert_instruction(ins, make_op("reshape", {{"dims", {sin_elems, 1}}}), sin);
+            }
+            cos = m.insert_instruction(ins, make_op("concat", {{"axis", -1}}), cos, cos);
+            sin = m.insert_instruction(ins, make_op("concat", {{"axis", -1}}), sin, sin);
+        }
 
         std::vector<shape::dynamic_dimension> cache_dims{
             context.input_dims.at(0),
@@ -266,21 +293,39 @@ struct rotary_embedding : op_builder<rotary_embedding>
 
         if(interleaved)
         {
-            auto in_lens = input_shape.lens();
-            signs        = m.insert_instruction(ins, make_op("reshape", {{"dims", {1, 2}}}), signs);
-            signs        = m.insert_instruction(
+            signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {1, 2}}}), signs);
+            signs = m.insert_instruction(
                 ins, make_op("multibroadcast", {{"out_lens", {half_d, 2}}}), signs);
             signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {d}}}), signs);
 
-            auto n     = in->get_shape().elements() / 2;
-            auto rs_in = m.insert_instruction(ins, make_op("reshape", {{"dims", {n, 2}}}), in);
-            auto evens = m.insert_instruction(
-                ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rs_in);
-            auto odds = m.insert_instruction(
-                ins, make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rs_in);
-            auto swapped =
-                m.insert_instruction(ins, make_op("concat", {{"axis", -1}}), odds, evens);
-            rotated = m.insert_instruction(ins, make_op("reshape", {{"dims", in_lens}}), swapped);
+            if(input_shape.symbolic())
+            {
+                auto pair_dims   = input_shape.dyn_dims();
+                pair_dims.back() = shape::dynamic_dimension{sym::lit(half_d)};
+                pair_dims.push_back(shape::dynamic_dimension{sym::lit(2)});
+                auto rs_in = insert_symbolic_reshape(m, ins, in, pair_dims, {in});
+                auto evens = m.insert_instruction(
+                    ins, make_op("slice", {{"axes", {4}}, {"starts", {0}}, {"ends", {1}}}), rs_in);
+                auto odds = m.insert_instruction(
+                    ins, make_op("slice", {{"axes", {4}}, {"starts", {1}}, {"ends", {2}}}), rs_in);
+                auto swapped =
+                    m.insert_instruction(ins, make_op("concat", {{"axis", 4}}), odds, evens);
+                rotated = insert_symbolic_reshape(m, ins, swapped, input_shape.dyn_dims(), {in});
+            }
+            else
+            {
+                auto in_lens = input_shape.lens();
+                auto n       = input_shape.elements() / 2;
+                auto rs_in = m.insert_instruction(ins, make_op("reshape", {{"dims", {n, 2}}}), in);
+                auto evens = m.insert_instruction(
+                    ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rs_in);
+                auto odds = m.insert_instruction(
+                    ins, make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rs_in);
+                auto swapped =
+                    m.insert_instruction(ins, make_op("concat", {{"axis", -1}}), odds, evens);
+                rotated =
+                    m.insert_instruction(ins, make_op("reshape", {{"dims", in_lens}}), swapped);
+            }
         }
         else
         {

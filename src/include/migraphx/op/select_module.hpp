@@ -89,14 +89,32 @@ struct select_module
         std::vector<module_metadata> modules;
     };
 
-    struct metadata_cache
+    struct metadata_cache_storage
     {
         std::mutex mutex;
         std::vector<std::shared_ptr<const module_set_metadata>> entries;
         std::shared_ptr<const module_set_metadata> last_entry;
     };
 
-    std::shared_ptr<metadata_cache> cache = std::make_shared<metadata_cache>();
+    struct metadata_cache
+    {
+        std::shared_ptr<metadata_cache_storage> storage =
+            std::make_shared<metadata_cache_storage>();
+
+        metadata_cache() = default;
+
+        // An operation clone belongs to a different instruction and can receive unrelated
+        // module_refs. Do not carry non-owning module_refs from the source operation into it.
+        metadata_cache(const metadata_cache&) {}
+
+        metadata_cache& operator=(const metadata_cache&)
+        {
+            storage = std::make_shared<metadata_cache_storage>();
+            return *this;
+        }
+    };
+
+    metadata_cache cache;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -142,24 +160,24 @@ struct select_module
     MIGRAPHX_EXPORT module_set_metadata
     build_module_metadata(const std::vector<module_ref>& candidates) const;
 
-    // Built once for each list of candidates and shared by copies of the operator. Evaluation
-    // almost always repeats the last list, which is checked without taking the lock.
+    // Built once for each list of candidates used by this operator instance. Evaluation almost
+    // always repeats the last list, which is checked without taking the lock.
     std::shared_ptr<const module_set_metadata>
     get_module_metadata(const std::vector<module_ref>& submodule_list) const
     {
-        auto last_entry = std::atomic_load(&cache->last_entry);
+        auto last_entry = std::atomic_load(&cache.storage->last_entry);
         if(last_entry != nullptr and last_entry->candidates == submodule_list)
             return last_entry;
 
-        std::lock_guard<std::mutex> lock{cache->mutex};
-        auto entry = std::find_if(cache->entries.begin(), cache->entries.end(), [&](const auto& e) {
-            return e->candidates == submodule_list;
-        });
-        if(entry == cache->entries.end())
-            entry = cache->entries.insert(
-                cache->entries.end(),
+        std::lock_guard<std::mutex> lock{cache.storage->mutex};
+        auto entry = std::find_if(cache.storage->entries.begin(),
+                                  cache.storage->entries.end(),
+                                  [&](const auto& e) { return e->candidates == submodule_list; });
+        if(entry == cache.storage->entries.end())
+            entry = cache.storage->entries.insert(
+                cache.storage->entries.end(),
                 std::make_shared<const module_set_metadata>(build_module_metadata(submodule_list)));
-        std::atomic_store(&cache->last_entry, *entry);
+        std::atomic_store(&cache.storage->last_entry, *entry);
         return *entry;
     }
 

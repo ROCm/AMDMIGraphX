@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/dim_like.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -33,7 +34,8 @@
 
 static void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::simplify_symbolic_dimensions{}});
+    migraphx::run_passes(
+        m, {migraphx::simplify_symbolic_dimensions{}, migraphx::dead_code_elimination{}});
 }
 
 // A parameter-derived symbol can be the canonical expression, but the pass must preserve the
@@ -206,8 +208,120 @@ TEST_CASE(simplify_symbolic_dimensions_shape_attributes)
     EXPECT(m1 == m2);
 }
 
+// Rebuild converging paths together so a strict consumer never sees one canonicalized input and
+// one stale input while its shape is inferred.
+TEST_CASE(simplify_symbolic_dimensions_converging_producers)
+{
+    using migraphx::sym::var;
+
+    const auto canonical_count = var("canonical_count", {1, 8});
+    const auto alternate_count = var("alternate_count", {1, 8});
+
+    migraphx::module m1;
+    {
+        auto start =
+            m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+        auto limit =
+            m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{8}}});
+        auto delta =
+            m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{1}}});
+        auto canonical = m1.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{canonical_count})}}),
+            start,
+            limit,
+            delta);
+        auto alternate = m1.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{alternate_count})}}),
+            start,
+            limit,
+            delta);
+        auto merged = m1.add_instruction(migraphx::make_op("add"), canonical, alternate);
+        auto first  = m1.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                  {"output_dim",
+                   migraphx::to_value(migraphx::shape::dynamic_dimension{alternate_count})}}),
+            start,
+            limit,
+            delta);
+        auto second = m1.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{alternate_count})}}),
+            start,
+            limit,
+            delta);
+        auto broadcast =
+            m1.add_instruction(migraphx::make_op("broadcast", {{"axis", 0}}), first, second);
+        m1.add_return({merged, broadcast});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto start =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+        auto limit =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{8}}});
+        auto delta =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{1}}});
+        auto canonical = m2.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{canonical_count})}}),
+            start,
+            limit,
+            delta);
+        auto alternate = m2.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{canonical_count})}}),
+            start,
+            limit,
+            delta);
+        auto merged = m2.add_instruction(migraphx::make_op("add"), canonical, alternate);
+        auto first  = m2.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                  {"output_dim",
+                   migraphx::to_value(migraphx::shape::dynamic_dimension{canonical_count})}}),
+            start,
+            limit,
+            delta);
+        auto second = m2.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{canonical_count})}}),
+            start,
+            limit,
+            delta);
+        auto broadcast =
+            m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 0}}), first, second);
+        m2.add_return({merged, broadcast});
+    }
+    EXPECT(m1 == m2);
+}
+
 // Exercise the remaining mapped operation families with one shared equivalence class. The
-// handlers must replace operations in place while leaving unrelated parameter metadata intact.
+// handlers must replace operation attributes while leaving unrelated parameter metadata intact.
 TEST_CASE(simplify_symbolic_dimensions_operation_handlers)
 {
     using migraphx::sym::var;

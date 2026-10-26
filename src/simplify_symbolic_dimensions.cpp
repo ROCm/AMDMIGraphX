@@ -32,6 +32,7 @@
 #include <migraphx/sym.hpp>
 
 #include <algorithm>
+#include <array>
 #include <numeric>
 #include <optional>
 #include <string>
@@ -143,11 +144,12 @@ shape substitute_shape(const shape& s, const substitutions& values)
     return shape{s.type(), std::move(dims), std::move(strides)};
 }
 
-// Rewrite symbolic slice bounds while preserving absent optional bounds.
-operation_replacement make_dyn_slice_replacement(const operation& op, const substitutions& values)
+struct dyn_slice_replacement
 {
-    auto attributes = op.to_value();
-    auto substitute = [&](const std::string& key) {
+    static bool matches(const operation& op) { return op.name() == "dyn_slice"; }
+
+    static bool substitute(value& attributes, const std::string& key, const substitutions& values)
+    {
         if(not attributes.contains(key) or attributes.at(key).is_null())
             return false;
         auto expressions = from_value<std::vector<sym::expr>>(attributes.at(key));
@@ -159,139 +161,180 @@ operation_replacement make_dyn_slice_replacement(const operation& op, const subs
             return false;
         attributes[key] = to_value(result);
         return true;
-    };
-    bool changed = substitute("starts");
-    changed      = substitute("ends") or changed;
-    if(not changed)
-        return std::nullopt;
-    return make_op(op.name(), attributes);
-}
-
-// Rewrite the symbolic output dimensions shared by the broadcast operation variants.
-operation_replacement make_broadcast_replacement(const operation& op, const substitutions& values)
-{
-    auto attributes = op.to_value();
-    if(not attributes.contains("out_dyn_dims") or attributes.at("out_dyn_dims").is_null())
-        return std::nullopt;
-    auto dims   = from_value<std::vector<shape::dynamic_dimension>>(attributes.at("out_dyn_dims"));
-    auto result = dims;
-    std::transform(dims.begin(), dims.end(), result.begin(), [&](const auto& d) {
-        return shape::dynamic_dimension{d.sym_expr.subs(values)};
-    });
-    if(result == dims)
-        return std::nullopt;
-    attributes["out_dyn_dims"] = to_value(result);
-    return make_op(op.name(), attributes);
-}
-
-// Rewrite symbolic dimensions and strides stored in an operation's shape attribute.
-operation_replacement make_shape_operation_replacement(const operation& op,
-                                                       const substitutions& values)
-{
-    auto attributes = op.to_value();
-    if(not attributes.contains("shape") or attributes.at("shape").is_null())
-        return std::nullopt;
-    auto s      = from_value<shape>(attributes.at("shape"));
-    auto result = substitute_shape(s, values);
-    if(result == s)
-        return std::nullopt;
-    attributes["shape"] = to_value(result);
-    return make_op(op.name(), attributes);
-}
-
-// Rewrite the optional symbolic dimension describing the range output.
-operation_replacement make_dynamic_range_replacement(const operation& op,
-                                                     const substitutions& values)
-{
-    auto attributes = op.to_value();
-    if(not attributes.contains("output_dim") or attributes.at("output_dim").is_null())
-        return std::nullopt;
-    auto d      = from_value<shape::dynamic_dimension>(attributes.at("output_dim"));
-    auto result = shape::dynamic_dimension{d.sym_expr.subs(values)};
-    if(result == d)
-        return std::nullopt;
-    attributes["output_dim"] = to_value(result);
-    return make_op(op.name(), attributes);
-}
-
-// Keep evaluated expressions and their captured input shapes on the same canonical symbols.
-operation_replacement make_eval_expr_from_shape_replacement(const operation& op,
-                                                            const substitutions& values)
-{
-    auto attributes = op.to_value();
-    bool changed    = false;
-    if(attributes.contains("expressions") and not attributes.at("expressions").is_null())
-    {
-        auto expressions = from_value<std::vector<sym::expr>>(attributes.at("expressions"));
-        auto result      = expressions;
-        std::transform(expressions.begin(), expressions.end(), result.begin(), [&](const auto& e) {
-            return e.subs(values);
-        });
-        if(result != expressions)
-        {
-            attributes["expressions"] = to_value(result);
-            changed                   = true;
-        }
     }
-    if(attributes.contains("input_shapes") and not attributes.at("input_shapes").is_null())
-    {
-        auto shapes = from_value<std::vector<shape>>(attributes.at("input_shapes"));
-        auto result = shapes;
-        std::transform(shapes.begin(), shapes.end(), result.begin(), [&](const auto& s) {
-            return substitute_shape(s, values);
-        });
-        if(result != shapes)
-        {
-            attributes["input_shapes"] = to_value(result);
-            changed                    = true;
-        }
-    }
-    if(not changed)
-        return std::nullopt;
-    return make_op(op.name(), attributes);
-}
 
-// Rewrite symbolic reshape dimensions while leaving concrete dimension entries unchanged.
-operation_replacement make_reshape_replacement(const operation& op, const substitutions& values)
+    // Rewrite symbolic slice bounds while preserving absent optional bounds.
+    static operation_replacement replace(const operation& op, const substitutions& values)
+    {
+        auto attributes = op.to_value();
+        bool changed    = substitute(attributes, "starts", values);
+        changed         = substitute(attributes, "ends", values) or changed;
+        if(not changed)
+            return std::nullopt;
+        return make_op(op.name(), attributes);
+    }
+};
+
+struct broadcast_replacement
 {
-    auto attributes = op.to_value();
-    if(not attributes.contains("dims") or attributes.at("dims").is_null())
-        return std::nullopt;
-    auto dims   = from_value<std::vector<dim_like>>(attributes.at("dims"));
-    auto result = dims;
-    std::transform(dims.begin(), dims.end(), result.begin(), [&](const auto& d) -> dim_like {
-        if(not is_symbolic(d))
-            return d;
-        const auto& dd = std::get<shape::dynamic_dimension>(d);
-        return shape::dynamic_dimension{dd.sym_expr.subs(values)};
-    });
-    if(result == dims)
-        return std::nullopt;
-    attributes["dims"] = to_value(result);
-    return make_op(op.name(), attributes);
-}
+    static bool matches(const operation& op)
+    {
+        return op.name() == "broadcast" or op.name() == "multibroadcast" or
+               op.name() == "broadcast_with_dims";
+    }
+
+    // Rewrite the symbolic output dimensions shared by the broadcast operation variants.
+    static operation_replacement replace(const operation& op, const substitutions& values)
+    {
+        auto attributes = op.to_value();
+        if(not attributes.contains("out_dyn_dims") or attributes.at("out_dyn_dims").is_null())
+            return std::nullopt;
+        auto dims =
+            from_value<std::vector<shape::dynamic_dimension>>(attributes.at("out_dyn_dims"));
+        auto result = dims;
+        std::transform(dims.begin(), dims.end(), result.begin(), [&](const auto& d) {
+            return shape::dynamic_dimension{d.sym_expr.subs(values)};
+        });
+        if(result == dims)
+            return std::nullopt;
+        attributes["out_dyn_dims"] = to_value(result);
+        return make_op(op.name(), attributes);
+    }
+};
+
+struct shape_operation_replacement
+{
+    static bool matches(const operation& op)
+    {
+        return op.name() == "allocate" or op.name() == "as_shape";
+    }
+
+    // Rewrite symbolic dimensions and strides stored in an operation's shape attribute.
+    static operation_replacement replace(const operation& op, const substitutions& values)
+    {
+        auto attributes = op.to_value();
+        if(not attributes.contains("shape") or attributes.at("shape").is_null())
+            return std::nullopt;
+        auto s      = from_value<shape>(attributes.at("shape"));
+        auto result = substitute_shape(s, values);
+        if(result == s)
+            return std::nullopt;
+        attributes["shape"] = to_value(result);
+        return make_op(op.name(), attributes);
+    }
+};
+
+struct dynamic_range_replacement
+{
+    static bool matches(const operation& op) { return op.name() == "dynamic_range"; }
+
+    // Rewrite the optional symbolic dimension describing the range output.
+    static operation_replacement replace(const operation& op, const substitutions& values)
+    {
+        auto attributes = op.to_value();
+        if(not attributes.contains("output_dim") or attributes.at("output_dim").is_null())
+            return std::nullopt;
+        auto d      = from_value<shape::dynamic_dimension>(attributes.at("output_dim"));
+        auto result = shape::dynamic_dimension{d.sym_expr.subs(values)};
+        if(result == d)
+            return std::nullopt;
+        attributes["output_dim"] = to_value(result);
+        return make_op(op.name(), attributes);
+    }
+};
+
+struct eval_expr_from_shape_replacement
+{
+    static bool matches(const operation& op) { return op.name() == "eval_expr_from_shape"; }
+
+    // Keep evaluated expressions and their captured input shapes on the same canonical symbols.
+    static operation_replacement replace(const operation& op, const substitutions& values)
+    {
+        auto attributes = op.to_value();
+        bool changed    = false;
+        if(attributes.contains("expressions") and not attributes.at("expressions").is_null())
+        {
+            auto expressions = from_value<std::vector<sym::expr>>(attributes.at("expressions"));
+            auto result      = expressions;
+            std::transform(expressions.begin(),
+                           expressions.end(),
+                           result.begin(),
+                           [&](const auto& e) { return e.subs(values); });
+            if(result != expressions)
+            {
+                attributes["expressions"] = to_value(result);
+                changed                   = true;
+            }
+        }
+        if(attributes.contains("input_shapes") and not attributes.at("input_shapes").is_null())
+        {
+            auto shapes = from_value<std::vector<shape>>(attributes.at("input_shapes"));
+            auto result = shapes;
+            std::transform(shapes.begin(), shapes.end(), result.begin(), [&](const auto& s) {
+                return substitute_shape(s, values);
+            });
+            if(result != shapes)
+            {
+                attributes["input_shapes"] = to_value(result);
+                changed                    = true;
+            }
+        }
+        if(not changed)
+            return std::nullopt;
+        return make_op(op.name(), attributes);
+    }
+};
+
+struct reshape_replacement
+{
+    static bool matches(const operation& op)
+    {
+        return op.name() == "reshape" or op.name() == "reshape_lazy";
+    }
+
+    // Rewrite symbolic reshape dimensions while leaving concrete dimension entries unchanged.
+    static operation_replacement replace(const operation& op, const substitutions& values)
+    {
+        auto attributes = op.to_value();
+        if(not attributes.contains("dims") or attributes.at("dims").is_null())
+            return std::nullopt;
+        auto dims   = from_value<std::vector<dim_like>>(attributes.at("dims"));
+        auto result = dims;
+        std::transform(dims.begin(), dims.end(), result.begin(), [&](const auto& d) -> dim_like {
+            if(not is_symbolic(d))
+                return d;
+            const auto& dd = std::get<shape::dynamic_dimension>(d);
+            return shape::dynamic_dimension{dd.sym_expr.subs(values)};
+        });
+        if(result == dims)
+            return std::nullopt;
+        attributes["dims"] = to_value(result);
+        return make_op(op.name(), attributes);
+    }
+};
+
+struct replacement_handler
+{
+    bool (*matches)(const operation&);
+    operation_replacement (*replace)(const operation&, const substitutions&);
+};
 
 // Route each supported operation to the handler that owns its complete attribute rewrite.
 operation_replacement make_operation_replacement(const operation& op, const substitutions& values)
 {
-    using make_replacement = operation_replacement (*)(const operation&, const substitutions&);
-    // Operation variants with the same symbolic attributes intentionally share a handler.
-    static const std::unordered_map<std::string, make_replacement> replacement_map = {
-        {"dyn_slice", make_dyn_slice_replacement},
-        {"broadcast", make_broadcast_replacement},
-        {"multibroadcast", make_broadcast_replacement},
-        {"broadcast_with_dims", make_broadcast_replacement},
-        {"allocate", make_shape_operation_replacement},
-        {"as_shape", make_shape_operation_replacement},
-        {"dynamic_range", make_dynamic_range_replacement},
-        {"eval_expr_from_shape", make_eval_expr_from_shape_replacement},
-        {"reshape", make_reshape_replacement},
-        {"reshape_lazy", make_reshape_replacement},
-    };
-    auto it = replacement_map.find(op.name());
-    if(it == replacement_map.end())
+    static const std::array<replacement_handler, 6> handlers = {{
+        {dyn_slice_replacement::matches, dyn_slice_replacement::replace},
+        {broadcast_replacement::matches, broadcast_replacement::replace},
+        {shape_operation_replacement::matches, shape_operation_replacement::replace},
+        {dynamic_range_replacement::matches, dynamic_range_replacement::replace},
+        {eval_expr_from_shape_replacement::matches, eval_expr_from_shape_replacement::replace},
+        {reshape_replacement::matches, reshape_replacement::replace},
+    }};
+    const auto* it = std::find_if(
+        handlers.begin(), handlers.end(), [&](const auto& handler) { return handler.matches(op); });
+    if(it == handlers.end())
         return std::nullopt;
-    return it->second(op, values);
+    return it->replace(op, values);
 }
 
 } // namespace
@@ -312,7 +355,10 @@ void simplify_symbolic_dimensions::apply(module& m) const
         if(not x.symbolic() or not y.symbolic() or x.ndim() != y.ndim())
             continue;
         migraphx::for_each(
-            x.dyn_dims().begin(), x.dyn_dims().end(), y.dyn_dims().begin(), [&](auto a, auto b) {
+            x.dyn_dims().begin(),
+            x.dyn_dims().end(),
+            y.dyn_dims().begin(),
+            [&](const auto& a, const auto& b) {
                 if(a.sym_expr != b.sym_expr)
                     sets.merge(a.sym_expr, b.sym_expr);
             });
@@ -323,21 +369,37 @@ void simplify_symbolic_dimensions::apply(module& m) const
     if(values.empty())
         return;
 
-    // Preserve module parameters and stage only operations with symbolic attributes that change.
-    // Staging all operations before recomputing shapes keeps dependent attributes consistent.
-    std::vector<instruction_ref> replacements;
-    for(auto ins : iterator_for(m))
+    std::vector<instruction_ref> original;
+    auto instructions = iterator_for(m);
+    std::copy(instructions.begin(), instructions.end(), std::back_inserter(original));
+
+    // Keep externally visible inputs and immutable leaves while rebuilding every computation with
+    // canonical attributes and inputs.
+    std::unordered_map<instruction_ref, instruction_ref> replacements;
+    for(auto ins : original)
     {
-        auto replacement = make_operation_replacement(ins->get_operator(), values);
-        if(not replacement.has_value())
-            continue;
-        instruction::replace(
-            ins, *replacement, ins->get_shape(), ins->inputs(), ins->module_inputs());
-        replacements.push_back(ins);
+        if(ins->name() == "@literal" or ins->name() == "@param" or ins->name() == "@outline" or
+           ins->name() == "@comment")
+            replacements.emplace(ins, ins);
     }
-    // Recompute changed instructions in graph order. Any changed shape propagates downstream.
-    for(auto ins : replacements)
-        m.replace_instruction(ins, ins->get_operator(), ins->inputs(), ins->module_inputs());
+    auto outputs = m.add_instructions(
+        original,
+        &replacements,
+        [&](module& mm,
+            instruction_ref pos,
+            const operation& op,
+            const std::vector<instruction_ref>& inputs,
+            const std::vector<module_ref>& module_inputs) {
+            auto replacement = make_operation_replacement(op, values);
+            return mm.insert_instruction(
+                pos, replacement.has_value() ? *replacement : op, inputs, module_inputs);
+        });
+    for(const auto& [old_ins, new_ins] : replacements)
+    {
+        if(old_ins != new_ins)
+            m.add_debug_symbols(new_ins, old_ins->get_debug_symbols());
+    }
+    m.replace_return(outputs);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

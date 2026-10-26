@@ -43,9 +43,7 @@ TEST_CASE(symbolic_reshape_cross_root_test)
             const auto expressions =
                 migraphx::to_value(std::vector<migraphx::sym::expr>{batch, lit(4)});
             auto target_dims = m.add_instruction(
-                migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}),
-                flattened,
-                x);
+                migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), x);
             auto allocation = m.add_instruction(
                 migraphx::make_op("allocate", {{"shape", migraphx::to_value(input_shape)}}),
                 target_dims);

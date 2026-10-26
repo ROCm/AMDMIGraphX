@@ -1456,319 +1456,18 @@ struct find_kv_cache_attention
     }
 };
 
-struct find_kv_cache_flash_decoding
+// The dot inputs, the pre-split scores, and the views that follow the second gemm.
+struct kv_fd_operands
 {
-    flash_decoding_config config{};
+    instruction_ref q{};
+    instruction_ref k{};
+    instruction_ref v{};
+    std::vector<std::size_t> scores_lens{};
+    std::size_t sequence_length = 0;
+    std::vector<operation> output_views{};
+    std::unordered_set<instruction_ref> skip_views{};
 
-    auto matcher() const
-    {
-        return match::name("group")(match::has_op_value("tag", "kv_cache_attention")).bind("group");
-    }
-
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
-    {
-        auto attn_group_ins = r.instructions["group"];
-        auto* submod        = attn_group_ins->module_inputs().front();
-        auto operands       = match_operands(*submod);
-        if(not operands.has_value())
-            return;
-
-        const auto actual_groups = config.num_groups(operands->sequence_length);
-        // TODO: support uneven splits by padding K, V, and score-shaped inputs
-        if(actual_groups <= 1 or operands->sequence_length % actual_groups != 0)
-            return;
-
-        const flash_decoding_split decoding{actual_groups, operands->scores_lens};
-        const auto transform = decoding.transform_qkv(
-            operands->q->get_shape(), operands->k->get_shape(), operands->v->get_shape());
-
-        module m_flash_decode;
-        m_flash_decode.set_bypass();
-        std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new;
-        for(auto param : submod->get_parameters())
-        {
-            const auto& name = any_cast<builtin::param>(param->get_operator()).parameter;
-            map_old_params_to_new[param] = m_flash_decode.add_parameter(name, param->get_shape());
-        }
-        // Q is already expanded heads. Its split is an unsqueeze and a broadcast,
-        // which stays a view. K and V repeat fewer heads with a broadcast that is
-        // then reshaped into the head axis, so the sequence split has to land on
-        // the packed cache before that repeat.
-        split_param(m_flash_decode, map_old_params_to_new, operands->q, transform.q_ops);
-        std::unordered_map<instruction_ref, std::vector<operation>> qkv_splits;
-        note_body_split(qkv_splits, operands->q, transform.q_ops);
-        if(not prebuild_sequence_split(m_flash_decode,
-                                       map_old_params_to_new,
-                                       operands->k,
-                                       operands->sequence_length,
-                                       actual_groups,
-                                       transform.k_shape))
-        {
-            split_param(m_flash_decode, map_old_params_to_new, operands->k, transform.k_ops);
-            note_body_split(qkv_splits, operands->k, transform.k_ops);
-        }
-        if(not prebuild_sequence_split(m_flash_decode,
-                                       map_old_params_to_new,
-                                       operands->v,
-                                       operands->sequence_length,
-                                       actual_groups,
-                                       transform.v_shape))
-        {
-            split_param(m_flash_decode, map_old_params_to_new, operands->v, transform.v_ops);
-            note_body_split(qkv_splits, operands->v, transform.v_ops);
-        }
-
-        if(not decoding.rebuild(m_flash_decode,
-                                *submod,
-                                map_old_params_to_new,
-                                qkv_splits.empty() ? nullptr : &qkv_splits,
-                                operands->skip_views.empty() ? nullptr : &operands->skip_views))
-            return;
-
-        auto* flash_mod =
-            mpm.create_module(submod->name() + "_kv_flash_decoding", std::move(m_flash_decode));
-        flash_mod->set_bypass();
-
-        auto& mm       = mpm.get_module();
-        auto new_group = mm.insert_instruction(attn_group_ins,
-                                               make_op("group", {{"tag", "kv_cache_attention"}}),
-                                               attn_group_ins->inputs(),
-                                               {flash_mod});
-        auto o_prime   = mm.insert_instruction(
-            attn_group_ins, make_op("get_tuple_elem", {{"index", 0}}), new_group);
-        auto lse = mm.insert_instruction(
-            attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group);
-        auto combined = decoding.combine(
-            mm, attn_group_ins, o_prime, lse, transform.g_axis, operands->output_views);
-        mm.replace_instruction(attn_group_ins, combined);
-    }
-
-    private:
-    struct operands
-    {
-        instruction_ref q{};
-        instruction_ref k{};
-        instruction_ref v{};
-        std::vector<std::size_t> scores_lens{};
-        std::size_t sequence_length = 0;
-        std::vector<operation> output_views{};
-        std::unordered_set<instruction_ref> skip_views{};
-    };
-
-    static void split_param(module& mm,
-                            std::unordered_map<instruction_ref, instruction_ref>& params,
-                            instruction_ref src,
-                            const std::vector<operation>& ops)
-    {
-        if(src->name() != "@param")
-            return;
-        params[src] = insert_ops(mm, mm.end(), ops, params.at(src));
-    }
-
-    static void note_body_split(std::unordered_map<instruction_ref, std::vector<operation>>& splits,
-                                instruction_ref src,
-                                const std::vector<operation>& ops)
-    {
-        if(src->name() == "@param")
-            return;
-        splits.emplace(src, ops);
-    }
-
-    struct sequence_layout
-    {
-        instruction_ref root{};
-        std::size_t seq_axis = 0;
-        std::vector<instruction_ref> chain{};
-        bool swap_last_two  = false;
-        bool head_repeat    = false;
-        int64_t repeat_axis = 0;
-        std::size_t repeat  = 1;
-    };
-
-    static bool swaps_last_two(const operation& op)
-    {
-        const auto perm = op.to_value().at("permutation").to_vector<int64_t>();
-        if(perm.size() < 2)
-            return false;
-        std::vector<int64_t> expect(perm.size());
-        std::iota(expect.begin(), expect.end(), 0);
-        std::swap(expect[expect.size() - 2], expect.back());
-        return perm == expect;
-    }
-
-    // Fold the repeated-head axis into the axis before it.
-    static std::vector<std::size_t> merge_repeat_dims(const std::vector<std::size_t>& lens,
-                                                      std::size_t axis)
-    {
-        std::vector<std::size_t> dims(lens.begin(), lens.begin() + axis - 1);
-        dims.push_back(lens[axis - 1] * lens[axis]);
-        dims.insert(dims.end(), lens.begin() + axis + 1, lens.end());
-        return dims;
-    }
-
-    static instruction_ref swap_last_two(module& mm, instruction_ref input)
-    {
-        const auto rank = input->get_shape().ndim();
-        std::vector<int64_t> perm(rank);
-        std::iota(perm.begin(), perm.end(), 0);
-        std::swap(perm[rank - 2], perm.back());
-        return mm.insert_instruction(
-            mm.end(), make_op("transpose", {{"permutation", perm}}), input);
-    }
-
-    static bool is_sequence_layout_op(const std::string& name)
-    {
-        return name == "reshape" or name == "multibroadcast" or name == "transpose" or
-               name == "unsqueeze";
-    }
-
-    // Layout ops from the dot input back to, but not including, the packed cache.
-    // A reshape of a broadcast reports packed strides, so the walk follows layout
-    // ops even when the shape claims to be standard and stops at the cache param.
-    static std::optional<sequence_layout> walk_sequence_layout(instruction_ref dot_input)
-    {
-        sequence_layout layout;
-        auto cur = dot_input;
-        while(cur->inputs().size() == 1 and cur->outputs().size() == 1 and
-              is_sequence_layout_op(cur->name()))
-        {
-            layout.chain.push_back(cur);
-            cur = cur->inputs().front();
-        }
-        if(layout.chain.empty() or cur->name() != "@param" or not cur->get_shape().standard())
-            return std::nullopt;
-        layout.root = cur;
-        return layout;
-    }
-
-    static bool consume_head_repeat(sequence_layout& layout,
-                                    std::vector<instruction_ref>::iterator& step)
-    {
-        if(step == layout.chain.end() or (*step)->name() != "reshape")
-            return true;
-        ++step;
-        if(step == layout.chain.end() or (*step)->name() != "multibroadcast")
-            return false;
-        layout.head_repeat = true;
-        ++step;
-        return true;
-    }
-
-    static bool consume_swap(sequence_layout& layout, std::vector<instruction_ref>::iterator& step)
-    {
-        if(step == layout.chain.end() or (*step)->name() != "transpose")
-            return true;
-        if(not swaps_last_two((*step)->get_operator()))
-            return false;
-        layout.swap_last_two = true;
-        ++step;
-        return true;
-    }
-
-    static bool consume_unsqueeze(sequence_layout& layout,
-                                  std::vector<instruction_ref>::iterator& step)
-    {
-        if(step == layout.chain.end() or (*step)->name() != "unsqueeze")
-            return true;
-        const auto axes = (*step)->get_operator().to_value().at("axes").to_vector<int64_t>();
-        if(axes.size() != 1 or axes.front() <= 0)
-            return false;
-        layout.repeat_axis = axes.front();
-        ++step;
-        return true;
-    }
-
-    // The reshape must be the merge of the broadcast's repeat axis into the head axis,
-    // and the transpose must not move that axis.
-    static bool check_head_repeat(sequence_layout& layout)
-    {
-        if(not layout.head_repeat)
-            return layout.swap_last_two;
-        const auto out =
-            layout.chain.at(1)->get_operator().to_value().at("out_lens").to_vector<std::size_t>();
-        const auto axis = static_cast<std::size_t>(layout.repeat_axis);
-        if(axis >= out.size())
-            return false;
-        layout.repeat = out[axis];
-        const auto merged =
-            layout.chain.front()->get_operator().to_value().at("dims").to_vector<std::size_t>();
-        if(merged != merge_repeat_dims(out, axis))
-            return false;
-        return not layout.swap_last_two or axis + 2 < out.size();
-    }
-
-    // Grouped heads are unsqueeze, an optional transpose that swaps the last two
-    // axes, broadcast, and a reshape that merges the repeat into the head axis.
-    // Without the repeat, K is that transpose of the cache.
-    static std::optional<sequence_layout> match_sequence_layout(instruction_ref dot_input,
-                                                                std::size_t sequence_length)
-    {
-        auto layout = walk_sequence_layout(dot_input);
-        if(not layout.has_value())
-            return std::nullopt;
-        const auto& lens = layout->root->get_shape().lens();
-        if(std::count(lens.begin(), lens.end(), sequence_length) != 1)
-            return std::nullopt;
-        layout->seq_axis = static_cast<std::size_t>(
-            std::distance(lens.begin(), std::find(lens.begin(), lens.end(), sequence_length)));
-
-        auto step = layout->chain.begin();
-        if(not consume_head_repeat(*layout, step) or not consume_swap(*layout, step) or
-           not consume_unsqueeze(*layout, step) or step != layout->chain.end() or
-           not check_head_repeat(*layout))
-            return std::nullopt;
-        return layout;
-    }
-
-    static bool
-    prebuild_sequence_split(module& mm,
-                            std::unordered_map<instruction_ref, instruction_ref>& params,
-                            instruction_ref dot_input,
-                            std::size_t sequence_length,
-                            std::size_t groups,
-                            const std::vector<std::size_t>& expected)
-    {
-        const auto layout = match_sequence_layout(dot_input, sequence_length);
-        if(not layout.has_value() or not contains(params, layout->root))
-            return false;
-
-        const auto& lens = params.at(layout->root)->get_shape().lens();
-        std::vector<std::size_t> dims(lens.begin(), lens.begin() + layout->seq_axis);
-        dims.push_back(groups);
-        dims.push_back(lens[layout->seq_axis] / groups);
-        dims.insert(dims.end(), lens.begin() + layout->seq_axis + 1, lens.end());
-        auto cur = mm.insert_instruction(
-            mm.end(), make_op("reshape", {{"dims", dims}}), params.at(layout->root));
-        if(layout->head_repeat)
-        {
-            auto axis = layout->repeat_axis;
-            if(axis > static_cast<int64_t>(layout->seq_axis))
-                ++axis;
-            cur = mm.insert_instruction(mm.end(), make_op("unsqueeze", {{"axes", {axis}}}), cur);
-            if(layout->swap_last_two)
-                cur = swap_last_two(mm, cur);
-            auto out                            = cur->get_shape().lens();
-            out[static_cast<std::size_t>(axis)] = layout->repeat;
-            cur                                 = mm.insert_instruction(
-                mm.end(), make_op("multibroadcast", {{"out_lens", out}}), cur);
-            cur = mm.insert_instruction(
-                mm.end(),
-                make_op("reshape",
-                        {{"dims", merge_repeat_dims(out, static_cast<std::size_t>(axis))}}),
-                cur);
-        }
-        else if(layout->swap_last_two)
-        {
-            cur = swap_last_two(mm, cur);
-        }
-        if(cur->get_shape().lens() != expected)
-            return false;
-        for(auto ins : layout->chain)
-            params[ins] = cur;
-        return true;
-    }
-
-    static std::optional<operands> match_operands(module& submod)
+    static std::optional<kv_fd_operands> match(module& submod)
     {
         auto return_ins = std::prev(submod.end());
         if(return_ins->name() != "@return" or return_ins->inputs().size() != 1)
@@ -1780,7 +1479,7 @@ struct find_kv_cache_flash_decoding
             return std::nullopt;
 
         const auto [gemm1, gemm2] = get_gemms(&submod);
-        operands result;
+        kv_fd_operands result;
         result.q           = gemm1->inputs().at(0);
         result.k           = gemm1->inputs().at(1);
         result.v           = gemm2->inputs().at(1);
@@ -1821,6 +1520,324 @@ struct find_kv_cache_flash_decoding
             result.skip_views.insert(view);
         }
         return result;
+    }
+};
+
+// How a packed cache is viewed at a dot: split its sequence axis, then repeat heads.
+// Grouped heads are unsqueeze, an optional transpose that swaps the last two axes,
+// broadcast, and a reshape that merges the repeat into the head axis. Without the
+// repeat, K is that transpose of the cache.
+struct kv_sequence_split
+{
+    struct head_repeat
+    {
+        int64_t axis      = 0;
+        std::size_t count = 1;
+    };
+
+    instruction_ref root{};
+    std::size_t sequence_axis = 0;
+    std::vector<instruction_ref> chain{};
+    std::optional<head_repeat> repeat{};
+    bool transpose_last_two = false;
+
+    static std::optional<kv_sequence_split> match(instruction_ref dot_input,
+                                                  std::size_t sequence_length)
+    {
+        auto viewed = walk(dot_input);
+        if(not viewed.has_value())
+            return std::nullopt;
+        const auto& lens = viewed->root->get_shape().lens();
+        if(std::count(lens.begin(), lens.end(), sequence_length) != 1)
+            return std::nullopt;
+
+        kv_sequence_split split;
+        split.root          = viewed->root;
+        split.chain         = std::move(viewed->chain);
+        split.sequence_axis = static_cast<std::size_t>(
+            std::distance(lens.begin(), std::find(lens.begin(), lens.end(), sequence_length)));
+        auto step       = split.chain.begin();
+        const auto last = split.chain.end();
+        if(not take_head_repeat(step, last, split.repeat) or
+           not take_transpose(step, last, split.transpose_last_two) or
+           not take_unsqueeze(step, last, split.repeat) or step != last or not split.finish())
+            return std::nullopt;
+        return split;
+    }
+
+    // Split the packed cache, then rebuild the head repeat as a broadcast. Returns false
+    // without aliasing the old chain when the built lens are not the expected split shape;
+    // the inserted ops are left for dead-code elimination.
+    bool build(module& mm,
+               std::unordered_map<instruction_ref, instruction_ref>& params,
+               std::size_t groups,
+               const std::vector<std::size_t>& expected) const
+    {
+        if(not contains(params, root))
+            return false;
+
+        const auto& lens = params.at(root)->get_shape().lens();
+        std::vector<std::size_t> dims(lens.begin(), lens.begin() + sequence_axis);
+        dims.push_back(groups);
+        dims.push_back(lens[sequence_axis] / groups);
+        dims.insert(dims.end(), lens.begin() + sequence_axis + 1, lens.end());
+        auto cur = mm.insert_instruction(
+            mm.end(), make_op("reshape", {{"dims", dims}}), params.at(root));
+        if(repeat.has_value())
+        {
+            auto axis = repeat->axis;
+            if(axis > static_cast<int64_t>(sequence_axis))
+                ++axis;
+            cur = mm.insert_instruction(mm.end(), make_op("unsqueeze", {{"axes", {axis}}}), cur);
+            if(transpose_last_two)
+                cur = swap_last_two(mm, cur);
+            auto out                            = cur->get_shape().lens();
+            out[static_cast<std::size_t>(axis)] = repeat->count;
+            cur                                 = mm.insert_instruction(
+                mm.end(), make_op("multibroadcast", {{"out_lens", out}}), cur);
+            cur = mm.insert_instruction(
+                mm.end(),
+                make_op("reshape",
+                        {{"dims", merge_repeat_dims(out, static_cast<std::size_t>(axis))}}),
+                cur);
+        }
+        else if(transpose_last_two)
+        {
+            cur = swap_last_two(mm, cur);
+        }
+        if(cur->get_shape().lens() != expected)
+            return false;
+        for(auto ins : chain)
+            params[ins] = cur;
+        return true;
+    }
+
+    private:
+    struct cache_view
+    {
+        instruction_ref root{};
+        std::vector<instruction_ref> chain{};
+    };
+
+    using cursor = std::vector<instruction_ref>::iterator;
+
+    // Layout ops from the dot input back to, but not including, the packed cache.
+    // A reshape of a broadcast reports packed strides, so the walk follows layout
+    // ops even when the shape claims to be standard and stops at the cache param.
+    static std::optional<cache_view> walk(instruction_ref dot_input)
+    {
+        cache_view viewed;
+        auto cur = dot_input;
+        while(cur->inputs().size() == 1 and cur->outputs().size() == 1 and
+              is_sequence_layout_op(cur->name()))
+        {
+            viewed.chain.push_back(cur);
+            cur = cur->inputs().front();
+        }
+        if(viewed.chain.empty() or cur->name() != "@param" or not cur->get_shape().standard())
+            return std::nullopt;
+        viewed.root = cur;
+        return viewed;
+    }
+
+    static bool take_head_repeat(cursor& step, cursor last, std::optional<head_repeat>& repeat)
+    {
+        if(step == last or (*step)->name() != "reshape")
+            return true;
+        ++step;
+        if(step == last or (*step)->name() != "multibroadcast")
+            return false;
+        repeat = head_repeat{};
+        ++step;
+        return true;
+    }
+
+    static bool take_transpose(cursor& step, cursor last, bool& transpose_last_two)
+    {
+        if(step == last or (*step)->name() != "transpose")
+            return true;
+        if(not swaps_last_two((*step)->get_operator()))
+            return false;
+        transpose_last_two = true;
+        ++step;
+        return true;
+    }
+
+    static bool take_unsqueeze(cursor& step, cursor last, std::optional<head_repeat>& repeat)
+    {
+        if(step == last or (*step)->name() != "unsqueeze")
+            return true;
+        const auto axes = (*step)->get_operator().to_value().at("axes").to_vector<int64_t>();
+        if(axes.size() != 1 or axes.front() <= 0)
+            return false;
+        if(repeat.has_value())
+            repeat->axis = axes.front();
+        ++step;
+        return true;
+    }
+
+    // The reshape must be the merge of the broadcast's repeat axis into the head axis,
+    // and the transpose must not move that axis. Without a head repeat, only the
+    // last-two transpose is a cache view.
+    bool finish()
+    {
+        if(not repeat.has_value())
+            return transpose_last_two;
+        const auto out =
+            chain.at(1)->get_operator().to_value().at("out_lens").to_vector<std::size_t>();
+        if(repeat->axis <= 0)
+            return false;
+        const auto axis = static_cast<std::size_t>(repeat->axis);
+        if(axis >= out.size())
+            return false;
+        repeat->count = out[axis];
+        const auto merged =
+            chain.front()->get_operator().to_value().at("dims").to_vector<std::size_t>();
+        if(merged != merge_repeat_dims(out, axis))
+            return false;
+        return not transpose_last_two or axis + 2 < out.size();
+    }
+
+    static bool is_sequence_layout_op(const std::string& name)
+    {
+        return name == "reshape" or name == "multibroadcast" or name == "transpose" or
+               name == "unsqueeze";
+    }
+
+    static bool swaps_last_two(const operation& op)
+    {
+        const auto perm = op.to_value().at("permutation").to_vector<int64_t>();
+        if(perm.size() < 2)
+            return false;
+        std::vector<int64_t> expect(perm.size());
+        std::iota(expect.begin(), expect.end(), 0);
+        std::swap(expect[expect.size() - 2], expect.back());
+        return perm == expect;
+    }
+
+    // Fold the repeated-head axis into the axis before it.
+    static std::vector<std::size_t> merge_repeat_dims(const std::vector<std::size_t>& lens,
+                                                      std::size_t axis)
+    {
+        std::vector<std::size_t> dims(lens.begin(), lens.begin() + axis - 1);
+        dims.push_back(lens[axis - 1] * lens[axis]);
+        dims.insert(dims.end(), lens.begin() + axis + 1, lens.end());
+        return dims;
+    }
+
+    static instruction_ref swap_last_two(module& mm, instruction_ref input)
+    {
+        const auto rank = input->get_shape().ndim();
+        std::vector<int64_t> perm(rank);
+        std::iota(perm.begin(), perm.end(), 0);
+        std::swap(perm[rank - 2], perm.back());
+        return mm.insert_instruction(
+            mm.end(), make_op("transpose", {{"permutation", perm}}), input);
+    }
+};
+
+void split_param(module& mm,
+                 std::unordered_map<instruction_ref, instruction_ref>& params,
+                 instruction_ref src,
+                 const std::vector<operation>& ops)
+{
+    if(src->name() != "@param")
+        return;
+    params[src] = insert_ops(mm, mm.end(), ops, params.at(src));
+}
+
+void note_body_split(std::unordered_map<instruction_ref, std::vector<operation>>& splits,
+                     instruction_ref src,
+                     const std::vector<operation>& ops)
+{
+    if(src->name() == "@param")
+        return;
+    splits.emplace(src, ops);
+}
+
+struct find_kv_cache_flash_decoding
+{
+    flash_decoding_config config{};
+
+    auto matcher() const
+    {
+        return match::name("group")(match::has_op_value("tag", "kv_cache_attention")).bind("group");
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto attn_group_ins = r.instructions["group"];
+        auto* submod        = attn_group_ins->module_inputs().front();
+        auto operands       = kv_fd_operands::match(*submod);
+        if(not operands.has_value())
+            return;
+
+        const auto actual_groups = config.num_groups(operands->sequence_length);
+        // TODO: support uneven splits by padding K, V, and score-shaped inputs
+        if(actual_groups <= 1 or operands->sequence_length % actual_groups != 0)
+            return;
+
+        const flash_decoding_split decoding{actual_groups, operands->scores_lens};
+        const auto transform = decoding.transform_qkv(
+            operands->q->get_shape(), operands->k->get_shape(), operands->v->get_shape());
+
+        module m_flash_decode;
+        m_flash_decode.set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new;
+        for(auto param : submod->get_parameters())
+        {
+            const auto& name = any_cast<builtin::param>(param->get_operator()).parameter;
+            map_old_params_to_new[param] = m_flash_decode.add_parameter(name, param->get_shape());
+        }
+        // Q is already expanded heads. Its split is an unsqueeze and a broadcast,
+        // which stays a view. K and V repeat fewer heads with a broadcast that is
+        // then reshaped into the head axis, so the sequence split has to land on
+        // the packed cache before that repeat.
+        split_param(m_flash_decode, map_old_params_to_new, operands->q, transform.q_ops);
+        std::unordered_map<instruction_ref, std::vector<operation>> qkv_splits;
+        note_body_split(qkv_splits, operands->q, transform.q_ops);
+        const auto k_split = kv_sequence_split::match(operands->k, operands->sequence_length);
+        if(not k_split.has_value() or not k_split->build(m_flash_decode,
+                                                         map_old_params_to_new,
+                                                         actual_groups,
+                                                         transform.k_shape))
+        {
+            split_param(m_flash_decode, map_old_params_to_new, operands->k, transform.k_ops);
+            note_body_split(qkv_splits, operands->k, transform.k_ops);
+        }
+        const auto v_split = kv_sequence_split::match(operands->v, operands->sequence_length);
+        if(not v_split.has_value() or not v_split->build(m_flash_decode,
+                                                         map_old_params_to_new,
+                                                         actual_groups,
+                                                         transform.v_shape))
+        {
+            split_param(m_flash_decode, map_old_params_to_new, operands->v, transform.v_ops);
+            note_body_split(qkv_splits, operands->v, transform.v_ops);
+        }
+
+        if(not decoding.rebuild(m_flash_decode,
+                                *submod,
+                                map_old_params_to_new,
+                                qkv_splits.empty() ? nullptr : &qkv_splits,
+                                operands->skip_views.empty() ? nullptr : &operands->skip_views))
+            return;
+
+        auto* flash_mod =
+            mpm.create_module(submod->name() + "_kv_flash_decoding", std::move(m_flash_decode));
+        flash_mod->set_bypass();
+
+        auto& mm       = mpm.get_module();
+        auto new_group = mm.insert_instruction(attn_group_ins,
+                                               make_op("group", {{"tag", "kv_cache_attention"}}),
+                                               attn_group_ins->inputs(),
+                                               {flash_mod});
+        auto o_prime   = mm.insert_instruction(
+            attn_group_ins, make_op("get_tuple_elem", {{"index", 0}}), new_group);
+        auto lse = mm.insert_instruction(
+            attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group);
+        auto combined = decoding.combine(
+            mm, attn_group_ins, o_prime, lse, transform.g_axis, operands->output_views);
+        mm.replace_instruction(attn_group_ins, combined);
     }
 };
 

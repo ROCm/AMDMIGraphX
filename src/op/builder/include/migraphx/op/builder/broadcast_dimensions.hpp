@@ -28,6 +28,12 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
+
+#include <algorithm>
+#include <cassert>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -89,6 +95,54 @@ void broadcast_dimensions_dynamic(Builder& bldr,
 }
 
 template <typename Builder>
+std::optional<instruction_ref>
+add_matching_dimension(Builder& bldr,
+                       const instruction_ref& source,
+                       const std::vector<shape::dynamic_dimension>& source_dds,
+                       const std::vector<shape::dynamic_dimension>& target_dds,
+                       std::size_t axis)
+{
+    if(source_dds.size() > target_dds.size())
+        return std::nullopt;
+    const auto offset = target_dds.size() - source_dds.size();
+    if(axis < offset)
+        return std::nullopt;
+    const auto source_axis = axis - offset;
+    if(source_dds[source_axis] != target_dds[axis])
+        return std::nullopt;
+    return bldr.add_instruction(
+        make_op("dimensions_of", {{"start", source_axis}, {"end", source_axis + 1}}), source);
+}
+
+template <typename Builder>
+instruction_ref add_symbolic_broadcast(Builder& bldr,
+                                       const instruction_ref& input,
+                                       const std::vector<shape::dynamic_dimension>& input_dds,
+                                       const instruction_ref& other,
+                                       const std::vector<shape::dynamic_dimension>& other_dds,
+                                       const std::vector<shape::dynamic_dimension>& target_dds)
+{
+    assert(not target_dds.empty());
+    std::vector<instruction_ref> runtime_dims;
+    auto axes = range(target_dds.size());
+    std::transform(axes.begin(), axes.end(), std::back_inserter(runtime_dims), [&](auto axis) {
+        auto result = add_matching_dimension(bldr, input, input_dds, target_dds, axis);
+        if(not result.has_value())
+            result = add_matching_dimension(bldr, other, other_dds, target_dds, axis);
+        if(not result.has_value())
+            MIGRAPHX_THROW("BROADCAST_DIMENSIONS: target dimension " +
+                           to_string(target_dds.at(axis)) + " at axis " + std::to_string(axis) +
+                           " has no runtime source");
+        return *result;
+    });
+    auto dims = runtime_dims.front();
+    if(runtime_dims.size() > 1)
+        dims = bldr.add_instruction(make_op("concat", {{"axis", 0}}), runtime_dims);
+    return bldr.add_instruction(
+        make_op("broadcast_with_dims", {{"out_dyn_dims", to_value(target_dds)}}), input, dims);
+}
+
+template <typename Builder>
 void broadcast_dimensions_symbolic(Builder& bldr,
                                    const instruction_ref& a0,
                                    const instruction_ref& a1,
@@ -112,43 +166,10 @@ void broadcast_dimensions_symbolic(Builder& bldr,
     l1_dds = out_dds;
     l1_dds.insert(l1_dds.end(), l1_it, s1_dds.end());
 
-    auto add_broadcast = [&](const instruction_ref& input,
-                             const std::vector<shape::dynamic_dimension>& input_dds,
-                             const instruction_ref& other,
-                             const std::vector<shape::dynamic_dimension>& other_dds,
-                             const std::vector<shape::dynamic_dimension>& target_dds) {
-        std::vector<instruction_ref> runtime_dims;
-        for(std::size_t axis = 0; axis < target_dds.size(); ++axis)
-        {
-            auto add_matching_dim = [&](const instruction_ref& source,
-                                        const std::vector<shape::dynamic_dimension>& source_dds) {
-                if(source_dds.size() > target_dds.size())
-                    return false;
-                const auto offset = target_dds.size() - source_dds.size();
-                if(axis < offset)
-                    return false;
-                const auto source_axis = axis - offset;
-                if(source_dds[source_axis] != target_dds[axis])
-                    return false;
-                runtime_dims.push_back(bldr.add_instruction(
-                    make_op("dimensions_of", {{"start", source_axis}, {"end", source_axis + 1}}),
-                    source));
-                return true;
-            };
-            if(not add_matching_dim(input, input_dds) and not add_matching_dim(other, other_dds))
-                MIGRAPHX_THROW("BROADCAST_DIMENSIONS: target dimension has no runtime source");
-        }
-        auto dims = runtime_dims.front();
-        if(runtime_dims.size() > 1)
-            dims = bldr.add_instruction(make_op("concat", {{"axis", 0}}), runtime_dims);
-        return bldr.add_instruction(
-            make_op("broadcast_with_dims", {{"out_dyn_dims", to_value(target_dds)}}), input, dims);
-    };
-
     if(s0_dds != l0_dds)
-        ba0 = add_broadcast(a0, s0_dds, a1, s1_dds, l0_dds);
+        ba0 = add_symbolic_broadcast(bldr, a0, s0_dds, a1, s1_dds, l0_dds);
     if(s1_dds != l1_dds)
-        ba1 = add_broadcast(a1, s1_dds, a0, s0_dds, l1_dds);
+        ba1 = add_symbolic_broadcast(bldr, a1, s1_dds, a0, s0_dds, l1_dds);
 }
 
 } // namespace detail
@@ -160,6 +181,7 @@ void broadcast_dimensions(Builder& bldr,
                           instruction_ref& ba0,
                           instruction_ref& ba1)
 {
+    assert(a0->get_shape().ndim() >= 2 and a1->get_shape().ndim() >= 2);
     auto args         = {a0, a1};
     bool any_symbolic = std::any_of(
         args.begin(), args.end(), [](const auto& a) { return a->get_shape().symbolic(); });

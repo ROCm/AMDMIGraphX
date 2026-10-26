@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <limits>
 
 struct test_fixed_pad : verify_program<test_fixed_pad>
 {
@@ -42,6 +43,43 @@ struct test_fixed_pad : verify_program<test_fixed_pad>
     std::unordered_map<std::string, migraphx::shape> get_test_dims() const
     {
         return {{"x", migraphx::shape{migraphx::shape::float_type, {1, 3}}}};
+    }
+};
+
+struct test_fixed_pad_int64 : verify_program<test_fixed_pad_int64>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::int64_type, {{1, 1}, {1, 4}}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::make_op("fixed_pad", {{"value", -2.0f}}), x);
+        return p;
+    }
+
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
+    {
+        return {{"x", migraphx::shape{migraphx::shape::int64_type, {1, 3}}}};
+    }
+};
+
+struct test_fixed_pad_lowest_half : verify_program<test_fixed_pad_lowest_half>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::half_type, {{1, 1}, {1, 4}}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(
+            migraphx::make_op("fixed_pad", {{"value", std::numeric_limits<float>::lowest()}}), x);
+        return p;
+    }
+
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
+    {
+        return {{"x", migraphx::shape{migraphx::shape::half_type, {1, 2}}}};
     }
 };
 

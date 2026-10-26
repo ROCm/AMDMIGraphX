@@ -26,6 +26,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/value.hpp>
 
 #include <test.hpp>
 
@@ -41,9 +42,29 @@ static void run_pass(migraphx::module& m)
         m, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
 }
 
-struct context_dependent_allocate
+struct context_dependent_identity
 {
-    std::string name() const { return "context_dependent_allocate"; }
+    std::string name() const { return "context_dependent_identity"; }
+
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+    {
+        return inputs.front();
+    }
+
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>& args) const
+    {
+        return args.front();
+    }
+
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
+};
+
+struct side_effect_allocate
+{
+    std::string name() const { return "side_effect_allocate"; }
+    migraphx::value attributes() const { return {{"side_effect", true}}; }
 
     migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
     {
@@ -85,14 +106,29 @@ TEST_CASE(cse_test1)
 TEST_CASE(cse_context_dependent_instruction)
 {
     migraphx::module m1;
-    auto x1 = m1.add_instruction(context_dependent_allocate{});
-    auto y1 = m1.add_instruction(context_dependent_allocate{});
+    auto input1 = m1.add_parameter("x", {migraphx::shape::float_type, {4}});
+    auto x1     = m1.add_instruction(context_dependent_identity{}, input1);
+    auto y1     = m1.add_instruction(context_dependent_identity{}, input1);
     m1.add_return({x1, y1});
 
     migraphx::module m2;
-    auto x2 = m2.add_instruction(context_dependent_allocate{});
-    auto y2 = m2.add_instruction(context_dependent_allocate{});
-    m2.add_return({x2, y2});
+    auto input2 = m2.add_parameter("x", {migraphx::shape::float_type, {4}});
+    auto x2     = m2.add_instruction(context_dependent_identity{}, input2);
+    m2.add_return({x2, x2});
+
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(cse_side_effect_instruction)
+{
+    migraphx::module m1;
+    auto x1 = m1.add_instruction(side_effect_allocate{});
+    auto y1 = m1.add_instruction(side_effect_allocate{});
+    m1.add_return({x1, y1});
+
+    auto m2 = m1;
 
     run_pass(m1);
 

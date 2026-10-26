@@ -33,18 +33,17 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
- * Precompile a graph carrying symbolic (dynamic) dimensions into a small set of
- * fully-static submodules, one per optimal size combination, referenced by a
- * `select_module`. Each submodule pads its symbolic inputs up to a fixed
- * optimal size and runs the ahead-of-time-compiled static body. Runtime
- * symbolic extents drive clone-local masks and main-module output slices.
+ * Specialize bounded symbolic dimensions into static submodules dispatched by a
+ * `select_module`: one clone per combination of each symbol's buckets (min, optimals, max).
+ * A clone pads its inputs to the bucket's target extent and masks by the runtime extent where
+ * padding would change the result; the main module slices outputs back to their runtime size.
  *
- * Supports multiple simultaneous symbolic dimensions. `max_clones` limits the
- * cartesian product; zero disables the limit.
+ * `max_clones` bounds the clones per block, since each is compiled independently. The default
+ * allows four symbols with two buckets each; zero disables the limit.
  */
 struct MIGRAPHX_EXPORT split_sym_dim
 {
-    std::size_t max_clones = 64;
+    std::size_t max_clones = 16;
 
     std::string name() const { return "split_sym_dim"; }
     void apply(module_pass_manager& mpm) const;

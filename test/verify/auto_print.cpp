@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include "auto_print.hpp"
+#include <migraphx/compile_modes.hpp>
 #include <map>
 #include <exception>
 #include <iostream>
@@ -33,19 +34,40 @@
 
 using handler_map = std::map<std::string, std::function<void()>>;
 
+// Pre-populate every key so concurrent lookups never modify the map
 static handler_map create_handlers()
 {
     handler_map m;
     for(const auto& name : migraphx::get_targets())
+    {
         m[name] = [] {};
+        for(auto mode : migraphx::enum_entries<migraphx::compile_modes>())
+            m[auto_print::make_name(name, mode)] = [] {};
+    }
     return m;
+}
+
+static handler_map& get_handlers()
+{
+    // NOLINTNEXTLINE
+    static handler_map handlers = create_handlers();
+    return handlers;
+}
+
+static void call_handlers()
+{
+    for(const auto& [name, handler] : get_handlers())
+        handler();
+}
+
+std::string auto_print::make_name(const std::string& target, migraphx::compile_modes mode)
+{
+    return target + "(" + migraphx::to_string(mode) + ")";
 }
 
 std::function<void()>& auto_print::get_handler(const std::string& name)
 {
-    // NOLINTNEXTLINE
-    static handler_map handlers = create_handlers();
-    return handlers[name];
+    return get_handlers().at(name);
 }
 
 void auto_print::set_terminate_handler(const std::string& name)
@@ -64,8 +86,7 @@ void auto_print::set_terminate_handler(const std::string& name)
             std::cout << "    what(): " << e.what() << std::endl;
         }
         std::cout << std::endl;
-        for(const auto& tname : migraphx::get_targets())
-            get_handler(tname)();
+        call_handlers();
     });
 }
 
@@ -83,8 +104,7 @@ auto_print::~auto_print()
     if(in_exception())
     {
         std::cout << std::endl;
-        for(const auto& tname : migraphx::get_targets())
-            get_handler(tname)();
+        call_handlers();
     }
     get_handler(name) = [] {};
 }

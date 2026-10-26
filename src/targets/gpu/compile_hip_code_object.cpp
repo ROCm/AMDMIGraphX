@@ -213,6 +213,16 @@ std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t ma
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }
 
+std::size_t compute_topk_block_size(const context& ctx, std::size_t k, std::size_t n)
+{
+    assert(k > 0);
+    // The per-wave candidates are merged through lds, which holds about 8192 pairs
+    auto max_wavefronts = std::max<std::size_t>(1, 8192 / k);
+    auto max_block_size =
+        std::min<std::size_t>(max_wavefronts * ctx.get_current_device().get_wavefront_size(), 1024);
+    return compute_block_size(ctx, n, max_block_size);
+}
+
 // Append the parameters derived from the options and the device rather than set by the caller.
 // Shared with hip_compile_key so the key sees the same final parameter list clang does.
 static void add_derived_params(const context& ctx, hip_compile_options& options)
@@ -286,6 +296,7 @@ std::string hip_compile_key(const context& ctx, const hip_src& src)
     ss << "global=" << options.global << "\n";
     ss << "local=" << options.local << "\n";
     ss << "output_arg=" << options.output_arg << "\n";
+    ss << "annotations=" << options.annotations << "\n";
     // One param per line so the key keeps the boundaries the compiler command line has.
     for(const auto& p : options.params)
         ss << "param=" << p << "\n";
@@ -317,7 +328,8 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
                           options.local,
                           options.inputs,
                           options.output,
-                          options.output_arg};
+                          options.output_arg,
+                          options.annotations};
 }
 
 operation compile_hip_code_object(context& ctx, hip_src src)

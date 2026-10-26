@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <test.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -41,6 +42,120 @@ TEST_CASE(test_find_fast_axis)
                migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 1, 0, 0}}) == 1);
     EXPECT(find_fast_axis(
                migraphx::shape{migraphx::shape::float_type, {64, 512, 32, 32}, {0, 0, 0, 0}}) == 3);
+}
+
+// An input with a stride of two along the vector axis, such as one of two
+// interleaved slices, is read as strided vectors by the reduce kernels only
+TEST_CASE(vectorize_strided)
+{
+    using migraphx::gpu::gen::vectorize;
+    migraphx::shape dense{migraphx::shape::half_type, {4, 2880, 90, 32}};
+    migraphx::shape strided{migraphx::shape::half_type, {4, 2880, 90, 32}, {5760, 0, 64, 2}};
+    auto vec = vectorize::elements(3, {strided, dense}, {32, 16, 8, 4, 2}, true);
+    EXPECT(vec.size == 32);
+    EXPECT(vec.axis == 3);
+    EXPECT(vec.strided);
+    EXPECT(vec.str() == "vectorize<32, 3, true>()");
+    // The other kernels dont read strided vectors
+    auto plain = vectorize::elements(3, {strided, dense}, {32, 16, 8, 4, 2});
+    EXPECT(plain.size == 1);
+    EXPECT(plain.str() == "vectorize<1, 3>()");
+    // The other strides must hold whole vectors of the strided input
+    migraphx::shape misaligned{migraphx::shape::half_type, {4, 2880, 90, 32}, {5760, 0, 48, 2}};
+    EXPECT(vectorize::elements(3, {misaligned, dense}, {32, 16, 8, 4, 2}, true).size == 8);
+    // The block of a stride must be a power of two of bytes to stay aligned
+    migraphx::shape stride3{migraphx::shape::half_type, {4, 2880, 90, 32}, {8640, 0, 96, 3}};
+    EXPECT(vectorize::elements(3, {stride3, dense}, {32, 16, 8, 4, 2}, true).size == 1);
+    migraphx::shape stride2_float{migraphx::shape::float_type, {4, 2880, 90, 32}, {5760, 0, 64, 2}};
+    migraphx::shape dense_float{migraphx::shape::float_type, {4, 2880, 90, 32}};
+    EXPECT(vectorize::elements(3, {stride2_float, dense_float}, {8, 4, 2}, true).size == 8);
+}
+
+static const auto compute_factor = test::make_function(
+    "tile::compute_factor", MIGRAPHX_LIFT(migraphx::gpu::gen::tile::compute_factor));
+
+TEST_CASE(test_compute_factor_one) { EXPECT(compute_factor(1) == 1); }
+
+TEST_CASE(test_compute_factor_small_primes)
+{
+    EXPECT(compute_factor(2) == 2);
+    EXPECT(compute_factor(3) == 3);
+    EXPECT(compute_factor(5) == 5);
+    EXPECT(compute_factor(7) == 7);
+    EXPECT(compute_factor(11) == 11);
+}
+
+TEST_CASE(test_compute_factor_large_primes)
+{
+    EXPECT(compute_factor(13) == 1);
+    EXPECT(compute_factor(101) == 1);
+}
+
+TEST_CASE(test_compute_factor_composite)
+{
+    EXPECT(compute_factor(12) == 12);
+    EXPECT(compute_factor(30) == 30);
+    EXPECT(compute_factor(35) == 35);
+}
+
+TEST_CASE(test_compute_factor_skips_large_prime_factors)
+{
+    EXPECT(compute_factor(26) == 2);
+    EXPECT(compute_factor(39) == 3);
+}
+
+TEST_CASE(test_compute_factor_default_max_size)
+{
+    EXPECT(compute_factor(64) == 64);
+    EXPECT(compute_factor(128) == 64);
+    EXPECT(compute_factor(1024) == 64);
+}
+
+TEST_CASE(test_compute_factor_custom_max_size)
+{
+    EXPECT(compute_factor(64, 8) == 8);
+    EXPECT(compute_factor(64, 1) == 1);
+    EXPECT(compute_factor(12, 2) == 2);
+}
+
+TEST_CASE(test_compute_factor_can_exceed_max_size)
+{
+    // max_size is checked before multiplying, so the last factor can overshoot it
+    EXPECT(compute_factor(25, 4) == 5);
+    EXPECT(compute_factor(12, 6) == 12);
+    EXPECT(compute_factor(6, 4) == 6);
+}
+
+static std::pair<std::vector<migraphx::shape>, std::size_t>
+reduce_dims_axis(std::vector<migraphx::shape> inputs, std::size_t axis)
+{
+    auto result = migraphx::gpu::gen::reduce_dims_axis(std::move(inputs), axis);
+    return {result, axis};
+}
+
+TEST_CASE(test_reduce_dims_axis_unpack)
+{
+    // An unpack halves the packed axis, so the two shapes have a different number
+    // of elements but the axis must still be tracked to the merged dim
+    std::vector<migraphx::shape> inputs = {
+        migraphx::shape{migraphx::shape::fp4x2_type, {1, 1024}},
+        migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1, 2048}}};
+    std::vector<migraphx::shape> expected = {
+        migraphx::shape{migraphx::shape::fp4x2_type, {1024}},
+        migraphx::shape{migraphx::shape::fp8e4m3fn_type, {2048}}};
+    EXPECT(reduce_dims_axis(inputs, 1) == std::make_pair(expected, std::size_t{0}));
+}
+
+TEST_CASE(test_reduce_dims_axis_not_merged)
+{
+    // The trailing dims merge, but the axis cant merge with them
+    std::vector<migraphx::shape> inputs = {
+        migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+        migraphx::shape{migraphx::shape::float_type, {2, 6, 4, 5}}};
+    std::vector<migraphx::shape> expected = {
+        migraphx::shape{migraphx::shape::float_type, {2, 3, 20}},
+        migraphx::shape{migraphx::shape::float_type, {2, 6, 20}}};
+    EXPECT(reduce_dims_axis(inputs, 1) == std::make_pair(expected, std::size_t{1}));
 }
 
 // A fused int4 dequant reduce: unpack -> pointwise(dequantizelinear, mul) -> reduce_sum,
@@ -97,6 +212,14 @@ TEST_CASE(generate_reduce_unpack_int4_zero_point_tensor)
     auto p   = make_unpack_reduce(false);
     auto src = migraphx::gpu::gen::generate_reduce(*p.get_module("reduce"), "kernel");
     EXPECT(src.find("unpack_int4_as<half>(x, half(0))") != std::string::npos);
+}
+
+TEST_CASE(generate_reduce_function_is_pure)
+{
+    auto p   = make_unpack_reduce(true);
+    auto src = migraphx::gpu::gen::generate_reduce(*p.get_module("reduce"), "kernel");
+    EXPECT(src.find("__device__ __attribute__((pure)) auto kernel(") != std::string::npos);
+    EXPECT(src.find("__attribute__((const)) auto kernel(") == std::string::npos);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

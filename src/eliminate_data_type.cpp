@@ -104,6 +104,7 @@ void eliminate_data_type::apply(module& m) const
                                                            "deref",
                                                            "dyn_slice",
                                                            "eval_expr_from_shape",
+                                                           "fixed_pad",
                                                            "get_tuple_elem",
                                                            "if",
                                                            "loop",
@@ -113,6 +114,7 @@ void eliminate_data_type::apply(module& m) const
                                                            "scatternd_mul",
                                                            "scatternd_none",
                                                            "select_module",
+                                                           "select_module_index",
                                                            // operates only on int8/uint8 bytes
                                                            "unpack_int4"};
     if(unsupported_types.empty())

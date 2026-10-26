@@ -54,6 +54,10 @@ struct hip_compile_options
     // keyed by input index. Used for kernel-side-only types such as packed
     // int4 which have no shape::type_t equivalent.
     std::map<std::size_t, std::string> type_overrides = {};
+    // Extra attributes for the code object, returned by its attributes(). For example
+    // "indexed_inputs" lists inputs the kernel reads only at index-selected positions (gather
+    // data), which lets write_literals leave such a literal in host memory.
+    value annotations = value::object{};
 
     /**
      * @brief Set the launch parameters but allow v to override the values
@@ -111,6 +115,11 @@ MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(context& ctx, hip_src src)
 
 MIGRAPHX_GPU_EXPORT std::size_t
 compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size = 1024);
+
+/// Block size for n lanes of work selecting the top k of each reduction, capped
+/// so the per-wave candidates fit in lds
+MIGRAPHX_GPU_EXPORT std::size_t
+compute_topk_block_size(const context& ctx, std::size_t k, std::size_t n);
 
 template <class T>
 std::string generate_index_ints(const std::vector<T>& v)

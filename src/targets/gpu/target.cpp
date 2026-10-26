@@ -37,6 +37,7 @@
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
+#include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/json.hpp>
@@ -106,6 +107,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR)
 
 namespace {
 // Backend options recognized by the GPU target, supplied via
@@ -137,6 +139,9 @@ struct backend_options
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;
+    // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
+    // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
+    std::size_t literal_staging_peak_percent = 5;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -151,6 +156,7 @@ struct backend_options
                     f(self.standardize_outputs, "standardize_outputs"),
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
+                    f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
@@ -248,7 +254,8 @@ struct pipeline_factory
             prefuse_ops{get_context()},
             dead_code_elimination{},
             dead_code_elimination{},
-            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
+            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                           .fast_math         = options.fast_math},
             rewrite_topk{},
             rewrite_low_precision{},
             enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
@@ -281,6 +288,8 @@ struct pipeline_factory
             enable_pass(mlir_enabled(),
                         fuse_mlir{.ctx              = get_context(),
                                   .use_specific_ops = backend_opts.mlir_use_specific_ops}),
+            dead_code_elimination{},
+            fuse_topk{},
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},
@@ -322,11 +331,13 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager},
+                        options.compile_mode == compile_modes::eager,
+                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{})},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{.max_memory = max_memory},
+            write_literals{.max_memory           = max_memory,
+                           .staging_peak_percent = backend_opts.literal_staging_peak_percent},
             enable_pass(backend_opts.hip_graph, hipgraphify{}),
             dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
@@ -379,7 +390,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             p.required_pipeline(),
             {optimize_module{},
              dead_code_elimination{},
-             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot},
+             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                            .fast_math         = options.fast_math},
              rewrite_topk{},
              dead_code_elimination{}},
             p.fusion_pipeline(),

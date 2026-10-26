@@ -8,6 +8,10 @@ MIGraphX environment variables
 
 The MIGraphX environment variables can be used by contributors to the MIGraphX code base to customize tuning, verification, and tracing.
 
+For user-facing guides on the most common tuning and validation variables, see
+:doc:`Tune model performance <../how-to/model-performance-tuning>` and
+:doc:`Validate model outputs <../how-to/model-validation>`.
+
 
 Model performance tunable variables
 ************************************
@@ -423,6 +427,16 @@ Debug settings for passes.
       | ``0``: Returns to default behavior.
 
       | Default: Debug statements for the ``memory-coloring`` pass aren't printed.
+
+  * - | ``MIGRAPHX_TRACE_WRITE_LITERALS``
+      | Prints the GPU memory budget of the ``write_literals`` pass: available memory, literal,
+        code object and scratch estimates, the shortfall, and how many literals are left in host
+        memory for zero-copy reads or staged through a copy each run.
+
+    - | ``1``: The memory budget is printed.
+      | ``0``: Returns to default behavior.
+
+      | Default: The memory budget isn't printed.
 
   * - | ``MIGRAPHX_TRACE_PROPAGATE_CONSTANT``
       | Turns on tracing of instructions that have been replaced with a constant.

@@ -331,3 +331,59 @@ TEST_CASE(select_module_not_found_error)
     params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
+
+TEST_CASE(select_module_nested_output_buffers)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape output_shape{std::vector<migraphx::shape>{s, s}};
+
+    auto* inner = p.create_module("inner");
+    inner->add_parameter("data", s);
+    auto inner_output0 = inner->add_parameter("inner:#output_0", s);
+    auto inner_output1 = inner->add_parameter("inner:#output_1", s);
+    inner->add_return({inner_output0, inner_output1});
+
+    auto* outer        = p.create_module("outer");
+    auto outer_data    = outer->add_parameter("data", s);
+    auto outer_output0 = outer->add_parameter("outer:#output_0", s);
+    auto outer_output1 = outer->add_parameter("outer:#output_1", s);
+    auto inner_select  = outer->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
+        {outer_data, outer_output0, outer_output1},
+        {inner});
+    auto inner_result0 =
+        outer->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), inner_select);
+    auto inner_result1 =
+        outer->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), inner_select);
+    outer->add_return({inner_result0, inner_result1});
+
+    auto* mm          = p.get_main_module();
+    auto data         = mm->add_parameter("data", s);
+    auto buffer0      = mm->add_parameter("buffer0", s);
+    auto buffer1      = mm->add_parameter("buffer1", s);
+    auto outer_select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
+        {data, buffer0, buffer1},
+        {outer});
+    auto result0 =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), outer_select);
+    auto result1 =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), outer_select);
+    mm->add_return({result0, result1});
+
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data_values(s.elements(), 0);
+    std::vector<float> buffer0_values(s.elements(), 1);
+    std::vector<float> buffer1_values(s.elements(), 2);
+    migraphx::parameter_map params;
+    params["data"]    = migraphx::argument{s, data_values.data()};
+    params["buffer0"] = migraphx::argument{s, buffer0_values.data()};
+    params["buffer1"] = migraphx::argument{s, buffer1_values.data()};
+    auto results      = p.eval(params);
+    EXPECT(migraphx::verify::verify_rms_range(results.at(0).to_vector<float>(), buffer0_values));
+    EXPECT(migraphx::verify::verify_rms_range(results.at(1).to_vector<float>(), buffer1_values));
+}

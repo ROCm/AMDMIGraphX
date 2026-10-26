@@ -25,6 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/prepare_reduce.hpp>
+#include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
@@ -39,9 +40,11 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/builtin.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/bit.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -58,9 +61,25 @@ static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
     return {4, 2};
 }
 
+/// Whether the stride of the input along the axis can be read as strided
+/// vectors: the kernel loads the block of stride elements around each lane,
+/// which can read past the last lane but never past its own block, so the
+/// bytes are mapped when the block is a power of two of bytes and so never
+/// straddles a page; a larger stride would load too many unused elements
+static bool strided_vectorizable(const shape& input, std::size_t axis)
+{
+    const std::size_t max_stride = 4;
+    auto stride                  = input.strides()[axis];
+    if(stride < 2 or stride > max_stride)
+        return false;
+    auto bytes = stride * input.type_size();
+    return bit_ceil(bytes) == bytes;
+}
+
 vectorize vectorize::elements(std::size_t axis,
                               const std::vector<shape>& inputs,
-                              const std::vector<std::size_t>& sizes)
+                              const std::vector<std::size_t>& sizes,
+                              bool strided)
 {
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
@@ -77,7 +96,8 @@ vectorize vectorize::elements(std::size_t axis,
                    [&](const auto& input) -> std::size_t {
                        auto stride = input.strides()[axis];
                        auto len    = input.lens()[axis];
-                       if(not contains({0, 1}, stride))
+                       if(not contains({0, 1}, stride) and
+                          not(strided and strided_vectorizable(input, axis)))
                            return 1;
                        if(len == 1 and input.elements() > sizes.front())
                            return sizes.front();
@@ -88,17 +108,21 @@ vectorize vectorize::elements(std::size_t axis,
                            // vectorized, which leaves its other strides unchanged
                            if(stride == 0)
                                return true;
-                           // All the strides are divisible by the size
-                           return std::all_of(
-                               input.strides().begin(), input.strides().end(), [&](auto i) {
-                                   return contains({0, 1}, i) or i % vsize == 0;
-                               });
+                           // The other strides are divisible by the elements a vector
+                           // spans along the axis
+                           auto span = vsize * stride;
+                           auto is   = range(input.ndim());
+                           return std::all_of(is.begin(), is.end(), [&](auto i) {
+                               if(i == axis or input.lens()[i] == 1)
+                                   return true;
+                               return input.strides()[i] % span == 0;
+                           });
                        });
                        if(it != sizes.end())
                            return *it;
                        return 1;
                    });
-    return {*std::min_element(max_vec_size.begin(), max_vec_size.end()), axis};
+    return {*std::min_element(max_vec_size.begin(), max_vec_size.end()), axis, strided};
 }
 
 vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<shape>& inputs)
@@ -135,7 +159,8 @@ vectorize vectorize::elements(std::size_t axis, const std::vector<shape>& inputs
 
 std::string vectorize::str() const
 {
-    return "vectorize<" + to_string(size) + ", " + to_string(axis) + ">()";
+    return "vectorize<" + to_string(size) + ", " + to_string(axis) + (strided ? ", true" : "") +
+           ">()";
 }
 
 preload preload::broadcasts(std::size_t axis, const std::vector<shape>& inputs)
@@ -184,7 +209,7 @@ static std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
     return (x + y - std::size_t{1}) / y;
 }
 
-static std::size_t compute_tile_factor(std::size_t r, std::size_t max_size = 64)
+std::size_t tile::compute_factor(std::size_t r, std::size_t max_size)
 {
     std::size_t n = 1;
     auto factors  = make_array(2, 3, 5, 7, 11);
@@ -237,8 +262,8 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
 
     const auto& s  = inputs.front();
-    auto dim1      = compute_tile_factor(s.lens()[result.axis]);
-    auto dim2      = compute_tile_factor(s.lens().back(), 4096 / dim1);
+    auto dim1      = compute_factor(s.lens()[result.axis]);
+    auto dim2      = compute_factor(s.lens().back(), 4096 / dim1);
     auto tile_size = dim1 * dim2;
     // equivalent to dim2 * (dim1 + 1) to avoid bank conflicts
     auto tile_bytes = (tile_size + dim2) * s.type_size();
@@ -247,7 +272,7 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
 
     result.ntiles = s.elements() / tile_size;
-    result.inner = s.lens();
+    result.inner  = s.lens();
     std::fill(result.inner.begin(), result.inner.end(), 1);
     result.inner[result.axis] = dim1;
     result.inner.back()       = dim2;
@@ -279,6 +304,23 @@ std::string tile::str() const
                               {{"modes", join_strings(strs, ", ")},
                                {"inner", generate_index_ints(inner)},
                                {"outer", generate_index_ints(outer)}});
+}
+
+std::vector<shape> reduce_dims_axis(std::vector<shape> inputs, std::size_t& axis)
+{
+    // Append a marker shape that is only unit-strided along axis, so reduce_dims
+    // wont merge that axis with an adjacent one and the marker tracks where it lands
+    const auto& s = inputs.back();
+    std::vector<std::size_t> strides(s.ndim());
+    strides[axis] = 1;
+    inputs.push_back(shape{s.type(), s.lens(), strides});
+
+    auto result         = reduce_dims(normalize_permutation(inputs));
+    const auto& rstride = result.back().strides();
+    axis                = std::find(rstride.begin(), rstride.end(), 1) - rstride.begin();
+    assert(axis < result.back().ndim());
+    result.pop_back();
+    return result;
 }
 
 std::size_t find_fast_axis(const shape& input)
@@ -497,6 +539,87 @@ static std::vector<std::size_t> get_rlens(const module& m)
     return reduce->get_shape().lens();
 }
 
+/// The call of a pointwise inside the reduce: inputs at the reduce shape or
+/// broadcast are read at the output index, the others through the inner
+/// slices of the reduction
+static std::string
+generate_reduce_pointwise(instruction_ref ins,
+                          const std::unordered_map<instruction_ref, std::string>& names,
+                          const std::vector<std::size_t>& rlens,
+                          const std::string& pointwise_name)
+{
+    std::vector<instruction_ref> tensors;
+    std::copy_if(
+        ins->inputs().begin(), ins->inputs().end(), std::back_inserter(tensors), [&](auto input) {
+            return input->get_shape().lens() != rlens and not input->get_shape().broadcasted() and
+                   not contains(tensors, input);
+        });
+    auto inner_names = names;
+    for(auto input : ins->inputs())
+    {
+        if(input->name() != "@param")
+            continue;
+        if(contains(tensors, input))
+            continue;
+        inner_names[input] += "[out_idx]";
+    }
+    for(auto input : tensors)
+        inner_names[input] += "_lambda_param";
+    auto call_function = pointwise_name + "(" +
+                         join_strings(cpp_generator::to_args(ins->inputs(), inner_names), ", ") +
+                         ")";
+    if(tensors.empty())
+        return call_function;
+    const std::string inner_template = "r.${inner}([=](${params}) { return ${call}; })(${args})";
+    std::string inner_name           = use_lazy_inner(ins) ? "lazy_inner" : "inner";
+    auto args                        = cpp_generator::to_args(tensors, names);
+    auto params                      = cpp_generator::to_args(tensors, inner_names);
+    std::transform(
+        params.begin(), params.end(), params.begin(), [](const auto& s) { return "auto " + s; });
+    return interpolate_string(inner_template,
+                              {{"inner", inner_name},
+                               {"params", join_strings(params, ", ")},
+                               {"args", join_strings(args, ", ")},
+                               {"call", call_function}});
+}
+
+/// A parameter the module never reads, such as the indices of an erased
+/// gather, is still an argument of the kernel
+static void mark_unused_params(cpp_generator::function& f, const module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "@param" or not ins->outputs().empty())
+            continue;
+        f.unused_param(to_c_id(any_cast<builtin::param>(ins->get_operator()).parameter));
+    }
+}
+
+std::size_t topk_k(const instruction& ins)
+{
+    assert(ins.name() == "topk");
+    auto axis = ins.get_operator().to_value().at("axis").to<std::size_t>();
+    return ins.get_shape().sub_shapes().front().lens().at(axis);
+}
+
+/// The reducer call for a make_indices or topk, which select along the
+/// reduction from a single input
+static std::string generate_select(const instruction& ins, const std::vector<std::string>& args)
+{
+    if(args.size() != 1)
+        MIGRAPHX_THROW(ins.name() + " expects one value tensor operand");
+    if(ins.name() == "gpu::make_indices")
+        return "r.make_indices_from(" + args.front() + ")";
+    bool largest    = ins.get_operator().to_value().at("largest").to<bool>();
+    auto index_type = ins.get_shape().sub_shapes().back().type();
+    return interpolate_string("r.template topk<${k}, ${index_type}>(${compare}, ${init})(${x})",
+                              {{"k", std::to_string(topk_k(ins))},
+                               {"index_type", shape::cpp_type(index_type)},
+                               {"compare", largest ? "greater{}" : "less{}"},
+                               {"init", largest ? "lowest{}" : "highest{}"},
+                               {"x", args.front()}});
+}
+
 std::string generate_reduce(const module& m, const std::string& name)
 {
     // Copy into a private program so the rewrites dont touch the module being
@@ -527,44 +650,7 @@ std::string generate_reduce(const module& m, const std::string& name)
             auto pointwise_name = "pointwise" + std::to_string(i);
             i++;
             generate_prepared_pointwise(g, *ins->module_inputs().front(), pointwise_name);
-            std::vector<instruction_ref> tensors;
-            std::copy_if(ins->inputs().begin(),
-                         ins->inputs().end(),
-                         std::back_inserter(tensors),
-                         [&](auto input) {
-                             return input->get_shape().lens() != rlens and
-                                    not input->get_shape().broadcasted() and
-                                    not contains(tensors, input);
-                         });
-            auto inner_names = names;
-            for(auto input : ins->inputs())
-            {
-                if(input->name() != "@param")
-                    continue;
-                if(contains(tensors, input))
-                    continue;
-                inner_names[input] += "[out_idx]";
-            }
-            for(auto input : tensors)
-                inner_names[input] += "_lambda_param";
-            auto call_function =
-                pointwise_name + "(" +
-                join_strings(cpp_generator::to_args(ins->inputs(), inner_names), ", ") + ")";
-            if(tensors.empty())
-                return call_function;
-            const std::string inner_template =
-                "r.${inner}([=](${params}) { return ${call}; })(${args})";
-            std::string inner_name = use_lazy_inner(ins) ? "lazy_inner" : "inner";
-            auto args              = cpp_generator::to_args(tensors, names);
-            auto params            = cpp_generator::to_args(tensors, inner_names);
-            std::transform(params.begin(), params.end(), params.begin(), [](const auto& s) {
-                return "auto " + s;
-            });
-            return interpolate_string(inner_template,
-                                      {{"inner", inner_name},
-                                       {"params", join_strings(params, ", ")},
-                                       {"args", join_strings(args, ", ")},
-                                       {"call", call_function}});
+            return generate_reduce_pointwise(ins, names, rlens, pointwise_name);
         }
         if(ins->name() == "multibroadcast")
         {
@@ -593,15 +679,10 @@ std::string generate_reduce(const module& m, const std::string& name)
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
             return interpolate_string("${x}[_c<${index}>]",
-                                          {{"x", x}, {"index", std::to_string(index)}});
+                                      {{"x", x}, {"index", std::to_string(index)}});
         }
-        if(ins->name() == "gpu::make_indices")
-        {
-            if(ins->inputs().size() != 1)
-                MIGRAPHX_THROW("gpu::make_indices expects one value tensor operand");
-            const auto& val = names.at(ins->inputs().front());
-            return "r.make_indices_from(" + val + ")";
-        }
+        if(contains({"gpu::make_indices", "topk"}, ins->name()))
+            return generate_select(*ins, cpp_generator::to_args(ins->inputs(), names));
         if(ins->name() == "identity")
         {
             const auto& x = names.at(ins->inputs().front());
@@ -609,7 +690,8 @@ std::string generate_reduce(const module& m, const std::string& name)
         }
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });
-    f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
+    f.set_attributes({"__device__", "__attribute__((pure))"}).set_generic_types(m).set_name(name);
+    mark_unused_params(f, rm);
     f.add_generic_param("r");
 
     // caller is fused_reduce_op(..., f(r, out_idx)), so the function `f` must take out_idx even if
@@ -627,7 +709,7 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
+        if(contains({"multibroadcast", "contiguous", "identity", "get_tuple_elem"}, ins.name()))
             continue;
         if(ins.name() == "pointwise")
         {

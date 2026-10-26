@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,62 @@ static void run_pass(migraphx::program& p)
     migraphx::run_passes(p, {migraphx::split_single_dyn_dim{}, migraphx::dead_code_elimination{}});
 }
 
+TEST_CASE(symbolic_shape_is_ignored)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter(
+        "data",
+        migraphx::shape::make_symbolic_shape(migraphx::shape::float_type, {"n[1..4]", "4"}));
+    mm->add_return({input});
+    auto expected = p;
+
+    run_pass(p);
+
+    EXPECT(p == expected);
+}
+
+TEST_CASE(incompatible_clone_output_is_ignored)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {{1, 3}, {3, 3}}});
+    auto output = mm->add_instruction(migraphx::make_op("fixed_pad", {{"value", -2.0f}}), input);
+    mm->add_return({output});
+    auto expected = p;
+
+    run_pass(p);
+
+    EXPECT(p == expected);
+}
+
+TEST_CASE(non_root_module_is_ignored)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {4, 4}}};
+    migraphx::shape output_shapes{std::vector<migraphx::shape>{s}};
+    migraphx::program p;
+    auto* branch       = p.create_module("branch");
+    auto branch_input  = branch->add_parameter("data", s);
+    auto branch_output = branch->add_instruction(migraphx::make_op("relu"), branch_input);
+    branch->add_return({branch_output});
+
+    auto* mm    = p.get_main_module();
+    auto input  = mm->add_parameter("data", s);
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
+        {input},
+        {branch});
+    auto output = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    mm->add_return({output});
+    auto expected = p;
+
+    run_pass(p);
+
+    EXPECT(p == expected);
+}
+
 TEST_CASE(dynamic_batch)
 {
     // Slightly different from ref_ops_test in that the literal is copied over the submodules.
@@ -52,7 +108,7 @@ TEST_CASE(dynamic_batch)
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-            auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
+            auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6}});
             auto broadcast_lit =
                 submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
             auto add_ins =
@@ -135,7 +191,7 @@ TEST_CASE(dynamic_batch_multiple_input)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm0->add_instruction(
             migraphx::make_op("select_module",
-                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0, input1, input2},
             {dim1, dim2, dim3, dim4});
         auto ret =
@@ -176,7 +232,7 @@ TEST_CASE(multiple_outputs)
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-            auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
+            auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6}});
             auto broadcast_lit =
                 submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
             auto add0_ins =

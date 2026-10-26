@@ -37,8 +37,7 @@ TEST_CASE(find_expression_sources_from_data)
 
     const auto n = var("n", {1, 8});
     migraphx::module m;
-    auto data =
-        m.add_parameter("data", {migraphx::shape::float_type, {dd{n + lit(1)}, dd{lit(4)}}});
+    auto data = m.add_parameter("data", {migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
 
     auto sources = migraphx::find_expression_sources(m, data, {n + lit(1), lit(4)});
     EXPECT(sources.has_value());
@@ -60,7 +59,7 @@ TEST_CASE(find_expression_sources_from_root)
     auto sources = migraphx::find_expression_sources(m, data, {n, lit(4)});
     EXPECT(sources.has_value());
     if(sources.has_value())
-        EXPECT(*sources == std::vector<migraphx::instruction_ref>{data, root});
+        EXPECT(*sources == std::vector<migraphx::instruction_ref>{root});
 }
 
 TEST_CASE(find_expression_sources_from_multiple_roots)
@@ -78,7 +77,7 @@ TEST_CASE(find_expression_sources_from_multiple_roots)
     auto sources = migraphx::find_expression_sources(m, data, {m_dim + n_dim});
     EXPECT(sources.has_value());
     if(sources.has_value())
-        EXPECT(*sources == std::vector<migraphx::instruction_ref>{data, n_root, m_root});
+        EXPECT(*sources == std::vector<migraphx::instruction_ref>{m_root, n_root});
 }
 
 TEST_CASE(find_expression_sources_missing_root)
@@ -93,6 +92,19 @@ TEST_CASE(find_expression_sources_missing_root)
 
     auto sources = migraphx::find_expression_sources(m, data, {n});
     EXPECT(not sources.has_value());
+}
+
+TEST_CASE(find_expression_sources_without_variables)
+{
+    using migraphx::sym::lit;
+
+    migraphx::module m;
+    auto data = m.add_parameter("data", {migraphx::shape::float_type, {1}});
+
+    auto sources = migraphx::find_expression_sources(m, data, {lit(2), lit(3)});
+    EXPECT(sources.has_value());
+    if(sources.has_value())
+        EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

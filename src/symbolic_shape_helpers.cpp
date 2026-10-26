@@ -28,100 +28,67 @@
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
 
-#include <numeric>
-#include <unordered_map>
+#include <algorithm>
 #include <unordered_set>
-#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-using substitutions = std::unordered_map<sym::expr, sym::expr>;
-
-void add_shape_expressions(substitutions& available, instruction_ref source)
+bool directly_contains_symbol(instruction_ref source, const sym::expr& symbol)
 {
     const auto& s = source->get_shape();
     if(not s.symbolic())
-        return;
-    std::vector<std::pair<sym::expr, sym::expr>> expressions;
-    transform_if(
-        s.dyn_dims().begin(),
-        s.dyn_dims().end(),
-        std::back_inserter(expressions),
-        [](const auto& d) { return d.is_symbolic(); },
-        [](const auto& d) { return std::make_pair(d.sym_expr, sym::lit(1)); });
-    transform_if(
-        s.dyn_dims().begin(),
-        s.dyn_dims().end(),
-        std::back_inserter(expressions),
-        [](const auto& d) { return d.is_symbolic() and d.sym_expr.name() == "variable"; },
-        [](const auto& d) { return std::make_pair(sym::as_symbol(d.sym_expr), sym::lit(1)); });
-    available.insert(expressions.begin(), expressions.end());
+        return false;
+    return any_of(s.dyn_dims(), [&](const auto& d) {
+        return d.is_symbolic() and d.sym_expr.name() == "variable" and
+               sym::same_symbol(d.sym_expr, symbol);
+    });
 }
-
-std::size_t count_unresolved(const std::vector<sym::expr>& expressions,
-                             const substitutions& available)
-{
-    return std::accumulate(expressions.begin(),
-                           expressions.end(),
-                           std::unordered_set<sym::expr>{},
-                           [&](auto unresolved, const auto& expression) {
-                               auto variables = sym::find_variables(expression.subs(available));
-                               unresolved.insert(variables.begin(), variables.end());
-                               return unresolved;
-                           })
-        .size();
-}
-
-struct source_candidate
-{
-    instruction_ref source;
-    std::size_t unresolved;
-    substitutions available;
-};
 
 } // namespace
 
 std::optional<std::vector<instruction_ref>> find_expression_sources(
     const module& m, instruction_ref data, const std::vector<sym::expr>& expressions)
 {
+    std::unordered_set<sym::expr> required;
+    for(const auto& expression : expressions)
+    {
+        auto variables = sym::find_variables(expression);
+        required.insert(variables.begin(), variables.end());
+    }
+
+    std::vector<std::pair<std::string, sym::expr>> ordered_variables;
+    std::transform(
+        required.begin(),
+        required.end(),
+        std::back_inserter(ordered_variables),
+        [](const auto& variable) { return std::make_pair(variable.to_string(), variable); });
+    std::sort(ordered_variables.begin(), ordered_variables.end(), [](const auto& x, const auto& y) {
+        return x.first < y.first;
+    });
+
     std::vector<instruction_ref> candidates = {data};
     auto parameters                         = m.get_parameters();
     candidates.insert(candidates.end(), parameters.begin(), parameters.end());
     auto instructions = iterator_for(m);
     candidates.insert(candidates.end(), instructions.begin(), instructions.end());
 
-    std::vector<instruction_ref> result = {data};
-    substitutions available;
-    add_shape_expressions(available, data);
-    auto unresolved = count_unresolved(expressions, available);
-
-    while(unresolved > 0)
+    std::vector<instruction_ref> result;
+    for(const auto& [name, variable] : ordered_variables)
     {
-        auto best = std::accumulate(
-            candidates.begin(),
-            candidates.end(),
-            std::optional<source_candidate>{},
-            [&](auto current, auto candidate) {
-                if(contains(result, candidate))
-                    return current;
-                auto candidate_available = available;
-                add_shape_expressions(candidate_available, candidate);
-                auto candidate_unresolved = count_unresolved(expressions, candidate_available);
-                auto current_unresolved   = current.has_value() ? current->unresolved : unresolved;
-                if(candidate_unresolved >= current_unresolved)
-                    return current;
-                return std::optional<source_candidate>{
-                    {candidate, candidate_unresolved, std::move(candidate_available)}};
-            });
-        if(not best.has_value())
+        (void)name;
+        auto source = std::find_if(candidates.begin(), candidates.end(), [&](auto candidate) {
+            return directly_contains_symbol(candidate, variable);
+        });
+        if(source == candidates.end())
             return std::nullopt;
-        result.push_back(best->source);
-        available  = std::move(best->available);
-        unresolved = best->unresolved;
+        if(not contains(result, *source))
+            result.push_back(*source);
     }
+    if(result.empty())
+        result.push_back(data);
     return result;
 }
 

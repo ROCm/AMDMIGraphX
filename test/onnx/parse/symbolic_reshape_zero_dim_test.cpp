@@ -74,14 +74,10 @@ TEST_CASE(symbolic_reshape_zero_dim_compound_input_test)
                 m.insert_literal(x, migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
             auto width = m.add_instruction(
                 migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 2}}), x);
-            m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), zero, width);
-
-            const auto expressions =
-                migraphx::to_value(std::vector<migraphx::sym::expr>{n + 1, lit(4)});
-            auto target_dims = m.add_instruction(
-                migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), x);
+            auto target_dims =
+                m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), zero, width);
             auto allocation = m.add_instruction(
-                migraphx::make_op("allocate", {{"shape", migraphx::to_value(input_shape)}}),
+                migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}),
                 target_dims);
             m.add_return({m.add_instruction(migraphx::make_op("reshape"), x, allocation)});
         }));

@@ -320,6 +320,93 @@ TEST_CASE(simplify_symbolic_dimensions_converging_producers)
     EXPECT(m1 == m2);
 }
 
+// An unrelated symbolic equality must not reinterpret range-based broadcast attributes as
+// symbolic expressions.
+TEST_CASE(simplify_symbolic_dimensions_preserve_range_broadcast_dimensions)
+{
+    using migraphx::sym::var;
+
+    const auto canonical_count = var("canonical_count", {1, 8});
+    const auto alternate_count = var("alternate_count", {1, 8});
+    const std::vector<migraphx::shape::dynamic_dimension> broadcast_dims{{1, 4}, {6, 6}};
+
+    migraphx::module m1;
+    {
+        auto data   = m1.add_parameter("data", {migraphx::shape::float_type, {1, 6}});
+        auto target = m1.add_parameter("target", {migraphx::shape::float_type, broadcast_dims});
+        auto start =
+            m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+        auto limit =
+            m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{8}}});
+        auto delta =
+            m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{1}}});
+        auto canonical = m1.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{canonical_count})}}),
+            start,
+            limit,
+            delta);
+        auto alternate = m1.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{alternate_count})}}),
+            start,
+            limit,
+            delta);
+        auto merged    = m1.add_instruction(migraphx::make_op("add"), canonical, alternate);
+        auto broadcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast",
+                              {{"out_dyn_dims", migraphx::to_value(broadcast_dims)}}),
+            data,
+            target);
+        m1.add_return({merged, broadcast});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto data   = m2.add_parameter("data", {migraphx::shape::float_type, {1, 6}});
+        auto target = m2.add_parameter("target", {migraphx::shape::float_type, broadcast_dims});
+        auto start =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+        auto limit =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{8}}});
+        auto delta =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{1}}});
+        auto canonical = m2.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{canonical_count})}}),
+            start,
+            limit,
+            delta);
+        auto alternate = m2.add_instruction(
+            migraphx::make_op(
+                "dynamic_range",
+                {{"max_output", 8},
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{canonical_count})}}),
+            start,
+            limit,
+            delta);
+        auto merged    = m2.add_instruction(migraphx::make_op("add"), canonical, alternate);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast",
+                              {{"out_dyn_dims", migraphx::to_value(broadcast_dims)}}),
+            data,
+            target);
+        m2.add_return({merged, broadcast});
+    }
+    EXPECT(m1 == m2);
+}
+
 // Exercise the remaining mapped operation families with one shared equivalence class. The
 // handlers must replace operation attributes while leaving unrelated parameter metadata intact.
 TEST_CASE(simplify_symbolic_dimensions_operation_handlers)

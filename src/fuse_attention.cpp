@@ -1619,7 +1619,7 @@ struct kv_sequence_split
         std::vector<instruction_ref> chain{};
     };
 
-    using cursor = std::vector<instruction_ref>::iterator;
+    using it = std::vector<instruction_ref>::iterator;
 
     // Layout ops from the dot input back to, but not including, the packed cache.
     // A reshape of a broadcast reports packed strides, so the walk follows layout
@@ -1640,7 +1640,7 @@ struct kv_sequence_split
         return viewed;
     }
 
-    static bool take_head_repeat(cursor& step, cursor last, std::optional<head_repeat>& repeat)
+    static bool take_head_repeat(it& step, it last, std::optional<head_repeat>& repeat)
     {
         if(step == last or (*step)->name() != "reshape")
             return true;
@@ -1652,7 +1652,7 @@ struct kv_sequence_split
         return true;
     }
 
-    static bool take_transpose(cursor& step, cursor last, bool& transpose_last_two)
+    static bool take_transpose(it& step, it last, bool& transpose_last_two)
     {
         if(step == last or (*step)->name() != "transpose")
             return true;
@@ -1663,7 +1663,7 @@ struct kv_sequence_split
         return true;
     }
 
-    static bool take_unsqueeze(cursor& step, cursor last, std::optional<head_repeat>& repeat)
+    static bool take_unsqueeze(it& step, it last, std::optional<head_repeat>& repeat)
     {
         if(step == last or (*step)->name() != "unsqueeze")
             return true;
@@ -1736,24 +1736,29 @@ struct kv_sequence_split
     }
 };
 
-void split_param(module& mm,
-                 std::unordered_map<instruction_ref, instruction_ref>& params,
-                 instruction_ref src,
-                 const std::vector<operation>& ops)
+// Generic split ops for one dot input. A parameter is rewritten now and any other
+// instruction is wrapped when the softmax body is copied
+struct dot_input_split
 {
-    if(src->name() != "@param")
-        return;
-    params[src] = insert_ops(mm, mm.end(), ops, params.at(src));
-}
+    instruction_ref input{};
+    std::vector<std::size_t> expected{};
+    std::vector<operation> ops{};
 
-void note_body_split(std::unordered_map<instruction_ref, std::vector<operation>>& splits,
-                     instruction_ref src,
-                     const std::vector<operation>& ops)
-{
-    if(src->name() == "@param")
-        return;
-    splits.emplace(src, ops);
-}
+    void place(module& mm,
+               std::unordered_map<instruction_ref, instruction_ref>& params,
+               std::unordered_map<instruction_ref, std::vector<operation>>& splits,
+               std::size_t sequence_length,
+               std::size_t groups) const
+    {
+        const auto split = kv_sequence_split::match(input, sequence_length);
+        if(split.has_value() and split->build(mm, params, groups, expected))
+            return;
+        if(input->name() == "@param")
+            params[input] = insert_ops(mm, mm.end(), ops, params.at(input));
+        else
+            splits.emplace(input, ops);
+    }
+};
 
 struct find_kv_cache_flash_decoding
 {
@@ -1789,29 +1794,18 @@ struct find_kv_cache_flash_decoding
             const auto& name = any_cast<builtin::param>(param->get_operator()).parameter;
             map_old_params_to_new[param] = m_flash_decode.add_parameter(name, param->get_shape());
         }
-        // Q is already expanded heads. Its split is an unsqueeze and a broadcast,
-        // which stays a view. K and V repeat fewer heads with a broadcast that is
-        // then reshaped into the head axis, so the sequence split has to land on
-        // the packed cache before that repeat.
-        split_param(m_flash_decode, map_old_params_to_new, operands->q, transform.q_ops);
+        // A packed cache is split on its sequence axis before the head repeat.
+        // Q, and a K or V that is not that cache view, keep the generic split ops.
         std::unordered_map<instruction_ref, std::vector<operation>> qkv_splits;
-        note_body_split(qkv_splits, operands->q, transform.q_ops);
-        const auto k_split = kv_sequence_split::match(operands->k, operands->sequence_length);
-        if(not k_split.has_value() or
-           not k_split->build(
-               m_flash_decode, map_old_params_to_new, actual_groups, transform.k_shape))
-        {
-            split_param(m_flash_decode, map_old_params_to_new, operands->k, transform.k_ops);
-            note_body_split(qkv_splits, operands->k, transform.k_ops);
-        }
-        const auto v_split = kv_sequence_split::match(operands->v, operands->sequence_length);
-        if(not v_split.has_value() or
-           not v_split->build(
-               m_flash_decode, map_old_params_to_new, actual_groups, transform.v_shape))
-        {
-            split_param(m_flash_decode, map_old_params_to_new, operands->v, transform.v_ops);
-            note_body_split(qkv_splits, operands->v, transform.v_ops);
-        }
+        for(const auto& input :
+            {dot_input_split{operands->q, transform.q_shape, transform.q_ops},
+             dot_input_split{operands->k, transform.k_shape, transform.k_ops},
+             dot_input_split{operands->v, transform.v_shape, transform.v_ops}})
+            input.place(m_flash_decode,
+                        map_old_params_to_new,
+                        qkv_splits,
+                        operands->sequence_length,
+                        actual_groups);
 
         if(not decoding.rebuild(m_flash_decode,
                                 *submod,

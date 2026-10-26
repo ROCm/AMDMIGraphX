@@ -1581,8 +1581,8 @@ struct kv_sequence_split
         dims.push_back(groups);
         dims.push_back(lens[sequence_axis] / groups);
         dims.insert(dims.end(), lens.begin() + sequence_axis + 1, lens.end());
-        auto cur = mm.insert_instruction(
-            mm.end(), make_op("reshape", {{"dims", dims}}), params.at(root));
+        auto cur =
+            mm.insert_instruction(mm.end(), make_op("reshape", {{"dims", dims}}), params.at(root));
         if(repeat.has_value())
         {
             auto axis = repeat->axis;
@@ -1797,19 +1797,17 @@ struct find_kv_cache_flash_decoding
         std::unordered_map<instruction_ref, std::vector<operation>> qkv_splits;
         note_body_split(qkv_splits, operands->q, transform.q_ops);
         const auto k_split = kv_sequence_split::match(operands->k, operands->sequence_length);
-        if(not k_split.has_value() or not k_split->build(m_flash_decode,
-                                                         map_old_params_to_new,
-                                                         actual_groups,
-                                                         transform.k_shape))
+        if(not k_split.has_value() or
+           not k_split->build(
+               m_flash_decode, map_old_params_to_new, actual_groups, transform.k_shape))
         {
             split_param(m_flash_decode, map_old_params_to_new, operands->k, transform.k_ops);
             note_body_split(qkv_splits, operands->k, transform.k_ops);
         }
         const auto v_split = kv_sequence_split::match(operands->v, operands->sequence_length);
-        if(not v_split.has_value() or not v_split->build(m_flash_decode,
-                                                         map_old_params_to_new,
-                                                         actual_groups,
-                                                         transform.v_shape))
+        if(not v_split.has_value() or
+           not v_split->build(
+               m_flash_decode, map_old_params_to_new, actual_groups, transform.v_shape))
         {
             split_param(m_flash_decode, map_old_params_to_new, operands->v, transform.v_ops);
             note_body_split(qkv_splits, operands->v, transform.v_ops);

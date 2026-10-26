@@ -350,7 +350,7 @@ operation_replacement make_operation_replacement(const operation& op, const subs
         {eval_expr_from_shape_replacement::matches, eval_expr_from_shape_replacement::replace},
         {reshape_replacement::matches, reshape_replacement::replace},
     }};
-    const auto* it = std::find_if(
+    const auto* it                                           = std::find_if(
         handlers.begin(), handlers.end(), [&](const auto& handler) { return handler.matches(op); });
     if(it == handlers.end())
         return std::nullopt;
@@ -374,14 +374,13 @@ void simplify_symbolic_dimensions::apply(module& m) const
         const auto& y = inputs.back()->get_shape();
         if(not x.symbolic() or not y.symbolic() or x.ndim() != y.ndim())
             continue;
-        migraphx::for_each(
-            x.dyn_dims().begin(),
-            x.dyn_dims().end(),
-            y.dyn_dims().begin(),
-            [&](const auto& a, const auto& b) {
-                if(a.sym_expr != b.sym_expr)
-                    sets.merge(a.sym_expr, b.sym_expr);
-            });
+        migraphx::for_each(x.dyn_dims().begin(),
+                           x.dyn_dims().end(),
+                           y.dyn_dims().begin(),
+                           [&](const auto& a, const auto& b) {
+                               if(a.sym_expr != b.sym_expr)
+                                   sets.merge(a.sym_expr, b.sym_expr);
+                           });
     }
 
     // Choose one canonical expression for each equivalence set and map the other expressions to it.

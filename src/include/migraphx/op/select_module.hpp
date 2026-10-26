@@ -107,9 +107,10 @@ struct select_module
         // module_refs. Do not carry non-owning module_refs from the source operation into it.
         metadata_cache(const metadata_cache&) {}
 
-        metadata_cache& operator=(const metadata_cache&)
+        metadata_cache& operator=(const metadata_cache& other)
         {
-            storage = std::make_shared<metadata_cache_storage>();
+            if(this != &other)
+                storage = std::make_shared<metadata_cache_storage>();
             return *this;
         }
     };

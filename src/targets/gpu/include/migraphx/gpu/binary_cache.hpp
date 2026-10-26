@@ -101,11 +101,13 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     /// requested; the short id names the cache directory, and a database records the full one.
     /// Empty when the compiler cannot be identified, in which case nothing is read from or
     /// written to disk, since entries from different compilers could not be told apart.
-    static const std::string& version_id(bool use_short_digest);
+    /// `disable_processes` only affects the first call, which probes the compiler.
+    static const std::string& version_id(bool use_short_digest, bool disable_processes = false);
 
     private:
-    /// The storage backend, opened on first use, or null for a memory-only cache.
-    binary_cache_backend* get_backend();
+    /// The storage backend, opened on first use, or null for a memory-only cache. The context
+    /// decides whether probing the compiler may spawn a process.
+    binary_cache_backend* get_backend(const context& ctx);
 
     std::unordered_map<std::string, compiled_code> memo;
     binary_cache_settings settings;

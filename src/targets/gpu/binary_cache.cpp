@@ -75,9 +75,9 @@ static const std::string& kernels_source()
     return src;
 }
 
-static std::string make_version_id(bool use_short_digest)
+static std::string make_version_id(bool use_short_digest, bool disable_processes)
 {
-    const auto& compiler = hip_compiler_version();
+    const auto& compiler = hip_compiler_version(disable_processes);
     if(compiler.empty())
         return {};
     // The version numbers make the id readable; the hash of the full version string
@@ -87,10 +87,10 @@ static std::string make_version_id(bool use_short_digest)
            digest(kernels_source(), use_short_digest) + "-rocmlir" + rocmlir_id;
 }
 
-const std::string& binary_cache::version_id(bool use_short_digest)
+const std::string& binary_cache::version_id(bool use_short_digest, bool disable_processes)
 {
-    static const std::string short_id = make_version_id(true);
-    static const std::string long_id  = make_version_id(false);
+    static const std::string short_id = make_version_id(true, disable_processes);
+    static const std::string long_id  = make_version_id(false, disable_processes);
     return use_short_digest ? short_id : long_id;
 }
 
@@ -108,7 +108,7 @@ static std::string device_dir(const context& ctx)
 // entries. A directory is named with the short version id to keep paths short; a database records
 // the full id. Nothing is persisted when the compiler cannot be identified, since entries from
 // different toolchains would be indistinguishable.
-binary_cache_backend* binary_cache::get_backend()
+binary_cache_backend* binary_cache::get_backend(const context& ctx)
 {
     if(backend_opened)
         return backend.has_value() ? &*backend : nullptr;
@@ -118,7 +118,7 @@ binary_cache_backend* binary_cache::get_backend()
     if(path.empty())
         return nullptr;
     const bool database = sqlite::is_database_path(path);
-    version             = version_id(not database);
+    version             = version_id(not database, ctx.get_disable_processes());
     if(version.empty())
         return nullptr;
     if(not database)
@@ -138,7 +138,7 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
         counters.reused++;
         return it->second;
     }
-    if(auto* b = get_backend())
+    if(auto* b = get_backend(ctx))
     {
         auto e = b->load(version, device_dir(ctx), key);
         if(e.has_value())
@@ -159,7 +159,7 @@ void binary_cache::insert(const context& ctx, std::vector<binary_cache_entry> es
     if(es.empty())
         return;
     counters.compiled += es.size();
-    if(auto* b = get_backend())
+    if(auto* b = get_backend(ctx))
     {
         try
         {

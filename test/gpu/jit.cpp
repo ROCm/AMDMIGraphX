@@ -303,6 +303,28 @@ TEST_CASE(has_flags)
         {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}));
 }
 
+// The probes must give the same answers when compiled in-process as through
+// migraphx-hiprtc-driver.
+TEST_CASE(has_flags_disable_processes)
+{
+    EXPECT(migraphx::gpu::hip_has_flags({"--std=c++17"}, true));
+    EXPECT(not migraphx::gpu::hip_has_flags({"--non-existent-flag-to-test-in-migraphx"}, true));
+    EXPECT(migraphx::gpu::hip_has_flags({"-Wunused-parameter"}, true));
+    EXPECT(not migraphx::gpu::hip_has_flags(
+        {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}, true));
+}
+
+TEST_CASE(can_compile_disable_processes)
+{
+    EXPECT(migraphx::gpu::hip_can_compile(write_2s, {}, true));
+    EXPECT(not migraphx::gpu::hip_can_compile(incorrect_program, {}, true));
+}
+
+TEST_CASE(compiler_version_disable_processes)
+{
+    EXPECT(not migraphx::gpu::hip_compiler_version(true).empty());
+}
+
 TEST_CASE(code_object_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(

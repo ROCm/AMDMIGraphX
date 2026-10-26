@@ -97,7 +97,7 @@ __content__
     return replace_string(args_hpp, "__content__", inner);
 }
 
-static std::vector<std::string> get_compiler_warnings()
+static std::vector<std::string> get_compiler_warnings(bool disable_processes)
 {
     std::vector<std::string> warnings = {
         "-Weverything",
@@ -122,24 +122,26 @@ static std::vector<std::string> get_compiler_warnings()
         "-Wno-c99-extensions",
     };
 
-    if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}))
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}, disable_processes))
         warnings.push_back("-Wno-lifetime-safety-intra-tu-suggestions");
 
-    if(hip_has_flags({"-Werror", "-Wlifetime-safety-cross-tu-suggestions"}))
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-cross-tu-suggestions"}, disable_processes))
         warnings.push_back("-Wno-lifetime-safety-cross-tu-suggestions");
 
-    if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
+    if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}, disable_processes))
         warnings.push_back("-Wno-unsafe-buffer-usage");
 
-    if(hip_has_flags({"-Werror", "-Wnrvo"}))
+    if(hip_has_flags({"-Werror", "-Wnrvo"}, disable_processes))
         warnings.push_back("-Wno-nrvo");
 
     return warnings;
 }
 
-const static std::vector<std::string>& compiler_warnings()
+// The probes below are compiled once per process and their answers do not depend on where they
+// were compiled, so disable_processes only decides whether the first call spawns hiprtc drivers.
+const static std::vector<std::string>& compiler_warnings(bool disable_processes)
 {
-    static std::vector<std::string> warnings = get_compiler_warnings();
+    static std::vector<std::string> warnings = get_compiler_warnings(disable_processes);
     return warnings;
 }
 
@@ -155,13 +157,13 @@ void hip_compile_options::set_launch_params(
         global = compute_global(local);
 }
 
-static bool hip_accept_non_uniform_wg()
+static bool hip_accept_non_uniform_wg(bool disable_processes)
 {
-    static bool non_uniform_wg = hip_has_flags({"-fno-offload-uniform-block"});
+    static bool non_uniform_wg = hip_has_flags({"-fno-offload-uniform-block"}, disable_processes);
     return non_uniform_wg;
 }
 
-static bool hip_workaround_broken_deduction_guide()
+static bool hip_workaround_broken_deduction_guide(bool disable_processes)
 {
     static const char* const test = R"__migraphx__(
 template<class T>
@@ -181,7 +183,7 @@ __attribute__((device)) auto f()
 
 )__migraphx__";
 
-    static bool can_compile = hip_can_compile(test, {"-std=c++17"});
+    static bool can_compile = hip_can_compile(test, {"-std=c++17"}, disable_processes);
     return not can_compile;
 }
 
@@ -191,9 +193,11 @@ compute_global_for(const context& ctx, std::size_t n, std::size_t over)
     assert(over > 0);
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
-    return [n, over, max_global](std::size_t local) {
+    // Probed here so the returned closure does not need to keep the context.
+    bool non_uniform_wg = hip_accept_non_uniform_wg(ctx.get_disable_processes());
+    return [n, over, max_global, non_uniform_wg](std::size_t local) {
         std::size_t num_elements = n;
-        if(not hip_accept_non_uniform_wg())
+        if(not non_uniform_wg)
         {
             num_elements = (1 + (n - 1) / local) * local;
         }
@@ -229,11 +233,12 @@ static void add_derived_params(const context& ctx, hip_compile_options& options)
 {
     assert(options.global > 0);
     assert(options.local > 0);
-    if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
+    const bool disable_processes = ctx.get_disable_processes();
+    if(options.global % options.local != 0 and hip_accept_non_uniform_wg(disable_processes))
         options.emplace_param("-fno-offload-uniform-block");
     else
         assert(options.global % options.local == 0);
-    if(hip_workaround_broken_deduction_guide())
+    if(hip_workaround_broken_deduction_guide(disable_processes))
         options.emplace_param("-DMIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE");
     if(enabled(MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS{}))
         options.emplace_param("-DMIGRAPHX_NONTEMPORAL_LOADS=0");
@@ -242,7 +247,7 @@ static void add_derived_params(const context& ctx, hip_compile_options& options)
     options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
     options.emplace_param("-DMIGRAPHX_WAVEFRONTSIZE=" +
                           std::to_string(ctx.get_current_device().get_wavefront_size()));
-    const auto& warnings = compiler_warnings();
+    const auto& warnings = compiler_warnings(disable_processes);
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");

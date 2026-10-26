@@ -135,7 +135,7 @@ struct backend_options
     // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with pointwise ops.
     bool enable_skinny_dot   = false;
     bool standardize_outputs = false;
-    // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
+    // When true, never spawn migraphx-hiprtc-driver; kernels and probes compile in-process.
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;

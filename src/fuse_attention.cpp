@@ -1539,7 +1539,7 @@ struct kv_cache_layout
     std::size_t sequence_axis = 0;
     std::vector<instruction_ref> old_views{};
     std::optional<head_repeat> repeat{};
-    bool transpose_k         = false;
+    bool transpose_k = false;
 };
 
 static bool is_kv_cache_layout_op(const std::string& name)
@@ -1579,7 +1579,7 @@ static instruction_ref insert_last_two_transpose(module& mm, instruction_ref inp
 }
 
 static std::optional<kv_cache_layout> match_kv_cache_layout(instruction_ref dot_input,
-                                                             std::size_t sequence_length)
+                                                            std::size_t sequence_length)
 {
     kv_cache_layout layout;
     auto cur = dot_input;
@@ -1592,8 +1592,8 @@ static std::optional<kv_cache_layout> match_kv_cache_layout(instruction_ref dot_
     if(layout.old_views.empty() or cur->name() != "@param" or not cur->get_shape().standard())
         return std::nullopt;
 
-    layout.cache       = cur;
-    const auto& lens   = layout.cache->get_shape().lens();
+    layout.cache     = cur;
+    const auto& lens = layout.cache->get_shape().lens();
     if(std::count(lens.begin(), lens.end(), sequence_length) != 1)
         return std::nullopt;
 
@@ -1608,7 +1608,7 @@ static std::optional<kv_cache_layout> match_kv_cache_layout(instruction_ref dot_
         ++it;
         if(it == last or (*it)->name() != "multibroadcast")
             return std::nullopt;
-        repeat_lens = (*it)->get_operator().to_value().at("out_lens").to_vector<std::size_t>();
+        repeat_lens   = (*it)->get_operator().to_value().at("out_lens").to_vector<std::size_t>();
         layout.repeat = kv_cache_layout::head_repeat{};
         ++it;
     }
@@ -1657,12 +1657,11 @@ static std::optional<kv_cache_layout> match_kv_cache_layout(instruction_ref dot_
 // Split the packed cache, then rebuild the head repeat as a broadcast. Returns false
 // without aliasing the old views when the built lens are not the expected split shape;
 // the inserted ops are left for dead-code elimination.
-static bool prebuild_kv_cache_split(
-    module& mm,
-    std::unordered_map<instruction_ref, instruction_ref>& params,
-    const kv_cache_layout& layout,
-    std::size_t groups,
-    const std::vector<std::size_t>& expected)
+static bool prebuild_kv_cache_split(module& mm,
+                                    std::unordered_map<instruction_ref, instruction_ref>& params,
+                                    const kv_cache_layout& layout,
+                                    std::size_t groups,
+                                    const std::vector<std::size_t>& expected)
 {
     if(not contains(params, layout.cache))
         return false;
@@ -1684,8 +1683,7 @@ static bool prebuild_kv_cache_split(
             cur = insert_last_two_transpose(mm, cur);
         auto out                            = cur->get_shape().lens();
         out[static_cast<std::size_t>(axis)] = layout.repeat->count;
-        cur                                 = mm.insert_instruction(
-            mm.end(), make_op("multibroadcast", {{"out_lens", out}}), cur);
+        cur = mm.insert_instruction(mm.end(), make_op("multibroadcast", {{"out_lens", out}}), cur);
         cur = mm.insert_instruction(
             mm.end(), make_op("reshape", {{"dims", merge_repeat_dims(out, axis)}}), cur);
     }

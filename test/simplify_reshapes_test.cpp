@@ -2618,7 +2618,9 @@ TEST_CASE(gather_constant_indices_zero_output)
     m.add_return({gather});
     auto expected = m;
 
-    run_pass(m);
+    migraphx::run_passes(m,
+                         {migraphx::simplify_reshapes{.enable_op_shape_transform_op = true,
+                                                      .enable_gather_rewrite        = true}});
 
     EXPECT(m == expected);
 }

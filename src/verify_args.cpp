@@ -24,6 +24,7 @@
 
 #include <migraphx/verify_args.hpp>
 #include <migraphx/logger.hpp>
+#include <limits>
 #include <optional>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VERIFY_DUMP_DIFF);
@@ -32,6 +33,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+void set_rms_error(double* output, double error)
+{
+    if(output != nullptr)
+        *output = error;
+}
 
 std::optional<bool>
 verify_empty_args(const std::string& name, const argument& target_arg, const argument& ref_arg)
@@ -77,7 +84,10 @@ bool verify_args(const std::string& name,
     argument t_arg = target_arg;
     argument r_arg = ref_arg.data();
     if(auto empty_result = verify_empty_args(name, t_arg, r_arg))
+    {
+        set_rms_error(out_rms_error, *empty_result ? 0.0 : std::numeric_limits<double>::infinity());
         return *empty_result;
+    }
     if(not t_arg.get_shape().computable())
     {
         shape o_t_shape = t_arg.get_shape();
@@ -90,8 +100,7 @@ bool verify_args(const std::string& name,
         double rms_error;
         passed =
             verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &rms_error);
-        if(out_rms_error != nullptr)
-            *out_rms_error = rms_error;
+        set_rms_error(out_rms_error, rms_error);
         if(not passed)
         {
             // TODO: Check for nans

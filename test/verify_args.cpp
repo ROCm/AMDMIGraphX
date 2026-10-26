@@ -25,6 +25,7 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/logger.hpp>
+#include <cmath>
 #include <test.hpp>
 
 TEST_CASE(verify_args_empty)
@@ -34,6 +35,20 @@ TEST_CASE(verify_args_empty)
     migraphx::argument ref{s, nullptr};
     EXPECT(migraphx::verify_args(
         "empty", target, migraphx::verify::expected{ref}, migraphx::verify::tolerance{1e-3}));
+}
+
+TEST_CASE(verify_args_empty_rms_error)
+{
+    migraphx::shape s{migraphx::shape::float_type, {0, 4}};
+    migraphx::argument target{s, nullptr};
+    migraphx::argument ref{s, nullptr};
+    double rms_error = 42.0;
+    EXPECT(migraphx::verify_args("empty rms",
+                                 target,
+                                 migraphx::verify::expected{ref},
+                                 migraphx::verify::tolerance{1e-3},
+                                 &rms_error));
+    EXPECT(migraphx::float_equal(rms_error, 0.0));
 }
 
 TEST_CASE(verify_args_empty_different_strides)
@@ -65,13 +80,30 @@ TEST_CASE(verify_args_empty_shape_mismatch)
     migraphx::shape target_shape{migraphx::shape::float_type, {0, 4}};
     migraphx::shape ref_shape{migraphx::shape::float_type, {0, 5}};
     migraphx::log::set_severity(migraphx::log::severity::none);
-    auto result = migraphx::verify_args(
-        "empty shape mismatch",
-        migraphx::argument{target_shape, nullptr},
-        migraphx::verify::expected{migraphx::argument{ref_shape, nullptr}},
-        migraphx::verify::tolerance{1e-3});
+    auto result =
+        migraphx::verify_args("empty shape mismatch",
+                              migraphx::argument{target_shape, nullptr},
+                              migraphx::verify::expected{migraphx::argument{ref_shape, nullptr}},
+                              migraphx::verify::tolerance{1e-3});
     migraphx::log::set_severity(migraphx::log::severity::info);
     EXPECT(not result);
+}
+
+TEST_CASE(verify_args_empty_mismatch_rms_error)
+{
+    migraphx::shape target_shape{migraphx::shape::float_type, {0, 4}};
+    migraphx::shape ref_shape{migraphx::shape::float_type, {0, 5}};
+    double rms_error = 42.0;
+    migraphx::log::set_severity(migraphx::log::severity::none);
+    auto result =
+        migraphx::verify_args("empty mismatch rms",
+                              migraphx::argument{target_shape, nullptr},
+                              migraphx::verify::expected{migraphx::argument{ref_shape, nullptr}},
+                              migraphx::verify::tolerance{1e-3},
+                              &rms_error);
+    migraphx::log::set_severity(migraphx::log::severity::info);
+    EXPECT(not result);
+    EXPECT(std::isinf(rms_error));
 }
 
 TEST_CASE(verify_args_empty_type_mismatch)
@@ -79,11 +111,11 @@ TEST_CASE(verify_args_empty_type_mismatch)
     migraphx::shape target_shape{migraphx::shape::float_type, {0, 4}};
     migraphx::shape ref_shape{migraphx::shape::int32_type, {0, 4}};
     migraphx::log::set_severity(migraphx::log::severity::none);
-    auto result = migraphx::verify_args(
-        "empty type mismatch",
-        migraphx::argument{target_shape, nullptr},
-        migraphx::verify::expected{migraphx::argument{ref_shape, nullptr}},
-        migraphx::verify::tolerance{1e-3});
+    auto result =
+        migraphx::verify_args("empty type mismatch",
+                              migraphx::argument{target_shape, nullptr},
+                              migraphx::verify::expected{migraphx::argument{ref_shape, nullptr}},
+                              migraphx::verify::tolerance{1e-3});
     migraphx::log::set_severity(migraphx::log::severity::info);
     EXPECT(not result);
 }

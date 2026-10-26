@@ -1717,6 +1717,8 @@ struct find_gather
         auto indices_ins  = r.instructions["indices"];
         auto data_ins     = r.instructions["data"];
         auto gather_op    = any_cast<op::gather>(ins->get_operator());
+        if(ins->get_shape().elements() == 0)
+            return;
         const auto& dlens = data_ins->get_shape().lens();
         if(dlens.empty())
             return;

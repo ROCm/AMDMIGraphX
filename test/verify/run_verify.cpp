@@ -139,7 +139,7 @@ run_verify::run_target(const migraphx::target& t,
                        const migraphx::parameter_map& inputs,
                        const migraphx::compile_options& c_opts) const
 {
-    auto_print pp{p, t.name()};
+    auto_print pp{p, auto_print::make_name(t.name(), c_opts.compile_mode)};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, c_opts, (trace_target == t.name()));
     migraphx::parameter_map m;
@@ -171,7 +171,7 @@ static auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void run_verify::verify(const program_info& pi, migraphx::compile_modes mode) const
+void run_verify::verify(const program_info& pi) const
 {
     const std::string name    = pi.name;
     const migraphx::program p = pi.get_program();
@@ -213,19 +213,20 @@ void run_verify::verify(const program_info& pi, migraphx::compile_modes mode) co
                 m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
             }
         }
-        for(auto&& input : pi.get_inputs())
-        {
-            m[input.first] = input.second;
-        }
-        migraphx::compile_options c_opts = pi.compile_options;
-        c_opts.compile_mode              = mode;
-        auto ref_f                       = detach_async([=] { return run_ref(p, m, c_opts); });
+        const migraphx::compile_options& c_opts = pi.compile_options;
+        auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);
             auto t         = migraphx::make_target(tname);
-            results.emplace_back(
-                tname, detach_async([=] { return run_target(t, p, m, c_opts); }, ti.parallel));
+            for(auto mode : ti.compile_modes)
+            {
+                migraphx::compile_options mode_opts = c_opts;
+                mode_opts.compile_mode              = mode;
+                results.emplace_back(
+                    auto_print::make_name(tname, mode),
+                    detach_async([=] { return run_target(t, p, m, mode_opts); }, ti.parallel));
+            }
         }
 
         assert(ref_f.valid());
@@ -267,11 +268,7 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        test::add_test_case(p.name, [=] { verify(p, migraphx::compile_modes::balanced); });
-
-        const std::string eager_name = p.name + "_eager";
-        labels[p.section].push_back(eager_name);
-        test::add_test_case(eager_name, [=] { verify(p, migraphx::compile_modes::eager); });
+        test::add_test_case(p.name, [=] { verify(p); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {
@@ -292,4 +289,10 @@ void run_verify::disable_test_for(const std::string& name, const std::vector<std
 {
     auto& disabled_tests = info[name].disabled_tests;
     disabled_tests.insert(disabled_tests.end(), tests.begin(), tests.end());
+}
+
+void run_verify::set_compile_modes_for(const std::string& name,
+                                       const std::vector<migraphx::compile_modes>& modes)
+{
+    info[name].compile_modes = modes;
 }

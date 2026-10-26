@@ -84,7 +84,8 @@ auto* iterator_address(Iterator it)
 template <class T>
 struct arrow_proxy
 {
-    T x;
+    // T is deduced as a reference when operator* returns one, so -> points at the real element.
+    T x; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     constexpr auto operator->() const { return std::addressof(x); }
 };
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,13 @@ constexpr auto reorder_dims(const Array1& dims, const Array2& permutation)
         dims.size(), [&](auto i) { return dims[permutation[i]]; });
 }
 
+// Gather with constant indices so the result stays in registers
+template <class Array, class U, U... Ys>
+constexpr auto reorder_dims(const Array& dims, integral_const_array<U, Ys...>)
+{
+    return make_array(dims[Ys]...);
+}
+
 template <class T, T... Xs, class U, U... Ys>
 constexpr auto reorder_dims(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>)
 {
@@ -64,6 +71,16 @@ constexpr auto invert_permutation(integral_const_array<T, Xs...>)
         constexpr integral_const_array<T, Xs...> permutation{};
         return invert_permutation(permutation.base());
     });
+}
+
+// Decompose a linear index over `lens` so that consecutive indices walk the
+// dimensions in the memory order given by `permutation` (last entry fastest).
+template <class Lens, class Permutation>
+constexpr auto multi_from_permutation(Lens lens, Permutation permutation, index_int i)
+{
+    auto ordered = reorder_dims(lens, permutation).multi(i);
+    // The inverse permutation gathers the dimensions back into logical order
+    return reorder_dims(ordered, invert_permutation(permutation));
 }
 
 template <class Shape>

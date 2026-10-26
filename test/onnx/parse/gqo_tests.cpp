@@ -24,7 +24,40 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(float_data_too_few_test)
+namespace {
+
+void expect_same_program(const std::string& fused, const std::string& unfused)
 {
-    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("float_data_too_few_test.onnx"); }));
+    auto fused_prog   = optimize_onnx(fused);
+    auto unfused_prog = optimize_onnx(unfused);
+    fused_prog.sort();
+    unfused_prog.sort();
+    EXPECT(fused_prog == unfused_prog);
+}
+
+} // namespace
+
+TEST_CASE(gqo_decode_test)
+{
+    expect_same_program("gqo_decode_test.onnx", "gqo_decode_unfused_test.onnx");
+}
+
+TEST_CASE(gqo_prefill_test)
+{
+    expect_same_program("gqo_prefill_test.onnx", "gqo_prefill_unfused_test.onnx");
+}
+
+TEST_CASE(gqo_nobias_test)
+{
+    expect_same_program("gqo_nobias_test.onnx", "gqo_nobias_unfused_test.onnx");
+}
+
+TEST_CASE(gqo_head_sink_test)
+{
+    expect_same_program("gqo_head_sink_test.onnx", "gqo_head_sink_unfused_test.onnx");
+}
+
+TEST_CASE(gqo_position_ids_test)
+{
+    EXPECT(test::throws([&] { read_onnx("gqo_position_ids_test.onnx"); }));
 }

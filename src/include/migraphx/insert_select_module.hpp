@@ -21,11 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_INSERT_SELECT_MODULE_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_INSERT_SELECT_MODULE_HPP
 
-#include <onnx_test.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/shape.hpp>
 
-TEST_CASE(external_data_shape_large_test)
-{
-    EXPECT(test::throws<migraphx::exception>(
-        [&] { read_onnx("external_data_shape_large_test.onnx"); }));
-}
+#include <vector>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module_pass_manager;
+
+MIGRAPHX_EXPORT std::vector<instruction_ref>
+insert_select_module(module_pass_manager& mpm,
+                     module& m,
+                     const std::vector<instruction_ref>& inputs,
+                     std::vector<module> clones,
+                     const std::vector<shape>& output_shapes);
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

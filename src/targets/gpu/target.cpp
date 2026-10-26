@@ -70,6 +70,7 @@
 #include <migraphx/simplify_symbolic_dimensions.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/split_sym_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
@@ -107,6 +108,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR)
 
 namespace {
 // Backend options recognized by the GPU target, supplied via
@@ -138,6 +140,9 @@ struct backend_options
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;
+    // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
+    // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
+    std::size_t literal_staging_peak_percent = 5;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -152,6 +157,7 @@ struct backend_options
                     f(self.standardize_outputs, "standardize_outputs"),
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
+                    f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
@@ -190,6 +196,7 @@ struct pipeline_factory
         return {
             simplify_symbolic_dimensions{},
             dead_code_elimination{},
+            split_sym_dim{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
             dead_code_elimination{},
             simplify_dyn_ops{},
@@ -327,11 +334,13 @@ struct pipeline_factory
             lower_device_ops{},
             compile_ops{get_context(),
                         options.exhaustive_tune,
-                        options.compile_mode == compile_modes::eager},
+                        options.compile_mode == compile_modes::eager,
+                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{})},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{.max_memory = max_memory},
+            write_literals{.max_memory           = max_memory,
+                           .staging_peak_percent = backend_opts.literal_staging_peak_percent},
             enable_pass(backend_opts.hip_graph, hipgraphify{}),
             dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},

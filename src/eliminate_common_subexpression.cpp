@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,6 +53,9 @@ static void cse_range(module& m, Range&& r)
                 continue;
             if(*eq != *ins)
                 continue;
+            // Operations with side effects, such as allocations, are never merged
+            if(ins->get_operator().attributes().get("side_effect", false))
+                break;
             m.replace_instruction(ins, eq);
             processed_ins.emplace(ins);
             std::vector<instruction_ref> outputs;

@@ -230,6 +230,7 @@ struct MIGRAPHX_EXPORT shape
 
     static bool is_integral(type_t t);
     static bool is_compatible(const shape& actual, const shape& expected);
+    static bool is_compatible_type_and_lens(const shape& actual, const shape& expected);
     static bool is_compatible_lens(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
@@ -337,6 +338,7 @@ struct MIGRAPHX_EXPORT shape
 
     bool symbolic() const;
     const std::vector<sym::expr>& dyn_strides() const;
+    bool has_fixed_strides() const;
 
     /*!
      * Minimum lengths for dynamic shape.

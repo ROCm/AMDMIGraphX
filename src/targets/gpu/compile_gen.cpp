@@ -690,7 +690,7 @@ std::string generate_reduce(const module& m, const std::string& name)
         }
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });
-    f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
+    f.set_attributes({"__device__", "__attribute__((pure))"}).set_generic_types(m).set_name(name);
     mark_unused_params(f, rm);
     f.add_generic_param("r");
 

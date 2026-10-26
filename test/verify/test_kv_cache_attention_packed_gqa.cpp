@@ -32,8 +32,7 @@
 // prevents the random verifier input from masking the entire cache. The reference
 // target does not fuse attention. The gpu target does, and splits it when
 // MIGRAPHX_FLASH_DECODING_NUM_SPLITS is set (2 divides the cache length of 8).
-struct test_kv_cache_attention_packed_gqa
-    : verify_program<test_kv_cache_attention_packed_gqa>
+struct test_kv_cache_attention_packed_gqa : verify_program<test_kv_cache_attention_packed_gqa>
 {
     migraphx::parameter_map get_inputs() const
     {
@@ -83,13 +82,11 @@ struct test_kv_cache_attention_packed_gqa
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 4, 8}}}), tsp_k);
         auto rsp_k =
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 4, 8}}}), bc_k);
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), slc_q, rsp_k);
-        auto bc_ninf =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}),
-                                ninf);
-        auto bc_scale =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}),
-                                scale);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), slc_q, rsp_k);
+        auto bc_ninf = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), ninf);
+        auto bc_scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), scale);
         auto cvt_scores = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), gemm1);
         auto cvt_scale = mm->add_instruction(
@@ -104,10 +101,9 @@ struct test_kv_cache_attention_packed_gqa
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), cvt_grtr);
         auto cvt_ninf = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bc_ninf);
-        auto mask = mm->add_instruction(migraphx::make_op("where"), bc_grtr, cvt_ninf, scaled);
-        auto rdc_max =
-            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mask);
-        auto bc_rm = mm->add_instruction(
+        auto mask    = mm->add_instruction(migraphx::make_op("where"), bc_grtr, cvt_ninf, scaled);
+        auto rdc_max = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mask);
+        auto bc_rm   = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 8}}}), rdc_max);
         auto sub     = mm->add_instruction(migraphx::make_op("sub"), mask, bc_rm);
         auto exp     = mm->add_instruction(migraphx::make_op("exp"), sub);

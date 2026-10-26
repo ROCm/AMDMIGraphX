@@ -195,6 +195,7 @@ struct pipeline_factory
     {
         return {
             simplify_symbolic_dimensions{},
+            dead_code_elimination{},
             split_sym_dim{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
             dead_code_elimination{},

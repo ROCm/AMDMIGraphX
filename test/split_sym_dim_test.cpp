@@ -424,9 +424,9 @@ TEST_CASE(split_sym_dim_materializes_roialign)
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
                   migraphx::shape{migraphx::shape::float_type,
-                                    {dd{target_r}, dd{lit(1)}, dd{lit(1)}, dd{lit(1)}}}}})}}),
+                                  {dd{target_r}, dd{lit(1)}, dd{lit(1)}, dd{lit(1)}}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_batch_ind, expected_rois, expected_x},
         modules);
     auto expected_output =

@@ -2721,6 +2721,32 @@ TEST_CASE(builtin_min_max_distinct_operands_not_folded)
     EXPECT(max(x, y).children().size() == 2);
 }
 
+TEST_CASE(builtin_min_proven_order)
+{
+    auto x     = var("x", {2, 4});
+    auto upper = var("upper", {4, 4});
+    EXPECT(min(x, lit(4)) == x);
+    EXPECT(min(lit(4), x) == x);
+    EXPECT(min(x, upper) == x);
+    EXPECT(min(upper, x) == x);
+    EXPECT(min(x, lit(1)) == lit(1));
+    // still min b/c not provably less than or equal
+    EXPECT(min(x, lit(3)).name() == "min");
+}
+
+TEST_CASE(builtin_max_proven_order)
+{
+    auto x     = var("x", {2, 4});
+    auto lower = var("lower", {2, 2});
+    EXPECT(max(x, lit(2)) == x);
+    EXPECT(max(lit(2), x) == x);
+    EXPECT(max(x, lower) == x);
+    EXPECT(max(lower, x) == x);
+    EXPECT(max(x, lit(5)) == lit(5));
+    // still max b/c not provably less than or equal
+    EXPECT(max(x, lit(3)).name() == "max");
+}
+
 TEST_CASE(builtin_min_max_same_operand_eval)
 {
     auto x = var("x");
@@ -3669,6 +3695,7 @@ TEST_CASE(fixed_value_rejects_collapsed_compound_interval)
 TEST_CASE(fixed_value_indeterminate)
 {
     EXPECT(not fixed_value(var("x", interval{int64_t{1}, int64_t{5}})).has_value());
+    EXPECT(not fixed_value(var("x")).has_value());
     EXPECT(not fixed_value(expr{}).has_value());
 }
 

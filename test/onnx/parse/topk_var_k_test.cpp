@@ -43,10 +43,9 @@ TEST_CASE(topk_var_k_test)
     auto ds  = migraphx::make_op(
         "dyn_slice",
         {{"axes", {1}},
-          {"starts", {0}},
-          {"ends",
-           migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", {0, 4}))}},
-          {"ends_in_bounds", true}});
+         {"starts", {0}},
+         {"ends",
+          migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", {0, 4}))}}});
     val = mm->add_instruction(ds, val, zero, k);
     ind = mm->add_instruction(ds, ind, zero, k);
     mm->add_return({val, ind});
@@ -75,10 +74,9 @@ TEST_CASE(topk_var_k_symbolic_test)
     auto ds  = migraphx::make_op(
         "dyn_slice",
         {{"axes", {1}},
-          {"starts", {0}},
-          {"ends",
-           migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", {0, 4}))}},
-          {"ends_in_bounds", true}});
+         {"starts", {0}},
+         {"ends",
+          migraphx::value::array{migraphx::to_value(migraphx::sym::var("main_TopK_2", {0, 4}))}}});
     val = mm->add_instruction(ds, val, zero, k);
     ind = mm->add_instruction(ds, ind, zero, k);
     mm->add_return({val, ind});

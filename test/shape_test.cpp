@@ -2109,11 +2109,22 @@ TEST_CASE(find_permutation_symbolic_zero_extent)
     EXPECT(migraphx::find_permutation(s) == permutation);
 }
 
+TEST_CASE(find_permutation_symbolic_compound_zero_extent)
+{
+    auto k = var("k", {0, 200});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(2) * k}, dd{lit(4)}}};
+    std::vector<int64_t> permutation = {0, 1, 2};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
 TEST_CASE(find_permutation_symbolic_always_empty)
 {
+    auto a = var("a", {1, 16});
+    auto b = var("b", {1, 4});
+    auto c = var("c", {1, 8});
     auto z = var("z", {0, 0});
-    migraphx::shape s{migraphx::shape::float_type, {dd{lit(1)}, dd{z}}};
-    std::vector<int64_t> permutation = {1, 0};
+    migraphx::shape s{migraphx::shape::float_type, {dd{a}, dd{c}, dd{z}}, {a / b, c, lit(1)}};
+    std::vector<int64_t> permutation = {0, 1, 2};
     EXPECT(migraphx::find_permutation(s) == permutation);
 }
 

@@ -50,6 +50,29 @@ std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation)
     return sort_permutation(permutation, std::less<>{});
 }
 
+namespace {
+void add_nonzero_bounds(std::unordered_map<sym::expr, sym::interval>& result, const sym::expr& e)
+{
+    std::vector<sym::expr> factors = {e};
+    // Multiplication normalization can fold a dimension such as 2*k into a
+    // stride such as 8*k, so preserve the bound on each surviving factor too.
+    if(e.name() == "*")
+        factors.insert(factors.end(), e.children().begin(), e.children().end());
+    transform_if(
+        factors.begin(),
+        factors.end(),
+        std::inserter(result, result.end()),
+        [](const auto& factor) {
+            const auto bounds = factor.eval_interval();
+            return sym::to<int64_t>(bounds.min) == 0 and sym::to<int64_t>(bounds.max) > 0;
+        },
+        [](const auto& factor) {
+            const auto bounds = factor.eval_interval();
+            return std::make_pair(sym::as_symbol(factor), sym::interval{int64_t{1}, bounds.max});
+        });
+}
+} // namespace
+
 std::vector<int64_t> find_permutation(const shape& s)
 {
     if(s.dynamic() and not s.symbolic())
@@ -73,7 +96,7 @@ std::vector<int64_t> find_permutation(const shape& s)
             if(sym::to<int64_t>(bounds.max) == 0)
                 always_empty = true;
             else if(sym::to<int64_t>(bounds.min) == 0)
-                nonzero_dim_bounds.emplace(dd.sym_expr, sym::interval{int64_t{1}, bounds.max});
+                add_nonzero_bounds(nonzero_dim_bounds, dd.sym_expr);
         }
         std::vector<sym::interval> stride_intervals(strides.size());
         std::transform(strides.begin(), strides.end(), stride_intervals.begin(), [](const auto& e) {

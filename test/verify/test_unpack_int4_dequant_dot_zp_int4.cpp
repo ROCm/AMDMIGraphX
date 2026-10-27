@@ -36,8 +36,7 @@
 // point's mapping for the other silently computes the wrong element
 // correspondence, unlike the native reduce-fusion path exercised by
 // test_unpack_int4_dequant_reduce_zp_int4.
-struct test_unpack_int4_dequant_dot_zp_int4
-    : verify_program<test_unpack_int4_dequant_dot_zp_int4>
+struct test_unpack_int4_dequant_dot_zp_int4 : verify_program<test_unpack_int4_dequant_dot_zp_int4>
 {
     migraphx::program create_program() const
     {

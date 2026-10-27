@@ -6902,6 +6902,72 @@ TEST_CASE(dequantizelinear_entry_shape_transform_zero_point)
     EXPECT(m1 == m2);
 }
 
+// Scale and zero_point are each independently broadcast per-group (not a scalar
+// zero_point, as in dequantizelinear_entry_shape_transform_zero_point above), so both
+// qualify as entry chains, even though they agree on the same group split of x. The
+// pass only ever considers a single entry chain authoritative, so it bails out here
+// rather than rewrite through either one - forgoing the optimization (and any
+// int4-GEMM fusion downstream that depends on it) is the safe tradeoff versus
+// silently picking the wrong chain for the other operand.
+TEST_CASE(dequantizelinear_entry_shape_transform_two_candidates)
+{
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", {migraphx::shape::uint8_type, {4, 6}});
+        auto scale = m1.add_parameter("scale", {migraphx::shape::float_type, {12}});
+        auto zp    = m1.add_parameter("zp", {migraphx::shape::uint8_type, {12}});
+        auto scale_reshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 1}}}), scale);
+        auto scale_bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 3, 2}}}), scale_reshape);
+        auto scale_flat =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 6}}}), scale_bcast);
+        auto zp_reshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 1}}}), zp);
+        auto zp_bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 3, 2}}}), zp_reshape);
+        auto zp_flat =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 6}}}), zp_bcast);
+        auto dq = m1.add_instruction(migraphx::make_op("dequantizelinear"), x, scale_flat, zp_flat);
+        m1.add_return({dq});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Scale and zero_point have genuinely incompatible group splits of x (groups of 3, 2
+// groups vs groups of 2, 3 groups) - common_axes_map_from_dst() alone agrees (both map
+// x's trailing axis to the same pair of common axes), but common_dims() disagrees ({4,
+// 2, 3} vs {4, 3, 2}): there is no single common-dims space correct for both, so the
+// pass must leave the module unrewritten rather than guess which chain is authoritative.
+TEST_CASE(dequantizelinear_entry_shape_transform_conflicting_candidates)
+{
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", {migraphx::shape::uint8_type, {4, 6}});
+        auto scale = m1.add_parameter("scale", {migraphx::shape::float_type, {8}});
+        auto zp    = m1.add_parameter("zp", {migraphx::shape::uint8_type, {12}});
+        auto scale_reshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 2, 1}}}), scale);
+        auto scale_bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 2, 3}}}), scale_reshape);
+        auto scale_flat =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 6}}}), scale_bcast);
+        auto zp_reshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 1}}}), zp);
+        auto zp_bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 3, 2}}}), zp_reshape);
+        auto zp_flat =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 6}}}), zp_bcast);
+        auto dq = m1.add_instruction(migraphx::make_op("dequantizelinear"), x, scale_flat, zp_flat);
+        m1.add_return({dq});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(dequantizelinear_entry_shape_transform_none)
 {
     migraphx::module m1;

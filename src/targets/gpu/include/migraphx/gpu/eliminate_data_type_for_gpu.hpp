@@ -37,6 +37,8 @@ struct MIGRAPHX_GPU_EXPORT eliminate_data_type_for_gpu
 {
     bool disable_64bit = false;
     const context* ctx = nullptr;
+    // fuse_mlir takes every dot, so fp8 quant_dot does not need hipBLASLt
+    bool mlir_all_dots = false;
     std::string name() const { return "gpu::eliminate_data_type_for_gpu"; }
     void apply(module_pass_manager& mpm) const;
 };

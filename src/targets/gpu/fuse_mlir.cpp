@@ -1132,11 +1132,13 @@ struct find_mlir_fused_geg_ops
         //   d=128     0.6   0.5   0.4   0.4   0.5   0.4   0.3   0.3
         //   d=256      -    0.6   0.5   0.5   0.9   0.6   0.5   0.5
         //   d=512      -     -     -    1.5    -    1.6    -    1.4
-        // gfx942 fp16 and fp32: wins at every measured shape for d <= 256
-        // (0.25-0.97) except two low-batch boundary cells at H=8, d=256
-        // (fp16 T=512: 1.14, fp32 T=256: 1.29). T >= 1024 reaches this
-        // heuristic only through the GEG exemption in is_mlir_dot (gemm1's
-        // k is the sequence length) and is unmeasured on gfx942 so far.
+        // gfx942 fp16 and fp32: wins at every swept shape for d <= 256 in
+        // T 64..4096 (0.15-0.95, improving with T; T >= 1024 reaches this
+        // heuristic through the GEG exemption in is_mlir_dot since gemm1's
+        // k is the sequence length), except a reproducible low-batch pocket
+        // at H=8, d=256, T 128..512 (1.0-1.3; the absolute loss is a few us
+        // at the kernel-launch floor, and gfx1201 wins those shapes, so it
+        // is not carved out).
         return k <= geg_attn_k_max and g <= geg_attn_g_max and m >= geg_attn_mn_min and
                n >= geg_attn_mn_min;
     }

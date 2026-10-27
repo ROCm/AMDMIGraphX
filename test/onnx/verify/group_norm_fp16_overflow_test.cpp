@@ -24,7 +24,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <migraphx/half.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
@@ -167,11 +166,14 @@ TEST_CASE(group_norm_contrib_fp16_affine_overflow_test)
     std::vector<float> values;
     result.visit([&](auto output) { values.assign(output.begin(), output.end()); });
     // The affine result exceeds half range in both directions; it must not saturate.
-    const auto inf = std::numeric_limits<float>::infinity();
-    EXPECT(values.at(0) == inf);
-    EXPECT(values.at(1) == -inf);
-    EXPECT(values.at(4) == inf);
-    EXPECT(values.at(5) == -inf);
+    EXPECT(std::isinf(values.at(0)));
+    EXPECT(not std::signbit(values.at(0)));
+    EXPECT(std::isinf(values.at(1)));
+    EXPECT(std::signbit(values.at(1)));
+    EXPECT(std::isinf(values.at(4)));
+    EXPECT(not std::signbit(values.at(4)));
+    EXPECT(std::isinf(values.at(5)));
+    EXPECT(std::signbit(values.at(5)));
     EXPECT(std::abs(values.at(2) - 0.328125f) < 0.001f);
     EXPECT(std::abs(values.at(3) + 0.328125f) < 0.001f);
     EXPECT(std::abs(values.at(6) - 0.328125f) < 0.001f);

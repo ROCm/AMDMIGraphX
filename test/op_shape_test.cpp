@@ -311,6 +311,58 @@ TEST_CASE(binary_sym_same_packed)
     expect_shape(s, migraphx::make_op("add"), s, s);
 }
 
+TEST_CASE(binary_sym_different_expressions)
+{
+    auto n = var("n", {0, 100});
+    auto m = var("m", {0, 100});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}, dd{lit(4)}}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_overlapping_expressions)
+{
+    // extents of expressions are not checked
+    auto n = var("n", {0, 100});
+    auto m = var("m", {50, 150});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}}};
+    expect_shape(sx, migraphx::make_op("mul"), sx, sy);
+}
+
+TEST_CASE(binary_sym_disjoint_expressions)
+{
+    // extents of expressions are not checked
+    auto n = var("n", {0, 10});
+    auto m = var("m", {20, 30});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_mismatch_error)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{lit(5)}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_expression_mismatch_error)
+{
+    auto n = var("n", {4, 8});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_one_requires_broadcast)
+{
+    auto n = var("n", {1, 100});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(1)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
 TEST_CASE(binary_sym_packed_vs_broadcasted)
 {
     auto n = var("n", {2, 8});
@@ -320,12 +372,32 @@ TEST_CASE(binary_sym_packed_vs_broadcasted)
     expect_shape(sx, migraphx::make_op("add"), sx, sy);
 }
 
+TEST_CASE(binary_sym_zero_packed_vs_broadcasted)
+{
+    auto k = var("k", {0, 200});
+    std::vector<dd> dims{dd{lit(1)}, dd{k}};
+    migraphx::shape sx{migraphx::shape::int64_type, dims};
+    migraphx::shape sy{migraphx::shape::int64_type, dims, {lit(0), lit(0)}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
 TEST_CASE(binary_sym_zero_broadcasted_vs_different_packed)
 {
     auto n = var("n", {0, 200});
     std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
     migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
     migraphx::shape sy{migraphx::shape::float_type, output_dims};
+    migraphx::shape output{migraphx::shape::float_type, output_dims};
+    expect_shape(output, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_broadcasted_vs_different_packed)
+{
+    auto n = var("n", {2, 8});
+    auto m = var("m", {2, 8});
+    std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}};
     migraphx::shape output{migraphx::shape::float_type, output_dims};
     expect_shape(output, migraphx::make_op("add"), sx, sy);
 }
@@ -4240,6 +4312,26 @@ TEST_CASE(quant_dot_sym_matdims)
     EXPECT(expected.to_static(sym_map) == static_out);
 }
 
+TEST_CASE(quant_dot_sym_k_mismatch)
+{
+    auto m  = var("m", {1, 64});
+    auto k1 = var("k1", {1, 128});
+    auto k2 = var("k2", {1, 128});
+    auto n  = var("n", {1, 32});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{m}, dd{k1}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{k2}, dd{n}}};
+    throws_shape(migraphx::make_op("quant_dot"), s_a, s_b);
+}
+
+TEST_CASE(quant_dot_sym_outer_mismatch)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{m}, dd{lit(5)}, dd{lit(3)}}};
+    throws_shape(migraphx::make_op("quant_dot"), s_a, s_b);
+}
+
 TEST_CASE(qlinear)
 {
     migraphx::shape scales{migraphx::shape::float_type, {2, 4}};
@@ -7746,6 +7838,63 @@ TEST_CASE(roialign_test)
 
     migraphx::shape srois2{migraphx::shape::float_type, {2, 3}};
     throws_shape(migraphx::make_op("roialign"), sx, srois2, sbi);
+
+    migraphx::shape sx1{migraphx::shape::float_type, {3, 4, 5}};
+    throws_shape(migraphx::make_op("roialign"), sx1, srois, sbi);
+
+    migraphx::shape srois3{migraphx::shape::half_type, {2, 4}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois3, sbi);
+
+    migraphx::shape sbi3{migraphx::shape::int32_type, {2}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, sbi3);
+}
+
+TEST_CASE(roialign_dynamic_test)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {{1, 4}, {2, 6}, {5, 5}, {6, 6}}};
+    migraphx::shape srois{migraphx::shape::float_type, {{0, 8}, {4, 4}}};
+    migraphx::shape sbi{migraphx::shape::int64_type, std::vector<dd>{{0, 8}}};
+    migraphx::shape sout{migraphx::shape::float_type, {{0, 8}, {2, 6}, {3, 3}, {2, 2}}};
+
+    expect_shape(sout,
+                 migraphx::make_op("roialign",
+                                   {{"output_height", int64_t{3}}, {"output_width", int64_t{2}}}),
+                 sx,
+                 srois,
+                 sbi);
+
+    migraphx::shape sx_static{migraphx::shape::float_type, {1, 4, 5, 6}};
+    migraphx::shape srois_empty{migraphx::shape::float_type, {0, 4}};
+    migraphx::shape sbi_empty{migraphx::shape::int64_type, {0}};
+    migraphx::shape sout_empty{migraphx::shape::float_type, {0, 4, 1, 1}};
+    expect_shape(sout_empty, migraphx::make_op("roialign"), sx_static, srois_empty, sbi_empty);
+
+    migraphx::shape sbi_disjoint{migraphx::shape::int64_type, std::vector<dd>{{9, 12}}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, sbi_disjoint);
+
+    migraphx::shape srois_nonfixed_width{migraphx::shape::float_type, {{0, 8}, {3, 4}}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois_nonfixed_width, sbi);
+}
+
+TEST_CASE(roialign_symbolic_test)
+{
+    auto r = var("r", {0, 258});
+    migraphx::shape sx{migraphx::shape::float_type,
+                       {dd{lit(1)}, dd{lit(4)}, dd{lit(14)}, dd{lit(14)}}};
+    migraphx::shape srois{migraphx::shape::float_type, {dd{r}, dd{lit(4)}}};
+    migraphx::shape sbi{migraphx::shape::int64_type, {dd{r}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{r}, dd{lit(4)}, dd{lit(7)}, dd{lit(7)}}};
+
+    expect_shape(sout,
+                 migraphx::make_op("roialign",
+                                   {{"output_height", int64_t{7}}, {"output_width", int64_t{7}}}),
+                 sx,
+                 srois,
+                 sbi);
+
+    auto other_r = var("other_r", {0, 258});
+    migraphx::shape other_sbi{migraphx::shape::int64_type, {dd{other_r}}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, other_sbi);
 }
 
 TEST_CASE(test_concat)

@@ -117,6 +117,18 @@ static literal create_literal(shape::type_t shape_type, const std::vector<size_t
     return literal{{shape_type, dims}, data.begin(), data.end()};
 }
 
+// ONNX stores each fp8 element of int32_data as its 8-bit pattern, not as a value
+template <class T, class Range>
+static literal
+create_fp8_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const Range& data)
+{
+    std::vector<T> result;
+    std::transform(data.begin(), data.end(), std::back_inserter(result), [](int32_t bits) {
+        return T{static_cast<uint8_t>(bits), T::from_bits()};
+    });
+    return create_literal(shape_type, dims, result);
+}
+
 template <class T>
 static literal from_repeated(shape::type_t t, const T& r)
 {
@@ -884,19 +896,19 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
     case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, t.float_data());
 
-    case onnx::TensorProto::FLOAT8E4M3FNUZ: {
-        std::vector<int32_t> data_int32(t.int32_data().begin(), t.int32_data().end());
-        std::vector<migraphx::fp8::fp8e4m3fnuz> data_fp8;
-        std::transform(data_int32.begin(),
-                       data_int32.end(),
-                       std::back_inserter(data_fp8),
-                       [](float raw_val) { return migraphx::fp8::fp8e4m3fnuz{raw_val}; });
-        return create_literal(shape::fp8e4m3fnuz_type, dims, data_fp8);
-    }
+    case onnx::TensorProto::FLOAT8E4M3FNUZ:
+        return create_fp8_literal<migraphx::fp8::fp8e4m3fnuz>(
+            shape::fp8e4m3fnuz_type, dims, t.int32_data());
+
+    case onnx::TensorProto::FLOAT8E4M3FN:
+        return create_fp8_literal<migraphx::fp8::fp8e4m3fn>(
+            shape::fp8e4m3fn_type, dims, t.int32_data());
+
+    case onnx::TensorProto::FLOAT8E5M2:
+        return create_fp8_literal<migraphx::fp8::fp8e5m2>(
+            shape::fp8e5m2_type, dims, t.int32_data());
 
     case onnx::TensorProto::FLOAT8E5M2FNUZ:
-    case onnx::TensorProto::FLOAT8E5M2:
-    case onnx::TensorProto::FLOAT8E4M3FN:
     case onnx::TensorProto::UNDEFINED:
     case onnx::TensorProto::STRING:
     case onnx::TensorProto::COMPLEX64:
@@ -1035,15 +1047,15 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
+    case 17: return shape::fp8e4m3fn_type;
     case 18: return shape::fp8e4m3fnuz_type;
+    case 19: return shape::fp8e5m2_type;
     case 21: return shape::uint8_type;
     case 22: return shape::int8_type;
     case 23: return shape::fp4x2_type;
     case 14:
     case 15:
     case 16: return shape::bf16_type;
-    case 17:
-    case 19:
     case 20:
     default: {
         MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");

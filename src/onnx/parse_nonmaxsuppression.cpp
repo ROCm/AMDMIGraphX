@@ -25,6 +25,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <algorithm>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -53,6 +55,28 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
         auto num_selected =
             info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
         auto max_selected = indices->get_shape().max_lens().front();
+        if(args.size() > 2)
+        {
+            auto max_output          = args.at(2)->eval();
+            const auto& scores_shape = args.at(1)->get_shape();
+            if(not max_output.empty() and scores_shape.ndim() == 3)
+            {
+                auto per_class = max_output.at<int64_t>();
+                if(per_class > 0)
+                {
+                    auto scores_max = scores_shape.max_lens();
+                    auto batch      = scores_max.at(0);
+                    auto classes    = scores_max.at(1);
+                    auto limit      = std::numeric_limits<std::size_t>::max();
+                    if(classes > 0 and batch <= limit / classes and
+                       batch * classes <= limit / static_cast<std::size_t>(per_class))
+                    {
+                        max_selected = std::min(
+                            max_selected, batch * classes * static_cast<std::size_t>(per_class));
+                    }
+                }
+            }
+        }
         auto num_selected_var =
             sym::var(parser.symbol_names.allocate(info.name), {0, max_selected});
         auto starts_lit = info.add_literal(literal{{shape::int64_type, {1}}, {0}});

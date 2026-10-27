@@ -47,8 +47,13 @@ struct parse_expand : op_parser<parse_expand>
                           shorter.end(),
                           longer.begin() + offset,
                           [](const auto& input, const auto& target) {
-                              return input == target or input == 1 or target == 1 or
-                                     input.intersection(target).has_value();
+                              if(input == target or input == 1 or target == 1)
+                                  return true;
+                              if(input.is_symbolic() or target.is_symbolic())
+                                  return input.is_symbolic() and target.is_symbolic() and
+                                         input.sym_expr.name() != "literal" and
+                                         target.sym_expr.name() != "literal";
+                              return input.intersection(target).has_value();
                           });
     }
 

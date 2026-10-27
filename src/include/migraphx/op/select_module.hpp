@@ -105,7 +105,9 @@ struct select_module
 
         // An operation clone belongs to a different instruction and can receive unrelated
         // module_refs. Do not carry non-owning module_refs from the source operation into it.
-        metadata_cache(const metadata_cache&) {}
+        metadata_cache(const metadata_cache&) : storage(std::make_shared<metadata_cache_storage>())
+        {
+        }
 
         metadata_cache& operator=(const metadata_cache& other)
         {

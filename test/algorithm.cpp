@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/algorithm.hpp>
+#include <array>
 #include <forward_list>
 #include <list>
 #include <functional>
@@ -226,6 +227,24 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_if_two_range_empty, int)
         [](int, int flag) { return flag != 0; },
         [](int x, int) { return x; });
     EXPECT(result.empty());
+}
+
+TEST_CASE(find_sentinel_c_string)
+{
+    const char* s = "abc";
+    EXPECT(migraphx::find_sentinel(s, '\0') == std::next(s, 3));
+}
+
+TEST_CASE(find_sentinel_first_element)
+{
+    std::vector<int> v = {0, 1, 2};
+    EXPECT(migraphx::find_sentinel(v.begin(), 0) == v.begin());
+}
+
+TEST_CASE(find_sentinel_null_terminated_array)
+{
+    std::array<const char*, 3> strings = {"a", "b", nullptr};
+    EXPECT(migraphx::find_sentinel(strings.begin(), nullptr) == std::prev(strings.end()));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

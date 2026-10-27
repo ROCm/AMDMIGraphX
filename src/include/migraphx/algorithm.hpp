@@ -95,6 +95,16 @@ OutputIterator transform_partial_sum(
     return ++d_first;
 }
 
+/// Like std::find for a sequence that ends with a sentinel value instead of an end iterator, such
+/// as a C string or environ. Returns the iterator at the sentinel.
+template <class Iterator, class T>
+Iterator find_sentinel(Iterator first, const T& sentinel)
+{
+    while(*first != sentinel)
+        ++first;
+    return first;
+}
+
 /// Like std::unique but removes all duplicates instead of only adjacent ones, so the
 /// input need not be sorted. The order of first appearance is preserved. Returns the
 /// new logical end; elements in [result, last) are left in a moved-from state.

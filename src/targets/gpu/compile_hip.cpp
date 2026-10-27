@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/erase.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
@@ -63,7 +64,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
 static std::vector<std::string> split_flags(const std::string& flags)
 {
     auto result = split_string(flags, ' ');
-    result.erase(std::remove(result.begin(), result.end(), ""), result.end());
+    erase(result, std::string{});
     return result;
 }
 
@@ -364,7 +365,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     compiler.flags.emplace_back("-c");
     compiler.flags.emplace_back("--cuda-device-only");
     compiler.flags.emplace_back("-Wno-unused-command-line-argument");
-    auto hip_compiler_flags = split_flags(MIGRAPHX_HIP_COMPILER_FLAGS);
+    static const auto hip_compiler_flags = split_flags(MIGRAPHX_HIP_COMPILER_FLAGS);
     compiler.flags.insert(
         compiler.flags.end(), hip_compiler_flags.begin(), hip_compiler_flags.end());
 

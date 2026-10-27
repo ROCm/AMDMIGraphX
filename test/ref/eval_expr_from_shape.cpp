@@ -39,7 +39,7 @@ TEST_CASE(eval_expr_from_shape_input)
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto x   = mm->add_parameter("x",
-                                 migraphx::shape{migraphx::shape::float_type,
+                               migraphx::shape{migraphx::shape::float_type,
                                                  {dd{n}, dd{migraphx::sym::lit(3)}, dd{h}, dd{w}}});
     mm->add_instruction(migraphx::make_op("eval_expr_from_shape",
                                           {{"expressions",
@@ -159,6 +159,29 @@ TEST_CASE(eval_expr_from_compound_shape_unresolved)
                 {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}}),
             x);
     }));
+}
+
+TEST_CASE(eval_expr_from_dispatch_shape)
+{
+    using dd        = migraphx::shape::dynamic_dimension;
+    auto n          = migraphx::sym::var("N", {0, 16});
+    auto target     = migraphx::sym::var("split_sym_dim_N_target", {0, 16}, {0, 4, 8, 16});
+    auto dispatched = migraphx::sym::min(n, target);
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{dispatched}}});
+    mm->add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}}),
+        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data(5);
+    auto result =
+        p.eval({{"x", migraphx::argument{{migraphx::shape::float_type, {5}}, data.data()}}}).back();
+    EXPECT(result.to_vector<int64_t>() == std::vector<int64_t>{5});
 }
 
 TEST_CASE(eval_expr_from_compound_shape_inconsistent)

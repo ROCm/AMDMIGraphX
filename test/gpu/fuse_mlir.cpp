@@ -36,6 +36,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 #include <reduce.hpp>
+#include <algorithm>
 #include <utility>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
@@ -2130,8 +2131,9 @@ TEST_CASE(dot_add_dot_abc_fp16)
 
 TEST_CASE(dot_causal_mask_dot)
 // Attention-shaped masked gemm-gemm: the causal mask literal between the two
-// gemms is rewritten into an index compare inside the geg module so the
-// backend can lower it as the fused kernel's causal mode
+// gemms is inlined into the geg module instead of passed as a kernel input;
+// prepare_mlir rewrites it into the index compare the backend lowers as the
+// fused kernel's causal mode
 {
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;
@@ -2172,9 +2174,85 @@ TEST_CASE(dot_causal_mask_dot)
     ss << p1;
     std::string program_str = ss.str();
     EXPECT(program_str.find("geg") != std::string::npos);
-    EXPECT(program_str.find("greater") != std::string::npos);
-    // the mask literal is replaced by the compare, not passed as a kernel input
-    EXPECT(program_str.find("bool_type, {64, 64}") == std::string::npos);
+    // the mask literal is inlined into the module, not passed as a kernel input
+    auto* mm_after = p1.get_main_module();
+    EXPECT(std::none_of(mm_after->begin(), mm_after->end(), [](const auto& ins) {
+        if(ins.name() != "gpu::mlir_op")
+            return false;
+        const auto& inputs = ins.inputs();
+        return std::any_of(inputs.begin(), inputs.end(), [](auto input) {
+            return input->get_shape().type() == migraphx::shape::bool_type;
+        });
+    }));
+    auto geg = std::find_if(mm_after->begin(), mm_after->end(), [](const auto& ins) {
+        return ins.name() == "gpu::mlir_op";
+    });
+    EXPECT(bool{geg != mm_after->end()});
+    const auto* gm = geg->module_inputs().front();
+    EXPECT(std::any_of(gm->begin(), gm->end(), [](const auto& ins) {
+        return ins.name() == "@literal" and
+               ins.get_shape().lens() == std::vector<std::size_t>{64, 64};
+    }));
+}
+
+TEST_CASE(dot_mul_mask_dot)
+// Multiplicative causal mask: the (ones on and below the diagonal) literal is
+// inlined into the geg module instead of passed as a kernel input;
+// prepare_mlir rewrites it to where(compare, 0, 1) and folds the mul into the
+// select so the backend lowers it as the fused kernel's causal mode
+{
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    migraphx::shape qs{migraphx::shape::half_type, {4, 64, 32}};
+    migraphx::shape ks{migraphx::shape::half_type, {4, 32, 64}};
+    migraphx::shape vs{migraphx::shape::half_type, {4, 64, 32}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", qs);
+        auto k   = mm->add_parameter("k", ks);
+        auto v   = mm->add_parameter("v", vs);
+        migraphx::shape ms{migraphx::shape::half_type, {64, 64}};
+        std::vector<float> mask_data(ms.elements());
+        migraphx::shape_for_each(ms, [&](const auto& idx, std::size_t i) {
+            mask_data[i] = idx[1] > idx[0] ? 0.0f : 1.0f;
+        });
+        auto mask   = mm->add_literal(migraphx::literal{ms, mask_data});
+        auto mask_b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), mask);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto masked =
+            add_pointwise(p1, "main:pointwise0", {dot1, mask_b}, [](auto* pm, const auto& inputs) {
+                return pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
+            });
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), masked, v);
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    std::stringstream ss;
+    ss << p1;
+    std::string program_str = ss.str();
+    EXPECT(program_str.find("geg") != std::string::npos);
+    EXPECT(program_str.find("mul(") != std::string::npos);
+    // the mask literal is inlined into the module, not passed as a kernel input
+    auto* mm_after = p1.get_main_module();
+    EXPECT(std::none_of(mm_after->begin(), mm_after->end(), [](const auto& ins) {
+        if(ins.name() != "gpu::mlir_op")
+            return false;
+        const auto& inputs = ins.inputs();
+        return std::any_of(inputs.begin(), inputs.end(), [](auto input) {
+            return input->get_shape().lens().size() == 2;
+        });
+    }));
+    auto geg = std::find_if(mm_after->begin(), mm_after->end(), [](const auto& ins) {
+        return ins.name() == "gpu::mlir_op";
+    });
+    EXPECT(bool{geg != mm_after->end()});
+    const auto* gm = geg->module_inputs().front();
+    EXPECT(std::any_of(gm->begin(), gm->end(), [](const auto& ins) {
+        return ins.name() == "@literal" and
+               ins.get_shape().lens() == std::vector<std::size_t>{64, 64};
+    }));
 }
 
 TEST_CASE(dot_causal_mask_dot_long_seq)
@@ -2221,7 +2299,6 @@ TEST_CASE(dot_causal_mask_dot_long_seq)
     ss << p1;
     std::string program_str = ss.str();
     EXPECT(program_str.find("geg") != std::string::npos);
-    EXPECT(program_str.find("greater") != std::string::npos);
 }
 
 TEST_CASE(dot_add_dot_cab)

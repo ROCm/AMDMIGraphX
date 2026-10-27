@@ -41,6 +41,7 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
+#include <numeric>
 #include <test.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
@@ -717,6 +718,113 @@ module {
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
 
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(dot_causal_mask_dot)
+// The fused causal mask is an inlined boolean triangle literal; prepare_mlir
+// must rewrite it into a compare of index iotas and sink the mask's broadcast
+// below the compare so the select predicate is a direct compare of constant
+// ranges, which rocMLIR lowers as the fused kernel's causal mode
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unsqueeze_greater_convert_dot_convert_where_convert_dot(%arg0: !migraphx.shaped<4x32x64xf16, 2048x64x1>, %arg1: !migraphx.shaped<4x64x32xf16, 2048x32x1>, %arg2: !migraphx.shaped<4x64x32xf16, 2048x32x1>) -> !migraphx.shaped<4x64x32xf16, 2048x32x1> attributes ${attrs} {
+    %0 = migraphx.literal(dense<[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]> : tensor<64xsi32>) : <64xsi32, 1>
+    %1 = migraphx.literal(dense<0.000000e+00> : tensor<1xf32>) : <1xf32, 1>
+    %2 = migraphx.reshape %0 {dims = [64, 1]} : <64xsi32, 1> -> <64x1xsi32, 1x1>
+    %3 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [4, 64, 64]} : <64xsi32, 1> -> <4x64x64xsi32, 0x0x1>
+    %4 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [4, 64, 64]} : <64x1xsi32, 1x1> -> <4x64x64xsi32, 0x1x0>
+    %5 = migraphx.greater %3, %4 : <4x64x64xsi32, 0x0x1>, <4x64x64xsi32, 0x1x0> -> <4x64x64xsi32, 0x64x1>
+    %6 = migraphx.convert %5 {target_type = 0 : i64} : <4x64x64xsi32, 0x64x1> to <4x64x64xsi8, 0x64x1>
+    %7 = migraphx.multibroadcast %1 {out_dyn_dims = [], out_lens = [4, 64, 64]} : <1xf32, 1> -> <4x64x64xf32, 0x0x0>
+    %8 = migraphx.dot %arg1, %arg0 : <4x64x32xf16, 2048x32x1>, <4x32x64xf16, 2048x64x1> -> <4x64x64xf16, 4096x64x1>
+    %9 = migraphx.convert %8 {target_type = 2 : i64} : <4x64x64xf16, 4096x64x1> to <4x64x64xf32, 4096x64x1>
+    %10 = migraphx.where %6, %7, %9 : <4x64x64xsi8, 0x64x1>, <4x64x64xf32, 0x0x0>, <4x64x64xf32, 4096x64x1> -> <4x64x64xf32, 4096x64x1>
+    %11 = migraphx.convert %10 {target_type = 1 : i64} : <4x64x64xf32, 4096x64x1> to <4x64x64xf16, 4096x64x1>
+    %12 = migraphx.dot %11, %arg2 : <4x64x64xf16, 4096x64x1>, <4x64x32xf16, 2048x32x1> -> <4x64x32xf16, 2048x32x1>
+    return %12 : !migraphx.shaped<4x64x32xf16, 2048x32x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto q = m.add_parameter("q", {migraphx::shape::half_type, {4, 64, 32}});
+    auto k = m.add_parameter("k", {migraphx::shape::half_type, {4, 32, 64}});
+    auto v = m.add_parameter("v", {migraphx::shape::half_type, {4, 64, 32}});
+    migraphx::shape ms{migraphx::shape::bool_type, {64, 64}};
+    std::vector<int8_t> mask_data(ms.elements());
+    migraphx::shape_for_each(
+        ms, [&](const auto& idx, std::size_t i) { mask_data[i] = idx[1] > idx[0] ? 1 : 0; });
+    auto mask = m.add_literal(migraphx::literal{ms, mask_data});
+    auto mask_b =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), mask);
+    auto zero = m.add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {0.0f}});
+    auto zero_b =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), zero);
+    auto dot1   = m.add_instruction(migraphx::make_op("dot"), q, k);
+    auto scores = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot1);
+    auto masked   = m.add_instruction(migraphx::make_op("where"), mask_b, zero_b, scores);
+    auto masked_h = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), masked);
+    auto dot2 = m.add_instruction(migraphx::make_op("dot"), masked_h, v);
+    m.add_return({dot2});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(dot_mul_mask_dot)
+// A multiplicative causal mask is an inlined 0/1 lower-triangle literal;
+// prepare_mlir must rewrite it to where(compare, 0, 1), fold the mul into the
+// select and sink the broadcast so the select predicate is a direct compare of
+// constant ranges, which rocMLIR lowers as the fused kernel's causal mode
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unsqueeze_dot_greater_convert_where_dot(%arg0: !migraphx.shaped<4x32x64xf16, 2048x64x1>, %arg1: !migraphx.shaped<4x64x32xf16, 2048x32x1>, %arg2: !migraphx.shaped<4x64x32xf16, 2048x32x1>) -> !migraphx.shaped<4x64x32xf16, 2048x32x1> attributes ${attrs} {
+    %0 = migraphx.literal(dense<0.000000e+00> : tensor<1xf16>) : <1xf16, 1>
+    %1 = migraphx.literal(dense<[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]> : tensor<64xsi32>) : <64xsi32, 1>
+    %2 = migraphx.reshape %1 {dims = [64, 1]} : <64xsi32, 1> -> <64x1xsi32, 1x1>
+    %3 = migraphx.dot %arg1, %arg0 : <4x64x32xf16, 2048x32x1>, <4x32x64xf16, 2048x64x1> -> <4x64x64xf16, 4096x64x1>
+    %4 = migraphx.multibroadcast %1 {out_dyn_dims = [], out_lens = [4, 64, 64]} : <64xsi32, 1> -> <4x64x64xsi32, 0x0x1>
+    %5 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [4, 64, 64]} : <64x1xsi32, 1x1> -> <4x64x64xsi32, 0x1x0>
+    %6 = migraphx.greater %4, %5 : <4x64x64xsi32, 0x0x1>, <4x64x64xsi32, 0x1x0> -> <4x64x64xsi32, 0x64x1>
+    %7 = migraphx.convert %6 {target_type = 0 : i64} : <4x64x64xsi32, 0x64x1> to <4x64x64xsi8, 0x64x1>
+    %8 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [4, 64, 64]} : <1xf16, 1> -> <4x64x64xf16, 0x0x0>
+    %9 = migraphx.where %7, %8, %3 : <4x64x64xsi8, 0x64x1>, <4x64x64xf16, 0x0x0>, <4x64x64xf16, 4096x64x1> -> <4x64x64xf16, 4096x64x1>
+    %10 = migraphx.dot %9, %arg2 : <4x64x64xf16, 4096x64x1>, <4x64x32xf16, 2048x32x1> -> <4x64x32xf16, 2048x32x1>
+    return %10 : !migraphx.shaped<4x64x32xf16, 2048x32x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto q = m.add_parameter("q", {migraphx::shape::half_type, {4, 64, 32}});
+    auto k = m.add_parameter("k", {migraphx::shape::half_type, {4, 32, 64}});
+    auto v = m.add_parameter("v", {migraphx::shape::half_type, {4, 64, 32}});
+    migraphx::shape ms{migraphx::shape::half_type, {64, 64}};
+    std::vector<float> mask_data(ms.elements());
+    migraphx::shape_for_each(
+        ms, [&](const auto& idx, std::size_t i) { mask_data[i] = idx[1] > idx[0] ? 0.0f : 1.0f; });
+    auto mask = m.add_literal(migraphx::literal{ms, mask_data});
+    auto mask_b =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), mask);
+    auto dot1   = m.add_instruction(migraphx::make_op("dot"), q, k);
+    auto masked = m.add_instruction(migraphx::make_op("mul"), dot1, mask_b);
+    auto dot2   = m.add_instruction(migraphx::make_op("dot"), masked, v);
+    m.add_return({dot2});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
 }
 

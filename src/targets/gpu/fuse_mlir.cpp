@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <migraphx/gpu/prepare_mlir.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
@@ -336,8 +337,17 @@ void fuse_input_ops(module_ref mm,
             continue;
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         if(not contains(*map_ins, upper_input))
-            (*map_ins)[upper_input] =
-                mm->add_parameter(param_name(input_cnt++), upper_input->get_shape().as_standard());
+        {
+            // A causal mask literal is inlined instead of passed as a kernel
+            // argument: its values would be opaque to rocMLIR, and prepare_mlir
+            // rewrites exactly these literals into a compare of index iotas
+            if(upper_input->name() == "@literal" and
+               is_causal_mask_literal(upper_input->get_literal()))
+                (*map_ins)[upper_input] = mm->add_literal(upper_input->get_literal());
+            else
+                (*map_ins)[upper_input] = mm->add_parameter(param_name(input_cnt++),
+                                                            upper_input->get_shape().as_standard());
+        }
         instruction_ref prev_input = (*map_ins)[upper_input];
         for(const auto& op : reverse(op_stream))
         {
@@ -942,81 +952,6 @@ struct find_mlir_fused_ops
     }
 };
 
-// True when the literal is a square boolean mask with ones strictly above
-// the diagonal (the causal mask emitted by e.g. the linear attention parser)
-bool is_upper_triangle_mask(const literal& lit)
-{
-    const auto& s = lit.get_shape();
-    if(s.type() != shape::bool_type or s.ndim() != 2 or s.lens().front() != s.lens().back())
-        return false;
-    bool result = true;
-    lit.visit([&](auto v) {
-        shape_for_each(s, [&](const auto& idx, std::size_t i) {
-            if(float_equal(v[i], 0) == (idx[1] > idx[0]))
-                result = false;
-        });
-    });
-    return result;
-}
-
-// Rewrite causal-mask literal parameters inside a fused gemm-gemm module
-// into a comparison of constant index ranges. The mask's values are
-// invisible to rocMLIR once the literal becomes a kernel argument, while a
-// compare of constant ranges is recognized structurally and lowered as the
-// fused kernel's causal mode, which also skips fully masked-out tiles.
-void replace_causal_mask_params(module_ref mm,
-                                const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
-{
-    for(const auto& [outer, inner] : map_ins)
-    {
-        if(outer->name() != "@literal" or inner->name() != "@param")
-            continue;
-        if(not mm->has_instruction(inner))
-            continue;
-        if(not is_upper_triangle_mask(outer->get_literal()))
-            continue;
-        // the mask must only feed `where` predicates through multibroadcast
-        auto broadcasts = inner->outputs();
-        bool rewritable = std::all_of(broadcasts.begin(), broadcasts.end(), [](auto mb) {
-            if(mb->name() != "multibroadcast")
-                return false;
-            const auto& ws = mb->outputs();
-            return std::all_of(ws.begin(), ws.end(), [&](auto w) {
-                return w->name() == "where" and w->inputs().front() == mb;
-            });
-        });
-        if(not rewritable)
-            continue;
-
-        auto t = outer->get_shape().lens().front();
-        std::vector<std::int32_t> iota_vals(t);
-        std::iota(iota_vals.begin(), iota_vals.end(), 0);
-        auto iota_lit = mm->add_literal(literal{shape{shape::int32_type, {t}}, iota_vals});
-        for(auto mb : broadcasts)
-        {
-            const auto& lens = mb->get_shape().lens();
-            auto rows = mm->insert_instruction(mb, make_op("unsqueeze", {{"axes", {1}}}), iota_lit);
-            auto cols_b = mm->insert_instruction(
-                mb, make_op("multibroadcast", {{"out_lens", lens}}), iota_lit);
-            auto rows_b =
-                mm->insert_instruction(mb, make_op("multibroadcast", {{"out_lens", lens}}), rows);
-            auto gt   = mm->insert_instruction(mb, make_op("greater"), cols_b, rows_b);
-            auto pred = mm->insert_instruction(
-                mb, make_op("convert", {{"target_type", shape::bool_type}}), gt);
-            auto wheres = mb->outputs();
-            for(auto w : wheres)
-            {
-                const auto& args = w->inputs();
-                mm->replace_instruction(w, w->get_operator(), {pred, args.at(1), args.at(2)});
-            }
-            if(mb->outputs().empty())
-                mm->remove_instruction(mb);
-        }
-        if(inner->outputs().empty())
-            mm->remove_instruction(inner);
-    }
-}
-
 /**
  * Fuses rocMLIR conv/dot -> optional pointwise -> dot -> optional pointwise chain
  * into a mlir_op with submodule.
@@ -1242,7 +1177,6 @@ struct find_mlir_fused_geg_ops
         // if second submodule has multi-outs, second_rins already contains [pointwise, gemm]
         // otherwise it just contains [final_output]
         mm->add_return(second_rins);
-        replace_causal_mask_params(mm, map_ins);
         auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
 
         // replace the second gemm with the fused GEG operation

@@ -28,7 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 
-template<int M>
+template <int M>
 struct test_unpack_int4_dequant_dot_zp_int4
     : verify_program<test_unpack_int4_dequant_dot_zp_int4<M>>
 {

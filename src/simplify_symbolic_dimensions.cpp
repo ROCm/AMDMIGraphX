@@ -342,8 +342,8 @@ struct replacement_handler
 // Route each supported operation to the handler that owns its complete attribute rewrite.
 operation_replacement make_operation_replacement(const operation& op, const substitutions& values)
 {
-    using handler_array = std::array<replacement_handler, 6>;
-    static const handler_array handlers = {{
+    using handler_array                    = std::array<replacement_handler, 6>;
+    static const handler_array handlers    = {{
         {dyn_slice_replacement::matches, dyn_slice_replacement::replace},
         {broadcast_replacement::matches, broadcast_replacement::replace},
         {shape_operation_replacement::matches, shape_operation_replacement::replace},

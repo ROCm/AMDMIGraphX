@@ -67,6 +67,58 @@ TEST_CASE(dynamic_code_object_op)
     EXPECT(found);
 }
 
+TEST_CASE(dynamic_code_object_multiple_outputs)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {{1, 3}, {3, 3}}});
+
+    auto* pointwise = p.create_module("main:pointwise0");
+    pointwise->set_bypass();
+    auto pointwise_x = pointwise->add_parameter("x0", migraphx::shape{migraphx::shape::float_type});
+    auto absolute    = pointwise->add_instruction(migraphx::make_op("abs"), pointwise_x);
+    auto negated     = pointwise->add_instruction(migraphx::make_op("neg"), absolute);
+    pointwise->add_return({absolute, negated});
+
+    auto outputs = mm->add_instruction(migraphx::make_op("pointwise"),
+                                       std::vector<migraphx::instruction_ref>{x},
+                                       std::vector<migraphx::module_ref>{pointwise});
+    auto absolute_output =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), outputs);
+    auto negated_output =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), outputs);
+    mm->add_return({absolute_output, negated_output});
+
+    auto target = migraphx::make_target("gpu");
+    migraphx::compile_options options;
+    options.backend_options["disable_range_based_splitting"] = true;
+    p.compile(target, options);
+    EXPECT(migraphx::any_of(migraphx::iterator_for(*p.get_main_module()),
+                            [](auto ins) { return ins->name() == "gpu::dynamic_code_object_op"; }));
+
+    std::vector<float> input_data = {-4.0f, -3.0f, -2.0f, -1.0f, 0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
+    migraphx::parameter_map params;
+    params["x"] = target.copy_to(migraphx::argument{
+        migraphx::shape{migraphx::shape::float_type, {3, 3}}, input_data.data()});
+    for(const auto& [name, s] : p.get_parameter_shapes())
+    {
+        if(params.count(name) == 0)
+            params[name] = target.allocate(s);
+    }
+
+    auto results = p.eval(params);
+    EXPECT(results.size() == 2);
+    if(results.size() == 2)
+    {
+        auto absolute_result = target.copy_from(results[0]).to_vector<float>();
+        auto negated_result  = target.copy_from(results[1]).to_vector<float>();
+        EXPECT(absolute_result ==
+               std::vector<float>{4.0f, 3.0f, 2.0f, 1.0f, 0.0f, 1.0f, 2.0f, 3.0f, 4.0f});
+        EXPECT(negated_result ==
+               std::vector<float>{-4.0f, -3.0f, -2.0f, -1.0f, 0.0f, -1.0f, -2.0f, -3.0f, -4.0f});
+    }
+}
+
 TEST_CASE(dynamic_code_object_zero_output)
 {
     migraphx::program p;

@@ -41,7 +41,6 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
-#include <numeric>
 #include <test.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
@@ -721,11 +720,21 @@ module {
     EXPECT(verify_mlir(m));
 }
 
+// Square mask literal with `above` strictly above the diagonal and `other`
+// everywhere else
+static migraphx::literal make_triangle_literal(const migraphx::shape& s, float above, float other)
+{
+    std::vector<float> data(s.elements());
+    migraphx::shape_for_each(
+        s, [&](const auto& idx, std::size_t i) { data[i] = idx[1] > idx[0] ? above : other; });
+    return migraphx::literal{s, data};
+}
+
 TEST_CASE(dot_causal_mask_dot)
 // The fused causal mask is an inlined boolean triangle literal; prepare_mlir
-// must rewrite it into a compare of index iotas and sink the mask's broadcast
-// below the compare so the select predicate is a direct compare of constant
-// ranges, which rocMLIR lowers as the fused kernel's causal mode
+// must rewrite it into a compare of index iotas and push the mask's broadcast
+// onto the compare's operands so the select predicate is a direct compare of
+// constant ranges, which rocMLIR lowers as the fused kernel's causal mode
 {
     std::string mlir_output = R"__migraphx__(
 module {
@@ -751,11 +760,8 @@ module {
     auto q = m.add_parameter("q", {migraphx::shape::half_type, {4, 64, 32}});
     auto k = m.add_parameter("k", {migraphx::shape::half_type, {4, 32, 64}});
     auto v = m.add_parameter("v", {migraphx::shape::half_type, {4, 64, 32}});
-    migraphx::shape ms{migraphx::shape::bool_type, {64, 64}};
-    std::vector<int8_t> mask_data(ms.elements());
-    migraphx::shape_for_each(
-        ms, [&](const auto& idx, std::size_t i) { mask_data[i] = idx[1] > idx[0] ? 1 : 0; });
-    auto mask = m.add_literal(migraphx::literal{ms, mask_data});
+    auto mask =
+        m.add_literal(make_triangle_literal({migraphx::shape::bool_type, {64, 64}}, 1.0f, 0.0f));
     auto mask_b =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), mask);
     auto zero = m.add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {0.0f}});
@@ -782,8 +788,9 @@ module {
 TEST_CASE(dot_mul_mask_dot)
 // A multiplicative causal mask is an inlined 0/1 lower-triangle literal;
 // prepare_mlir must rewrite it to where(compare, 0, 1), fold the mul into the
-// select and sink the broadcast so the select predicate is a direct compare of
-// constant ranges, which rocMLIR lowers as the fused kernel's causal mode
+// select and push the broadcast onto the compare's operands so the select
+// predicate is a direct compare of constant ranges, which rocMLIR lowers as
+// the fused kernel's causal mode
 {
     std::string mlir_output = R"__migraphx__(
 module {
@@ -807,11 +814,8 @@ module {
     auto q = m.add_parameter("q", {migraphx::shape::half_type, {4, 64, 32}});
     auto k = m.add_parameter("k", {migraphx::shape::half_type, {4, 32, 64}});
     auto v = m.add_parameter("v", {migraphx::shape::half_type, {4, 64, 32}});
-    migraphx::shape ms{migraphx::shape::half_type, {64, 64}};
-    std::vector<float> mask_data(ms.elements());
-    migraphx::shape_for_each(
-        ms, [&](const auto& idx, std::size_t i) { mask_data[i] = idx[1] > idx[0] ? 0.0f : 1.0f; });
-    auto mask = m.add_literal(migraphx::literal{ms, mask_data});
+    auto mask =
+        m.add_literal(make_triangle_literal({migraphx::shape::half_type, {64, 64}}, 0.0f, 1.0f));
     auto mask_b =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), mask);
     auto dot1   = m.add_instruction(migraphx::make_op("dot"), q, k);

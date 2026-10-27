@@ -38,8 +38,6 @@
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/float_equal.hpp>
 #include <numeric>
 #include <optional>
 
@@ -396,8 +394,8 @@ constexpr std::int64_t geg_attn_k_max  = 256;
 constexpr std::int64_t geg_attn_g_max  = 256;
 constexpr std::int64_t geg_attn_mn_min = 32;
 
-// A dot producing the GEG chain's first gemm: contracts over a head dim
-// within the band's k cap.
+// The GEG chain's first gemm: a dot contracting over a head dim within
+// the band's k cap.
 bool is_geg_band_first_gemm(instruction_ref ins)
 {
     ins = strip_layout_ops(ins);
@@ -416,8 +414,8 @@ bool is_geg_second_gemm(instruction_ref ins)
 {
     if(enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return false;
-    auto a_lens    = ins->inputs().front()->get_shape().lens();
-    std::int64_t m = a_lens[a_lens.size() - 2];
+    const auto& a_lens = ins->inputs().front()->get_shape().lens();
+    std::int64_t m     = a_lens[a_lens.size() - 2];
     std::int64_t g = ins->inputs().back()->get_shape().lens().back();
     if(g > geg_attn_g_max or m < geg_attn_mn_min)
         return false;
@@ -430,10 +428,7 @@ bool is_geg_second_gemm(instruction_ref ins)
     if(prev->name() == "gpu::mlir_op")
     {
         auto* pm = prev->module_inputs().front();
-        return std::any_of(pm->begin(), pm->end(), [](const auto& i) {
-            return contains({"dot", "quant_dot"}, i.name()) and
-                   i.inputs().front()->get_shape().lens().back() <= geg_attn_k_max;
-        });
+        return any_of(iterator_for(*pm), &is_geg_band_first_gemm);
     }
     return is_geg_band_first_gemm(prev);
 }
@@ -1069,8 +1064,8 @@ struct find_mlir_fused_geg_ops
         //   d=512      -     -     -    1.5    -    1.6    -    1.4
         // gfx942 fp16 and fp32: wins at every swept shape for d <= 256 in
         // T 64..4096 (0.15-0.95, improving with T; T >= 1024 reaches this
-        // heuristic through the GEG exemption in is_mlir_dot since gemm1's
-        // k is the sequence length), except a reproducible low-batch pocket
+        // heuristic through the GEG exemption in is_mlir_dot since the second
+        // gemm's k is the sequence length), except a reproducible low-batch pocket
         // at H=8, d=256, T 128..512 (1.0-1.3; the absolute loss is a few us
         // at the kernel-launch floor, and gfx1201 wins those shapes, so it
         // is not carved out).
@@ -1119,22 +1114,17 @@ struct find_mlir_fused_geg_ops
             return;
 
         // the fused kernel applies the first gemm's chain to the second
-        // gemm's A operand; reject chains that reach the B operand. The
-        // submodule parameter for an input is found by find_inputs' ordering
-        // (lexicographic parameter names).
-        const auto& outer_inputs = second_gemm_ins->inputs();
-        auto first_pos = std::find(outer_inputs.begin(), outer_inputs.end(), first_gemm_ins);
-        if(first_pos == outer_inputs.end())
+        // gemm's A operand; reject chains that reach the B operand
+        auto pmap = second_submod->get_ins_param_map(second_gemm_ins->inputs());
+        auto pit  = pmap.find(first_gemm_ins);
+        if(pit == pmap.end())
             return;
-        auto pnames = second_submod->get_parameter_names();
-        std::sort(pnames.begin(), pnames.end());
-        auto chain_param =
-            second_submod->get_parameter(pnames.at(std::distance(outer_inputs.begin(), first_pos)));
-        auto a_in = second_gemm->inputs().front();
-        auto b_in = second_gemm->inputs().back();
-        if(chain_param == b_in or reaches(chain_param, b_in))
+        auto chain_param = pit->second;
+        auto a_in        = second_gemm->inputs().front();
+        auto b_in        = second_gemm->inputs().at(1);
+        if(reaches(chain_param, b_in))
             return;
-        if(chain_param != a_in and not reaches(chain_param, a_in))
+        if(not reaches(chain_param, a_in))
             return;
 
         if(not single_chain_input_to_second_gemm(first_gemm_ins, second_gemm_ins->inputs()))

@@ -34,7 +34,6 @@
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/shape_for_each.hpp>
 #include <algorithm>
 #include <numeric>
 #include <optional>
@@ -262,38 +261,44 @@ struct find_kv_cache_plain_q
     }
 };
 
+// True when the square literal holds `above` strictly above the diagonal and
+// `other` elsewhere. Scans contiguous rows so a non-mask literal (e.g. a
+// square weight matrix) exits on the first mismatch; this runs on every
+// literal input at mlir fusion sites, so the cheap exit matters.
+bool is_triangle_mask(const literal& lit, double above, double other)
+{
+    const auto& s = lit.get_shape();
+    if(s.ndim() != 2 or not s.standard())
+        return false;
+    auto t = s.lens().front();
+    if(t != s.lens().back() or t < 2)
+        return false;
+    bool result = false;
+    lit.visit([&](auto v) {
+        std::vector<std::size_t> rows(t);
+        std::iota(rows.begin(), rows.end(), 0);
+        result = std::all_of(rows.begin(), rows.end(), [&](std::size_t r) {
+            auto row  = v.begin() + r * t;
+            auto diag = row + r + 1;
+            return std::all_of(row, diag, [&](auto x) { return float_equal(x, other); }) and
+                   std::all_of(diag, row + t, [&](auto x) { return float_equal(x, above); });
+        });
+    });
+    return result;
+}
+
 // True when the literal is a square boolean mask with ones strictly above
 // the diagonal (the causal mask emitted by e.g. the linear attention parser)
 bool is_upper_triangle_mask(const literal& lit)
 {
-    const auto& s = lit.get_shape();
-    if(s.type() != shape::bool_type or s.ndim() != 2 or s.lens().front() != s.lens().back())
-        return false;
-    bool result = true;
-    lit.visit([&](auto v) {
-        shape_for_each(s, [&](const auto& idx, std::size_t i) {
-            if(float_equal(v[i], 0) == (idx[1] > idx[0]))
-                result = false;
-        });
-    });
-    return result;
+    return lit.get_shape().type() == shape::bool_type and is_triangle_mask(lit, 1, 0);
 }
 
 // True when the literal is a square numeric 0/1 mask with ones on and below
 // the diagonal: multiplying scores by it zeroes the strictly-upper triangle
 bool is_lower_triangle_mask(const literal& lit)
 {
-    const auto& s = lit.get_shape();
-    if(s.type() == shape::bool_type or s.ndim() != 2 or s.lens().front() != s.lens().back())
-        return false;
-    bool result = true;
-    lit.visit([&](auto v) {
-        shape_for_each(s, [&](const auto& idx, std::size_t i) {
-            if(not float_equal(v[i], idx[1] > idx[0] ? 0 : 1))
-                result = false;
-        });
-    });
-    return result;
+    return lit.get_shape().type() != shape::bool_type and is_triangle_mask(lit, 0, 1);
 }
 
 // Insert a (t, t) boolean predicate that is true strictly above the diagonal,
@@ -301,21 +306,16 @@ bool is_lower_triangle_mask(const literal& lit)
 // rocMLIR recognizes as the kernel's causal mode
 instruction_ref insert_causal_mask_pred(module& m, instruction_ref pos, std::size_t t)
 {
-    std::vector<std::size_t> mask_lens{t, t};
     std::vector<std::int32_t> iota_vals(t);
     std::iota(iota_vals.begin(), iota_vals.end(), 0);
     auto iota_lit = m.add_literal(literal{shape{shape::int32_type, {t}}, iota_vals});
     auto rows     = m.insert_instruction(pos, make_op("unsqueeze", {{"axes", {1}}}), iota_lit);
-    auto rows_b =
-        m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", mask_lens}}), rows);
-    auto cols_b =
-        m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", mask_lens}}), iota_lit);
-    auto gt = m.insert_instruction(pos, make_op("greater"), cols_b, rows_b);
+    auto gt       = insert_common_op(m, pos, make_op("greater"), {iota_lit, rows});
     return m.insert_instruction(pos, make_op("convert", {{"target_type", shape::bool_type}}), gt);
 }
 
 // A causal mask literal (inlined by fuse_mlir) is opaque data once it reaches
-// rocMLIR: replace it with the element-wise equal compare of index iotas — a
+// rocMLIR: replace it with an equivalent compare of index iotas — a
 // bool zero-mask becomes the predicate itself, a multiplicative 0/1 mask
 // becomes where(predicate, 0, 1) for the mul fold below to consume.
 struct find_causal_mask_literal
@@ -337,9 +337,9 @@ struct find_causal_mask_literal
             m.replace_instruction(ins, pred);
             return;
         }
-        std::vector<std::size_t> mask_lens{t, t};
-        auto type = ins->get_shape().type();
-        auto zero = m.add_literal(literal{shape{type, {1}}, {0.0}});
+        const auto& mask_lens = ins->get_shape().lens();
+        auto type             = ins->get_shape().type();
+        auto zero             = m.add_literal(literal{shape{type, {1}}, {0.0}});
         auto one  = m.add_literal(literal{shape{type, {1}}, {1.0}});
         auto zero_b =
             m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", mask_lens}}), zero);
@@ -350,18 +350,21 @@ struct find_causal_mask_literal
     }
 };
 
-// Multiplying by a 0/1 mask of the form where(pred, 0, 1) keeps the values
-// the predicate rejects: fold the mul into the select, mul(x, where(p, 0, 1))
-// == where(p, 0, x), so a causal mask compare feeds the select directly and
-// rocMLIR can lower it as the kernel's causal mode.
+// Fold mul(x, where(p, 0, 1)) into where(p, 0, x) so the causal-mask
+// compare feeds the select directly and rocMLIR can lower it as the
+// kernel's causal mode.
 struct find_masked_mul
 {
     auto matcher() const
     {
         auto mask = match::name("where")(match::arg(1)(match::has_value(0.0f)),
                                          match::arg(2)(match::has_value(1.0f)));
-        return match::name("mul")(match::either_arg(0, 1)(match::skip_broadcasts(mask.bind("mask")),
-                                                          match::any().bind("x")));
+        // Only trailing-aligned broadcasts may sit between the mask and the
+        // mul: the rewrite re-broadcasts the predicate with a multibroadcast,
+        // which cannot reproduce an axis-based broadcast chain
+        auto skip_mb = match::skip(match::name("multibroadcast", "contiguous"));
+        return match::name("mul")(
+            match::either_arg(0, 1)(skip_mb(mask.bind("mask")), match::any().bind("x")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -382,8 +385,8 @@ struct find_masked_mul
 // rocMLIR recognizes a causal mask structurally as a select whose predicate
 // is a direct compare of constant index ranges, but a mask computed at its
 // own shape reaches the select through a broadcast that hides the compare.
-// Sink the broadcast below the compare (and its convert) by re-broadcasting
-// the compare's operands to the outer shape.
+// Push the broadcast through the compare (and its convert) onto its
+// operands, re-broadcasting them to the outer shape.
 struct find_broadcast_of_compare
 {
     auto matcher() const
@@ -401,6 +404,10 @@ struct find_broadcast_of_compare
         auto input       = ins->inputs().front();
         auto compare     = r.instructions["compare"];
         const auto& lens = ins->get_shape().lens();
+        // A same-shape broadcast hides nothing; leave it to avoid disturbing
+        // the kv-cache mask form rocMLIR already binds
+        if(lens == compare->get_shape().lens())
+            return;
         std::vector<instruction_ref> new_args;
         std::transform(
             compare->inputs().begin(),

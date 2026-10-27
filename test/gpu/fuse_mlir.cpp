@@ -2129,6 +2129,38 @@ TEST_CASE(dot_add_dot_abc_fp16)
     EXPECT(program_str.find("geg") != std::string::npos);
 }
 
+// Square mask literal with `above` strictly above the diagonal and `other`
+// everywhere else
+static migraphx::literal make_triangle_literal(const migraphx::shape& s, float above, float other)
+{
+    std::vector<float> data(s.elements());
+    migraphx::shape_for_each(
+        s, [&](const auto& idx, std::size_t i) { data[i] = idx[1] > idx[0] ? above : other; });
+    return migraphx::literal{s, data};
+}
+
+// The (t, t) mask literal must be inlined into the mlir module rather than
+// passed as a kernel input
+static void expect_mask_inlined(const migraphx::module& mm, std::size_t t)
+{
+    EXPECT(std::none_of(mm.begin(), mm.end(), [](const auto& ins) {
+        if(ins.name() != "gpu::mlir_op")
+            return false;
+        const auto& inputs = ins.inputs();
+        return std::any_of(inputs.begin(), inputs.end(), [](auto input) {
+            return input->get_shape().ndim() == 2;
+        });
+    }));
+    auto geg = std::find_if(
+        mm.begin(), mm.end(), [](const auto& ins) { return ins.name() == "gpu::mlir_op"; });
+    EXPECT(bool{geg != mm.end()});
+    const auto* gm = geg->module_inputs().front();
+    EXPECT(std::any_of(gm->begin(), gm->end(), [&](const auto& ins) {
+        return ins.name() == "@literal" and
+               ins.get_shape().lens() == std::vector<std::size_t>{t, t};
+    }));
+}
+
 TEST_CASE(dot_causal_mask_dot)
 // Attention-shaped masked gemm-gemm: the causal mask literal between the two
 // gemms is inlined into the geg module instead of passed as a kernel input;
@@ -2137,20 +2169,14 @@ TEST_CASE(dot_causal_mask_dot)
 {
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;
-    migraphx::shape qs{migraphx::shape::half_type, {4, 64, 32}};
-    migraphx::shape ks{migraphx::shape::half_type, {4, 32, 64}};
-    migraphx::shape vs{migraphx::shape::half_type, {4, 64, 32}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
-        auto q   = mm->add_parameter("q", qs);
-        auto k   = mm->add_parameter("k", ks);
-        auto v   = mm->add_parameter("v", vs);
-        migraphx::shape ms{migraphx::shape::bool_type, {64, 64}};
-        std::vector<int8_t> mask_data(ms.elements());
-        migraphx::shape_for_each(
-            ms, [&](const auto& idx, std::size_t i) { mask_data[i] = idx[1] > idx[0] ? 1 : 0; });
-        auto mask   = mm->add_literal(migraphx::literal{ms, mask_data});
+        auto q    = mm->add_parameter("q", {migraphx::shape::half_type, {4, 64, 32}});
+        auto k    = mm->add_parameter("k", {migraphx::shape::half_type, {4, 32, 64}});
+        auto v    = mm->add_parameter("v", {migraphx::shape::half_type, {4, 64, 32}});
+        auto mask = mm->add_literal(
+            make_triangle_literal({migraphx::shape::bool_type, {64, 64}}, 1.0f, 0.0f));
         auto mask_b = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), mask);
         auto zero = mm->add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {0.0f}});
@@ -2174,32 +2200,14 @@ TEST_CASE(dot_causal_mask_dot)
     ss << p1;
     std::string program_str = ss.str();
     EXPECT(program_str.find("geg") != std::string::npos);
-    // the mask literal is inlined into the module, not passed as a kernel input
-    auto* mm_after = p1.get_main_module();
-    EXPECT(std::none_of(mm_after->begin(), mm_after->end(), [](const auto& ins) {
-        if(ins.name() != "gpu::mlir_op")
-            return false;
-        const auto& inputs = ins.inputs();
-        return std::any_of(inputs.begin(), inputs.end(), [](auto input) {
-            return input->get_shape().type() == migraphx::shape::bool_type;
-        });
-    }));
-    auto geg = std::find_if(mm_after->begin(), mm_after->end(), [](const auto& ins) {
-        return ins.name() == "gpu::mlir_op";
-    });
-    EXPECT(bool{geg != mm_after->end()});
-    const auto* gm = geg->module_inputs().front();
-    EXPECT(std::any_of(gm->begin(), gm->end(), [](const auto& ins) {
-        return ins.name() == "@literal" and
-               ins.get_shape().lens() == std::vector<std::size_t>{64, 64};
-    }));
+    expect_mask_inlined(*p1.get_main_module(), 64);
 }
 
 TEST_CASE(dot_mul_mask_dot)
-// Multiplicative causal mask: the (ones on and below the diagonal) literal is
-// inlined into the geg module instead of passed as a kernel input;
-// prepare_mlir rewrites it to where(compare, 0, 1) and folds the mul into the
-// select so the backend lowers it as the fused kernel's causal mode
+// Multiplicative causal mask: the 0/1 lower-triangle literal is inlined into
+// the geg module instead of passed as a kernel input; prepare_mlir rewrites
+// it to where(compare, 0, 1) and folds the mul into the select so the
+// backend lowers it as the fused kernel's causal mode
 {
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;
@@ -2212,12 +2220,8 @@ TEST_CASE(dot_mul_mask_dot)
         auto q   = mm->add_parameter("q", qs);
         auto k   = mm->add_parameter("k", ks);
         auto v   = mm->add_parameter("v", vs);
-        migraphx::shape ms{migraphx::shape::half_type, {64, 64}};
-        std::vector<float> mask_data(ms.elements());
-        migraphx::shape_for_each(ms, [&](const auto& idx, std::size_t i) {
-            mask_data[i] = idx[1] > idx[0] ? 0.0f : 1.0f;
-        });
-        auto mask   = mm->add_literal(migraphx::literal{ms, mask_data});
+        auto mask = mm->add_literal(
+            make_triangle_literal({migraphx::shape::half_type, {64, 64}}, 0.0f, 1.0f));
         auto mask_b = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), mask);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
@@ -2234,25 +2238,7 @@ TEST_CASE(dot_mul_mask_dot)
     std::string program_str = ss.str();
     EXPECT(program_str.find("geg") != std::string::npos);
     EXPECT(program_str.find("mul(") != std::string::npos);
-    // the mask literal is inlined into the module, not passed as a kernel input
-    auto* mm_after = p1.get_main_module();
-    EXPECT(std::none_of(mm_after->begin(), mm_after->end(), [](const auto& ins) {
-        if(ins.name() != "gpu::mlir_op")
-            return false;
-        const auto& inputs = ins.inputs();
-        return std::any_of(inputs.begin(), inputs.end(), [](auto input) {
-            return input->get_shape().lens().size() == 2;
-        });
-    }));
-    auto geg = std::find_if(mm_after->begin(), mm_after->end(), [](const auto& ins) {
-        return ins.name() == "gpu::mlir_op";
-    });
-    EXPECT(bool{geg != mm_after->end()});
-    const auto* gm = geg->module_inputs().front();
-    EXPECT(std::any_of(gm->begin(), gm->end(), [](const auto& ins) {
-        return ins.name() == "@literal" and
-               ins.get_shape().lens() == std::vector<std::size_t>{64, 64};
-    }));
+    expect_mask_inlined(*p1.get_main_module(), 64);
 }
 
 TEST_CASE(dot_causal_mask_dot_long_seq)
@@ -2262,20 +2248,14 @@ TEST_CASE(dot_causal_mask_dot_long_seq)
 {
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;
-    migraphx::shape qs{migraphx::shape::half_type, {4, 1024, 64}};
-    migraphx::shape ks{migraphx::shape::half_type, {4, 64, 1024}};
-    migraphx::shape vs{migraphx::shape::half_type, {4, 1024, 64}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
-        auto q   = mm->add_parameter("q", qs);
-        auto k   = mm->add_parameter("k", ks);
-        auto v   = mm->add_parameter("v", vs);
-        migraphx::shape ms{migraphx::shape::bool_type, {1024, 1024}};
-        std::vector<int8_t> mask_data(ms.elements());
-        migraphx::shape_for_each(
-            ms, [&](const auto& idx, std::size_t i) { mask_data[i] = idx[1] > idx[0] ? 1 : 0; });
-        auto mask   = mm->add_literal(migraphx::literal{ms, mask_data});
+        auto q    = mm->add_parameter("q", {migraphx::shape::half_type, {4, 1024, 64}});
+        auto k    = mm->add_parameter("k", {migraphx::shape::half_type, {4, 64, 1024}});
+        auto v    = mm->add_parameter("v", {migraphx::shape::half_type, {4, 1024, 64}});
+        auto mask = mm->add_literal(
+            make_triangle_literal({migraphx::shape::bool_type, {1024, 1024}}, 1.0f, 0.0f));
         auto mask_b = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {4, 1024, 1024}}}), mask);
         auto zero = mm->add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {0.0f}});

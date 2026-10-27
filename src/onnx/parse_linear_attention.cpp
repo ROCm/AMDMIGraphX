@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 // Unified linear attention (ai.onnx opset 27). The recurrence
-//   S_t = exp(g_t) * S_{t-1} + k_t (x) beta_t * (v_t - S_{t-1}^T k_t)
+//   S~ = exp(g_t) * S_{t-1};  S_t = S~ + k_t (x) beta_t * (v_t - S~^T k_t)
 //   o_t = scale * q_t^T S_t
 // is accumulated in float as the onnx reference implementation prescribes.
 // The linear rule has the closed form
@@ -141,6 +141,8 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         dims.sequence_length = q_lens.at(1);
         if(dims.sequence_length == 0)
             MIGRAPHX_THROW("LinearAttention: sequence length must be at least 1");
+        if(q_lens.at(2) == 0 or v_lens.at(2) == 0)
+            MIGRAPHX_THROW("LinearAttention: hidden sizes must be positive");
         if(q_lens.at(2) % attrs.q_num_heads != 0 or v_lens.at(2) % attrs.kv_num_heads != 0)
             MIGRAPHX_THROW("LinearAttention: hidden sizes must be divisible by the head counts");
         dims.head_size_k = q_lens.at(2) / attrs.q_num_heads;
@@ -218,6 +220,61 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         return info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), r);
     }
 
+    // (B, T, Hkv * d) -> (B, Hkv, T, d) so a per-step slice of axis 2 yields
+    // a (B, Hkv, 1, d) row
+    static instruction_ref to_rows(const onnx_parser::node_info& info,
+                                   instruction_ref ins,
+                                   const linear_attention_dims& dims,
+                                   std::size_t heads,
+                                   std::size_t head_size)
+    {
+        std::vector<std::size_t> unpacked{dims.batch_size, dims.sequence_length, heads, head_size};
+        auto r = info.add_instruction(make_op("reshape", {{"dims", unpacked}}), ins);
+        return info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), r);
+    }
+
+    // query: (B, T, Hq*dk) -> (B, Hkv, group, T, dk); the group axis maps
+    // each block of group consecutive query heads onto one kv head
+    static instruction_ref to_query(const onnx_parser::node_info& info,
+                                    instruction_ref ins,
+                                    const linear_attention_attributes& attrs,
+                                    const linear_attention_dims& dims)
+    {
+        auto r = info.add_instruction(make_op("reshape",
+                                              {{"dims",
+                                                {dims.batch_size,
+                                                 dims.sequence_length,
+                                                 attrs.kv_num_heads,
+                                                 attrs.group_size(),
+                                                 dims.head_size_k}}}),
+                                      ins);
+        return info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), r);
+    }
+
+    // Scale the float output and pack (B, Hkv, group, T, dv) back to the
+    // operator's (B, T, Hq*dv) layout in the input type
+    static instruction_ref scale_and_pack_output(const onnx_parser::node_info& info,
+                                                 const linear_attention_attributes& attrs,
+                                                 const linear_attention_dims& dims,
+                                                 instruction_ref output,
+                                                 shape::type_t in_type)
+    {
+        auto scale_val = float_equal(attrs.scale, 0.0f)
+                             ? 1.0f / std::sqrt(static_cast<float>(dims.head_size_k))
+                             : attrs.scale;
+        auto scale_lit = info.add_literal(literal{shape{shape::float_type, {1}}, {scale_val}});
+        output         = info.add_common_op("mul", output, scale_lit);
+        output =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2, 4}}}), output);
+        output = info.add_instruction(
+            make_op(
+                "reshape",
+                {{"dims",
+                  {dims.batch_size, dims.sequence_length, attrs.q_num_heads * dims.head_size_v}}}),
+            output);
+        return from_float(info, output, in_type);
+    }
+
     static instruction_ref slice_step(const onnx_parser::node_info& info,
                                       instruction_ref ins,
                                       std::int64_t axis,
@@ -269,30 +326,19 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                                               const linear_attention_dims& dims,
                                               const std::vector<instruction_ref>& args) const
     {
-        const auto b     = dims.batch_size;
         const auto t     = dims.sequence_length;
         const auto d_k   = dims.head_size_k;
         const auto d_v   = dims.head_size_v;
         const auto heads = attrs.kv_num_heads;
         const auto group = attrs.group_size();
 
-        const auto in_type    = args.at(0)->get_shape().type();
-        const auto state_type = has_input(args, 3) ? args.at(3)->get_shape().type() : in_type;
+        const auto in_type = args.at(0)->get_shape().type();
 
-        // query: (B, T, Hq*dk) -> (B, Hkv, group, T, dk)
-        auto q = info.add_instruction(make_op("reshape", {{"dims", {b, t, heads, group, d_k}}}),
-                                      args.at(0));
-        q      = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), q);
-        // key: (B, T, Hkv*dk) -> (B, Hkv, dk, T), value: (B, T, Hkv*dv) -> (B, Hkv, T, dv)
+        auto q      = to_query(info, args.at(0), attrs, dims);
         auto k_cols = to_columns(info, args.at(1), dims, heads, d_k);
-        auto v =
-            info.add_instruction(make_op("reshape", {{"dims", {b, t, heads, d_v}}}), args.at(2));
-        v = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), v);
+        auto v      = to_rows(info, args.at(2), dims, heads, d_v);
 
-        // scores tril(Q K^T): (B, Hkv, group, T, T). The mask stage runs in
-        // float; the convert back to the input type feeds the second matmul
-        // (a fused gemm-gemm kernel elides this round trip and keeps the
-        // scores in the accumulation type).
+        // scores tril(Q K^T): (B, Hkv, group, T, T)
         auto scores = info.add_instruction(make_op("dot"), q, broadcast_group(info, k_cols, group));
         scores      = to_float(info, scores);
         scores      = apply_causal_mask(info, scores, t);
@@ -310,29 +356,16 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             output    = info.add_instruction(make_op("add"), output, init);
         }
 
-        auto scale_val = float_equal(attrs.scale, 0.0f) ? 1.0f / std::sqrt(static_cast<float>(d_k))
-                                                        : attrs.scale;
-        auto scale_lit = info.add_literal(literal{shape{shape::float_type, {1}}, {scale_val}});
-        scale_lit      = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", output->get_shape().lens()}}), scale_lit);
-        output = info.add_instruction(make_op("mul"), output, scale_lit);
-
-        // (B, Hkv, group, T, dv) -> (B, T, Hq*dv)
-        output =
-            info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2, 4}}}), output);
-        output = info.add_instruction(
-            make_op("reshape", {{"dims", {b, t, attrs.q_num_heads * d_v}}}), output);
-        output = from_float(info, output, in_type);
+        output = scale_and_pack_output(info, attrs, dims, output, in_type);
 
         // present state S_0 + K^T V: (B, Hkv, dk, T) x (B, Hkv, T, dv)
-        auto state   = info.add_instruction(make_op("dot"), k_cols, v);
-        auto present = state;
+        auto present = info.add_instruction(make_op("dot"), k_cols, v);
         if(has_input(args, 3))
         {
-            auto state_f = to_float(info, state);
+            auto state_f = to_float(info, present);
             auto s0      = to_float(info, args.at(3));
             auto sum     = info.add_instruction(make_op("add"), state_f, s0);
-            present      = from_float(info, sum, state_type);
+            present      = from_float(info, sum, args.at(3)->get_shape().type());
         }
         return {output, present};
     }
@@ -350,27 +383,17 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         if(attrs.update_rule == "linear" and dims.sequence_length > 1)
             return parse_masked(info, attrs, dims, args);
 
-        const auto b     = dims.batch_size;
         const auto t     = dims.sequence_length;
         const auto d_k   = dims.head_size_k;
         const auto d_v   = dims.head_size_v;
         const auto heads = attrs.kv_num_heads;
-        const auto group = attrs.group_size();
 
         const auto in_type    = args.at(0)->get_shape().type();
         const auto state_type = has_input(args, 3) ? args.at(3)->get_shape().type() : in_type;
 
-        // query: (B, T, Hq*dk) -> (B, Hkv, group, T, dk); the group axis maps
-        // each block of group consecutive query heads onto one kv head
-        auto q = to_float(info, args.at(0));
-        q      = info.add_instruction(make_op("reshape", {{"dims", {b, t, heads, group, d_k}}}), q);
-        q      = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), q);
-
+        auto q      = to_query(info, to_float(info, args.at(0)), attrs, dims);
         auto k_cols = to_columns(info, to_float(info, args.at(1)), dims, heads, d_k);
-        // value: (B, T, Hkv*dv) -> (B, Hkv, T, dv)
-        auto v = to_float(info, args.at(2));
-        v      = info.add_instruction(make_op("reshape", {{"dims", {b, t, heads, d_v}}}), v);
-        v      = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), v);
+        auto v      = to_rows(info, to_float(info, args.at(2)), dims, heads, d_v);
 
         // state: (B, Hkv, dk, dv); left unset until the first update when
         // there is no past_state, since S_0 = 0 makes that step a plain outer
@@ -379,7 +402,6 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         bool has_state = has_input(args, 3);
         if(has_state)
             state = to_float(info, args.at(3));
-        const std::vector<std::size_t> state_lens{b, heads, d_k, d_v};
 
         // decay: (B, T, Hkv) or (B, T, Hkv*dk) -> exp(g) as (B, Hkv, c, T)
         instruction_ref decay_cols;
@@ -409,9 +431,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             if(attrs.gated() and has_state)
             {
                 auto e_t = slice_step(info, decay_cols, 3, i); // (B, Hkv, c, 1)
-                e_t   = info.add_instruction(make_op("multibroadcast", {{"out_lens", state_lens}}),
-                                             e_t);
-                state = info.add_instruction(make_op("mul"), state, e_t);
+                state    = info.add_common_op("mul", state, e_t);
             }
             if(attrs.delta())
             {
@@ -424,9 +444,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                     v_t            = info.add_instruction(make_op("sub"), v_t, retrieved);
                 }
                 auto b_t = slice_step(info, beta, 3, i); // (B, Hb, 1, 1)
-                b_t      = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", v_t->get_shape().lens()}}), b_t);
-                v_t = info.add_instruction(make_op("mul"), b_t, v_t);
+                v_t      = info.add_common_op("mul", b_t, v_t);
             }
 
             // outer product k_t (x) v_t: (B, Hkv, dk, 1) x (B, Hkv, 1, dv)
@@ -445,19 +463,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                           ? outputs.front()
                           : info.add_instruction(make_op("concat", {{"axis", 3}}), outputs);
 
-        auto scale_val = float_equal(attrs.scale, 0.0f) ? 1.0f / std::sqrt(static_cast<float>(d_k))
-                                                        : attrs.scale;
-        auto scale_lit = info.add_literal(literal{shape{shape::float_type, {1}}, {scale_val}});
-        scale_lit      = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", output->get_shape().lens()}}), scale_lit);
-        output = info.add_instruction(make_op("mul"), output, scale_lit);
-
-        // (B, Hkv, group, T, dv) -> (B, T, Hq*dv)
-        output =
-            info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2, 4}}}), output);
-        output = info.add_instruction(
-            make_op("reshape", {{"dims", {b, t, attrs.q_num_heads * d_v}}}), output);
-        output = from_float(info, output, in_type);
+        output = scale_and_pack_output(info, attrs, dims, output, in_type);
 
         auto present_state = from_float(info, state, state_type);
         return {output, present_state};

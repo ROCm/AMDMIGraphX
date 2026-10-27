@@ -471,22 +471,23 @@ TEST_CASE(out_of_range_position_skips_write)
         return p.eval(params).front();
     };
 
-    auto cache_len   = cache_shape().lens()[2];
-    auto before       = as_vec(cache_arg);
+    auto cache_len = cache_shape().lens()[2];
+    auto before    = as_vec(cache_arg);
     // Out-of-range positions must no longer throw, and must leave the entire cache
     // unchanged rather than corrupting an in-range slot
-    auto after_low   = append(-1, cache_arg);
+    auto after_low = append(-1, cache_arg);
     EXPECT(as_vec(after_low) == before);
-    auto after_high  = append(cache_len, after_low);
+    auto after_high = append(cache_len, after_low);
     EXPECT(as_vec(after_high) == before);
 
     // A subsequent valid append on the retained cache writes the expected slot, and
     // leaves every other slot exactly as it was
     auto result     = append(0, after_high);
     auto result_vec = as_vec(result);
-    auto x_vec       = as_vec(x_arg);
-    auto y_vec       = as_vec(y_arg);
+    auto x_vec      = as_vec(x_arg);
+    auto y_vec      = as_vec(y_arg);
     const auto& s   = cache_shape();
+    std::vector<float> expected_vec(result_vec.size());
     for(std::size_t b = 0; b < s.lens()[0]; b++)
         for(std::size_t h = 0; h < s.lens()[1]; h++)
             for(std::size_t sq = 0; sq < s.lens()[2]; sq++)
@@ -495,14 +496,15 @@ TEST_CASE(out_of_range_position_skips_write)
                     auto idx = s.index({b, h, sq, d});
                     if(sq == 0)
                     {
-                        auto slot_idx = present_shape(1).index({b, h, 0, d});
-                        EXPECT(result_vec[idx] == x_vec[slot_idx] * y_vec[slot_idx]);
+                        auto slot_idx     = present_shape(1).index({b, h, 0, d});
+                        expected_vec[idx] = x_vec[slot_idx] * y_vec[slot_idx];
                     }
                     else
                     {
-                        EXPECT(result_vec[idx] == before[idx]);
+                        expected_vec[idx] = before[idx];
                     }
                 }
+    EXPECT(result_vec == expected_vec);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

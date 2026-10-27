@@ -207,7 +207,7 @@ struct find_concat_past_present
                 return;
             auto slot_s  = slot_shape(cur, cache);
             auto scratch = get_scratch(m, ins, slot_s);
-            view = m.insert_instruction(ins,
+            view         = m.insert_instruction(ins,
                                         make_op("gpu::slice_at", {{"axis", seq_axis}}),
                                         cache,
                                         load_scalar(m, ins, slk),

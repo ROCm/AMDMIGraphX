@@ -269,6 +269,13 @@ struct dynamic_op_cache
     shape output_shape;
 };
 
+static bool has_no_output_elements(const shape& output)
+{
+    auto outputs = flatten_tuple_shapes({output});
+    return std::all_of(
+        outputs.begin(), outputs.end(), [](const auto& s) { return s.elements() == 0; });
+}
+
 struct dynamic_code_object_op
 {
     operation pre_op = precompile_op{};
@@ -328,7 +335,7 @@ struct dynamic_code_object_op
         auto out_shape = pre_op.compute_shape(to_shapes(static_args), module_args);
         static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
         // Skip JIT compilation when dynamic shape resolves to 0 elements at runtime
-        if(args.front().get_shape().elements() == 0)
+        if(has_no_output_elements(out_shape))
             return static_args.back();
 
         // Rewrite submodule without dynamic shapes to be used as the IR for compilation

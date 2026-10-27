@@ -23,6 +23,7 @@
  */
 #include <migraphx/simplify_symbolic_dimensions.hpp>
 #include <migraphx/dim_like.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -33,10 +34,10 @@
 
 #include <algorithm>
 #include <array>
-#include <numeric>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -47,78 +48,149 @@ namespace {
 using substitutions         = std::unordered_map<sym::expr, sym::expr>;
 using operation_replacement = std::optional<operation>;
 
-bool is_literal(const sym::expr& e) { return e.name() == "literal"; }
-
-// Equivalence sets for symbolic expressions. Used to simplify equivalent expressions to one
-// canonical form.
-struct expression_sets
+struct runtime_extent_binding
 {
-    // disjoint-set structure for creating sets of equivalent instructions
-    std::vector<sym::expr> expressions;
-    std::vector<std::size_t> parents;
-    // map from symbolic expression to index in `expressions`
-    std::unordered_map<sym::expr, std::size_t> expression_index_map;
+    sym::expr extent;
+    instruction_ref producer;
+    std::vector<instruction_ref> runtime_inputs;
 
-    std::size_t add(const sym::expr& expression)
+    static bool evaluates_to(instruction_ref input, double expected)
     {
-        auto [it, inserted] = expression_index_map.emplace(expression, expressions.size());
-        if(inserted)
-        {
-            expressions.push_back(expression);
-            parents.push_back(parents.size());
-        }
-        return it->second;
+        auto value = input->eval();
+        if(value.empty() or value.get_shape().elements() != 1)
+            return false;
+
+        bool result = false;
+        value.visit([&](auto v) { result = float_equal(v.front(), expected); });
+        return result;
     }
 
-    std::size_t find(std::size_t i)
+    static bool is_filled_with_one(instruction_ref input)
     {
-        if(parents[i] != i)
-            parents[i] = find(parents[i]);
-        return parents[i];
+        while(input->name() == "convert" and input->inputs().size() == 1)
+            input = input->inputs().front();
+        if(input->name() != "fill" or input->inputs().size() != 2)
+            return false;
+        return evaluates_to(input->inputs().front(), 1);
     }
 
-    void merge(const sym::expr& x, const sym::expr& y)
+    std::optional<sym::expr> infer_known_extent() const
     {
-        auto x_root = find(add(x));
-        auto y_root = find(add(y));
-        if(x_root == y_root)
-            return;
-        parents[y_root] = x_root;
+        if(producer->name() != "nonzero" or producer->inputs().size() != 1)
+            return std::nullopt;
+        if(runtime_inputs.size() != 1)
+            return std::nullopt;
+        auto runtime_count = runtime_inputs.front();
+        if(runtime_count->name() != "get_tuple_elem" or runtime_count->inputs().size() != 1 or
+           runtime_count->inputs().front() != producer or
+           runtime_count->get_operator().to_value().at("index").to<std::size_t>() != 1)
+            return std::nullopt;
+        auto input = producer->inputs().front();
+        if(not is_filled_with_one(input))
+            return std::nullopt;
+
+        auto result      = sym::lit(std::int64_t{1});
+        auto input_shape = input->get_shape().to_symbolic();
+        for(const auto& d : input_shape.dyn_dims())
+            result *= d.sym_expr;
+        if(sym::find_variables(result).empty())
+            return std::nullopt;
+        return result;
     }
 
-    substitutions get_substitutions()
+    bool has_same_runtime_extent(const runtime_extent_binding& other) const
     {
-        std::unordered_map<std::size_t, std::vector<std::size_t>> classes;
-        for(std::size_t i = 0; i < expressions.size(); ++i)
-            classes[find(i)].push_back(i);
+        if(runtime_inputs != other.runtime_inputs)
+            return false;
 
-        substitutions result;
-        for(const auto& [root, members] : classes)
-        {
-            (void)root;
-            auto canonical = members.front();
-            auto literal   = std::find_if(
-                members.begin(), members.end(), [&](auto i) { return is_literal(expressions[i]); });
-            if(literal != members.end())
-            {
-                canonical = *literal;
-                if(std::any_of(std::next(literal), members.end(), [&](auto i) {
-                       return is_literal(expressions[i]) and
-                              expressions[i] != expressions[canonical];
-                   }))
-                    MIGRAPHX_THROW("SIMPLIFY_SYMBOLIC_DIMENSIONS: conflicting symbolic literals");
-            }
-            for(auto i : members)
-            {
-                if(expressions[i] != expressions[canonical])
-                    result.emplace(expressions[i], expressions[canonical]);
-            }
-        }
+        const bool is_range       = producer->name() == "dynamic_range";
+        const bool other_is_range = other.producer->name() == "dynamic_range";
+        if(is_range != other_is_range)
+            return false;
+        if(not is_range)
+            return true;
 
-        // iterate over substitutions to resolve when there are expressions that can substitue into
-        // those of other sets. Example A == B and 2*B == C to get C -> 2*A.
-        constexpr int max_iterations = 20;
-        for(int i = 0; i < max_iterations; ++i)
+        auto attributes       = producer->get_operator().to_value();
+        auto other_attributes = other.producer->get_operator().to_value();
+        return attributes.at("max_output") == other_attributes.at("max_output");
+    }
+};
+
+struct runtime_extent_analysis
+{
+    std::unordered_map<sym::expr, runtime_extent_binding> bindings;
+    substitutions known_equalities;
+
+    static bool is_supported_producer(instruction_ref producer, std::size_t tuple_index)
+    {
+        if(producer->name() == "topk")
+            return tuple_index < 2;
+        return tuple_index == 0 and
+               (producer->name() == "nonzero" or producer->name() == "nonmaxsuppression");
+    }
+
+    static bool is_expected_axis(instruction_ref producer, int64_t axis)
+    {
+        if(producer->name() == "nonzero")
+            return axis == 1;
+        if(producer->name() == "nonmaxsuppression")
+            return axis == 0;
+        return axis == producer->get_operator().to_value().at("axis").to<int64_t>();
+    }
+
+    static std::optional<std::pair<sym::expr, runtime_extent_binding>>
+    find_slice_binding(instruction_ref ins)
+    {
+        if(ins->name() != "dyn_slice" or ins->inputs().size() != 3)
+            return std::nullopt;
+
+        auto attributes = ins->get_operator().to_value();
+        if(not attributes.contains("axes") or not attributes.contains("starts") or
+           not attributes.contains("ends") or attributes.at("axes").is_null() or
+           attributes.at("starts").is_null() or attributes.at("ends").is_null())
+            return std::nullopt;
+        auto axes   = attributes.at("axes").to_vector<int64_t>();
+        auto starts = from_value<std::vector<sym::expr>>(attributes.at("starts"));
+        auto ends   = from_value<std::vector<sym::expr>>(attributes.at("ends"));
+        if(axes.size() != 1 or starts.size() != 1 or ends.size() != 1 or
+           ends.front().name() != "variable")
+            return std::nullopt;
+        auto start = sym::fixed_value(starts.front());
+        if(not start.has_value() or sym::to<int64_t>(*start) != 0 or
+           not runtime_extent_binding::evaluates_to(ins->inputs().at(1), 0))
+            return std::nullopt;
+
+        auto data = ins->inputs().front();
+        if(data->name() != "get_tuple_elem" or data->inputs().size() != 1)
+            return std::nullopt;
+        auto tuple_index = data->get_operator().to_value().at("index").to<std::size_t>();
+        auto producer    = data->inputs().front();
+        if(not is_supported_producer(producer, tuple_index) or
+           not is_expected_axis(producer, axes.front()))
+            return std::nullopt;
+
+        return std::make_pair(
+            ends.front(), runtime_extent_binding{ends.front(), producer, {ins->inputs().back()}});
+    }
+
+    static std::optional<std::pair<sym::expr, runtime_extent_binding>>
+    find_range_binding(instruction_ref ins)
+    {
+        if(ins->name() != "dynamic_range")
+            return std::nullopt;
+        auto attributes = ins->get_operator().to_value();
+        if(not attributes.contains("output_dim") or attributes.at("output_dim").is_null())
+            return std::nullopt;
+        auto output_dim = from_value<shape::dynamic_dimension>(attributes.at("output_dim"));
+        if(output_dim.sym_expr.name() != "variable")
+            return std::nullopt;
+        return std::make_pair(output_dim.sym_expr,
+                              runtime_extent_binding{output_dim.sym_expr, ins, ins->inputs()});
+    }
+
+    static substitutions resolve_equalities(substitutions result)
+    {
+        for(std::size_t i = 0; i <= result.size(); ++i)
         {
             substitutions next;
             std::transform(result.begin(),
@@ -129,10 +201,92 @@ struct expression_sets
                                return std::make_pair(expression, replacement.subs(result));
                            });
             if(next == result)
-                break;
+                return result;
             result = std::move(next);
         }
+        MIGRAPHX_THROW("SIMPLIFY_SYMBOLIC_DIMENSIONS: cyclic runtime extent equalities");
+    }
+
+    void add_binding(sym::expr symbol, runtime_extent_binding binding)
+    {
+        symbol            = sym::as_symbol(symbol);
+        auto known_extent = binding.infer_known_extent();
+        if(known_extent.has_value() and not sym::same_symbol(symbol, *known_extent))
+            known_equalities.emplace(symbol, *known_extent);
+
+        auto same_extent = std::find_if(bindings.begin(), bindings.end(), [&](const auto& item) {
+            return binding.has_same_runtime_extent(item.second);
+        });
+        if(same_extent != bindings.end() and same_extent->first != symbol)
+            known_equalities.emplace(symbol, same_extent->second.extent);
+        bindings.emplace(std::move(symbol), std::move(binding));
+    }
+
+    static runtime_extent_analysis analyze(module& m)
+    {
+        runtime_extent_analysis result;
+        for(auto ins : iterator_for(m))
+        {
+            auto binding = find_slice_binding(ins);
+            if(not binding.has_value())
+                binding = find_range_binding(ins);
+            if(binding.has_value())
+                result.add_binding(std::move(binding->first), std::move(binding->second));
+        }
+        result.known_equalities = resolve_equalities(std::move(result.known_equalities));
         return result;
+    }
+
+    bool has_runtime_extent(const sym::expr& expression) const
+    {
+        auto variables = sym::find_variables(expression);
+        return not variables.empty() and
+               std::all_of(variables.begin(), variables.end(), [&](const auto& variable) {
+                   return bindings.count(variable) > 0;
+               });
+    }
+
+    sym::expr apply_known_equalities(const sym::expr& expression) const
+    {
+        return expression.subs(known_equalities);
+    }
+
+    void add_known_equalities(const sym::expr& expression, substitutions& result) const
+    {
+        for(const auto& variable : sym::find_variables(expression))
+        {
+            auto it = known_equalities.find(variable);
+            if(it != known_equalities.end())
+                result.emplace(it->first, it->second);
+        }
+    }
+
+    substitutions find_pointwise_substitutions(module& m) const
+    {
+        substitutions result;
+        for(auto ins : iterator_for(m))
+        {
+            const auto& inputs = ins->inputs();
+            if(inputs.size() != 2 or not ins->get_operator().attributes().contains("pointwise"))
+                continue;
+            const auto& x = inputs.front()->get_shape();
+            const auto& y = inputs.back()->get_shape();
+            if(not x.symbolic() or not y.symbolic() or x.ndim() != y.ndim())
+                continue;
+            migraphx::for_each(
+                x.dyn_dims().begin(),
+                x.dyn_dims().end(),
+                y.dyn_dims().begin(),
+                [&](const auto& a, const auto& b) {
+                    if(a.sym_expr == b.sym_expr or not has_runtime_extent(a.sym_expr) or
+                       not has_runtime_extent(b.sym_expr) or
+                       apply_known_equalities(a.sym_expr) != apply_known_equalities(b.sym_expr))
+                        return;
+                    add_known_equalities(a.sym_expr, result);
+                    add_known_equalities(b.sym_expr, result);
+                });
+        }
+        return resolve_equalities(std::move(result));
     }
 };
 
@@ -362,29 +516,8 @@ operation_replacement make_operation_replacement(const operation& op, const subs
 // Unify mismatched symbolic dimensions that binary pointwise instructions require to be equal.
 void simplify_symbolic_dimensions::apply(module& m) const
 {
-    // Collect the required dimension relationships into equivalence sets before mutating the
-    // module.
-    expression_sets sets;
-    for(auto ins : iterator_for(m))
-    {
-        const auto& inputs = ins->inputs();
-        if(inputs.size() != 2 or not ins->get_operator().attributes().contains("pointwise"))
-            continue;
-        const auto& x = inputs.front()->get_shape();
-        const auto& y = inputs.back()->get_shape();
-        if(not x.symbolic() or not y.symbolic() or x.ndim() != y.ndim())
-            continue;
-        migraphx::for_each(x.dyn_dims().begin(),
-                           x.dyn_dims().end(),
-                           y.dyn_dims().begin(),
-                           [&](const auto& a, const auto& b) {
-                               if(a.sym_expr != b.sym_expr)
-                                   sets.merge(a.sym_expr, b.sym_expr);
-                           });
-    }
-
-    // Choose one canonical expression for each equivalence set and map the other expressions to it.
-    auto values = sets.get_substitutions();
+    auto extent_analysis = runtime_extent_analysis::analyze(m);
+    auto values          = extent_analysis.find_pointwise_substitutions(m);
     if(values.empty())
         return;
 

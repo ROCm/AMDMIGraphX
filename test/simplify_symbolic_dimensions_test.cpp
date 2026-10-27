@@ -38,8 +38,8 @@ static void run_pass(migraphx::module& m)
         m, {migraphx::simplify_symbolic_dimensions{}, migraphx::dead_code_elimination{}});
 }
 
-// A parameter-derived symbol can be the canonical expression, but the pass must preserve the
-// parameter instruction and its externally visible shape.
+// A pointwise operation does not prove that an external parameter dimension and an internal
+// data-dependent dimension have the same runtime value.
 TEST_CASE(simplify_symbolic_dimensions_preserve_parameter)
 {
     using migraphx::sym::var;
@@ -68,35 +68,49 @@ TEST_CASE(simplify_symbolic_dimensions_preserve_parameter)
             start,
             limit,
             delta);
-        // Putting the parameter first makes its expression canonical for the equivalent internal
-        // range dimension.
         auto add = m1.add_instruction(migraphx::make_op("add"), parameter, range);
         m1.add_return({add});
     }
+    auto expected = m1;
     run_pass(m1);
+    EXPECT(m1 == expected);
+}
 
-    migraphx::module m2;
-    {
-        auto parameter = m2.add_parameter("parameter", parameter_shape);
-        auto start =
-            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
-        auto limit =
-            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{8}}});
-        auto delta =
-            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{1}}});
-        auto range = m2.add_instruction(
-            migraphx::make_op(
-                "dynamic_range",
-                {{"max_output", 8},
-                 {"output_dim",
-                  migraphx::to_value(migraphx::shape::dynamic_dimension{parameter_count})}}),
-            start,
-            limit,
-            delta);
-        auto add = m2.add_instruction(migraphx::make_op("add"), parameter, range);
-        m2.add_return({add});
-    }
-    EXPECT(m1 == m2);
+// Equal range inputs do not imply equal output lengths when the operators clamp them to different
+// capacities.
+TEST_CASE(simplify_symbolic_dimensions_distinct_range_caps)
+{
+    using migraphx::sym::var;
+
+    const auto short_count = var("short_count", {0, 4});
+    const auto long_count  = var("long_count", {0, 8});
+
+    migraphx::module m;
+    auto limit = m.add_parameter("limit", {migraphx::shape::int64_type, {1}});
+    auto zero  = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+    auto one   = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{1}}});
+    auto short_range = m.add_instruction(
+        migraphx::make_op(
+            "dynamic_range",
+            {{"max_output", 4},
+             {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{short_count})}}),
+        zero,
+        limit,
+        one);
+    auto long_range = m.add_instruction(
+        migraphx::make_op(
+            "dynamic_range",
+            {{"max_output", 8},
+             {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{long_count})}}),
+        zero,
+        limit,
+        one);
+    auto sum = m.add_instruction(migraphx::make_op("add"), short_range, long_range);
+    m.add_return({sum});
+
+    auto expected = m;
+    run_pass(m);
+    EXPECT(m == expected);
 }
 
 // Equivalent dimensions produced inside the graph should also canonicalize symbolic attributes
@@ -110,7 +124,7 @@ TEST_CASE(simplify_symbolic_dimensions_shape_attributes)
 
     migraphx::module m1;
     {
-        auto indices = m1.add_parameter("indices", {migraphx::shape::int64_type, {1, 8}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int64_type, {1, 9}});
         auto start =
             m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
         auto limit =
@@ -160,7 +174,7 @@ TEST_CASE(simplify_symbolic_dimensions_shape_attributes)
 
     migraphx::module m2;
     {
-        auto indices = m2.add_parameter("indices", {migraphx::shape::int64_type, {1, 8}});
+        auto indices = m2.add_parameter("indices", {migraphx::shape::int64_type, {1, 9}});
         auto start =
             m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
         auto limit =
@@ -320,8 +334,8 @@ TEST_CASE(simplify_symbolic_dimensions_converging_producers)
     EXPECT(m1 == m2);
 }
 
-// Resolve replacement expressions through other equivalence classes before rebuilding the graph.
-// Otherwise C -> 2*B remains stale after B -> A and a second pass changes it to 2*A.
+// Equal runtime inputs prove that B and A describe the same range length. The pointwise operation
+// between 2*B and independently computed C does not prove that C == 2*A.
 TEST_CASE(simplify_symbolic_dimensions_nested_substitutions_idempotent)
 {
     using migraphx::sym::var;
@@ -405,7 +419,7 @@ TEST_CASE(simplify_symbolic_dimensions_nested_substitutions_idempotent)
             migraphx::make_op(
                 "dynamic_range",
                 {{"max_output", 16},
-                 {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{2 * a})}}),
+                 {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{c})}}),
             start,
             concat_limit,
             delta);
@@ -617,8 +631,98 @@ TEST_CASE(simplify_symbolic_dimensions_operation_handlers)
     EXPECT(m1 == m2);
 }
 
+// Runtime extent bindings identify candidates; they do not make independent runtime counts
+// equivalent.
+TEST_CASE(simplify_symbolic_dimensions_independent_nonzero_counts)
+{
+    using migraphx::sym::var;
+
+    const auto x_count = var("x_count", {0, 8});
+    const auto y_count = var("y_count", {0, 8});
+
+    migraphx::module m;
+    auto x    = m.add_parameter("x", {migraphx::shape::bool_type, {8}});
+    auto y    = m.add_parameter("y", {migraphx::shape::bool_type, {8}});
+    auto zero = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+
+    auto add_nonzero = [&](auto input, const auto& count) {
+        auto nonzero = m.add_instruction(migraphx::make_op("nonzero"), input);
+        auto indices =
+            m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+        auto runtime_count =
+            m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero);
+        auto sliced = m.add_instruction(
+            migraphx::make_op("dyn_slice",
+                              {{"axes", {1}},
+                               {"starts", {0}},
+                               {"ends", migraphx::value::array{migraphx::to_value(count)}}}),
+            indices,
+            zero,
+            runtime_count);
+        return m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sliced);
+    };
+
+    auto x_indices = add_nonzero(x, x_count);
+    auto y_indices = add_nonzero(y, y_count);
+    auto sum       = m.add_instruction(migraphx::make_op("add"), x_indices, y_indices);
+    m.add_return({sum});
+
+    auto expected = m;
+    run_pass(m);
+    EXPECT(m == expected);
+}
+
+// The all-nonzero input rule applies only when the slice is bounded by that NonZero operation's
+// runtime count output.
+TEST_CASE(simplify_symbolic_dimensions_requires_nonzero_runtime_count)
+{
+    using migraphx::sym::var;
+
+    const auto input_count  = var("input_count", {0, 8});
+    const auto sliced_count = var("sliced_count", {0, 8});
+    const auto symbolic_shape =
+        migraphx::shape{migraphx::shape::int64_type,
+                        std::vector<migraphx::shape::dynamic_dimension>{{input_count}}};
+
+    migraphx::module m;
+    auto limit           = m.add_parameter("limit", {migraphx::shape::int64_type, {1}});
+    auto unrelated_count = m.add_parameter("unrelated_count", {migraphx::shape::int64_type, {1}});
+    auto zero  = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+    auto one   = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{1}}});
+    auto range = m.add_instruction(
+        migraphx::make_op(
+            "dynamic_range",
+            {{"max_output", 8},
+             {"output_dim", migraphx::to_value(migraphx::shape::dynamic_dimension{input_count})}}),
+        zero,
+        limit,
+        one);
+
+    auto storage = m.add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(symbolic_shape)}}));
+    auto filled  = m.add_instruction(migraphx::make_op("fill"), one, storage);
+    auto nonzero = m.add_instruction(migraphx::make_op("nonzero"), filled);
+    auto indices = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+    auto sliced  = m.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(sliced_count)}}}),
+        indices,
+        zero,
+        unrelated_count);
+    auto squeezed = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sliced);
+    auto sum      = m.add_instruction(migraphx::make_op("add"), range, squeezed);
+    m.add_return({sum});
+
+    auto expected = m;
+    run_pass(m);
+    EXPECT(m == expected);
+}
+
 // Model the MaskRCNN post-processing pattern: NMS produces a runtime proposal count, TopK limits
-// those proposals, and NonZero produces a separate count that later meets TopK at a pointwise op.
+// those proposals, and NonZero receives a one-filled vector with the TopK extent. The NonZero
+// result therefore has that same extent even though its parser expansion introduces a fresh symbol.
 TEST_CASE(simplify_symbolic_dimensions_maskrcnn_postprocess)
 {
     using migraphx::sym::lit;
@@ -640,7 +744,6 @@ TEST_CASE(simplify_symbolic_dimensions_maskrcnn_postprocess)
         auto iou_threshold = m1.add_parameter("iou_threshold", {migraphx::shape::float_type, {1}});
         auto score_threshold =
             m1.add_parameter("score_threshold", {migraphx::shape::float_type, {1}});
-        auto mask = m1.add_parameter("mask", {migraphx::shape::bool_type, {2, 2}});
 
         // Match the parser's NMS expansion: padded tuple outputs are trimmed to num_selected.
         auto nms =
@@ -678,8 +781,18 @@ TEST_CASE(simplify_symbolic_dimensions_maskrcnn_postprocess)
         auto topk_values =
             m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
 
-        // Match the parser's NonZero expansion and expose its runtime count as a rank-1 float
-        // tensor.
+        auto one = m1.add_literal(
+            migraphx::literal{{migraphx::shape::int64_type, {1}, {0}}, {int64_t{1}}});
+        const migraphx::shape mask_shape{
+            migraphx::shape::int64_type,
+            std::vector<migraphx::shape::dynamic_dimension>{{topk_count}}};
+        auto mask_storage = m1.add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(mask_shape)}}));
+        auto mask = m1.add_instruction(migraphx::make_op("fill"), one, mask_storage);
+        mask      = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mask);
+
+        // Match the parser's NonZero expansion and expose its runtime count as a rank-1 tensor.
         auto nonzero = m1.add_instruction(migraphx::make_op("nonzero"), mask);
         auto nonzero_indices =
             m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
@@ -724,7 +837,6 @@ TEST_CASE(simplify_symbolic_dimensions_maskrcnn_postprocess)
         auto iou_threshold = m2.add_parameter("iou_threshold", {migraphx::shape::float_type, {1}});
         auto score_threshold =
             m2.add_parameter("score_threshold", {migraphx::shape::float_type, {1}});
-        auto mask = m2.add_parameter("mask", {migraphx::shape::bool_type, {2, 2}});
 
         auto nms =
             m2.add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
@@ -759,6 +871,17 @@ TEST_CASE(simplify_symbolic_dimensions_maskrcnn_postprocess)
             migraphx::make_op("topk", {{"k", k}, {"axis", 0}, {"largest", true}}), gathered_scores);
         auto topk_values =
             m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
+
+        auto one = m2.add_literal(
+            migraphx::literal{{migraphx::shape::int64_type, {1}, {0}}, {int64_t{1}}});
+        const migraphx::shape mask_shape{
+            migraphx::shape::int64_type,
+            std::vector<migraphx::shape::dynamic_dimension>{{topk_count}}};
+        auto mask_storage = m2.add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(mask_shape)}}));
+        auto mask = m2.add_instruction(migraphx::make_op("fill"), one, mask_storage);
+        mask      = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mask);
 
         auto nonzero = m2.add_instruction(migraphx::make_op("nonzero"), mask);
         auto nonzero_indices =

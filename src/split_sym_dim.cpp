@@ -712,10 +712,9 @@ struct block_plan
                 const auto& operand = info.operands.at(index);
                 if(contains(included, source))
                 {
-                    bool keeps_logical_slice =
-                        source->get_shape().type() != shape::tuple_type and
-                        (not operand.pad_value.has_value() or
-                         not operand.retained_slice_axes.empty());
+                    bool keeps_logical_slice = source->get_shape().type() != shape::tuple_type and
+                                               (not operand.pad_value.has_value() or
+                                                not operand.retained_slice_axes.empty());
                     if(keeps_logical_slice)
                         return false;
                     continue;
@@ -1265,7 +1264,31 @@ struct clone_output_case
 {
     std::unordered_map<sym::expr, std::size_t> freeze;
     std::vector<shape> outputs;
+    std::vector<std::size_t> output_indices;
 };
+
+struct deduplicated_block_outputs
+{
+    std::vector<instruction_ref> outputs;
+    std::vector<std::size_t> indices;
+};
+
+deduplicated_block_outputs deduplicate_block_outputs(const std::vector<instruction_ref>& outputs)
+{
+    deduplicated_block_outputs result;
+    std::transform(outputs.begin(),
+                   outputs.end(),
+                   std::back_inserter(result.indices),
+                   [&](instruction_ref output) {
+                       auto found = std::find(result.outputs.begin(), result.outputs.end(), output);
+                       if(found != result.outputs.end())
+                           return static_cast<std::size_t>(
+                               std::distance(result.outputs.begin(), found));
+                       result.outputs.push_back(output);
+                       return result.outputs.size() - 1;
+                   });
+    return result;
+}
 
 bool represents_clone_outputs(const shape& candidate,
                               const std::vector<clone_output_case>& clone_outputs,
@@ -1838,8 +1861,7 @@ struct block_frame
             if(missing.empty())
                 return;
             std::for_each(missing.begin(), missing.end(), [&](auto input) {
-                result.collect_body(
-                    input, graph, plans, planned_instructions, body_instructions);
+                result.collect_body(input, graph, plans, planned_instructions, body_instructions);
             });
             self();
         });
@@ -1949,6 +1971,8 @@ struct block_frame
                        outputs.end(),
                        std::back_inserter(clone_outputs),
                        [&](const sliced_value& output) { return values.at(output.source); });
+        auto deduplicated_outputs = deduplicate_block_outputs(clone_outputs);
+        clone_outputs             = deduplicated_outputs.outputs;
         auto dynamic_output =
             std::find_if(clone_outputs.begin(), clone_outputs.end(), [](instruction_ref output) {
                 return output->get_shape().dynamic();
@@ -1980,7 +2004,8 @@ struct block_frame
             if(static_clone.get_output_shapes() == output_shapes)
                 clone_module = std::move(static_clone);
         }
-        return {std::move(clone_module), {freeze, std::move(output_shapes)}};
+        return {std::move(clone_module),
+                {freeze, std::move(output_shapes), std::move(deduplicated_outputs.indices)}};
     }
 
     void
@@ -1999,33 +2024,67 @@ struct block_frame
                        params.end(),
                        std::back_inserter(selection_inputs),
                        [&](const auto& input) { return inputs.at(input.second).select_input; });
+        std::vector<std::size_t> logical_output_indices;
+        if(clone_outputs.empty())
+        {
+            std::vector<instruction_ref> output_sources;
+            std::transform(outputs.begin(),
+                           outputs.end(),
+                           std::back_inserter(output_sources),
+                           [](const auto& output) { return output.source; });
+            logical_output_indices = deduplicate_block_outputs(output_sources).indices;
+        }
+        else
+        {
+            logical_output_indices = clone_outputs.front().output_indices;
+            if(any_of(clone_outputs, [&](const auto& output) {
+                   return output.output_indices != logical_output_indices;
+               }))
+                MIGRAPHX_THROW("SPLIT_SYM_DIM: clone output aliases are inconsistent");
+        }
+        auto physical_output_count =
+            *std::max_element(logical_output_indices.begin(), logical_output_indices.end()) + 1;
+        auto physical_output_indices = range(physical_output_count);
+        std::vector<std::size_t> representative_outputs;
+        std::transform(physical_output_indices.begin(),
+                       physical_output_indices.end(),
+                       std::back_inserter(representative_outputs),
+                       [&](std::size_t physical_output_index) {
+                           auto found = std::find(logical_output_indices.begin(),
+                                                  logical_output_indices.end(),
+                                                  physical_output_index);
+                           assert(found != logical_output_indices.end());
+                           return static_cast<std::size_t>(
+                               std::distance(logical_output_indices.begin(), found));
+                       });
+
         std::vector<shape> body_output_shapes;
-        auto output_indices = range(outputs.size());
-        std::transform(output_indices.begin(),
-                       output_indices.end(),
+        std::transform(physical_output_indices.begin(),
+                       physical_output_indices.end(),
                        std::back_inserter(body_output_shapes),
-                       [&](auto output_index) {
-                           auto source = outputs.at(output_index).source;
-                           return dispatch_shape_for_clones(
-                               plans.at(source).dispatch_output, clone_outputs, output_index);
+                       [&](auto physical_output_index) {
+                           auto source =
+                               outputs.at(representative_outputs.at(physical_output_index)).source;
+                           return dispatch_shape_for_clones(plans.at(source).dispatch_output,
+                                                            clone_outputs,
+                                                            physical_output_index);
                        });
         std::vector<shape> logical_output_shapes;
         if(has_zero_runtime)
-            std::transform(outputs.begin(),
-                           outputs.end(),
-                           std::back_inserter(logical_output_shapes),
-                           [](const auto& output) { return output.source->get_shape(); });
+            std::transform(
+                representative_outputs.begin(),
+                representative_outputs.end(),
+                std::back_inserter(logical_output_shapes),
+                [&](auto output_index) { return outputs.at(output_index).source->get_shape(); });
         auto selected_outputs = insert_select_module(
             mpm, m, selection_inputs, std::move(clones), body_output_shapes, logical_output_shapes);
 
         for(std::size_t output_index = 0; output_index < outputs.size(); ++output_index)
         {
-            const auto& output = outputs.at(output_index);
-            auto sliced        = add_output_slice(m,
-                                           output,
-                                           selected_outputs.at(output_index),
-                                           plans.at(output.source).info,
-                                           root_sources);
+            const auto& output   = outputs.at(output_index);
+            auto selected_output = selected_outputs.at(logical_output_indices.at(output_index));
+            auto sliced          = add_output_slice(
+                m, output, selected_output, plans.at(output.source).info, root_sources);
             output_values.emplace_back(output, sliced);
             if(output == plans.full_output_for(output.source))
                 replacements.insert(output.source, sliced);
@@ -2091,10 +2150,8 @@ void specialize_blocks(module_pass_manager& mpm,
                 freeze[root->target_symbol]         = target;
                 subranges[root->root]               = runtime_range;
             }
-            bool fixed_specialization =
-                all_of(subranges, [](const auto& entry) {
-                    return entry.second.min == entry.second.max;
-                });
+            bool fixed_specialization = all_of(
+                subranges, [](const auto& entry) { return entry.second.min == entry.second.max; });
             bool all_outputs_empty =
                 fixed_specialization and all_of(frame->outputs, [&](const auto& output) {
                     const auto& s = output.source->get_shape();
@@ -2141,10 +2198,8 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
         return;
 
     // Rewrite shape expressions to read their runtime values directly from root sources.
-    match::find_matches(m,
-                        resolve_symbolic_dimensions_of_match{.root_sources = root_sources});
-    match::find_matches(m,
-                        find_eval_expr_from_intermediate_ins{.root_sources = root_sources});
+    match::find_matches(m, resolve_symbolic_dimensions_of_match{.root_sources = root_sources});
+    match::find_matches(m, find_eval_expr_from_intermediate_ins{.root_sources = root_sources});
     run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
     root_sources = find_root_sources(m);
 
@@ -2192,8 +2247,7 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
         std::inserter(data_roots, data_roots.end()),
         [](const auto& entry) { return entry.second->name() != "@param"; },
         [](const auto& entry) { return entry.first; });
-    auto graph =
-        block_dependency_graph::discover(plans, *roots, std::move(data_roots), max_clones);
+    auto graph = block_dependency_graph::discover(plans, *roots, std::move(data_roots), max_clones);
     if(graph.blocks.empty())
         return;
 

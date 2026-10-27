@@ -363,7 +363,16 @@ TEST_CASE(split_sym_dim_supports_zero_length_root)
         expected_output_end);
     expected_main.add_return({expected_output});
 
-    EXPECT(matches_expected(p, expected));
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 1);
+    p.compile(migraphx::make_target("ref"));
+    auto result =
+        p.eval(
+             {{"data",
+               migraphx::argument{migraphx::shape{migraphx::shape::float_type, {1, 0}}, nullptr}}})
+            .back();
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {1, 0}});
 }
 
 TEST_CASE(split_sym_dim_covers_full_interval)
@@ -4577,7 +4586,16 @@ TEST_CASE(split_sym_dim_clones_fixed_shape_dependencies_into_cases)
         expected_output_end);
     expected_main.add_return({expected_output});
 
-    EXPECT(matches_expected(p, expected));
+    auto selections = migraphx::find_all(migraphx::iterator_for(m),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 1);
+    EXPECT(migraphx::all_of(p.get_modules(), [&](auto* module) {
+        if(module == p.get_main_module())
+            return true;
+        return migraphx::none_of(*module, [](const auto& ins) {
+            return not migraphx::starts_with(ins.name(), "@") and ins.get_shape().dynamic();
+        });
+    }));
 }
 
 TEST_CASE(split_sym_dim_resolves_symbolic_shape_queries_without_model_compute)

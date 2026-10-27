@@ -197,6 +197,7 @@ struct pipeline_factory
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
+            dead_code_elimination{},
             simplify_symbolic_dimensions{},
             dead_code_elimination{},
             split_sym_dim{},

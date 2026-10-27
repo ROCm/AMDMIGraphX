@@ -188,13 +188,13 @@ bool windowed_zero_pad(const std::vector<std::size_t>& padding,
 
 template <class OutputRule, class InputRule>
 symbolic_op_info analyze_axes(instruction_ref ins,
+                              const shape& output_shape,
                               std::vector<std::size_t> shape_input_indices,
                               const OutputRule& output_rule,
                               const InputRule& input_rule)
 {
     symbolic_op_info info{ins};
     info.shape_input_indices = std::move(shape_input_indices);
-    const auto& output_shape = info.get_output_shape();
     if(output_shape.dynamic() and not output_shape.symbolic())
         return info;
     auto output_axes = range(output_shape.ndim());
@@ -256,10 +256,30 @@ symbolic_op_info analyze_axes(instruction_ref ins,
 }
 
 template <class OutputRule, class InputRule>
+symbolic_op_info analyze_axes(instruction_ref ins,
+                              std::vector<std::size_t> shape_input_indices,
+                              const OutputRule& output_rule,
+                              const InputRule& input_rule)
+{
+    symbolic_op_info info{ins};
+    return analyze_axes(
+        ins, info.get_output_shape(), std::move(shape_input_indices), output_rule, input_rule);
+}
+
+template <class OutputRule, class InputRule>
 symbolic_op_info
 analyze_axes(instruction_ref ins, const OutputRule& output_rule, const InputRule& input_rule)
 {
     return analyze_axes(ins, {}, output_rule, input_rule);
+}
+
+template <class OutputRule, class InputRule>
+symbolic_op_info analyze_axes(instruction_ref ins,
+                              const shape& output_shape,
+                              const OutputRule& output_rule,
+                              const InputRule& input_rule)
+{
+    return analyze_axes(ins, output_shape, {}, output_rule, input_rule);
 }
 
 template <class InputRule>

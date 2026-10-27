@@ -67,7 +67,7 @@ struct eval_expr_from_shape
                 continue;
             for(const auto& d : input.dyn_dims())
             {
-                source_expressions.insert(d.sym_expr);
+                source_expressions.insert(sym::as_symbol(d.sym_expr));
                 if(d.sym_expr.name() == "variable")
                     direct_symbols.insert(sym::as_symbol(d.sym_expr));
             }
@@ -75,7 +75,7 @@ struct eval_expr_from_shape
 
         for(const auto& expression : expressions)
         {
-            if(contains(source_expressions, expression))
+            if(contains(source_expressions, sym::as_symbol(expression)))
                 continue;
             auto variables = sym::find_variables(expression);
             auto missing =
@@ -119,7 +119,7 @@ struct eval_expr_from_shape
             {
                 if(sym::find_variables(dim.sym_expr).empty())
                     continue;
-                auto result = values.emplace(dim.sym_expr, len);
+                auto result = values.emplace(sym::as_symbol(dim.sym_expr), len);
                 if(not result.second and result.first->second != len)
                     MIGRAPHX_THROW(
                         "EVAL_EXPR_FROM_SHAPE: Repeated expression has inconsistent runtime "

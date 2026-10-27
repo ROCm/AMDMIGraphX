@@ -67,8 +67,9 @@ inline bool shape_source_has_symbol(instruction_ref source, const sym::expr& sym
 inline bool shape_source_has_expression(instruction_ref source, const sym::expr& expression)
 {
     const auto& source_shape = source->get_shape();
-    return source_shape.symbolic() and
-           any_of(source_shape.dyn_dims(), [&](const auto& d) { return d.sym_expr == expression; });
+    return source_shape.symbolic() and any_of(source_shape.dyn_dims(), [&](const auto& d) {
+               return sym::as_symbol(d.sym_expr) == sym::as_symbol(expression);
+           });
 }
 
 inline bool can_evaluate_shape_expressions(const std::vector<instruction_ref>& shape_sources,

@@ -85,14 +85,17 @@ TEST_CASE(eval_expr_from_shape_multi_symbol)
 
 TEST_CASE(eval_expr_from_shape_compound_input)
 {
-    using dd      = migraphx::shape::dynamic_dimension;
-    auto sequence = migraphx::sym::var("sequence", {1, 4});
-    auto extent   = sequence + migraphx::sym::lit(16);
+    using dd             = migraphx::shape::dynamic_dimension;
+    auto sequence        = migraphx::sym::var("sequence", {1, 4}, {4});
+    auto source_sequence = migraphx::sym::var("sequence", {2, 4});
+    auto extent          = sequence + migraphx::sym::lit(16);
+    auto source_extent   = source_sequence + migraphx::sym::lit(16);
 
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_parameter(
-        "x", migraphx::shape{migraphx::shape::float_type, {dd{extent}, dd{migraphx::sym::lit(4)}}});
+    auto x   = mm->add_parameter("x",
+                                 migraphx::shape{migraphx::shape::float_type,
+                                                 {dd{source_extent}, dd{migraphx::sym::lit(4)}}});
     mm->add_instruction(
         migraphx::make_op("eval_expr_from_shape",
                           {{"expressions", migraphx::value::array{migraphx::to_value(extent)}}}),
@@ -105,6 +108,30 @@ TEST_CASE(eval_expr_from_shape_compound_input)
 
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {1}});
     EXPECT(result.at<int64_t>() == 19);
+}
+
+TEST_CASE(eval_expr_from_shape_symbol_metadata)
+{
+    using dd             = migraphx::shape::dynamic_dimension;
+    auto sequence        = migraphx::sym::var("sequence", {1, 8}, {8});
+    auto source_sequence = migraphx::sym::var("sequence", {2, 8});
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x =
+        mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{source_sequence}}});
+    mm->add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::value::array{migraphx::to_value(sequence)}}}),
+        x);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape input_shape{migraphx::shape::float_type, {5}};
+    std::vector<float> data(input_shape.elements());
+    auto result = p.eval({{"x", migraphx::argument{input_shape, data.data()}}}).back();
+
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {1}});
+    EXPECT(result.at<int64_t>() == 5);
 }
 
 TEST_CASE(eval_expr_from_shape_cross_input)

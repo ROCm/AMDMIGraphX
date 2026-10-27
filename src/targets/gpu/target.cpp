@@ -36,6 +36,7 @@
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
+#include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
@@ -275,6 +276,10 @@ struct pipeline_factory
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
+            // Attention epilogues fuse once the pointwise chains are formed
+            // and before reduce fusion can take them
+            fuse_pointwise{.enable_rewrite_reshapes = false},
+            enable_pass(mlir_enabled(), fuse_mlir_attention{}),
             fuse_pointwise_reduce{},
             dead_code_elimination{},
 #ifndef _WIN32

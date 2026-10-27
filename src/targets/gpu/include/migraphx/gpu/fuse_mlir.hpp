@@ -40,6 +40,15 @@ MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx,
                                                 const std::vector<std::string>& use_specific_ops);
 MIGRAPHX_GPU_EXPORT bool mlir_flash_decoding_enabled();
 
+// Fuses the attention groups into mlir_ops with the pointwise consumers of
+// their outputs as epilogues. It runs before reduce fusion, which would
+// otherwise take those pointwise ops first
+struct MIGRAPHX_GPU_EXPORT fuse_mlir_attention
+{
+    std::string name() const { return "gpu::fuse_mlir_attention"; }
+    void apply(module_pass_manager& mpm) const;
+};
+
 struct MIGRAPHX_GPU_EXPORT fuse_mlir
 {
     context* ctx = nullptr;

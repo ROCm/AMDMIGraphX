@@ -1157,9 +1157,18 @@ invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_i
     return inverse_map;
 }
 
+// A single-use shape transform a pointwise reads a group output through
+bool is_output_view(instruction_ref ins)
+{
+    return ins->outputs().size() == 1 and
+           contains({"reshape", "squeeze", "unsqueeze", "transpose"}, ins->name());
+}
+
 // Rebuilds an attention group as the module of a gpu::mlir_op, fusing each
 // group output's single-use pointwise consumer in as an epilogue (eg the
-// attention-sink gate sigmoid(lse - sinks) on the lse output)
+// attention-sink gate sigmoid(lse - sinks) on the lse output, or an output
+// gate sigmoid(gate) * attention), along with the shape transforms the
+// pointwise reads the output through
 struct mlir_attention_builder
 {
     instruction_ref group;
@@ -1210,14 +1219,23 @@ struct mlir_attention_builder
                 out             = tuple_elem_users.front();
             }
 
+            std::vector<instruction_ref> views;
+            while(is_output_view(out))
+            {
+                views.push_back(out);
+                out = out->outputs().front();
+            }
+            auto pw_input = views.empty() ? attn_output_ins : views.back();
+
             auto match_pw = match::match_instruction(m, out, mlir_pointwise());
             if(match_pw.result != out)
                 continue;
-            if(creates_cycle(out, attn_output_ins))
+            if(creates_cycle(out, pw_input))
                 continue;
 
             map_main_to_mlir_attn[attn_output_ins] = attn_outs[out_idx];
-            inss_to_replace[attn_output_ins]       = out;
+            mlir_attn->fuse(views, &map_main_to_mlir_attn);
+            inss_to_replace[attn_output_ins] = out;
 
             auto lit_map = create_param_map_with_literals(
                 mlir_attn, out->module_inputs().front(), out->get_shape());
@@ -1666,6 +1684,19 @@ struct find_channel_slice_convolution
 
 #endif // MIGRAPHX_MLIR
 
+void fuse_mlir_attention::apply(module_pass_manager& mpm) const
+{
+#ifdef MIGRAPHX_MLIR
+    match::find_matches(mpm, find_mlir_kv_cache_attention_op{});
+    mpm.run_pass(dead_code_elimination{});
+
+    match::find_matches(mpm, find_mlir_attention_op{});
+    mpm.run_pass(dead_code_elimination{});
+#else
+    (void)mpm;
+#endif
+}
+
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
@@ -1701,11 +1732,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_channel_slice_convolution{});
     mpm.run_pass(dead_code_elimination{});
 
-    match::find_matches(mpm, find_mlir_kv_cache_attention_op{});
-    mpm.run_pass(dead_code_elimination{});
-
-    match::find_matches(mpm, find_mlir_attention_op{});
-    mpm.run_pass(dead_code_elimination{});
+    fuse_mlir_attention{}.apply(mpm);
 
     match::find_matches(
         mpm,

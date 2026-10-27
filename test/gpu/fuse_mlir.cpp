@@ -23,6 +23,8 @@
  */
 #include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/fuse_pointwise.hpp>
+#include <migraphx/fuse_reduce.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/instruction.hpp>
@@ -60,6 +62,12 @@ static void run_pass(migraphx::program& p, migraphx::gpu::fuse_mlir fm = {})
     fm.ctx          = &ctx;
     fm.enable_extra = true;
     migraphx::run_passes(p, {fm, migraphx::dead_code_elimination{}});
+}
+
+static void run_attention_pass(migraphx::program& p)
+{
+    migraphx::run_passes(p,
+                         {migraphx::gpu::fuse_mlir_attention{}, migraphx::dead_code_elimination{}});
 }
 
 static bool is_navi_gpu()
@@ -1596,11 +1604,17 @@ TEST_CASE(lse_attention)
     EXPECT(p1.sort() == p2.sort());
 }
 
-// Attention block of the kv_cache_attention_sink_gate test: softmax attention
-// with a transpose/reshape output tail and the {output, lse} tuple outputs
-// fuse_attention produces for attention sinks
-static std::pair<migraphx::instruction_ref, migraphx::instruction_ref>
-add_sink_attention(migraphx::module_ref gm, const std::vector<migraphx::instruction_ref>& inputs)
+// Softmax attention with the transpose/reshape output tail fuse_attention
+// captures for kv-cache attention, keeping the softmax reductions for the lse
+struct decode_attention
+{
+    migraphx::instruction_ref out;
+    migraphx::instruction_ref rmax;
+    migraphx::instruction_ref rsum;
+};
+
+static decode_attention add_decode_attention(migraphx::module_ref gm,
+                                             const std::vector<migraphx::instruction_ref>& inputs)
 {
     auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
     auto lens  = gemm1->get_shape().lens();
@@ -1618,9 +1632,18 @@ add_sink_attention(migraphx::module_ref gm, const std::vector<migraphx::instruct
         gm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);
     auto rsp_out =
         gm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4}}}), tsp_out);
-    auto log_sum = gm->add_instruction(migraphx::make_op("log"), rsum);
-    auto lse     = gm->add_instruction(migraphx::make_op("add"), rmax, log_sum);
-    return {rsp_out, lse};
+    return {rsp_out, rmax, rsum};
+}
+
+// Attention block of the kv_cache_attention_sink_gate test with the
+// {output, lse} tuple outputs fuse_attention produces for attention sinks
+static std::pair<migraphx::instruction_ref, migraphx::instruction_ref>
+add_sink_attention(migraphx::module_ref gm, const std::vector<migraphx::instruction_ref>& inputs)
+{
+    auto attn    = add_decode_attention(gm, inputs);
+    auto log_sum = gm->add_instruction(migraphx::make_op("log"), attn.rsum);
+    auto lse     = gm->add_instruction(migraphx::make_op("add"), attn.rmax, log_sum);
+    return {attn.out, lse};
 }
 
 // The shape transforms carrying the gate to the attention output of
@@ -1692,6 +1715,156 @@ TEST_CASE(kv_cache_attention_sink_gate)
         auto factor = add_sink_gate_views(mm, gate);
         auto scaled = add_pointwise(p2, "main:pointwise1", {out, factor}, single_pointwise("mul"));
         mm->add_return({scaled});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A single-use pointwise on the kv-cache attention output with inputs of its
+// own, such as an output gate sigmoid(gate) * attention, fuses in as the
+// epilogue with the gate as an extra input
+TEST_CASE(kv_cache_attention_output_gate)
+{
+    migraphx::shape s_q{migraphx::shape::half_type, {1, 2, 1, 4}};
+    migraphx::shape s_k{migraphx::shape::half_type, {1, 2, 4, 4}};
+    migraphx::shape s_v{migraphx::shape::half_type, {1, 2, 4, 2}};
+    migraphx::shape s_gate{migraphx::shape::half_type, {1, 1, 4}};
+    auto output_gate = [](auto* pm, const auto& inputs) {
+        auto gate = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[1]);
+        return pm->add_instruction(migraphx::make_op("mul"), gate, inputs[0]);
+    };
+
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_k);
+        auto v     = mm->add_parameter("v", s_v);
+        auto gate  = mm->add_parameter("gate", s_gate);
+        auto group = add_group(
+            p1, "attn0", "kv_cache_attention", {q, k, v}, [=](auto* gm, const auto& inputs) {
+                return std::vector<migraphx::instruction_ref>{add_decode_attention(gm, inputs).out};
+            });
+        auto gated = add_pointwise(p1, "main:pointwise0", {group, gate}, output_gate);
+        mm->add_return({gated});
+    }
+    run_attention_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_k);
+        auto v     = mm->add_parameter("v", s_v);
+        auto gate  = mm->add_parameter("gate", s_gate);
+        auto fused = add_mlir(p2, "mlir_attn0", {q, k, v, gate}, [=](auto* pm, const auto& inputs) {
+            auto out   = add_decode_attention(pm, inputs).out;
+            auto gated = output_gate(pm, std::vector<migraphx::instruction_ref>{out, inputs[3]});
+            return std::make_tuple(migraphx::make_op("group", {{"tag", "kv_cache_attention"}}),
+                                   gated);
+        });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The pointwise reads the attention output through a single-use shape
+// transform, which fuses in ahead of it
+TEST_CASE(kv_cache_attention_output_gate_reshaped)
+{
+    migraphx::shape s_q{migraphx::shape::half_type, {1, 2, 1, 4}};
+    migraphx::shape s_k{migraphx::shape::half_type, {1, 2, 4, 4}};
+    migraphx::shape s_v{migraphx::shape::half_type, {1, 2, 4, 2}};
+    migraphx::shape s_gate{migraphx::shape::half_type, {1, 4}};
+    auto output_gate = [](auto* pm, const auto& inputs) {
+        auto gate = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[1]);
+        return pm->add_instruction(migraphx::make_op("mul"), gate, inputs[0]);
+    };
+
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_k);
+        auto v     = mm->add_parameter("v", s_v);
+        auto gate  = mm->add_parameter("gate", s_gate);
+        auto group = add_group(
+            p1, "attn0", "kv_cache_attention", {q, k, v}, [=](auto* gm, const auto& inputs) {
+                return std::vector<migraphx::instruction_ref>{add_decode_attention(gm, inputs).out};
+            });
+        auto out   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4}}}), group);
+        auto gated = add_pointwise(p1, "main:pointwise0", {out, gate}, output_gate);
+        mm->add_return({gated});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_k);
+        auto v     = mm->add_parameter("v", s_v);
+        auto gate  = mm->add_parameter("gate", s_gate);
+        auto fused = add_mlir(p2, "mlir_attn0", {q, k, v, gate}, [=](auto* pm, const auto& inputs) {
+            auto attn = add_decode_attention(pm, inputs).out;
+            auto out  = pm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4}}}), attn);
+            auto gated = output_gate(pm, std::vector<migraphx::instruction_ref>{out, inputs[3]});
+            return std::make_tuple(migraphx::make_op("group", {{"tag", "kv_cache_attention"}}),
+                                   gated);
+        });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// With the pass order the gpu target uses, the output gate reaches the
+// attention epilogue before reduce fusion can take it as a prologue
+TEST_CASE(kv_cache_attention_output_gate_before_reduce)
+{
+    migraphx::shape s_q{migraphx::shape::half_type, {1, 2, 1, 4}};
+    migraphx::shape s_k{migraphx::shape::half_type, {1, 2, 4, 4}};
+    migraphx::shape s_v{migraphx::shape::half_type, {1, 2, 4, 2}};
+    migraphx::shape s_gate{migraphx::shape::half_type, {1, 1, 4}};
+    auto output_gate = [](auto* pm, const auto& inputs) {
+        auto gate = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[1]);
+        return pm->add_instruction(migraphx::make_op("mul"), gate, inputs[0]);
+    };
+
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_k);
+        auto v     = mm->add_parameter("v", s_v);
+        auto gate  = mm->add_parameter("gate", s_gate);
+        auto group = add_group(
+            p1, "attn0", "kv_cache_attention", {q, k, v}, [=](auto* gm, const auto& inputs) {
+                return std::vector<migraphx::instruction_ref>{add_decode_attention(gm, inputs).out};
+            });
+        auto gated = output_gate(mm, std::vector<migraphx::instruction_ref>{group, gate});
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), gated);
+        mm->add_return({rsum});
+    }
+    migraphx::run_passes(p1,
+                         {migraphx::fuse_pointwise{.enable_rewrite_reshapes = false},
+                          migraphx::gpu::fuse_mlir_attention{},
+                          migraphx::fuse_reduce{},
+                          migraphx::dead_code_elimination{}});
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_k);
+        auto v     = mm->add_parameter("v", s_v);
+        auto gate  = mm->add_parameter("gate", s_gate);
+        auto fused = add_mlir(p2, "mlir_attn0", {q, k, v, gate}, [=](auto* pm, const auto& inputs) {
+            auto out   = add_decode_attention(pm, inputs).out;
+            auto gated = output_gate(pm, std::vector<migraphx::instruction_ref>{out, inputs[3]});
+            return std::make_tuple(migraphx::make_op("group", {{"tag", "kv_cache_attention"}}),
+                                   gated);
+        });
+        auto rsum  = add_reduce(p2, "main:reduce_sum0", {fused}, {2}, single_reduce("reduce_sum"));
+        mm->add_return({rsum});
     }
     EXPECT(p1.sort() == p2.sort());
 }

@@ -1170,22 +1170,108 @@ struct find_reduce_slice
         return new_reduce;
     }
 
-    /// The views between the reduce and the slice applied to the sliced
-    /// reduce: a reshape has the dims of the unsliced reduce, so a chain with
-    /// one becomes a single view to the lens of the slice
+    /// The views between the reduce and the slices applied to the sliced
+    /// reduce, inserted before pos: a reshape has the dims of the unsliced
+    /// reduce, so a chain with one becomes a single view to the sliced lens
     static instruction_ref replay_views(module& m,
-                                        instruction_ref slice,
+                                        instruction_ref pos,
                                         instruction_ref new_reduce,
-                                        const std::vector<operation>& ops)
+                                        const std::vector<operation>& ops,
+                                        const std::vector<std::size_t>& lens)
     {
         if(none_of(ops, [](const operation& op) { return op.name() == "reshape"; }))
         {
             return std::accumulate(
                 ops.begin(), ops.end(), new_reduce, [&](instruction_ref ins, const operation& op) {
-                    return m.insert_instruction(slice, op, ins);
+                    return m.insert_instruction(pos, op, ins);
                 });
         }
-        return insert_view_to_lens(m, slice, new_reduce, slice->get_shape().lens());
+        return insert_view_to_lens(m, pos, new_reduce, lens);
+    }
+
+    /// Whether the slice is read once by a pointwise through single-use
+    /// views, which a reduce of its own fuses as the epilogue
+    static bool has_pointwise_consumer(instruction_ref slice)
+    {
+        auto ins = slice;
+        while(ins->outputs().size() == 1)
+        {
+            auto out = ins->outputs().front();
+            if(out->name() == "pointwise")
+                return true;
+            if(not contains({"reshape", "squeeze", "unsqueeze", "transpose"}, out->name()))
+                return false;
+            ins = out;
+        }
+        return false;
+    }
+
+    static std::pair<std::int64_t, std::int64_t> slice_range(instruction_ref slice)
+    {
+        auto v = slice->get_operator().to_value();
+        return {v.at("starts").to_vector<std::int64_t>().front(),
+                v.at("ends").to_vector<std::int64_t>().front()};
+    }
+
+    /// The range along the slice axis covered by the slices that keep
+    /// reading the shared reduce, absent when every slice fuses a pointwise
+    static optional<std::pair<std::int64_t, std::int64_t>>
+    kept_range(const std::vector<instruction_ref>& slices)
+    {
+        optional<std::pair<std::int64_t, std::int64_t>> result;
+        for(auto s : slices)
+        {
+            if(has_pointwise_consumer(s))
+                continue;
+            auto [start, end] = slice_range(s);
+            if(not result.has_value())
+                result = std::make_pair(start, end);
+            else
+                result =
+                    std::make_pair(std::min(result->first, start), std::max(result->second, end));
+        }
+        return result;
+    }
+
+    static bool overlaps(instruction_ref slice, const std::pair<std::int64_t, std::int64_t>& range)
+    {
+        auto [start, end] = slice_range(slice);
+        return start < range.second and range.first < end;
+    }
+
+    /// The reduce over [start, end) of the non-reduced axis, inserted before
+    /// pos: every input is sliced and the broadcasts inside the submodule
+    /// expanding to the full axis are shrunk to the sliced length
+    static instruction_ref insert_sliced_reduce(module_pass_manager& mpm,
+                                                instruction_ref pos,
+                                                instruction_ref reduce,
+                                                std::size_t raxis,
+                                                std::int64_t start,
+                                                std::int64_t end)
+    {
+        auto& m           = mpm.get_module();
+        const auto& rlens = reduce->get_shape().lens();
+        auto slice_op = make_op("slice", {{"axes", {raxis}}, {"starts", {start}}, {"ends", {end}}});
+        auto inputs   = *transform_tensor_inputs(
+            reduce, [&](instruction_ref x) { return m.insert_instruction(pos, slice_op, x); });
+        std::size_t new_len = end - start;
+        const auto* oldm    = reduce->module_inputs().front();
+        auto* sm = mpm.create_module(oldm->name() + "_slice" + std::to_string(start) + "_" +
+                                     std::to_string(end));
+        sm->set_bypass();
+        auto outs = sm->fuse(
+            *oldm, inputs, nullptr, reduce_reshape::transform_op([&](const operation& sop) {
+                if(not contains({"multibroadcast", "broadcast"}, sop.name()))
+                    return sop;
+                auto sv       = sop.to_value();
+                auto out_lens = sv.at("out_lens").to_vector<std::size_t>();
+                if(raxis < out_lens.size() and out_lens[raxis] == rlens[raxis])
+                    out_lens[raxis] = new_len;
+                sv["out_lens"] = out_lens;
+                return make_op(sop.name(), sv);
+            }));
+        sm->add_return(outs);
+        return m.insert_instruction(pos, reduce->get_operator(), inputs, {sm});
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -1198,10 +1284,8 @@ struct find_reduce_slice
         auto axes = slice_axes(slice);
         if(axes.size() != 1)
             return;
-        auto v     = slice->get_operator().to_value();
-        auto start = v.at("starts").to_vector<std::int64_t>().front();
-        auto end   = v.at("ends").to_vector<std::int64_t>().front();
-        auto input = slice->inputs().front();
+        auto [start, end] = slice_range(slice);
+        auto input        = slice->inputs().front();
         // Every consumer of the reduce must be a slice along the same axis,
         // otherwise the reduction would be duplicated
         if(not all_of(input->outputs(), [&](instruction_ref out) {
@@ -1241,31 +1325,50 @@ struct find_reduce_slice
                return x->get_shape().lens()[raxis] == rlens[raxis];
            }))
             return;
-        auto slice_op = make_op("slice", {{"axes", {raxis}}, {"starts", {start}}, {"ends", {end}}});
-        auto inputs   = *transform_tensor_inputs(
-            reduce, [&](instruction_ref x) { return m.insert_instruction(slice, slice_op, x); });
-        // Broadcasts inside the submodule expand to the full axis
-        std::size_t new_len = end - start;
-        const auto* oldm    = reduce->module_inputs().front();
-        auto* sm = mpm.create_module(oldm->name() + "_slice" + std::to_string(start) + "_" +
-                                     std::to_string(end));
-        sm->set_bypass();
-        auto outs = sm->fuse(
-            *oldm, inputs, nullptr, reduce_reshape::transform_op([&](const operation& sop) {
-                if(not contains({"multibroadcast", "broadcast"}, sop.name()))
-                    return sop;
-                auto sv       = sop.to_value();
-                auto out_lens = sv.at("out_lens").to_vector<std::size_t>();
-                if(raxis < out_lens.size() and out_lens[raxis] == rlens[raxis])
-                    out_lens[raxis] = new_len;
-                sv["out_lens"] = out_lens;
-                return make_op(sop.name(), sv);
-            }));
-        sm->add_return(outs);
-        auto new_reduce = m.insert_instruction(slice, reduce->get_operator(), inputs, {sm});
-        auto y          = replay_views(m, slice, new_reduce, sliced->ops);
-        assert(y->get_shape().lens() == slice->get_shape().lens());
-        m.replace_instruction(slice, y);
+        // Only a slice read by a pointwise gains a reduce of its own, which
+        // fuses the pointwise as its epilogue. The other slices keep reading
+        // one reduce, narrowed to the range they cover once the fusable
+        // slices outside it are split off; a fusable slice inside it stays,
+        // since its own reduce would recompute those rows
+        auto slices = input->outputs();
+        auto kept   = kept_range(slices);
+        if(has_pointwise_consumer(slice))
+        {
+            if(kept.has_value() and overlaps(slice, *kept))
+                return;
+            auto new_reduce = insert_sliced_reduce(mpm, slice, reduce, raxis, start, end);
+            auto y = replay_views(m, slice, new_reduce, sliced->ops, slice->get_shape().lens());
+            assert(y->get_shape().lens() == slice->get_shape().lens());
+            m.replace_instruction(slice, y);
+            return;
+        }
+        assert(kept.has_value());
+        if(any_of(slices, [&](instruction_ref s) {
+               return has_pointwise_consumer(s) and not overlaps(s, *kept);
+           }))
+            return;
+        auto [lo, hi] = *kept;
+        if(hi - lo == len)
+            return;
+        auto pos           = std::next(input);
+        auto new_reduce    = insert_sliced_reduce(mpm, pos, reduce, raxis, lo, hi);
+        auto lens          = input->get_shape().lens();
+        lens[axes.front()] = hi - lo;
+        auto y             = replay_views(m, pos, new_reduce, sliced->ops, lens);
+        assert(y->get_shape().lens() == lens);
+        for(auto s : slices)
+        {
+            auto [sstart, send] = slice_range(s);
+            assert(sstart >= lo and send <= hi);
+            if(sstart == lo and send == hi)
+            {
+                m.replace_instruction(s, y);
+                continue;
+            }
+            auto sop = make_op("slice",
+                               {{"axes", axes}, {"starts", {sstart - lo}}, {"ends", {send - lo}}});
+            m.replace_instruction(s, sop, y);
+        }
     }
 };
 

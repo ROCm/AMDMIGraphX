@@ -28,7 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/functional.hpp>
 
-#include <unordered_set>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -49,12 +49,12 @@ static bool cse_output_too_large(instruction_ref ins)
     return s.bytes() > threshold;
 }
 
-template <class Range>
-static void cse_range(module& m, Range&& r)
+// Outputs always follow their inputs, so by the time an instruction is visited its inputs have
+// already been merged and a single forward pass finds every common subexpression.
+void eliminate_common_subexpression::apply(module& m) const
 {
     std::unordered_multimap<std::string, instruction_ref> instructions;
-    std::unordered_set<instruction_ref> processed_ins;
-    for(auto ins : r)
+    for(auto ins : iterator_for(m))
     {
         // Skip dead instructions
         if(ins->outputs().empty())
@@ -68,31 +68,15 @@ static void cse_range(module& m, Range&& r)
 
         // Find instruction with the same name
         auto found_instructions = range(instructions.equal_range(ins->name()));
-        for(const auto& pp : found_instructions)
+        auto eq = find_if(found_instructions, [&](const auto& pp) { return *pp.second == *ins; });
+        if(eq != found_instructions.end())
         {
-            auto eq = pp.second;
-            if(contains(processed_ins, eq))
-                continue;
-            if(*eq != *ins)
-                continue;
-            m.replace_instruction(ins, eq);
-            processed_ins.emplace(ins);
-            std::vector<instruction_ref> outputs;
-            std::copy_if(eq->outputs().begin(),
-                         eq->outputs().end(),
-                         std::back_inserter(outputs),
-                         [&](auto x) { return m.has_instruction(x); });
-
-            std::sort(outputs.begin(), outputs.end(), [&](auto x, auto y) {
-                return std::distance(eq, x) < std::distance(eq, y);
-            });
-            cse_range(m, outputs);
+            m.replace_instruction(ins, eq->second);
+            continue;
         }
         instructions.emplace(ins->name(), ins);
     }
 }
-
-void eliminate_common_subexpression::apply(module& m) const { cse_range(m, iterator_for(m)); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

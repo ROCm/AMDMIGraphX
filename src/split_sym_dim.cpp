@@ -1971,8 +1971,30 @@ struct block_frame
                        outputs.end(),
                        std::back_inserter(clone_outputs),
                        [&](const sliced_value& output) { return values.at(output.source); });
-        auto deduplicated_outputs = deduplicate_block_outputs(clone_outputs);
-        clone_outputs             = deduplicated_outputs.outputs;
+        clone_module.add_return(clone_outputs);
+        run_passes(clone_module, {dead_code_elimination{}});
+        auto deduplicated_outputs = deduplicate_block_outputs(clone_module.get_returns());
+        if(clone_module.get_returns().size() > 1)
+        {
+            auto canonical_clone = clone_module;
+            run_passes(canonical_clone,
+                       {eliminate_common_subexpression{}, dead_code_elimination{}});
+            deduplicated_outputs = deduplicate_block_outputs(canonical_clone.get_returns());
+        }
+        auto physical_indices = range(deduplicated_outputs.outputs.size());
+        clone_outputs.clear();
+        std::transform(physical_indices.begin(),
+                       physical_indices.end(),
+                       std::back_inserter(clone_outputs),
+                       [&](std::size_t physical_index) {
+                           auto logical = std::find(deduplicated_outputs.indices.begin(),
+                                                    deduplicated_outputs.indices.end(),
+                                                    physical_index);
+                           assert(logical != deduplicated_outputs.indices.end());
+                           auto logical_index = static_cast<std::size_t>(
+                               std::distance(deduplicated_outputs.indices.begin(), logical));
+                           return clone_module.get_returns().at(logical_index);
+                       });
         auto dynamic_output =
             std::find_if(clone_outputs.begin(), clone_outputs.end(), [](instruction_ref output) {
                 return output->get_shape().dynamic();
@@ -1985,7 +2007,7 @@ struct block_frame
                        clone_outputs.end(),
                        std::back_inserter(output_shapes),
                        [](instruction_ref output) { return output->get_shape(); });
-        clone_module.add_return(clone_outputs);
+        clone_module.replace_return(clone_outputs);
         run_passes(clone_module, {dead_code_elimination{}});
         // Keep fixed parameters symbolic when an eval_expr_from_shape still reads them or
         // converting them would change an output layout.
@@ -2200,7 +2222,7 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     // Rewrite shape expressions to read their runtime values directly from root sources.
     match::find_matches(m, resolve_symbolic_dimensions_of_match{.root_sources = root_sources});
     match::find_matches(m, find_eval_expr_from_intermediate_ins{.root_sources = root_sources});
-    run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
+    run_passes(m, {dead_code_elimination{}});
     root_sources = find_root_sources(m);
 
     // Collect independent symbols and partition each symbol's interval into the target extents used

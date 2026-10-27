@@ -55,6 +55,18 @@ static void insert_fp8_gemm(const context& ctx, bool mlir_all_dots, std::set<std
         u.insert("quant_dot");
 }
 
+// MIOpen does not accept fp8 tensors, so fp8 convolutions that MLIR does not take run in float
+static void insert_fp8_conv([[maybe_unused]] bool mlir_convolutions,
+                            [[maybe_unused]] std::set<std::string>& u)
+{
+#if MIGRAPHX_USE_MIOPEN
+    if(mlir_convolutions)
+        return;
+    u.insert("convolution");
+    u.insert("quant_convolution");
+#endif
+}
+
 static eliminate_data_type for_device_functions()
 {
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
@@ -79,11 +91,13 @@ static eliminate_data_type for_device_functions()
     return eliminate_data_type{unsupported_types, shape::float_type, device_functions};
 }
 
-static eliminate_data_type for_fp8fnuz(const context* ctx, bool mlir_all_dots)
+static eliminate_data_type
+for_fp8fnuz(const context* ctx, bool mlir_all_dots, bool mlir_convolutions)
 {
     std::set<std::string> unsupported_ops = {};
 
     insert_fp8_gemm(*ctx, mlir_all_dots, unsupported_ops);
+    insert_fp8_conv(mlir_convolutions, unsupported_ops);
     insert_miopen_pooling(unsupported_ops);
 
     if(not gfx_has_fp8fnuz_intrinsics(*ctx))
@@ -94,11 +108,13 @@ static eliminate_data_type for_fp8fnuz(const context* ctx, bool mlir_all_dots)
         {shape::fp8e4m3fnuz_type, shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_ops};
 }
 
-static eliminate_data_type for_fp8ocp(const context* ctx, bool mlir_all_dots)
+static eliminate_data_type
+for_fp8ocp(const context* ctx, bool mlir_all_dots, bool mlir_convolutions)
 {
     std::set<std::string> unsupported_ops = {};
 
     insert_fp8_gemm(*ctx, mlir_all_dots, unsupported_ops);
+    insert_fp8_conv(mlir_convolutions, unsupported_ops);
     insert_miopen_pooling(unsupported_ops);
 
     if(not gfx_has_fp8ocp_intrinsics(*ctx))
@@ -155,8 +171,8 @@ void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
 
     mpm.run_pass(for_device_functions());
 
-    mpm.run_pass(for_fp8fnuz(ctx, mlir_all_dots));
-    mpm.run_pass(for_fp8ocp(ctx, mlir_all_dots));
+    mpm.run_pass(for_fp8fnuz(ctx, mlir_all_dots, mlir_convolutions));
+    mpm.run_pass(for_fp8ocp(ctx, mlir_all_dots, mlir_convolutions));
 
     mpm.run_pass(for_gemm_conv());
 }

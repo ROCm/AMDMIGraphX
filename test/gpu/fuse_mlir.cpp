@@ -3216,6 +3216,27 @@ TEST_CASE(mlir_all_dots_fast_mode)
 }
 #endif
 
+TEST_CASE(mlir_convolutions_gfx1170)
+{
+    migraphx::gpu::device_description desc;
+    desc.arch = "gfx1170";
+    migraphx::gpu::context ctx{desc};
+    EXPECT(migraphx::gpu::mlir_convolutions_enabled(ctx, {}));
+}
+
+#if MIGRAPHX_USE_MIOPEN
+TEST_CASE(mlir_convolutions_rejected)
+{
+    migraphx::gpu::device_description desc;
+    desc.arch = "gfx940";
+    migraphx::gpu::context ctx{desc};
+    // Requesting convolution in the env var overrides the rejection in use_specific_ops
+    std::string opt = migraphx::string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
+    if(opt.find("convolution") == std::string::npos)
+        EXPECT(not migraphx::gpu::mlir_convolutions_enabled(ctx, {"!convolution"}));
+}
+#endif
+
 int main(int argc, const char* argv[])
 {
     if(migraphx::gpu::mlir_enabled())

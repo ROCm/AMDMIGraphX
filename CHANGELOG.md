@@ -12,6 +12,7 @@ Full documentation for MIGraphX is available at
 * Added the `split_sym_dim` pass, which specializes bounded symbolic dimensions into static `select_module` submodules (#5123).
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
+* Added OCP fp8 support for gfx1170, gfx1171, and gfx1172.
 
 ### Changed
 
@@ -31,6 +32,7 @@ Full documentation for MIGraphX is available at
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).
 * Fixed mixed `uint8` and `int8` quantization (#5075).
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
+* Fixed fp8 convolutions failing in MIOpen when MLIR is disabled or does not take convolutions; they now run in float.
 
 ### Optimized
 

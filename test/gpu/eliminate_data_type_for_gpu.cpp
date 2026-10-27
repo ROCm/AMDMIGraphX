@@ -117,4 +117,105 @@ TEST_CASE(convert_fp8_dot_for_mlir)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(keep_ocp_fp8_quant_dot_for_mlir_gfx1170)
+{
+    migraphx::gpu::device_description desc;
+    desc.arch = "gfx1170";
+    migraphx::gpu::context ctx{desc};
+
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::fp8e4m3fn_type, {2, 2}});
+        auto y   = m1.add_parameter("y", {migraphx::shape::fp8e4m3fn_type, {2, 2}});
+        auto dot = m1.add_instruction(migraphx::make_op("quant_dot"), x, y);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.ctx = &ctx, .mlir_all_dots = true});
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(keep_ocp_fp8_convolution_for_mlir_gfx1170)
+{
+    migraphx::gpu::device_description desc;
+    desc.arch = "gfx1170";
+    migraphx::gpu::context ctx{desc};
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::fp8e4m3fn_type, {1, 1, 2, 2}});
+        auto w    = m1.add_parameter("w", {migraphx::shape::fp8e4m3fn_type, {1, 1, 1, 1}});
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.ctx = &ctx, .mlir_convolutions = true});
+    EXPECT(m1 == m2);
+}
+
+#if MIGRAPHX_USE_MIOPEN
+TEST_CASE(convert_ocp_fp8_convolution_without_mlir_gfx1170)
+{
+    migraphx::gpu::device_description desc;
+    desc.arch = "gfx1170";
+    migraphx::gpu::context ctx{desc};
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::fp8e4m3fn_type, {1, 1, 2, 2}});
+        auto w    = m1.add_parameter("w", {migraphx::shape::fp8e4m3fn_type, {1, 1, 1, 1}});
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    run_pass(m1, {.ctx = &ctx, .mlir_convolutions = false});
+
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", {migraphx::shape::fp8e4m3fn_type, {1, 1, 2, 2}});
+        auto w  = m2.add_parameter("w", {migraphx::shape::fp8e4m3fn_type, {1, 1, 1, 1}});
+        auto fx = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto fw = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), w);
+        auto conv = m2.add_instruction(migraphx::make_op("convolution"), fx, fw);
+        auto out  = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fn_type}}), conv);
+        m2.add_return({out});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(convert_fnuz_fp8_convolution_without_mlir_gfx940)
+{
+    migraphx::gpu::device_description desc;
+    desc.arch = "gfx940";
+    migraphx::gpu::context ctx{desc};
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::fp8e4m3fnuz_type, {1, 1, 2, 2}});
+        auto w    = m1.add_parameter("w", {migraphx::shape::fp8e4m3fnuz_type, {1, 1, 1, 1}});
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    run_pass(m1, {.ctx = &ctx, .mlir_convolutions = false});
+
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", {migraphx::shape::fp8e4m3fnuz_type, {1, 1, 2, 2}});
+        auto w  = m2.add_parameter("w", {migraphx::shape::fp8e4m3fnuz_type, {1, 1, 1, 1}});
+        auto fx = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto fw = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), w);
+        auto conv = m2.add_instruction(migraphx::make_op("convolution"), fx, fw);
+        auto out  = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}),
+            conv);
+        m2.add_return({out});
+    }
+    EXPECT(m1 == m2);
+}
+#endif
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

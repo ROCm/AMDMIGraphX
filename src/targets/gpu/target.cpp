@@ -280,6 +280,8 @@ struct pipeline_factory
             eliminate_data_type_for_gpu{.disable_64bit = options.fast_math,
                                         .ctx           = get_context(),
                                         .mlir_all_dots = mlir_all_dots_enabled(
+                                            *get_context(), backend_opts.mlir_use_specific_ops),
+                                        .mlir_convolutions = mlir_convolutions_enabled(
                                             *get_context(), backend_opts.mlir_use_specific_ops)},
             rewrite_resize{.affine_only = true},
             dead_code_elimination{},

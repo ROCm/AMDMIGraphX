@@ -42,6 +42,9 @@ MIGRAPHX_GPU_EXPORT bool mlir_flash_decoding_enabled();
 // True when fuse_mlir takes every standalone dot rather than only the sizes it is fast at
 MIGRAPHX_GPU_EXPORT bool mlir_all_dots_enabled(const context& ctx,
                                                const std::vector<std::string>& use_specific_ops);
+// True when fuse_mlir takes standalone convolutions, which it always does for fp8 inputs
+MIGRAPHX_GPU_EXPORT bool
+mlir_convolutions_enabled(const context& ctx, const std::vector<std::string>& use_specific_ops);
 
 struct MIGRAPHX_GPU_EXPORT fuse_mlir
 {

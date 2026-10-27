@@ -1629,6 +1629,8 @@ struct find_gather
         static std::optional<instruction_ref>
         transform_indices(const Indices& indices, module& m, instruction_ref start)
         {
+            if(indices.empty())
+                return std::nullopt;
             auto isegments      = from_ints(indices.begin(), indices.end());
             std::int64_t offset = isegments.front().base;
             auto s              = make_strided_view(shift(std::move(isegments), -offset));
@@ -1715,6 +1717,8 @@ struct find_gather
         auto indices_ins  = r.instructions["indices"];
         auto data_ins     = r.instructions["data"];
         auto gather_op    = any_cast<op::gather>(ins->get_operator());
+        if(ins->get_shape().elements() == 0)
+            return;
         const auto& dlens = data_ins->get_shape().lens();
         if(dlens.empty())
             return;

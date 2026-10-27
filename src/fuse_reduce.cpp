@@ -1300,14 +1300,14 @@ struct find_gather_reduce
     static optional<instruction_ref> find_gather(instruction_ref input)
     {
         if(input->outputs().size() != 1)
-            return nullopt;
+        return nullopt;
         auto ins = input;
         while(ins->name() != "gather")
         {
             if(ins->inputs().size() != 1)
-                return nullopt;
+        return nullopt;
             if(not contains(view_names(), ins->name()))
-                return nullopt;
+        return nullopt;
             ins = ins->inputs().front();
         }
         const auto& ishape = ins->inputs().back()->get_shape();
@@ -1534,7 +1534,7 @@ struct find_reduce_squeeze_pointwise
             // dims clamps the rank at 1 and unsqueeze is a no-op on scalars. The
             // reduce shape is all ones then, so broadcast instead.
             if(input->get_shape().lens() == std::vector<std::size_t>{1})
-                return m.insert_instruction(
+    return m.insert_instruction(
                     pw, make_op("multibroadcast", {{"out_lens", rlens}}), input);
             return m.insert_instruction(pw, make_op("unsqueeze", {{"axes", axes}}), input);
         });
@@ -1724,7 +1724,7 @@ struct find_unpack_broadcast_reduce
             return insert_split_axis(m, reduce, input, *axis);
         });
         if(not inputs.has_value())
-            return;
+                return;
         inputs->push_back(select);
 
         auto axes = split_reduce_axes(reduce_axes(reduce), *axis);

@@ -29,7 +29,8 @@ TEST_CASE(symbolic_reshape_loop_test)
     using migraphx::sym::lit;
     using migraphx::sym::var;
 
-    const auto batch = var("batch", {1, 4});
+    const auto sequence = var("sequence", {1, 4});
+    const auto batch    = sequence + lit(16);
     const auto input_shape =
         migraphx::shape{migraphx::shape::float_type, sym_dims({batch, lit(int64_t{4})})};
     const migraphx::shape iteration_shape{migraphx::shape::int64_type, {1}};

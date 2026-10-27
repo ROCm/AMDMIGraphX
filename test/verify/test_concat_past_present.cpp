@@ -24,6 +24,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 
 // Decode-mode kv-cache append fed straight from a parameter, so nothing fuses
 // and the copy kernel runs; fp8 covers its unvectorized path
@@ -70,5 +71,40 @@ struct test_concat_past_present_runtime_sequence
                             sequence_length,
                             cache);
         return p;
+    }
+};
+
+struct test_concat_past_present_dynamic_runtime_sequence
+    : verify_program<test_concat_past_present_dynamic_runtime_sequence>
+{
+    migraphx::program create_program() const
+    {
+        using dd = migraphx::shape::dynamic_dimension;
+        using migraphx::sym::lit;
+
+        auto sequence = migraphx::sym::var("sequence", {1, 4}, {2});
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto present =
+            mm->add_parameter("present",
+                              migraphx::shape{migraphx::shape::half_type,
+                                              {dd{lit(1)}, dd{lit(2)}, dd{sequence}, dd{lit(4)}}});
+        auto cache =
+            mm->add_parameter("cache", migraphx::shape{migraphx::shape::half_type, {1, 2, 8, 4}});
+        auto slk = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1, 1}}, {0}});
+        auto sequence_length = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {2}});
+        mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}),
+                            present,
+                            slk,
+                            sequence_length,
+                            cache);
+        return p;
+    }
+
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
+    {
+        return {{"present", migraphx::shape{migraphx::shape::half_type, {1, 2, 2, 4}}}};
     }
 };

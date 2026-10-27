@@ -64,10 +64,20 @@ inline bool shape_source_has_symbol(instruction_ref source, const sym::expr& sym
            });
 }
 
+inline bool shape_source_has_expression(instruction_ref source, const sym::expr& expression)
+{
+    const auto& source_shape = source->get_shape();
+    return source_shape.symbolic() and
+           any_of(source_shape.dyn_dims(), [&](const auto& d) { return d.sym_expr == expression; });
+}
+
 inline bool can_evaluate_shape_expressions(const std::vector<instruction_ref>& shape_sources,
                                            const std::vector<sym::expr>& expressions)
 {
     return not shape_sources.empty() and all_of(expressions, [&](const auto& expression) {
+        if(any_of(shape_sources,
+                  [&](auto source) { return shape_source_has_expression(source, expression); }))
+            return true;
         return all_of(sym::find_variables(expression), [&](const auto& symbol) {
             return any_of(shape_sources,
                           [&](auto source) { return shape_source_has_symbol(source, symbol); });

@@ -36,9 +36,13 @@ struct analyze_concat_past_present : analyzer<analyze_concat_past_present>
     {
         if(ins->inputs().size() != 3 and ins->inputs().size() != 4)
             return symbolic_op_info{ins};
-        return analyze_axes(ins, [](std::size_t input, std::size_t axis) {
-            // Padding the present sequence changes how many elements are written into the cache.
-            return input == 0 and axis == 2 ? axis_desc{} : parallel_axis();
+        const bool has_runtime_sequence = ins->inputs().size() == 4;
+        return analyze_axes(ins, [has_runtime_sequence](std::size_t input, std::size_t axis) {
+            // Without a runtime sequence length, padding present changes how many elements are
+            // written into the cache. The four-input form ignores the padded tail.
+            if(input == 0 and axis == 2 and not has_runtime_sequence)
+                return axis_desc{};
+            return parallel_axis();
         });
     }
 };

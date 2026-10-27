@@ -28,6 +28,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/context.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/sym_argument.hpp>
@@ -58,24 +59,33 @@ struct eval_expr_from_shape
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
 
-        std::unordered_set<sym::expr> missing;
-        for(const auto& expression : expressions)
-        {
-            auto variables = sym::find_variables(expression);
-            missing.merge(variables);
-        }
-
+        std::unordered_set<sym::expr> source_expressions;
+        std::unordered_set<sym::expr> direct_symbols;
         for(const auto& input : inputs)
         {
             if(not input.symbolic())
                 continue;
             for(const auto& d : input.dyn_dims())
+            {
+                source_expressions.insert(d.sym_expr);
                 if(d.sym_expr.name() == "variable")
-                    missing.erase(sym::as_symbol(d.sym_expr));
+                    direct_symbols.insert(sym::as_symbol(d.sym_expr));
+            }
         }
-        if(not missing.empty())
-            MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Symbol '" + missing.begin()->to_string() +
-                           "' is not a direct input dimension");
+
+        for(const auto& expression : expressions)
+        {
+            if(contains(source_expressions, expression))
+                continue;
+            auto variables = sym::find_variables(expression);
+            auto missing =
+                std::find_if(variables.begin(), variables.end(), [&](const auto& symbol) {
+                    return not contains(direct_symbols, symbol);
+                });
+            if(missing != variables.end())
+                MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Symbol '" + missing->to_string() +
+                               "' is not a direct input dimension");
+        }
 
         return shape{shape::int64_type, {expressions.size()}};
     }
@@ -107,13 +117,13 @@ struct eval_expr_from_shape
             const auto& dims = input_shape.dyn_dims();
             for(auto&& [dim, len] : views::zip(dims, lens))
             {
-                if(dim.sym_expr.name() != "variable")
+                if(sym::find_variables(dim.sym_expr).empty())
                     continue;
-                auto variable = sym::as_symbol(dim.sym_expr);
-                auto result   = values.emplace(variable, len);
+                auto result = values.emplace(dim.sym_expr, len);
                 if(not result.second and result.first->second != len)
-                    MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Repeated symbol has inconsistent runtime "
-                                   "dimensions");
+                    MIGRAPHX_THROW(
+                        "EVAL_EXPR_FROM_SHAPE: Repeated expression has inconsistent runtime "
+                        "dimensions");
             }
         }
 

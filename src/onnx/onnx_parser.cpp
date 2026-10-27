@@ -1088,13 +1088,13 @@ map_dyn_dim(onnx_parser& parser,
             int axis,
             const std::unordered_map<std::string, shape::dynamic_dimension>& resolved_dim_params)
 {
+    // An already-symbolic override carries its own expression; keep it verbatim.
+    if(override_dim != nullptr and override_dim->is_symbolic())
+        return *override_dim;
     if(model_dim != nullptr and model_dim->has_dim_param() and parser.use_symbolic_shapes and
        contains(resolved_dim_params, model_dim->dim_param()))
         return make_symbol(
             parser, model_dim->dim_param(), resolved_dim_params.at(model_dim->dim_param()));
-    // An already-symbolic override carries its own symbol; keep it.
-    if(override_dim != nullptr and override_dim->is_symbolic())
-        return *override_dim;
     if(model_dim != nullptr and model_dim->has_dim_param())
     {
         const auto& dim_param = model_dim->dim_param();

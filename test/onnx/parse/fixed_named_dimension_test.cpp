@@ -71,5 +71,35 @@ TEST_CASE(repeated_fixed_named_dimension_test)
     EXPECT(input_dims.at(0).sym_expr == lit(1));
     EXPECT(position_dims.at(0).sym_expr == lit(1));
     EXPECT(same_symbol(input_dims.at(0).sym_expr, position_dims.at(0).sym_expr));
+    EXPECT(input_dims.at(1).sym_expr == sequence_length);
+    EXPECT(position_dims.at(1).sym_expr == sequence_length);
     EXPECT(same_symbol(input_dims.at(1).sym_expr, position_dims.at(1).sym_expr));
+}
+
+TEST_CASE(repeated_named_dimension_preserves_explicit_expressions_test)
+{
+    using migraphx::shape;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto sequence         = var("sequence", {1, 4}, {2});
+    const auto shifted_sequence = sequence + lit(16);
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes                = true;
+    options.map_dyn_input_dims["input"]        = {shape::dynamic_dimension{sequence},
+                                                  shape::dynamic_dimension{shifted_sequence},
+                                                  shape::dynamic_dimension{18, 18}};
+    options.map_dyn_input_dims["position_ids"] = {shape::dynamic_dimension{sequence},
+                                                  shape::dynamic_dimension{shifted_sequence}};
+
+    auto p                    = read_onnx("repeated_fixed_named_dimension_test.onnx", options);
+    auto parameter_shapes     = p.get_parameter_shapes();
+    const auto& input_dims    = parameter_shapes.at("input").dyn_dims();
+    const auto& position_dims = parameter_shapes.at("position_ids").dyn_dims();
+
+    EXPECT(input_dims.at(0).sym_expr == sequence);
+    EXPECT(position_dims.at(0).sym_expr == sequence);
+    EXPECT(input_dims.at(1).sym_expr == shifted_sequence);
+    EXPECT(position_dims.at(1).sym_expr == shifted_sequence);
 }

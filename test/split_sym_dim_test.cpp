@@ -36,6 +36,7 @@
 #include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
 #include <test.hpp>
+#include <cstdint>
 #include <limits>
 #include <numeric>
 #include <set>
@@ -2645,6 +2646,29 @@ TEST_CASE(split_sym_dim_propagates_min_neutral_padding_through_prefix_scan)
     expected_main.add_return({expected_output});
 
     EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_uses_zero_padding_for_integral_prefix_scan)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::program p;
+    auto& m     = *p.get_main_module();
+    auto data   = m.add_parameter("data", migraphx::shape{migraphx::shape::uint8_type, {dd{n}}});
+    auto values = m.add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}}), data);
+    auto output = m.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0}}}), values);
+    m.add_return({output});
+
+    run_pass(p);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape input_shape{migraphx::shape::uint8_type, {3}};
+    std::vector<std::uint8_t> input_data = {255, 0, 0};
+    auto result = p.eval({{"data", migraphx::argument{input_shape, input_data.data()}}}).back();
+    std::vector<std::uint8_t> result_data;
+    result.visit([&](auto output_values) {
+        result_data.assign(output_values.begin(), output_values.end());
+    });
+    EXPECT(result_data == std::vector<std::uint8_t>{255});
 }
 
 TEST_CASE(split_sym_dim_specializes_static_output_gemm)

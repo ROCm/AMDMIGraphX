@@ -83,6 +83,30 @@ TEST_CASE(eval_expr_from_shape_multi_symbol)
     EXPECT(result.at<int64_t>() == 7);
 }
 
+TEST_CASE(eval_expr_from_shape_compound_input)
+{
+    using dd      = migraphx::shape::dynamic_dimension;
+    auto sequence = migraphx::sym::var("sequence", {1, 4});
+    auto extent   = sequence + migraphx::sym::lit(16);
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter(
+        "x", migraphx::shape{migraphx::shape::float_type, {dd{extent}, dd{migraphx::sym::lit(4)}}});
+    mm->add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::value::array{migraphx::to_value(extent)}}}),
+        x);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape input_shape{migraphx::shape::float_type, {19, 4}};
+    std::vector<float> data(input_shape.elements());
+    auto result = p.eval({{"x", migraphx::argument{input_shape, data.data()}}}).back();
+
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {1}});
+    EXPECT(result.at<int64_t>() == 19);
+}
+
 TEST_CASE(eval_expr_from_shape_cross_input)
 {
     using dd = migraphx::shape::dynamic_dimension;

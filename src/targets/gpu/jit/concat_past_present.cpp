@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <algorithm>
 #include <fstream>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/compiler.hpp>
@@ -85,15 +84,12 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto compile_inputs = inputs;
-        std::transform(compile_inputs.begin(),
-                       compile_inputs.end(),
-                       compile_inputs.begin(),
-                       [](const auto& input) {
-                           return input.dynamic() ? shape{input.type(), input.max_lens()} : input;
-                       });
-        auto params                    = init_params(compile_inputs, v);
-        params.seqlen_present_kv_cache = compile_inputs.back().lens().at(2);
+        if(any_of(inputs, [](const auto& input) { return input.dynamic(); }))
+            MIGRAPHX_THROW(
+                "CONCAT_PAST_PRESENT: GPU compilation requires specialized input layouts");
+
+        auto params                    = init_params(inputs, v);
+        params.seqlen_present_kv_cache = inputs.back().lens().at(2);
         auto gqa_params_str            = params.make_init_str();
 
         // Every chunk offset is a multiple of head_size, so copy in the widest
@@ -111,7 +107,7 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
 
         hip_compile_options options;
         options.set_launch_params(v, compute_global_for(ctx, nelements / elements_per_thread));
-        options.inputs      = compile_inputs;
+        options.inputs      = inputs;
         options.output      = inputs.back();
         options.kernel_name = v.get("kernel", "concat_past_present_kernel");
 

@@ -60,8 +60,12 @@ struct analyze_prefix_scan : analyzer<analyze_prefix_scan>
             return propagate_padding_to_input(
                 ins, 0, requirement, {fill_kind::zero}, padding_semantics::exact);
         if(requirement.semantics == padding_semantics::min_neutral)
+        {
+            auto fill =
+                shape::is_integral(ins->get_shape().type()) ? fill_kind::zero : fill_kind::one;
             return propagate_padding_to_input(
-                ins, 0, requirement, {fill_kind::one}, padding_semantics::exact);
+                ins, 0, requirement, {fill}, padding_semantics::exact);
+        }
         return std::nullopt;
     }
 };

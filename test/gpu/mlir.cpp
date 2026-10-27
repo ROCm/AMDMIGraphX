@@ -668,7 +668,7 @@ TEST_CASE(dot_convert)
 module {
   func.func @mlir_dot_convert(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>) -> !migraphx.shaped<1x5x3xf16, 15x3x1> attributes ${attrs} {
     %0 = migraphx.dot %arg0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
-    %1 = migraphx.convert %0 {target_type  =  1  :  i64} : <1x5x3xf32, 15x3x1> to <1x5x3xf16, 15x3x1>
+    %1 = migraphx.convert %0 {saturate = 1 : i64, target_type = 1 : i64} : <1x5x3xf32, 15x3x1> to <1x5x3xf16, 15x3x1>
     return %1 : !migraphx.shaped<1x5x3xf16, 15x3x1>
   }
 }
@@ -1231,7 +1231,7 @@ module {
     %18 = migraphx.reshape %17 {dims = [1, 4, 1, 1]} : <1x4xsi32, 1x0> -> <1x4x1x1xsi32, 1x0x1x1>
     %19 = migraphx.multibroadcast %18 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1x4x1x1xsi32, 1x0x1x1> -> <1x4x1x8xsi32, 1x0x1x0>
     %20 = migraphx.greater %15, %19 : <1x4x1x8xsi32, 0x0x0x1>, <1x4x1x8xsi32, 1x0x1x0> -> <1x4x1x8xsi32, 0x0x0x1>
-    %21 = migraphx.convert %20 {target_type = 0 : i64} : <1x4x1x8xsi32, 0x0x0x1> to <1x4x1x8xsi8, 0x0x0x1>
+    %21 = migraphx.convert %20 {saturate = 1 : i64, target_type = 0 : i64} : <1x4x1x8xsi32, 0x0x0x1> to <1x4x1x8xsi8, 0x0x0x1>
     %22 = migraphx.multibroadcast %1 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1xf16, 1> -> <1x4x1x8xf16, 0x0x0x0>
     %23 = migraphx.where %21, %22, %14 : <1x4x1x8xsi8, 0x0x0x1>, <1x4x1x8xf16, 0x0x0x0>, <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
     %24 = migraphx.reshape %23 {dims = [1, 4, 1, 8]} : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
@@ -1294,7 +1294,7 @@ module {
     %18 = migraphx.reshape %17 {dims = [2, 4, 1, 1]} : <2x4xsi32, 1x0> -> <2x4x1x1xsi32, 1x0x1x1>
     %19 = migraphx.multibroadcast %18 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <2x4x1x1xsi32, 1x0x1x1> -> <2x4x1x8xsi32, 1x0x1x0>
     %20 = migraphx.greater %15, %19 : <2x4x1x8xsi32, 0x0x0x1>, <2x4x1x8xsi32, 1x0x1x0> -> <2x4x1x8xsi32, 8x0x8x1>
-    %21 = migraphx.convert %20 {target_type = 0 : i64} : <2x4x1x8xsi32, 8x0x8x1> to <2x4x1x8xsi8, 8x0x8x1>
+    %21 = migraphx.convert %20 {saturate = 1 : i64, target_type = 0 : i64} : <2x4x1x8xsi32, 8x0x8x1> to <2x4x1x8xsi8, 8x0x8x1>
     %22 = migraphx.multibroadcast %1 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <1xf16, 1> -> <2x4x1x8xf16, 0x0x0x0>
     %23 = migraphx.where %21, %22, %14 : <2x4x1x8xsi8, 8x0x8x1>, <2x4x1x8xf16, 0x0x0x0>, <2x4x1x8xf16, 32x8x8x1> -> <2x4x1x8xf16, 32x8x8x1>
     %24 = migraphx.reshape %23 {dims = [2, 4, 1, 8]} : <2x4x1x8xf16, 32x8x8x1> -> <2x4x1x8xf16, 32x8x8x1>
@@ -1358,7 +1358,7 @@ module {
     %18 = migraphx.reshape %17 {dims = [1, 4, 1, 1]} : <1x4xsi32, 1x0> -> <1x4x1x1xsi32, 1x0x1x1>
     %19 = migraphx.multibroadcast %18 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1x4x1x1xsi32, 1x0x1x1> -> <1x4x1x8xsi32, 1x0x1x0>
     %20 = migraphx.greater %15, %19 : <1x4x1x8xsi32, 0x0x0x1>, <1x4x1x8xsi32, 1x0x1x0> -> <1x4x1x8xsi32, 0x0x0x1>
-    %21 = migraphx.convert %20 {target_type = 0 : i64} : <1x4x1x8xsi32, 0x0x0x1> to <1x4x1x8xsi8, 0x0x0x1>
+    %21 = migraphx.convert %20 {saturate = 1 : i64, target_type = 0 : i64} : <1x4x1x8xsi32, 0x0x0x1> to <1x4x1x8xsi8, 0x0x0x1>
     %22 = migraphx.multibroadcast %1 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1xf16, 1> -> <1x4x1x8xf16, 0x0x0x0>
     %23 = migraphx.where %21, %22, %14 : <1x4x1x8xsi8, 0x0x0x1>, <1x4x1x8xf16, 0x0x0x0>, <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>
     %24 = migraphx.reshape %23 {dims = [1, 4, 1, 8]} : <1x4x1x8xf16, 32x8x8x1> -> <1x4x1x8xf16, 32x8x8x1>

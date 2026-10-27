@@ -116,7 +116,9 @@ struct roialign
                 "ROIALIGN: rois should be 2 dimensions, and the second dim should be 4!");
         }
 
-        auto num_rois = roi_dims.front().intersection(bi_dims.front());
+        auto num_rois = roi_dims.front() == bi_dims.front()
+                            ? optional<shape::dynamic_dimension>{roi_dims.front()}
+                            : roi_dims.front().intersection(bi_dims.front());
         if(not num_rois.has_value())
         {
             MIGRAPHX_THROW("ROIALIGN: rois and batch indices inputs should have the same number!");

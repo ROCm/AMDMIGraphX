@@ -138,12 +138,7 @@ struct analyze_slice : analyzer<analyze_slice>
         auto bounds = prefix_stable_dyn_slice_bounds(ins);
         if(not bounds.has_value())
             return symbolic_op_info{ins};
-        const auto& analysis_output = inputs.front().symbolic() ? inputs.front() : ins->get_shape();
-        auto result                 = analyze_axes(
-            ins,
-            analysis_output,
-            [](std::size_t) { return true; },
-            [](std::size_t, std::size_t) { return parallel_axis(); });
+        auto result    = analyze_axes(ins);
         result.freezer = [bounds = std::move(*bounds)](
                              module& m,
                              instruction_ref source,

@@ -479,8 +479,8 @@ struct root_collection
 
 // Collect the independent symbols that enter through module parameters or data-dependent slices.
 // Each symbol's min, optimals, and max partition its runtime interval into specialization buckets.
-std::optional<std::vector<root_spec>> collect_roots(
-    const module& m, const std::unordered_map<sym::expr, instruction_ref>& root_sources)
+std::optional<std::vector<root_spec>>
+collect_roots(const module& m, const std::unordered_map<sym::expr, instruction_ref>& root_sources)
 {
     root_collection collected;
     for(auto parameter : m.get_parameters())
@@ -502,7 +502,7 @@ std::optional<std::vector<root_spec>> collect_roots(
         if(source->name() == "@param")
             continue;
         const auto& dimensions = source->get_shape().dyn_dims();
-        auto found              = std::find_if(dimensions.begin(), dimensions.end(), [&](auto d) {
+        auto found             = std::find_if(dimensions.begin(), dimensions.end(), [&](auto d) {
             return d.is_symbolic() and d.sym_expr.name() == "variable" and
                    sym::as_symbol(d.sym_expr) == root;
         });
@@ -1331,7 +1331,7 @@ struct runtime_cache
         auto valid = m.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
                                        m.add_instruction(make_op("less"), index, extent));
         auto fill  = m.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}),
-                                       get_or_add_fill_literal(m, s.type(), mask.fill));
+                                      get_or_add_fill_literal(m, s.type(), mask.fill));
         return m.add_instruction(make_op("where"), valid, input, fill);
     }
 };
@@ -1585,13 +1585,23 @@ instruction_ref add_output_slice(module& m,
         make_op("eval_expr_from_shape", {{"expressions", to_value(start_expressions)}}), sources);
     auto ends = m.add_instruction(
         make_op("eval_expr_from_shape", {{"expressions", to_value(end_expressions)}}), sources);
-    auto result = m.add_instruction(make_op("dyn_slice",
-                                            {{"axes", axes},
-                                             {"starts", to_value(start_expressions)},
-                                             {"ends", to_value(end_expressions)}}),
+    auto result       = m.add_instruction(make_op("dyn_slice",
+                                                  {{"axes", axes},
+                                                   {"starts", to_value(start_expressions)},
+                                                   {"ends", to_value(end_expressions)}}),
                                     selected_output,
                                     starts,
                                     ends);
+    auto logical_dims = result->get_shape().dyn_dims();
+    auto logical_axes = range(logical_dims.size());
+    std::transform(logical_axes.begin(), logical_axes.end(), logical_dims.begin(), [&](auto axis) {
+        return contains(axes, static_cast<int64_t>(axis)) ? source_dims.at(axis)
+                                                          : logical_dims.at(axis);
+    });
+    auto logical_shape = shape{
+        result->get_shape().type(), std::move(logical_dims), result->get_shape().dyn_strides()};
+    instruction::replace(
+        result, result->get_operator(), std::move(logical_shape), result->inputs());
     if(not output.source->get_debug_symbols().empty())
         m.add_debug_symbols(result, output.source->get_debug_symbols());
     return result;
@@ -1892,6 +1902,7 @@ struct block_frame
     wire_select_module(module_pass_manager& mpm,
                        const symbolic_op_plans& plans,
                        const std::unordered_map<sym::expr, instruction_ref>& root_sources,
+                       bool has_zero_runtime,
                        std::vector<module> clones,
                        const std::vector<clone_output_case>& clone_outputs,
                        replacement_context& replacements,
@@ -1913,18 +1924,23 @@ struct block_frame
                            return dispatch_shape_for_clones(
                                plans.at(source).dispatch_output, clone_outputs, output_index);
                        });
-        auto selected_outputs =
-            insert_select_module(mpm, m, selection_inputs, std::move(clones), body_output_shapes);
+        std::vector<shape> logical_output_shapes;
+        if(has_zero_runtime)
+            std::transform(outputs.begin(),
+                           outputs.end(),
+                           std::back_inserter(logical_output_shapes),
+                           [](const auto& output) { return output.source->get_shape(); });
+        auto selected_outputs = insert_select_module(
+            mpm, m, selection_inputs, std::move(clones), body_output_shapes, logical_output_shapes);
 
         for(std::size_t output_index = 0; output_index < outputs.size(); ++output_index)
         {
             const auto& output = outputs.at(output_index);
-            auto sliced        = add_output_slice(
-                m,
-                output,
-                selected_outputs.at(output_index),
-                plans.at(output.source).info,
-                root_sources);
+            auto sliced        = add_output_slice(m,
+                                           output,
+                                           selected_outputs.at(output_index),
+                                           plans.at(output.source).info,
+                                           root_sources);
             output_values.emplace_back(output, sliced);
             if(output == plans.full_output_for(output.source))
                 replacements.insert(output.source, sliced);
@@ -1997,7 +2013,14 @@ void specialize_blocks(module_pass_manager& mpm,
             clone_outputs.push_back(std::move(built.output_case));
         }
         frame->wire_select_module(
-            mpm, plans, root_sources, std::move(clones), clone_outputs, replacements, output_values);
+            mpm,
+            plans,
+            root_sources,
+            any_of(block.roots, [](const auto* root) { return root->interval.min == 0; }),
+            std::move(clones),
+            clone_outputs,
+            replacements,
+            output_values);
     }
     std::vector<instruction_ref> outputs;
     for(auto output : original_outputs)

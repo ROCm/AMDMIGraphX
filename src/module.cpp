@@ -1873,11 +1873,23 @@ module& module::sort()
     copy_if(iterator_for(*this), std::back_inserter(lasts), [&](auto last) {
         return last->outputs().empty();
     });
+    // Explicit stack instead of recursion so deep graphs cannot overflow the call stack. Each
+    // entry is an instruction and whether its inputs have already been placed.
+    std::vector<std::pair<instruction_ref, bool>> stack;
     for(auto last : lasts)
     {
-        fix([&](auto self, auto ins) {
+        stack.emplace_back(last, false);
+        while(not stack.empty())
+        {
+            auto [ins, inputs_placed] = stack.back();
+            stack.pop_back();
+            if(inputs_placed)
+            {
+                this->move_instruction(ins, this->end());
+                continue;
+            }
             if(visited.insert(ins).second == false)
-                return;
+                continue;
             auto ins_inputs = ins->inputs();
             if(implicit_deps.find(ins) != implicit_deps.end())
             {
@@ -1885,14 +1897,15 @@ module& module::sort()
                 ins_inputs.insert(
                     ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
             }
-            for(auto child : ins_inputs)
-            {
-                if(not contains(this->impl->instructions, child))
-                    continue;
-                self(child);
-            }
-            this->move_instruction(ins, this->end());
-        })(last);
+            stack.emplace_back(ins, true);
+            // Push in reverse so inputs are visited left to right
+            transform_if(
+                ins_inputs.rbegin(),
+                ins_inputs.rend(),
+                std::back_inserter(stack),
+                [&](auto child) { return this->impl->contains(child); },
+                [](auto child) { return std::make_pair(child, false); });
+        }
     }
     assert(this->validate() == this->end());
     return *this;

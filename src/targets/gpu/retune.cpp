@@ -275,8 +275,11 @@ void retune_ops::apply(program& p) const
         const auto& nco = any_cast<code_object_op>(nop);
         k.mod->replace_instruction(k.ins, nop, k.ins->inputs(), k.ins->module_inputs());
 
-        std::string time = "not benchmarked";
-        if(recompiled[i].benchmarked)
+        // Only tuned kernels are timed: time_op feeds random inputs, which can drive kernels
+        // that take indices (gather, scatter) out of bounds and fault the whole device.
+        const bool tunable = not nco.problem.is_null();
+        std::string time   = tunable ? "not benchmarked" : "not timed";
+        if(recompiled[i].benchmarked and tunable)
         {
             try
             {
@@ -290,7 +293,6 @@ void retune_ops::apply(program& p) const
                 time = std::string{"time unavailable: "} + e.what();
             }
         }
-        const bool tunable = not nco.problem.is_null();
         report << "  " << nco.symbol_name << "  " << from_gfx << " -> " << to_gfx << "  "
                << solution_string(old.solution) << " -> " << solution_string(nco.solution) << "  "
                << (tunable ? nco.tuning_level : "-") << "  " << time;

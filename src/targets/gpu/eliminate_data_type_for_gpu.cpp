@@ -25,6 +25,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/gpu/fuse_mlir.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,6 +44,16 @@ static void insert_gemm_conv(std::set<std::string>& u)
     u.insert("quant_convolution");
     u.insert("dot");
     u.insert("quant_dot");
+}
+
+static void insert_fp8_gemm(const context* ctx, std::set<std::string>& u)
+{
+    if(hipblaslt_supported(*ctx))
+        return;
+    // MLIR can run fp8 quant_dot (float output) but not fp8 dot (fp8 output)
+    u.insert("dot");
+    if(not mlir_enabled())
+        u.insert("quant_dot");
 }
 
 static eliminate_data_type for_device_functions()
@@ -73,12 +84,7 @@ static eliminate_data_type for_fp8fnuz(const context* ctx)
 {
     std::set<std::string> unsupported_ops = {};
 
-    if(not hipblaslt_supported(*ctx))
-    {
-        unsupported_ops.insert("dot");
-        unsupported_ops.insert("quant_dot");
-    }
-
+    insert_fp8_gemm(ctx, unsupported_ops);
     insert_miopen_pooling(unsupported_ops);
 
     if(not gfx_has_fp8fnuz_intrinsics(*ctx))
@@ -93,12 +99,7 @@ static eliminate_data_type for_fp8ocp(const context* ctx)
 {
     std::set<std::string> unsupported_ops = {};
 
-    if(not hipblaslt_supported(*ctx))
-    {
-        unsupported_ops.insert("dot");
-        unsupported_ops.insert("quant_dot");
-    }
-
+    insert_fp8_gemm(ctx, unsupported_ops);
     insert_miopen_pooling(unsupported_ops);
 
     if(not gfx_has_fp8ocp_intrinsics(*ctx))

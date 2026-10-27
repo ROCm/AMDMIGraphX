@@ -381,6 +381,16 @@ TEST_CASE(binary_sym_zero_packed_vs_broadcasted)
     expect_shape(sx, migraphx::make_op("add"), sx, sy);
 }
 
+TEST_CASE(binary_sym_zero_broadcasted_vs_different_packed)
+{
+    auto n = var("n", {0, 200});
+    std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
+    migraphx::shape sy{migraphx::shape::float_type, output_dims};
+    migraphx::shape output{migraphx::shape::float_type, output_dims};
+    expect_shape(output, migraphx::make_op("add"), sx, sy);
+}
+
 TEST_CASE(binary_sym_broadcasted_vs_different_packed)
 {
     auto n = var("n", {2, 8});
@@ -388,16 +398,6 @@ TEST_CASE(binary_sym_broadcasted_vs_different_packed)
     std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
     migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
     migraphx::shape sy{migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}};
-    migraphx::shape output{migraphx::shape::float_type, output_dims};
-    expect_shape(output, migraphx::make_op("add"), sx, sy);
-}
-
-TEST_CASE(binary_sym_zero_broadcasted_vs_different_packed)
-{
-    auto n = var("n", {0, 200});
-    std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
-    migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
-    migraphx::shape sy{migraphx::shape::float_type, output_dims};
     migraphx::shape output{migraphx::shape::float_type, output_dims};
     expect_shape(output, migraphx::make_op("add"), sx, sy);
 }

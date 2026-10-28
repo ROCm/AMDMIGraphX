@@ -171,8 +171,3 @@ ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
 
-RUN groupadd -r jenkins && useradd -r -g jenkins -m jenkins && \
-    chown -R jenkins:jenkins /tmp /var/tmp $ONNX_HOME
-
-USER jenkins
-

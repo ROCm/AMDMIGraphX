@@ -24,6 +24,8 @@
 
 #include <cstdint>
 #include <iostream>
+#include <memory>
+#include <utility>
 #include <vector>
 #include <hip/hip_runtime_api.h>
 #include <migraphx/register_target.hpp>
@@ -98,9 +100,38 @@ TEST_CASE(arguments_lifetime)
     EXPECT(f(x));
 }
 
-// The registration must keep the host buffer alive until pending gpu reads finish; releasing
-// the buffer first lets the allocator reuse it while the copy kernel is still queued
-TEST_CASE(registered_buffer_outlives_pending_copy)
+// Host storage that records whether hip still had it registered when it was freed
+struct observed_buffer
+{
+    std::vector<std::int64_t> data;
+    std::shared_ptr<bool> registered_at_free;
+
+    observed_buffer(std::vector<std::int64_t> pdata, std::shared_ptr<bool> flag)
+        : data(std::move(pdata)), registered_at_free(std::move(flag))
+    {
+    }
+    observed_buffer(const observed_buffer&)            = delete;
+    observed_buffer& operator=(const observed_buffer&) = delete;
+    observed_buffer(observed_buffer&&)                 = delete;
+    observed_buffer& operator=(observed_buffer&&)      = delete;
+    ~observed_buffer()
+    {
+        void* device_ptr    = nullptr;
+        *registered_at_free = hipHostGetDevicePointer(&device_ptr, data.data(), 0) == hipSuccess;
+    }
+};
+
+static migraphx::argument make_observed_argument(const migraphx::shape& s,
+                                                 const std::vector<std::int64_t>& data,
+                                                 const std::shared_ptr<bool>& registered_at_free)
+{
+    auto buffer = std::make_shared<observed_buffer>(data, registered_at_free);
+    return {s, [buffer] { return buffer->data.data(); }};
+}
+
+// The registration must be released before the host buffer, since unregistering is what waits
+// for pending gpu reads of the buffer
+TEST_CASE(registered_buffer_released_after_unregister)
 {
     migraphx::target gpu_t = migraphx::make_target("gpu");
     auto gctx              = gpu_t.get_context();
@@ -110,6 +141,8 @@ TEST_CASE(registered_buffer_outlives_pending_copy)
     migraphx::shape s{migraphx::shape::int64_type, {4}};
     std::vector<std::int64_t> data = {3, 5, 7, 11};
     auto dst                       = migraphx::gpu::allocate_gpu(s);
+    // Stays true if the storage is leaked
+    auto registered_at_free = std::make_shared<bool>(true);
 
     // Queue enough gpu work that the copy below is still pending when the registration dies
     migraphx::shape busy_shape{migraphx::shape::int8_type, {256 * 1024 * 1024}};
@@ -117,12 +150,11 @@ TEST_CASE(registered_buffer_outlives_pending_copy)
     auto busy_dst = migraphx::gpu::allocate_gpu(busy_shape);
     migraphx::gpu::gpu_copy(*ctx, busy_src, busy_dst);
     {
-        auto registered = migraphx::gpu::register_on_gpu(migraphx::literal{s, data}.get_argument());
+        auto registered =
+            migraphx::gpu::register_on_gpu(make_observed_argument(s, data, registered_at_free));
         migraphx::gpu::gpu_copy(*ctx, registered, dst);
     }
-    // Recycle the freed chunk so a premature release leaves stale data in the copy
-    auto reused = migraphx::literal{s, std::vector<std::int64_t>(data.size(), 0)}.get_argument();
-    EXPECT(reused.data() != nullptr);
+    EXPECT(not *registered_at_free);
 
     std::vector<std::int64_t> result;
     migraphx::gpu::from_gpu(dst).visit([&](auto v) { result.assign(v.begin(), v.end()); });

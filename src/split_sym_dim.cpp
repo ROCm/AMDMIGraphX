@@ -476,8 +476,17 @@ struct root_collection
             specs.reset();
             return;
         }
-        optimal_set.insert(interval.min);
-        optimal_set.insert(interval.max);
+        if(interval.min == 0)
+        {
+            optimal_set.erase(0);
+            optimal_set.insert(1);
+        }
+        else
+        {
+            optimal_set.insert(interval.min);
+        }
+        if(interval.max > 0)
+            optimal_set.insert(interval.max);
         std::map<std::size_t, shape::dynamic_dimension::interval> specializations;
         auto lower = interval.min;
         for(auto optimal : optimal_set)

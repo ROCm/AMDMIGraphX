@@ -138,8 +138,8 @@ struct backend_options
     bool standardize_outputs = false;
     // Keep range-based dynamic shapes for runtime compilation instead of specializing ranges.
     bool disable_range_based_splitting = false;
-    // When true, hiprtc never spawns migraphx-hiprtc-driver again in this process (see
-    // disable_hiprtc_processes); kernels and compiler probes all compile in-process.
+    // Compile hiprtc in-process instead of spawning migraphx-hiprtc-driver; once set it stays
+    // set for the rest of the process (see disable_hiprtc_processes).
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;

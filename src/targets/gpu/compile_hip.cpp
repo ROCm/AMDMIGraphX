@@ -274,8 +274,6 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         }
     }
 
-    // Checked here, the one place every hiprtc compile goes through, so no caller has to pass
-    // the setting along.
     if(hiprtc_processes_disabled())
         return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 
@@ -348,7 +346,7 @@ static src_compiler assemble(src_compiler compiler)
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
                                                const std::string& arch,
-                                               bool)
+                                               bool /*quiet*/)
 {
     assert(not srcs.empty());
 
@@ -476,7 +474,7 @@ bool hip_can_compile(const std::string& src, const std::vector<std::string>& fla
     try
     {
         std::string arch = "gfx900";
-        compile_hip_src(srcs, flags, arch, true);
+        compile_hip_src(srcs, flags, arch, /* quiet */ true);
         return true;
     }
     catch(...)

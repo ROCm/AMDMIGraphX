@@ -83,17 +83,10 @@ MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
 
 MIGRAPHX_GPU_EXPORT bool hip_has_flags(const std::vector<std::string>& flags);
 
-/**
- * Stop compile_hip_src from spawning migraphx-hiprtc-driver for the rest of the process.
- *
- * Every hiprtc compile, kernels and compiler probes alike, then runs in-process. It cannot be
- * undone, so a compile on another thread can never switch spawning back on, and the probe
- * results it shares with other compiles are process-wide anyway. Set by the GPU target when
- * backend_options["hiprtc_disable_processes"] is true. Has no effect when hiprtc is not used.
- */
+/// Compile hiprtc in-process instead of spawning migraphx-hiprtc-driver. One-way and
+/// process-wide because the compiler probe results are cached per process.
 MIGRAPHX_GPU_EXPORT void disable_hiprtc_processes();
 
-/// Whether disable_hiprtc_processes has been called in this process.
 MIGRAPHX_GPU_EXPORT bool hiprtc_processes_disabled();
 
 MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>

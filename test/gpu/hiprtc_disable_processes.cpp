@@ -55,8 +55,7 @@ int main() {}
 
 )__migraphx__";
 
-// The backend option must switch the process-wide setting on, and the program compiled with it
-// must still be correct. relu lowers to gpu::precompile_op, so compile_ops compiles it with hiprtc.
+// relu lowers to gpu::precompile_op, so compile_ops compiles it with hiprtc.
 TEST_CASE(backend_option_disables_processes)
 {
     EXPECT(not migraphx::gpu::hiprtc_processes_disabled());
@@ -80,7 +79,6 @@ TEST_CASE(backend_option_disables_processes)
     EXPECT(result == expected);
 }
 
-// A kernel compiled in-process must be valid and run correctly.
 TEST_CASE(compile_hip_src_in_process)
 {
     migraphx::gpu::disable_hiprtc_processes();

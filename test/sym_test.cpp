@@ -552,6 +552,12 @@ TEST_CASE(eval_arithmetic)
     EXPECT((2 * h).eval_uint({{h, 13}}) == 26);
 }
 
+TEST_CASE(eval_bound_remainder)
+{
+    auto n = var("n");
+    EXPECT((n % 4).eval_uint({{n, 3}}) == 3);
+}
+
 TEST_CASE(eval_compound)
 {
     auto h = var("h");
@@ -585,6 +591,13 @@ TEST_CASE(eval_unbound_throws)
     EXPECT(test::throws([&] { (h + w).eval_uint({{h, 1}}); }));
 }
 
+TEST_CASE(eval_uint_error_identifies_expression)
+{
+    auto expression = lit(-1);
+    EXPECT(test::throws<migraphx::exception>([&] { expression.eval_uint({}); },
+                                             expression.to_string()));
+}
+
 TEST_CASE(eval_uint_falls_back_to_fixed_bounds)
 {
     // Fixed-bound vars (min == max) are resolved from their own bounds.
@@ -593,6 +606,12 @@ TEST_CASE(eval_uint_falls_back_to_fixed_bounds)
     EXPECT((n * 8).eval_uint({}) == 32);
     auto h = var("h", {1, 8});
     EXPECT((h + n).eval_uint({{h, 2}}) == 6);
+}
+
+TEST_CASE(eval_uint_fixed_expression)
+{
+    auto n = var("n", {3, 4});
+    EXPECT(((n - 1) / 2 + 1).eval_uint({}) == 2);
 }
 
 TEST_CASE(eval_interval_diff_same_symbol_cancels)

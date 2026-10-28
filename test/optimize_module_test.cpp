@@ -93,9 +93,9 @@ TEST_CASE(broadcast_transpose_inner_broadcast_generic)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x         = m2.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
-        auto y         = m2.add_parameter("y", {migraphx::shape::float_type, {5}});
-        auto yb        = m2.add_instruction(
+        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
+        auto y  = m2.add_parameter("y", {migraphx::shape::float_type, {5}});
+        auto yb = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {5, 10}}}), y);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), x, yb);
         auto mb2 = m2.add_instruction(
@@ -146,15 +146,15 @@ TEST_CASE(mul_add_transpose_dot)
     migraphx::literal lit23;
     migraphx::module lit_mod;
     {
-        auto lit1_ins  = lit_mod.add_literal(lit1);
-        auto lit1_b    = lit_mod.add_instruction(
+        auto lit1_ins = lit_mod.add_literal(lit1);
+        auto lit1_b   = lit_mod.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {64, 64}}}), lit1_ins);
 
         auto lit3_ins = lit_mod.add_literal(lit3);
 
         auto mul_lit   = lit_mod.add_instruction(migraphx::make_op("mul"), lit1_b, lit3_ins);
         auto lit13_arg = mul_lit->eval();
-        lit13          = migraphx::literal(lit13_arg.get_shape(), lit13_arg.data());
+        lit13 = migraphx::literal::from_raw_buffer(lit13_arg.get_shape(), lit13_arg.data());
 
         auto lit2_ins = lit_mod.add_literal(lit2);
         auto lit2_unsq =
@@ -164,7 +164,7 @@ TEST_CASE(mul_add_transpose_dot)
 
         auto dot_lit   = lit_mod.add_instruction(migraphx::make_op("dot"), lit2_mb, lit3_ins);
         auto lit23_arg = dot_lit->eval();
-        lit23          = migraphx::literal(lit23_arg.get_shape(), lit23_arg.data());
+        lit23 = migraphx::literal::from_raw_buffer(lit23_arg.get_shape(), lit23_arg.data());
     }
 
     migraphx::module m2;
@@ -297,7 +297,7 @@ TEST_CASE(slice_squeeze_pw_binary_const)
         auto bu1    = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b1);
         auto cat    = tmp.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), bu0, bu1);
         auto ev     = cat->eval();
-        stacked_lit = migraphx::literal(ev.get_shape(), ev.data());
+        stacked_lit = migraphx::literal::from_raw_buffer(ev.get_shape(), ev.data());
     }
 
     // find_split_reshape then merges the two slice+squeeze pairs into a single

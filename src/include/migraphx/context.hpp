@@ -494,6 +494,8 @@ struct context
 
         void finish() const override { private_detail_te_value.finish(); }
 
+        // A reference when type-erasing a std::reference_wrapper for reference semantics.
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
         PrivateDetailTypeErasedT private_detail_te_value;
     };
 

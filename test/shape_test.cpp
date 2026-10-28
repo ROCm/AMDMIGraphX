@@ -299,25 +299,23 @@ TEST_CASE(dynamic_dimension_intersection)
     EXPECT(fib.value() == shape::dynamic_dimension{3, 4});
 }
 
-TEST_CASE(dynamic_dimension_intersection_sym_mismatch)
+TEST_CASE(dynamic_dimension_intersection_symbolic_error)
 {
     auto k1 = var("k1", {1, 128});
     auto k2 = var("k2", {1, 128});
     dd a{k1};
     dd b{k2};
-    EXPECT(not a.intersection(b).has_value());
+    EXPECT(test::throws([&] { a.intersection(a); }));
+    EXPECT(test::throws([&] { a.intersection(b); }));
 }
 
-TEST_CASE(dynamic_dimension_intersection_sym_vs_range)
+TEST_CASE(dynamic_dimension_intersection_symbolic_range_error)
 {
     auto k = var("k", {1, 128});
     dd a{k};
     dd b{1, 64};
-    auto result = a.intersection(b);
-    EXPECT(result.has_value());
-    EXPECT(result->get_interval().min == 1);
-    EXPECT(result->get_interval().max == 64);
-    EXPECT(not result->is_symbolic());
+    EXPECT(test::throws([&] { a.intersection(b); }));
+    EXPECT(test::throws([&] { b.intersection(a); }));
 }
 
 TEST_CASE(dynamic_dimension_serialize)
@@ -1438,6 +1436,23 @@ TEST_CASE(shape_is_compatible_diff_lens_tuple)
     EXPECT(actual != expected);
     EXPECT(not migraphx::shape::is_compatible(actual, expected));
 }
+TEST_CASE(shape_is_compatible_type_and_lens_static)
+{
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 8}, {1, 1, 1}};
+    migraphx::shape different_strides{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};
+    EXPECT(migraphx::shape::is_compatible_type_and_lens(expected, expected));
+    EXPECT(not migraphx::shape::is_compatible_type_and_lens(different_strides, expected));
+}
+TEST_CASE(shape_is_compatible_type_and_lens_dynamic)
+{
+    migraphx::shape expected{migraphx::shape::float_type, {{1, 1}, {2, 4}, {3, 9}, {16, 32}}};
+    migraphx::shape compatible{migraphx::shape::float_type, {1, 2, 4, 32}};
+    migraphx::shape incompatible_lens{migraphx::shape::float_type, {1, 6, 4, 32}};
+    migraphx::shape incompatible_type{migraphx::shape::half_type, {1, 2, 4, 32}};
+    EXPECT(migraphx::shape::is_compatible_type_and_lens(compatible, expected));
+    EXPECT(not migraphx::shape::is_compatible_type_and_lens(incompatible_lens, expected));
+    EXPECT(not migraphx::shape::is_compatible_type_and_lens(incompatible_type, expected));
+}
 TEST_CASE(shape_is_compatible_lens_static)
 {
     migraphx::shape actual1{migraphx::shape{migraphx::shape::float_type, {1, 2, 8}}};
@@ -1687,6 +1702,21 @@ TEST_CASE(test_symbolic_stride_auto_compute)
     EXPECT(sh.dyn_strides()[0] == s * 4);
 }
 
+TEST_CASE(test_has_fixed_strides)
+{
+    migraphx::shape static_shape{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape range_shape{migraphx::shape::float_type, {{1, 8}, {4, 4}}};
+    auto fixed = var("fixed", {3, 3});
+    migraphx::shape fixed_symbolic{migraphx::shape::float_type, {dd{fixed}, dd{lit(4)}}};
+    auto n = var("n", {1, 8});
+    migraphx::shape variable_symbolic{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(4)}}};
+
+    EXPECT(static_shape.has_fixed_strides());
+    EXPECT(not range_shape.has_fixed_strides());
+    EXPECT(fixed_symbolic.has_fixed_strides());
+    EXPECT(not variable_symbolic.has_fixed_strides());
+}
+
 TEST_CASE(test_symbolic_to_static)
 {
     auto n = var("n", {1, 8});
@@ -1697,6 +1727,17 @@ TEST_CASE(test_symbolic_to_static)
     EXPECT(not s_static.dynamic());
     EXPECT(s_static.lens() == std::vector<std::size_t>{2, 8, 4});
     EXPECT(s_static.strides() == std::vector<std::size_t>{32, 4, 1});
+}
+
+TEST_CASE(test_fixed_symbolic_standard_to_static)
+{
+    auto n      = var("n", {3, 4});
+    auto extent = (n - 1) / 2 + 1;
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{extent}}};
+
+    EXPECT(s.is_fixed());
+    EXPECT(s.standard());
+    EXPECT(s.to_static() == migraphx::shape{migraphx::shape::float_type, {1, 1, 2}});
 }
 
 TEST_CASE(test_symbolic_shape_serialize)
@@ -1738,38 +1779,6 @@ TEST_CASE(test_symbolic_shape_print)
     migraphx::shape s3{migraphx::shape::float_type, {dd{c}, dd{lit(3)}, dd{lit(4)}}};
     EXPECT(to_str(s1) == to_str(s2));
     EXPECT(to_str(s1) != to_str(s3));
-}
-
-TEST_CASE(dd_intersection_symbolic_with_range)
-{
-    auto n = var("n", {1, 32});
-    dd a{n};
-    dd b{2, 6};
-    auto result = a.intersection(b);
-    EXPECT(result.has_value());
-    EXPECT(result->get_interval().min == 2);
-    EXPECT(result->get_interval().max == 6);
-    EXPECT(result->sym_expr.empty());
-}
-
-TEST_CASE(dd_intersection_symbolic_same_symbol)
-{
-    auto n = var("n", {1, 32});
-    dd a{n};
-    dd b{n};
-    auto result = a.intersection(b);
-    EXPECT(result.has_value());
-    EXPECT(*result == a);
-}
-
-TEST_CASE(dd_intersection_symbolic_different_symbol)
-{
-    auto n = var("n", {1, 32});
-    auto m = var("m", {1, 16});
-    dd a{n};
-    dd b{m};
-    auto result = a.intersection(b);
-    EXPECT(not result.has_value());
 }
 
 // -------------------------------------------------------------------
@@ -2494,6 +2503,16 @@ TEST_CASE(shape_is_compatible_lens_static_vs_symbolic)
     migraphx::shape expected{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}}};
     EXPECT(migraphx::shape::is_compatible_lens(actual1, expected));
     EXPECT(not migraphx::shape::is_compatible_lens(actual2, expected));
+}
+
+TEST_CASE(shape_is_compatible_lens_repeated_symbol)
+{
+    auto n = var("n", {1, 4});
+    migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{n}}};
+    migraphx::shape matching{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape mismatching{migraphx::shape::float_type, {2, 3}};
+    EXPECT(migraphx::shape::is_compatible_lens(matching, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(mismatching, expected));
 }
 
 TEST_CASE(make_bcast_shape_static)

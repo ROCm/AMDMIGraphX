@@ -37,7 +37,6 @@
 #include <array>
 #include <cmath>
 #include <numeric>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -71,18 +70,6 @@ struct roialign
     {
         return d.is_symbolic() ? shape::dynamic_dimension{sym::lit(static_cast<int64_t>(v))}
                                : shape::dynamic_dimension{v, v};
-    }
-
-    static std::optional<shape::dynamic_dimension>
-    common_num_rois(const shape::dynamic_dimension& rois, const shape::dynamic_dimension& indices)
-    {
-        if(rois.is_symbolic() or indices.is_symbolic())
-        {
-            if(rois == indices)
-                return rois;
-            return std::nullopt;
-        }
-        return rois.intersection(indices);
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -129,10 +116,17 @@ struct roialign
                 "ROIALIGN: rois should be 2 dimensions, and the second dim should be 4!");
         }
 
-        auto num_rois = common_num_rois(roi_dims.front(), bi_dims.front());
-        if(not num_rois.has_value())
+        auto num_rois = roi_dims.front();
+        if(num_rois != bi_dims.front())
         {
-            MIGRAPHX_THROW("ROIALIGN: rois and batch indices inputs should have the same number!");
+            if(num_rois.is_symbolic() or bi_dims.front().is_symbolic())
+                MIGRAPHX_THROW(
+                    "ROIALIGN: rois and batch indices inputs should have the same number!");
+            auto intersection = num_rois.intersection(bi_dims.front());
+            if(not intersection.has_value())
+                MIGRAPHX_THROW(
+                    "ROIALIGN: rois and batch indices inputs should have the same number!");
+            num_rois = *intersection;
         }
 
         if(output_height <= 0 or output_width <= 0)
@@ -142,7 +136,7 @@ struct roialign
 
         const auto out_height                          = static_cast<std::size_t>(output_height);
         const auto out_width                           = static_cast<std::size_t>(output_width);
-        std::vector<shape::dynamic_dimension> out_dims = {*num_rois,
+        std::vector<shape::dynamic_dimension> out_dims = {num_rois,
                                                           x_dims.at(1),
                                                           const_dim_like(x_dims.at(1), out_height),
                                                           const_dim_like(x_dims.at(1), out_width)};

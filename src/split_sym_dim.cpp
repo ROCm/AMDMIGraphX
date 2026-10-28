@@ -297,25 +297,30 @@ struct dependency_cache
     const std::set<std::size_t>& at(instruction_ref source) const { return values.at(source); }
 };
 
-bool has_symbolic_param(const module& m)
+bool register_shape_roots(std::unordered_map<sym::expr, instruction_ref>& result,
+                          instruction_ref source)
 {
-    auto param_shapes = m.get_parameter_shapes();
-    return any_of(param_shapes, [](const auto& p) { return p.second.symbolic(); });
+    const auto& s = source->get_shape();
+    if(not s.symbolic())
+        return false;
+    bool inserted = false;
+    for(const auto& d : s.dyn_dims())
+    {
+        if(not d.is_symbolic() or d.sym_expr.name() != "variable")
+            continue;
+        inserted = result.emplace(sym::as_symbol(d.sym_expr), source).second or inserted;
+    }
+    return inserted;
 }
 
 std::unordered_map<sym::expr, instruction_ref> find_root_sources(const module& m)
 {
     std::unordered_map<sym::expr, instruction_ref> result;
     for(const auto& name : m.get_parameter_names())
-    {
-        auto parameter = m.get_parameter(name);
-        const auto& s  = parameter->get_shape();
-        if(not s.symbolic())
-            continue;
-        for(const auto& d : s.dyn_dims())
-            if(d.is_symbolic() and d.sym_expr.name() == "variable")
-                result.emplace(sym::as_symbol(d.sym_expr), parameter);
-    }
+        register_shape_roots(result, m.get_parameter(name));
+    for(auto ins : iterator_for(m))
+        if(ins->name() == "dyn_slice")
+            register_shape_roots(result, ins);
     return result;
 }
 
@@ -472,9 +477,10 @@ struct root_collection
     bool valid() const { return specs.has_value(); }
 };
 
-// Collect the independent symbols that enter through module parameters. Each symbol's min,
-// optimals, and max partition its runtime interval into specialization buckets.
-std::optional<std::vector<root_spec>> collect_roots(const module& m)
+// Collect the independent symbols that enter through module parameters or data-dependent slices.
+// Each symbol's min, optimals, and max partition its runtime interval into specialization buckets.
+std::optional<std::vector<root_spec>> collect_roots(
+    const module& m, const std::unordered_map<sym::expr, instruction_ref>& root_sources)
 {
     root_collection collected;
     for(auto parameter : m.get_parameters())
@@ -486,6 +492,23 @@ std::optional<std::vector<root_spec>> collect_roots(const module& m)
             continue;
         for(const auto& dimension : s.dyn_dims())
             collected.append(dimension);
+        if(not collected.valid())
+            return std::nullopt;
+    }
+    for(const auto& entry : root_sources)
+    {
+        const auto& root = entry.first;
+        auto source      = entry.second;
+        if(source->name() == "@param")
+            continue;
+        const auto& dimensions = source->get_shape().dyn_dims();
+        auto found              = std::find_if(dimensions.begin(), dimensions.end(), [&](auto d) {
+            return d.is_symbolic() and d.sym_expr.name() == "variable" and
+                   sym::as_symbol(d.sym_expr) == root;
+        });
+        if(found == dimensions.end())
+            return std::nullopt;
+        collected.append(*found);
         if(not collected.valid())
             return std::nullopt;
     }
@@ -1527,7 +1550,8 @@ struct clone_build
 instruction_ref add_output_slice(module& m,
                                  const sliced_value& output,
                                  instruction_ref selected_output,
-                                 const symbolic_op_info& info)
+                                 const symbolic_op_info& info,
+                                 const std::unordered_map<sym::expr, instruction_ref>& root_sources)
 {
     if(info.output_symbolic_axes.empty())
         return selected_output;
@@ -1545,7 +1569,18 @@ instruction_ref add_output_slice(module& m,
     if(axes.empty())
         return selected_output;
     std::vector<sym::expr> start_expressions(axes.size(), sym::lit(int64_t{0}));
-    auto sources = m.get_parameters();
+    std::vector<instruction_ref> data_sources;
+    for(const auto& expression : end_expressions)
+    {
+        for(const auto& variable : sym::find_variables(expression))
+        {
+            auto found = root_sources.find(variable);
+            if(found != root_sources.end() and found->second->name() != "@param" and
+               not contains(data_sources, found->second))
+                data_sources.push_back(found->second);
+        }
+    }
+    auto sources = data_sources.empty() ? m.get_parameters() : data_sources;
     auto starts  = m.add_instruction(
         make_op("eval_expr_from_shape", {{"expressions", to_value(start_expressions)}}), sources);
     auto ends = m.add_instruction(
@@ -1856,6 +1891,7 @@ struct block_frame
     void
     wire_select_module(module_pass_manager& mpm,
                        const symbolic_op_plans& plans,
+                       const std::unordered_map<sym::expr, instruction_ref>& root_sources,
                        std::vector<module> clones,
                        const std::vector<clone_output_case>& clone_outputs,
                        replacement_context& replacements,
@@ -1884,7 +1920,11 @@ struct block_frame
         {
             const auto& output = outputs.at(output_index);
             auto sliced        = add_output_slice(
-                m, output, selected_outputs.at(output_index), plans.at(output.source).info);
+                m,
+                output,
+                selected_outputs.at(output_index),
+                plans.at(output.source).info,
+                root_sources);
             output_values.emplace_back(output, sliced);
             if(output == plans.full_output_for(output.source))
                 replacements.insert(output.source, sliced);
@@ -1957,7 +1997,7 @@ void specialize_blocks(module_pass_manager& mpm,
             clone_outputs.push_back(std::move(built.output_case));
         }
         frame->wire_select_module(
-            mpm, plans, std::move(clones), clone_outputs, replacements, output_values);
+            mpm, plans, root_sources, std::move(clones), clone_outputs, replacements, output_values);
     }
     std::vector<instruction_ref> outputs;
     for(auto output : original_outputs)
@@ -1976,17 +2016,11 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
 {
     module& m = mpm.get_module();
 
-    if(not has_symbolic_param(m))
-        return;
-
-    // Collect independent symbols from parameter dimensions and partition each symbol's interval
-    // into the target extents used to compile specialization clones.
-    auto roots = collect_roots(m);
-    if(not roots.has_value())
-        return;
-
-    // Rewrite shape expressions to read their runtime values directly from module parameters.
     auto root_sources = find_root_sources(m);
+    if(root_sources.empty())
+        return;
+
+    // Rewrite shape expressions to read their runtime values directly from root sources.
     match::find_matches(m,
                         resolve_symbolic_dimensions_of_match{.root_sources = root_sources,
                                                              .sources      = m.get_parameters()});
@@ -1994,6 +2028,13 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
                         find_eval_expr_from_intermediate_ins{.root_sources = root_sources,
                                                              .sources      = m.get_parameters()});
     run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
+    root_sources = find_root_sources(m);
+
+    // Collect independent symbols and partition each symbol's interval into the target extents used
+    // to compile specialization clones.
+    auto roots = collect_roots(m, root_sources);
+    if(not roots.has_value())
+        return;
 
     // Determine how each symbolic operation must be padded, masked, or rewritten for a fixed
     // target extent.
@@ -2005,12 +2046,21 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     if(symbolic_instructions.empty())
         return;
 
+    std::unordered_set<instruction_ref> root_boundaries;
+    for(const auto& entry : root_sources)
+    {
+        auto source = entry.second;
+        if(source->name() != "@param")
+            root_boundaries.insert(source);
+    }
     symbolic_op_plans plans;
     transform_if(
         symbolic_instructions.begin(),
         symbolic_instructions.end(),
         std::back_inserter(plans.values),
-        [](instruction_ref ins) { return not starts_with(ins->name(), "@"); },
+        [&](instruction_ref ins) {
+            return not starts_with(ins->name(), "@") and not contains(root_boundaries, ins);
+        },
         [](instruction_ref ins) { return symbolic_op_plan{.info = analyze_instruction(ins)}; });
     plans.build_index();
     plans.remove_redundant_masks();

@@ -41,12 +41,15 @@ struct analyze_gather : analyzer<analyze_gather>
                                    inputs.front().ndim());
         if(not axis.has_value())
             return symbolic_op_info{ins};
-        // Only the data gather axis is unsupported; all other input axes are parallel.
-        return analyze_axes(ins, [axis = *axis](std::size_t input, std::size_t current_axis) {
-            if(input == 1)
-                return parallel_axis();
-            return current_axis == axis ? axis_desc{} : parallel_axis();
-        });
+        bool nonnegative_indices = has_nonnegative_values(ins->inputs().at(1));
+        // Padded index entries are zero and their gathered outputs are sliced away. Negative
+        // indices are relative to the unpadded extent, so they cannot use this rewrite.
+        return analyze_axes(
+            ins, [axis = *axis, nonnegative_indices](std::size_t input, std::size_t current_axis) {
+                if(input == 1 or current_axis != axis)
+                    return parallel_axis();
+                return nonnegative_indices ? contracted_axis(fill_kind::dont_care) : axis_desc{};
+            });
     }
 };
 

@@ -117,8 +117,8 @@ __device__ inline vec<T, 8> regroup_wmma_k_rows_gfx1151(vec<T, 8> h, bool low)
 // On gfx1151 the A operand type is either vec<half, 8> (packed per call) or
 // the native vec<half, 16> fragment (pre-arranged, e.g. read from LDS); other
 // targets always instantiate A = vec<half, 8>.
-// NOLINTNEXTLINE(readability-function-size): fixed 4-way WMMA unroll, one asm block
 template <class A>
+// NOLINTNEXTLINE(readability-function-size): fixed 4-way WMMA unroll, one asm block
 __device__ inline void wmma_quad_asm(A a0,
                                      vec<half, 8> b0,
                                      A a1,
@@ -149,8 +149,8 @@ __device__ inline void wmma_quad_asm(A a0,
 
 // Octet of WMMAs in a single inline-asm block. Costs 8 live fp32 vec<8>
 // accumulators (64 VGPRs) but gives the matrix pipe a continuous run.
-// NOLINTNEXTLINE(readability-function-size): fixed 8-way WMMA unroll, one asm block
 template <class A>
+// NOLINTNEXTLINE(readability-function-size): fixed 8-way WMMA unroll, one asm block
 __device__ inline void wmma_octet_asm(A a0,
                                       vec<half, 8> b0,
                                       A a1,

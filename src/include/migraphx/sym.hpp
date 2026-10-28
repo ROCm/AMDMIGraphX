@@ -133,6 +133,7 @@ struct MIGRAPHX_EXPORT interval
     scalar max = std::numeric_limits<int64_t>::max();
 
     bool valid() const;
+    bool contains(const scalar& value) const;
 
     interval& operator+=(interval b) { return *this = *this + b; }
     interval& operator-=(interval b) { return *this = *this - b; }
@@ -246,6 +247,24 @@ class MIGRAPHX_EXPORT expr
 
 MIGRAPHX_EXPORT expr var(std::string name);
 MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
+// Merging same-named variables can produce multiple asserted intervals; this overload preserves
+// the complete constraint set so the merged variable can be reconstructed.
+MIGRAPHX_EXPORT expr var(std::string name,
+                         std::vector<interval> constraints,
+                         std::set<scalar> optimals = {});
+
+// Map names to unique identifiers accepted by var() and parse(). resolve() keeps repeated external
+// names stable, while allocate() reserves a new name for an internal symbol.
+class MIGRAPHX_EXPORT symbol_name_registry
+{
+    public:
+    std::string resolve(std::string_view external_name);
+    std::string allocate(std::string_view preferred_name);
+
+    private:
+    std::unordered_map<std::string, std::string> resolved_names;
+    std::unordered_set<std::string> used_names;
+};
 
 // Project an expr onto its structural symbol form, stripping all variable
 // metadata (constraints, optimals). `same_symbol(a, b)` is true when a and b
@@ -257,6 +276,7 @@ MIGRAPHX_EXPORT bool same_symbol(const expr& a, const expr& b);
 
 // Find distinct variables as metadata-free symbols.
 MIGRAPHX_EXPORT std::unordered_set<expr> find_variables(const expr& e);
+
 // Whether dividend is evenly divisible by divisor (integral operands only).
 MIGRAPHX_EXPORT bool is_divisible(const expr& dividend, const expr& divisor);
 
@@ -322,7 +342,28 @@ MIGRAPHX_EXPORT expr max(expr x, expr y);
 
 MIGRAPHX_EXPORT std::optional<bool>
 strict_less(const expr& a, const expr& b, interval default_bounds = {});
+MIGRAPHX_EXPORT std::optional<bool>
+provable_equal(const expr& a, const expr& b, interval default_bounds = {});
+MIGRAPHX_EXPORT std::optional<scalar> fixed_value(const expr& expression);
 
+template <class T, class Range>
+std::optional<std::vector<T>> fixed_values(const Range& expressions)
+{
+    std::vector<T> result;
+    result.reserve(expressions.size());
+    for(const auto& expression : expressions)
+    {
+        const auto value = fixed_value(expression);
+        if(not value.has_value())
+            return std::nullopt;
+        result.push_back(to<T>(*value));
+    }
+    return result;
+}
+
+// `min`/`max` that collapse to one operand when `strict_less` proves the ordering.
+MIGRAPHX_EXPORT expr resolve_min(const expr& a, const expr& b);
+MIGRAPHX_EXPORT expr resolve_max(const expr& a, const expr& b);
 // Pattern matching rewrite DSL
 MIGRAPHX_EXPORT expr pvar(int id);
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,11 +40,10 @@ struct parse_softsign : op_parser<parse_softsign>
                           std::vector<instruction_ref> args) const
     {
         // Apply pointwise formula: y = x / (1 + |x|)
-        auto mb_ones = info.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", args[0]->get_shape().lens()}}),
-            info.add_literal(migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {1}}));
+        auto ones =
+            info.add_literal(migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {1}});
         auto abs = info.add_instruction(migraphx::make_op("abs"), args[0]);
-        auto add = info.add_instruction(migraphx::make_op("add"), abs, mb_ones);
+        auto add = info.add_common_op("add", abs, ones);
         return info.add_instruction(migraphx::make_op("div"), args[0], add);
     }
 };

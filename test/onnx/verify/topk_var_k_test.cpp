@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/register_target.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
@@ -54,12 +55,14 @@ TEST_CASE(topk_var_k_test)
     EXPECT(ind_v == gold_ind);
 }
 
-// Same model and runtime `k`, but `data` is parsed as a dynamic shape and a concrete shape within
-// range is supplied at eval time.
-TEST_CASE(topk_var_k_dynamic_test)
+// Same model and runtime `k`, but `data` is parsed as a symbolic shape and a concrete shape
+// within range is supplied at eval time.
+TEST_CASE(topk_var_k_symbolic_test)
 {
+    using migraphx::sym::var;
     migraphx::onnx_options options;
-    options.map_dyn_input_dims["data"] = {{1, 4}, {2, 4}};
+    options.use_symbolic_shapes        = true;
+    options.map_dyn_input_dims["data"] = sym_dims({var("n", {1, 4}), var("m", {2, 4})});
     migraphx::program p                = read_onnx("topk_var_k_test.onnx", options);
     p.compile(migraphx::make_target("ref"));
 

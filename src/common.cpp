@@ -27,10 +27,35 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+namespace {
+
+bool is_symbolic_literal(const shape::dynamic_dimension& d)
+{
+    return d.is_symbolic() and d.sym_expr.name() == "literal";
+}
+
+bool elementwise_dims_match_without_broadcast(const std::vector<shape::dynamic_dimension>& input,
+                                              const std::vector<shape::dynamic_dimension>& target)
+{
+    if(input.size() != target.size())
+        return false;
+    return std::equal(input.begin(), input.end(), target.begin(), [](const auto& a, const auto& b) {
+        if(a == b)
+            return true;
+        return not is_symbolic_literal(a) and not is_symbolic_literal(b);
+    });
+}
+
+} // namespace
+
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1)
 {
@@ -42,12 +67,12 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
     auto offset = s1.size() - s0.size();
     std::transform(
         s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
-            if(a != b and a != 1 and b != 1)
-            {
-                MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + migraphx::to_string_range(s0) +
-                               "} and {" + migraphx::to_string_range(s1) + "} mismatch!");
-            }
-            return std::max(a, b);
+            if(a == b or b == 1)
+                return a;
+            if(a == 1)
+                return b;
+            MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + migraphx::to_string_range(s0) +
+                           "} and {" + migraphx::to_string_range(s1) + "} mismatch!");
         });
     return out_lens;
 }
@@ -73,6 +98,15 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                        else if(a == 1)
                        {
                            return b;
+                       }
+                       else if(a.is_symbolic() or b.is_symbolic())
+                       {
+                           if(a.is_symbolic() and b.is_symbolic() and not is_symbolic_literal(a) and
+                              not is_symbolic_literal(b))
+                               return a;
+                           MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
+                                          migraphx::to_string_range(dds0) + "} and {" +
+                                          migraphx::to_string_range(dds1) + "} mismatch!");
                        }
                        else
                        {
@@ -116,7 +150,7 @@ std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes)
                                 [](auto s) { return s.lens(); });
 }
 
-static shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
+shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
 {
     if(t1 == t2)
         return t1;
@@ -154,8 +188,6 @@ std::vector<instruction_ref> insert_common_args(module& m,
                                                 std::vector<instruction_ref> inputs,
                                                 common_options options)
 {
-    // Symbolic inputs (with no range-dynamic mixed in) use single-input broadcasts + converts,
-    // mirroring the static path.
     bool any_symbolic = std::any_of(
         inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().symbolic(); });
     bool any_range = std::any_of(inputs.cbegin(), inputs.cend(), [](auto input) {
@@ -166,22 +198,48 @@ std::vector<instruction_ref> insert_common_args(module& m,
         auto input_shapes = to_shapes(inputs);
         auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
         auto c_type       = compute_common_types(input_shapes);
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-            auto s = input->get_shape();
-            if(options.common_lens and not(s.symbolic() and s.dyn_dims() == c_dyn_dims))
+        if(options.common_lens)
+        {
+            auto target = std::find_if(inputs.begin(), inputs.end(), [&](auto input) {
+                const auto& s = input->get_shape();
+                return s.symbolic() and
+                       elementwise_dims_match_without_broadcast(s.dyn_dims(), c_dyn_dims);
+            });
+            instruction_ref common_input;
+            if(target == inputs.end())
             {
-                input = m.insert_instruction(
+                common_input = m.insert_instruction(
                     ins,
                     make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                    input);
+                    inputs);
+                inputs.front() = common_input;
             }
-            if(options.common_type and input->get_shape().type() != c_type)
+            else
             {
-                input =
-                    m.insert_instruction(ins, make_op("convert", {{"target_type", c_type}}), input);
+                common_input = *target;
             }
-            return input;
-        });
+            std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+                const auto& s = input->get_shape();
+                if(input == common_input or
+                   (s.symbolic() and
+                    elementwise_dims_match_without_broadcast(s.dyn_dims(), c_dyn_dims)))
+                    return input;
+                return m.insert_instruction(
+                    ins,
+                    make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                    input,
+                    common_input);
+            });
+        }
+        if(options.common_type)
+        {
+            std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+                if(input->get_shape().type() != c_type)
+                    input = m.insert_instruction(
+                        ins, make_op("convert", {{"target_type", c_type}}), input);
+                return input;
+            });
+        }
         return inputs;
     }
 
@@ -300,6 +358,93 @@ shape make_bcast_shape(const shape& input_shape,
                                  input_shape.dyn_strides(),
                                  bcast_dyn_dims,
                                  sym::lit(0));
+}
+
+bool can_multibroadcast(const std::vector<std::size_t>& input_lens,
+                        const std::vector<std::size_t>& out_lens)
+{
+    if(input_lens.empty() or out_lens.empty() or input_lens.size() > out_lens.size())
+        return false;
+
+    return std::equal(input_lens.rbegin(),
+                      input_lens.rend(),
+                      out_lens.rbegin(),
+                      [](std::size_t in, std::size_t out) { return out == in or in == 1; });
+}
+
+// clang-format off
+// Concatenates broadcast inputs along an axis of length 1 without materializing the broadcast:
+//
+// before                                    after
+//
+// w0 {8,5}                                  w0 {8,5}
+//   | multibroadcast {2,8,5}                  | unsqueeze -> {1,1,8,5}
+//   | unsqueeze -> {1,2,8,5}                   |
+// w1 {8,5}                                  w1 {8,5}          concat axis 0
+//   | ...                                       | ...        ----------------
+// w2 {8,5}                                  w2 {8,5}          {3,1,8,5}
+//   | ...                                       | ...               |
+//   +-----------+                               +-----------+       | multibroadcast
+//               | concat axis 0                             |       v
+//               v                                           v   {3,2,8,5}
+//          {3,2,8,5}                                   {3,2,8,5}
+//          (batch is real data)                        (batch is still a view)
+//
+// The stacked weight stays {n, 1, K, N} instead of {n, batch, K, N}.
+// clang-format on
+optional<instruction_ref> insert_concat_broadcasts(module& m,
+                                                   instruction_ref ins,
+                                                   const std::vector<instruction_ref>& inputs,
+                                                   std::size_t axis)
+{
+    if(inputs.empty())
+        return nullopt;
+    const auto& s0 = inputs.front()->get_shape();
+    if(s0.dynamic() or axis >= s0.ndim() or s0.lens()[axis] != 1)
+        return nullopt;
+    if(std::any_of(inputs.begin(), inputs.end(), [&](instruction_ref x) {
+           const auto& s = x->get_shape();
+           return s.dynamic() or s.type() != s0.type() or s.lens() != s0.lens();
+       }))
+        return nullopt;
+
+    // Describe each input's view chain and generate it without the broadcasts.
+    // Nothing is inserted until every input has the same compact shape.
+    std::vector<std::pair<instruction_ref, std::vector<operation>>> plans;
+    std::vector<std::size_t> clens;
+    for(auto x : inputs)
+    {
+        auto [root, ops]  = get_input_ops_if(x, [](instruction_ref i) {
+            return contains(
+                {"broadcast", "multibroadcast", "squeeze", "unsqueeze", "reshape", "transpose"},
+                i->name());
+        });
+        const auto& rlens = root->get_shape().lens();
+        auto desc         = shape_transform_descriptor::create(rlens, ops);
+        if(desc.empty() or not desc.has_broadcast())
+            return nullopt;
+        auto compact_ops = desc.generate(rlens, /*no_broadcast=*/true);
+
+        shape cs = root->get_shape();
+        for(const auto& op : compact_ops)
+            cs = op.compute_shape({cs});
+        if(plans.empty())
+            clens = cs.lens();
+        else if(cs.lens() != clens)
+            return nullopt;
+        plans.emplace_back(root, std::move(compact_ops));
+    }
+    if(clens.size() != s0.ndim() or not can_multibroadcast(clens, s0.lens()))
+        return nullopt;
+
+    std::vector<instruction_ref> compact;
+    std::transform(plans.begin(), plans.end(), std::back_inserter(compact), [&](const auto& p) {
+        return insert_ops(m, ins, p.second, p.first);
+    });
+    auto concat    = m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), compact);
+    auto out_lens  = s0.lens();
+    out_lens[axis] = inputs.size();
+    return m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), concat);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

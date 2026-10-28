@@ -43,6 +43,8 @@ endfunction()
 
 set(MIGRAPHX_ENABLE_C_API_TEST On CACHE BOOL "")
 
+add_api_test(program_verify test_program_verify.cpp ${CMAKE_CURRENT_BINARY_DIR})
+
 # Workaround: C file dont work with clang-tidy right now, need a fix in rocm-cmake
 function(add_c_api_test TEST_NAME TEST_SRC TEST_DIR)
     if(MIGRAPHX_ENABLE_C_API_TEST)

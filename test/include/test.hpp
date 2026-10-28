@@ -275,8 +275,9 @@ template <class T, class U, class Operator>
 struct expression
 {
     using self_t = expression;
-    T lhs;
-    U rhs;
+    // Capture by reference so operands of any type are captured without copies.
+    T lhs; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    U rhs; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
 
     friend std::ostream& operator<<(std::ostream& s, const expression& self)
     {
@@ -318,7 +319,8 @@ template <class T, class Operator>
 struct lhs_expression
 {
     using self_t = lhs_expression;
-    T lhs;
+    // Capture by reference so operands of any type are captured without copies.
+    T lhs; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     explicit lhs_expression(T e) : lhs(static_cast<T&&>(e)) {}
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)

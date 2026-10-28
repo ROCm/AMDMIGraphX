@@ -26,6 +26,7 @@
 #include <array>
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <vector>
 
 TEST_CASE(interpolate_string_simple1)
@@ -245,6 +246,31 @@ TEST_CASE(to_hex_string_md5_initial_state_lsb)
     // serialized LSB-first is the well-known digest of the empty string.
     const std::array<std::uint32_t, 4> state = {0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476};
     EXPECT(migraphx::to_hex_string(state, true) == "0123456789abcdeffedcba9876543210");
+}
+
+TEST_CASE(nonfinite_cpp_literal_finite)
+{
+    EXPECT(not migraphx::nonfinite_cpp_literal(0.0).has_value());
+    EXPECT(not migraphx::nonfinite_cpp_literal(-1.5).has_value());
+    EXPECT(not migraphx::nonfinite_cpp_literal(std::numeric_limits<double>::lowest()).has_value());
+    EXPECT(not migraphx::nonfinite_cpp_literal(std::numeric_limits<double>::max()).has_value());
+}
+
+TEST_CASE(nonfinite_cpp_literal_infinity)
+{
+    EXPECT(migraphx::nonfinite_cpp_literal(std::numeric_limits<double>::infinity()) ==
+           "__builtin_huge_val()");
+    EXPECT(migraphx::nonfinite_cpp_literal(-std::numeric_limits<double>::infinity()) ==
+           "-__builtin_huge_val()");
+    // A float widens to double exactly, which is how the pad compiler calls this.
+    EXPECT(migraphx::nonfinite_cpp_literal(-std::numeric_limits<float>::infinity()) ==
+           "-__builtin_huge_val()");
+}
+
+TEST_CASE(nonfinite_cpp_literal_nan)
+{
+    EXPECT(migraphx::nonfinite_cpp_literal(std::numeric_limits<double>::quiet_NaN()) ==
+           "__builtin_nan(\"0\")");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

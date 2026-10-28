@@ -247,9 +247,9 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
             const int hh    = h0 + a;
             const bool ok   = w_in and hh >= 0 and hh < static_cast<int>(in_h);
             x_off[t][a]     = ok ? static_cast<int32_t>((n_arr[t] * x_str[0] +
-                                                     static_cast<index_int>(hh) * x_str[2] +
-                                                     static_cast<index_int>(ww) * x_str[3]) *
-                                                    sizeof(float))
+                                                         static_cast<index_int>(hh) * x_str[2] +
+                                                         static_cast<index_int>(ww) * x_str[3]) *
+                                                        sizeof(float))
                                  : x_oob;
         });
     });
@@ -273,7 +273,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     auto w_byte_off          = [&](index_int u, index_int k) {
         return (k_base + k < out_c) ? (w_lane_base + static_cast<int32_t>(u) * w_u_stride +
                                        static_cast<int32_t>(k) * w_k_stride)
-                                             : w_oob;
+                                    : w_oob;
     };
 
     // Accumulators M[u][t][k].

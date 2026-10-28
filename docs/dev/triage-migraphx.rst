@@ -43,7 +43,7 @@ Step 1: Disable MLIR Backend
 Step 2: Bisect to Find Problematic Operation
 ---------------------------------------------
 
-**Tool**: ``migraphx-driver --bisect``
+**Tool**: ``migraphx-driver verify --bisect``
 
 **Purpose**: Quickly identify the specific operation causing the failure using binary search
 
@@ -52,9 +52,9 @@ Step 2: Bisect to Find Problematic Operation
 .. code-block:: bash
 
    # Bisect an ONNX model
-   migraphx-driver compile model.onnx --bisect
+   migraphx-driver verify model.onnx --gpu --bisect
 
-**What this does**: Uses binary search to systematically disable operations until it finds the exact operation that causes the failure. Much faster than ``--reduce`` for pinpointing issues.
+**What this does**: Uses binary search to systematically disable operations until it finds the first observable point of failure. Much faster than ``--reduce`` for pinpointing issues.
 
 Step 3: Disable Fusion Passes
 ------------------------------
@@ -82,7 +82,7 @@ Test each fusion type individually:
 Step 4: Reduce Graph Complexity
 --------------------------------
 
-**Tool**: ``migraphx-driver --reduce`` or ``-r``
+**Tool**: ``migraphx-driver verify --reduce`` or ``-r``
 
 **Purpose**: Find minimal failing case by creating smaller versions of the program
 
@@ -90,8 +90,7 @@ Step 4: Reduce Graph Complexity
 
 .. code-block:: bash
 
-   migraphx-driver compile model.onnx --reduce
-   migraphx-driver run program.mxr --reduce
+   migraphx-driver verify model.onnx --gpu --reduce
 
 **When to use**: Use after bisect if you need a smaller program for detailed analysis or bug reporting.
 
@@ -152,3 +151,64 @@ Debugging and Tracing
 - ``MIGRAPHX_TRACE_BENCHMARKING=3``     # Kernel benchmarking process
 
 This systematic approach helps maintainers quickly understand and fix root causes.
+
+Binary Cache
+============
+
+Compiled kernels are shared within a single compile, so a kernel that appears many times in a
+model is compiled only once. Setting a directory makes that reuse survive across runs:
+
+.. code-block:: bash
+
+   export MIGRAPHX_BINARY_CACHE=$HOME/.cache/migraphx
+
+Entries are grouped by a directory naming the entry format, the HIP compiler, a digest of the
+embedded kernel headers, and the rocMLIR build, so entries a build cannot use are never
+consulted. The compiler is identified by compiling a small probe that records
+``__clang_version__`` into the object and reading it back, because the device compiler is loaded
+at runtime and need not be the one MIGraphX was built with. Reclaim space by deleting the
+directories for builds you no longer use:
+
+.. code-block:: bash
+
+   ls $HOME/.cache/migraphx        # directories are named after the build that wrote them
+   rm -r $HOME/.cache/migraphx/v1-hip22.0.*
+
+A path ending in ``.db`` or ``.sqlite`` keeps the cache in a single SQLite database instead of a
+directory, which is easier to copy between machines. Like a directory cache it can be used by
+several processes at once, and missing parent directories are created:
+
+.. code-block:: bash
+
+   export MIGRAPHX_BINARY_CACHE=$HOME/.cache/migraphx/kernels.db
+
+Every row records the full version id of the build that wrote it in the ``version`` column,
+alongside the operator name, problem and solution, so the database can be inspected and pruned
+with the ``sqlite3`` shell. Deleting rows does not shrink the file until it is vacuumed:
+
+.. code-block:: bash
+
+   sqlite3 $HOME/.cache/migraphx/kernels.db \
+       "SELECT version, op_name, count(*) FROM cache_v1 GROUP BY version, op_name;"
+   sqlite3 $HOME/.cache/migraphx/kernels.db \
+       "DELETE FROM cache_v1 WHERE version GLOB 'v1-hip22.0.*'; VACUUM;"
+
+A database that cannot be written to, such as a shared cache installed read-only, is still used
+for lookups, and newly compiled kernels are kept in memory only. A database that cannot be
+opened, or whose cache table has an unexpected layout, is skipped with a warning and the compile
+proceeds without a disk cache.
+
+The same settings are available as backend options, which take precedence over the environment
+and are how tests configure the cache:
+
+.. code-block:: python
+
+   model.compile(migraphx.get_target("gpu"),
+                 advance_backend_options={"binary_cache": "/tmp/cache",
+                                          "binary_cache_verify": True})
+
+Entries are keyed on everything handed to the backend compiler. If a kernel is suspected of
+being reused when it should not be, set ``binary_cache_verify``. That compiles even when a
+result could be reused and fails loudly if the two disagree, which is the only way an
+incomplete key shows up other than as wrong results. It is slower than compiling without a
+cache at all, so use it to diagnose rather than routinely.

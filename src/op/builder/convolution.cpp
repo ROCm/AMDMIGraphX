@@ -162,12 +162,14 @@ struct convolution : convolution_base<convolution>
         if(args.size() == 3)
         {
             instruction_ref bias_bcast;
-            // symbolic output: broadcast to the symbolic dims with a single-input broadcast
             if(curr_ins->get_shape().symbolic())
             {
                 auto dims  = to_value(curr_ins->get_shape().dyn_dims());
                 bias_bcast = m.insert_instruction(
-                    ins, make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", dims}}), args[2]);
+                    ins,
+                    make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", dims}}),
+                    args[2],
+                    curr_ins);
             }
             // if curr_ins has a dynamic output shape use 2 input broadcast
             else if(curr_ins->get_shape().dynamic())

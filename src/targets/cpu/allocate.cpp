@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx/cpu/context.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,6 +44,8 @@ struct cpu_allocate : auto_register_op<cpu_allocate>
     }
 
     std::string name() const { return "cpu::allocate"; }
+    value attributes() const { return {{"side_effect", true}}; }
+
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(0);

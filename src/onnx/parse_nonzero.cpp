@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,11 @@
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/sym.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -56,7 +60,20 @@ struct parse_nonzero : op_parser<parse_nonzero>
         migraphx::argument data_arg = args.back()->eval();
         if(data_arg.empty())
         {
-            return info.add_instruction(make_op("nonzero"), args);
+            auto nz          = info.add_instruction(make_op("nonzero"), args);
+            auto indices     = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nz);
+            auto num_nonzero = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nz);
+            auto max_nonzero = indices->get_shape().lens().back();
+            auto num_nonzero_var = sym::var(info.name, {0, max_nonzero});
+            auto starts          = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
+            return info.add_instruction(
+                make_op("dyn_slice",
+                        {{"axes", {1}},
+                         {"starts", {0}},
+                         {"ends", value::array{to_value(num_nonzero_var)}}}),
+                indices,
+                starts,
+                num_nonzero);
         }
         else
         {

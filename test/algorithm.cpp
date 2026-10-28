@@ -183,4 +183,49 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_complex_predicate, int)
     EXPECT(*it == 12);
 }
 
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_if_two_range_basic, int)
+{
+    Container v            = {1, 2, 3, 4, 5};
+    std::vector<int> flags = {1, 0, 1, 0, 1};
+    std::vector<int> result;
+    migraphx::transform_if(
+        v.begin(),
+        v.end(),
+        flags.begin(),
+        std::back_inserter(result),
+        [](int, int flag) { return flag != 0; },
+        [](int x, int flag) { return x + flag; });
+    EXPECT(result == std::vector<int>{2, 4, 6});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_if_two_range_none, int)
+{
+    Container v            = {1, 2, 3};
+    std::vector<int> flags = {0, 0, 0};
+    std::vector<int> result;
+    migraphx::transform_if(
+        v.begin(),
+        v.end(),
+        flags.begin(),
+        std::back_inserter(result),
+        [](int, int flag) { return flag != 0; },
+        [](int x, int) { return x; });
+    EXPECT(result.empty());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_if_two_range_empty, int)
+{
+    Container v;
+    std::vector<int> flags;
+    std::vector<int> result;
+    migraphx::transform_if(
+        v.begin(),
+        v.end(),
+        flags.begin(),
+        std::back_inserter(result),
+        [](int, int flag) { return flag != 0; },
+        [](int x, int) { return x; });
+    EXPECT(result.empty());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1,0 +1,100 @@
+ssmlp_fp16_test:ß
+ä
+residual
+attn
+gamma1
+gate_b
+gate_s
+gate_z
+up_b
+up_s
+up_z
+down_b
+down_s
+down_z
+gamma2outskip"SSMLP*
+down_K *
+down_N *
+	down_bits *
+down_block_size *
+epsilon¬Å'7 *
+gate_K *
+gate_N *
+	gate_bits *
+gate_block_size *
+up_K *
+up_N *
+up_bits *
+up_block_size :com.ryzenaissmlp_fp16_testZ
+residual
+
+
+
+Z
+attn
+
+
+
+Z
+gamma1
+
+
+
+Z
+gate_b
+
+
+
+Z
+gate_s
+
+
+
+Z
+gate_z
+
+
+Z
+up_b
+
+
+
+Z
+up_s
+
+
+
+Z
+up_z
+
+
+Z
+down_b
+
+
+
+Z
+down_s
+
+
+
+Z
+down_z
+
+
+Z
+gamma2
+
+
+
+b
+out
+
+
+
+b
+skip
+
+
+
+B

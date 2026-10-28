@@ -88,18 +88,19 @@ def parse_args():
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
 
-    parser.add_argument('--ort-disable-affinity',
-                        dest="ort_intra_op_num_threads",
-                        type=int,
-                        default=None,
-                        help='Set onnxruntime SessionOptions.intra_op_num_threads. '
-                             'Default (None) lets ORT auto-size the intra-op thread '
-                             'pool from the host CPU count and pin each worker to a '
-                             'specific CPU. In a container/cgroup with a cpuset '
-                             'smaller than the host, those pins fail with EINVAL and '
-                             'ORT floods stderr with "pthread_setaffinity_np failed" '
-                             'errors. Specifying this value explicitly (e.g. to the '
-                             'container-visible CPU count) disables that pinning.')
+    parser.add_argument(
+        '--ort-disable-affinity',
+        dest="ort_intra_op_num_threads",
+        type=int,
+        default=None,
+        help='Set onnxruntime SessionOptions.intra_op_num_threads. '
+        'Default (None) lets ORT auto-size the intra-op thread '
+        'pool from the host CPU count and pin each worker to a '
+        'specific CPU. In a container/cgroup with a cpuset '
+        'smaller than the host, those pins fail with EINVAL and '
+        'ORT floods stderr with "pthread_setaffinity_np failed" '
+        'errors. Specifying this value explicitly (e.g. to the '
+        'container-visible CPU count) disables that pinning.')
 
     parser.add_argument('--show-test-data',
                         dest='show_data',
@@ -269,7 +270,6 @@ def main():
         if args.show_data:
             print(f"Input data for {name}: {test_input}\n")
 
-
         migraphx_arg = migraphx.argument(test_inputs[name])
         if not args.offload_copy:
             migraphx_arg = migraphx.to_gpu(migraphx_arg)
@@ -355,7 +355,8 @@ def main():
 
     if not args.ort_run:
         if args.show_data:
-            if hasattr(pred_fw, '__iter__') and not isinstance(pred_fw, (str, bytes)):
+            if hasattr(pred_fw,
+                       '__iter__') and not isinstance(pred_fw, (str, bytes)):
                 print('Output Gold Data:')
                 for idx, output in enumerate(pred_fw):
                     print(f'Output {idx}: {output}')

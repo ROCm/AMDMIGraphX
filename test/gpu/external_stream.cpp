@@ -200,13 +200,13 @@ TEST_CASE(test_external_stream_eval_uses_caller_stream)
 
     auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {m, k}});
     auto y = mm->add_literal(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {k, m}}));
-    mm->add_instruction(migraphx::make_op("dot"), x, y);
+        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {m, k}}));
+    mm->add_instruction(migraphx::make_op("add"), x, y);
 
     p.compile(migraphx::make_target("gpu"));
 
     migraphx::shape input_shape{migraphx::shape::float_type, {m, k}};
-    migraphx::shape output_shape{migraphx::shape::float_type, {m, m}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {m, k}};
     auto input  = migraphx::fill_argument(input_shape, 1);
     auto ginput = migraphx::gpu::to_gpu(input);
 

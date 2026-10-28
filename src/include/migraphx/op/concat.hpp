@@ -35,7 +35,9 @@
 #include <migraphx/value.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <cmath>
+#include <numeric>
 #include <utility>
 
 namespace migraphx {
@@ -116,6 +118,30 @@ struct concat
         if(unified.front().symbolic())
             return shape::from_permutation(type, new_dds, find_permutation(unified));
         return {type, new_dds};
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.empty() or
+           any_of(args, [](const auto& arg) { return arg.empty() or arg.get_shape().ndim() != 1; }))
+            return {};
+        const auto input_elements = std::accumulate(
+            args.begin(), args.end(), std::size_t{0}, [](auto sum, const auto& arg) {
+                return sum + arg.get_shape().elements();
+            });
+        if(input_elements != output_shape.elements())
+            return {};
+
+        sym_argument result{output_shape};
+        auto output = result.get();
+        auto out    = output.begin();
+        for(const auto& arg : args)
+        {
+            const auto input = arg.get();
+            out              = std::copy(input.begin(), input.end(), out);
+        }
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

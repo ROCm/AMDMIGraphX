@@ -24,6 +24,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/precompile_op.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
@@ -467,17 +468,6 @@ void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
 }
 #endif
 
-template <class... Strings>
-inline auto precompile_name(Strings... names) // NOLINT
-{
-    return match::make_basic_pred_matcher([=](instruction_ref ins) {
-        if(ins->name() != "gpu::precompile_op")
-            return false;
-        auto op = from_value<operation>(ins->get_operator().to_value().at("op"));
-        return (contains({names...}, op.name()));
-    });
-}
-
 #if MIGRAPHX_USE_MIOPEN
 struct find_conv_bias
 {
@@ -666,7 +656,7 @@ struct find_rocblas_gemm_pointwise : gemm_pointwise
             {
                 auto c = make_op("contiguous");
                 auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
-                c_ins  = m.add_literal(l.get_shape(), l.data());
+                c_ins  = m.add_literal(literal::from_raw_buffer(l.get_shape(), l.data()));
             }
             inputs.push_back(c_ins);
         }
@@ -726,7 +716,7 @@ struct find_hipblas_gemm_pointwise : gemm_pointwise
             {
                 auto c = make_op("contiguous");
                 auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
-                c_ins  = m.add_literal(l.get_shape(), l.data());
+                c_ins  = m.add_literal(literal::from_raw_buffer(l.get_shape(), l.data()));
             }
             inputs.push_back(c_ins);
         }

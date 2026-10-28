@@ -247,8 +247,8 @@ def main():
 
     providers = ensure_migraphx_ep(session_ops, ep_options)
     session_fp32 = onnxruntime.InferenceSession("resnet50.onnx",
-                                                 providers=providers,
-                                                 sess_options=session_ops)
+                                                providers=providers,
+                                                sess_options=session_ops)
 
     if flags.verbose:
         print("Preprocessing Batched Images")

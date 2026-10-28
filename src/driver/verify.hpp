@@ -62,6 +62,12 @@ void verify_bisected_program(const program& p,
                              const verify_options& vo       = verify_options{},
                              const parameter_map& inputs    = {},
                              verify::tolerance tols         = verify::tolerance{});
+void verify_layerwise_program(const program& p,
+                              const target& t,
+                              const compile_options& options = compile_options{},
+                              const verify_options& vo       = verify_options{},
+                              const parameter_map& inputs    = {},
+                              verify::tolerance tols         = verify::tolerance{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

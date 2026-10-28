@@ -2005,7 +2005,12 @@ struct block_frame
         // Keep fixed parameters symbolic when an eval_expr_from_shape still reads them or
         // converting them would change an output layout.
         if(none_of(clone_module, [](const auto& ins) {
-               return ins.name() == "eval_expr_from_shape" and not ins.outputs().empty();
+               bool live_shape_eval =
+                   ins.name() == "eval_expr_from_shape" and not ins.outputs().empty();
+               bool symbolic_slice =
+                   ins.name() == "slice" and
+                   any_of(ins.inputs(), [](auto input) { return input->get_shape().symbolic(); });
+               return live_shape_eval or symbolic_slice;
            }))
         {
             auto static_clone = clone_module;

@@ -48,7 +48,7 @@ struct analyze_topk : analyzer<analyze_topk>
 
         auto topk_fill =
             attributes.at("largest").to<bool>() ? fill_kind::lowest : fill_kind::highest;
-        return analyze_axes(
+        auto result = analyze_axes(
             ins,
             output.sub_shapes().front(),
             [axis = *axis](std::size_t) { return true; },
@@ -58,6 +58,10 @@ struct analyze_topk : analyzer<analyze_topk>
                 return input == 0 ? contracted_axis(topk_fill)
                                   : contracted_axis(fill_kind::dont_care);
             });
+        // Tuple elements own the externally visible symbolic outputs. Keep TopK deferred so it is
+        // absorbed into those blocks rather than routed as an unsupported tuple block output.
+        result.output_symbolic_axes.clear();
+        return result;
     }
 };
 

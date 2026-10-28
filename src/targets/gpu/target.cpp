@@ -72,6 +72,7 @@
 #include <migraphx/split_sym_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/binary_cache.hpp>
+#include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -137,7 +138,8 @@ struct backend_options
     bool standardize_outputs = false;
     // Keep range-based dynamic shapes for runtime compilation instead of specializing ranges.
     bool disable_range_based_splitting = false;
-    // When true, never spawn migraphx-hiprtc-driver; kernels and probes compile in-process.
+    // When true, hiprtc never spawns migraphx-hiprtc-driver again in this process (see
+    // disable_hiprtc_processes); kernels and compiler probes all compile in-process.
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;
@@ -376,7 +378,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     ctx.set_binary_cache(std::make_shared<binary_cache>(
         binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
-    ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
+    if(backend_opts.hiprtc_disable_processes)
+        disable_hiprtc_processes();
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);

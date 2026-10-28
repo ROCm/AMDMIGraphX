@@ -57,9 +57,9 @@ struct analyze_conv : analyzer<analyze_conv>
         std::size_t spatial_dimensions = 0;
         if(contains({"convolution", "convolution_backwards", "quant_convolution"}, op.name()))
         {
-            auto attributes = op.to_value();
-            default_padding = attributes.at("padding_mode").to<op::padding_mode_t>() ==
-                              op::padding_mode_t::default_;
+            auto attributes    = op.to_value();
+            default_padding    = attributes.at("padding_mode").to<op::padding_mode_t>() ==
+                                 op::padding_mode_t::default_;
             group              = attributes.at("group").to<std::size_t>();
             padding            = attributes.at("padding").to_vector<std::size_t>();
             spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();

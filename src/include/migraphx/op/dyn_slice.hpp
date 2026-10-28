@@ -79,10 +79,10 @@ struct dyn_slice
     value attributes() const
     {
         auto bound     = value::array{normalize_attribute::clip_max,
-                                  normalize_attribute::clip_min,
-                                  normalize_attribute::include_max,
-                                  normalize_attribute::use_len,
-                                  normalize_attribute::include_min};
+                                      normalize_attribute::clip_min,
+                                      normalize_attribute::include_max,
+                                      normalize_attribute::use_len,
+                                      normalize_attribute::include_min};
         auto end_bound = bound;
         if(ends_in_bounds)
             end_bound = value::array{normalize_attribute::assume_leq_max,
@@ -187,10 +187,10 @@ struct dyn_slice
                                              axes_attrs.at("starts"),
                                              "DYN_SLICE: starts input");
         auto norm_ends   = normalize_indices(args[2].to_vector<int64_t>(),
-                                           axes,
-                                           input_shape,
-                                           axes_attrs.at("ends"),
-                                           "DYN_SLICE: ends input");
+                                             axes,
+                                             input_shape,
+                                             axes_attrs.at("ends"),
+                                             "DYN_SLICE: ends input");
         // Guaranteed by check_inputs_and_attributes() when the shape was computed.
         assert(norm_starts.size() == axes.size() and norm_ends.size() == axes.size());
 

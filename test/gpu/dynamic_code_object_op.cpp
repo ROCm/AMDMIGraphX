@@ -249,8 +249,7 @@ TEST_CASE(static_zero_outputs_compile)
     auto results = p.eval(params);
     EXPECT(results.size() == 2);
     EXPECT(results.at(0).get_shape() == migraphx::shape{migraphx::shape::float_type, {0, 4}});
-    EXPECT(results.at(1).get_shape() ==
-           migraphx::shape{migraphx::shape::float_type, {0, 1, 1, 1}});
+    EXPECT(results.at(1).get_shape() == migraphx::shape{migraphx::shape::float_type, {0, 1, 1, 1}});
 }
 
 TEST_CASE(dynamic_scatter_zero_updates)

@@ -326,11 +326,11 @@ TEST_CASE(select_module_unit_stride_mismatch)
     auto result               = select.compute({},
                                                {migraphx::argument{actual, data.data()}},
                                                {&submodule},
-                                 [&](auto&, const auto& params) {
+                                               [&](auto&, const auto& params) {
                                      invoked = true;
                                      EXPECT(params.at("data").get_shape() == expected);
                                      return std::vector<migraphx::argument>{params.at("data")};
-                                 });
+                                               });
     EXPECT(invoked);
     EXPECT(result.get_sub_objects().front().get_shape() == expected);
     EXPECT(result.get_sub_objects().front().at<int64_t>() == 42);
@@ -397,7 +397,7 @@ TEST_CASE(select_module_nested_output_buffers)
     auto outer_output1 = outer->add_parameter("outer:#output_1", s);
     auto inner_select  = outer->add_instruction(
         migraphx::make_op("select_module",
-                           {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
         {outer_data, outer_output0, outer_output1},
         {inner});
     auto inner_result0 =
@@ -491,8 +491,8 @@ TEST_CASE(select_module_mixed_empty_concat_runs)
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-                                      {"logical_output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-                                      {"num_inputs", 2}}),
+             {"logical_output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
+             {"num_inputs", 2}}),
         {main_data, main_empty},
         {submod});
     auto empty_output =

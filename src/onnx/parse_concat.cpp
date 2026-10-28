@@ -97,13 +97,13 @@ struct parse_concat : op_parser<parse_concat>
             output_dim = sym::var(info.name, {total_interval.min, total_interval.max});
         }
         auto starts = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
-        return info.add_instruction(make_op("dyn_slice",
-                                            {{"axes", {axis}},
-                                             {"starts", {0}},
-                                             {"ends", value::array{to_value(output_dim)}}}),
-                                    buffer,
-                                    starts,
-                                    total);
+        return info.add_instruction(
+            make_op(
+                "dyn_slice",
+                {{"axes", {axis}}, {"starts", {0}}, {"ends", value::array{to_value(output_dim)}}}),
+            buffer,
+            starts,
+            total);
     }
 };
 

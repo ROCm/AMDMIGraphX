@@ -72,9 +72,8 @@ struct expect_shape
 };
 
 template <class... Ts>
-expect_shape(const migraphx::shape& expected,
-             const migraphx::operation& op,
-             Ts... xs) -> expect_shape<Ts...>;
+expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
+    -> expect_shape<Ts...>;
 
 template <class...>
 struct always_false : std::false_type

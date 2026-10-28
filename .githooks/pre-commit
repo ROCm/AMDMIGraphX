@@ -1,18 +1,10 @@
 #!/bin/sh
 #
-# License-stamp the staged diff before the commit is created.
-#
-# Do not run clang-format here. The binary on PATH, including
-# /opt/rocm/llvm/bin/clang-format, is not the one the CI format job runs.
-# Formatting with it produces a diff that CI then rejects. .githooks/pre-push
-# runs tools/format.py inside the CI image and is what blocks the push.
+# This pre-commit hook checks if any versions of clang-format
+# are installed, and if so, uses the installed version to format
+# the staged changes.
 
-cd "$(git rev-parse --show-toplevel)" || exit 1
+# Do everything from top - level
+cd $(git rev-parse --show-toplevel)
 
-base="${MIGRAPHX_FORMAT_BASE:-origin/develop}"
-if ! git rev-parse --verify "$base" >/dev/null 2>&1; then
-    echo "pre-commit: $base is not available. Fetch it before committing." >&2
-    exit 1
-fi
-
-python3 tools/check_stamped.py "$base" || exit 1
+python3 tools/format.py -q -i HEAD

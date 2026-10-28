@@ -1113,10 +1113,111 @@ std::vector<char*> to_c_strings(std::vector<std::string>& strings)
     return result;
 }
 
+// confstr(_CS_PATH), which is what execvp uses when PATH is unset.
+std::string default_search_path()
+{
+    auto length = confstr(_CS_PATH, nullptr, 0);
+    if(length == 0)
+        return "/bin:/usr/bin";
+    std::string path(length, '\0');
+    confstr(_CS_PATH, path.data(), path.size());
+    while(not path.empty() and path.back() == '\0')
+        path.pop_back();
+    return path;
+}
+
+// The PATH the child will see, not the parent's. An unset PATH falls back to the execvp default;
+// a set but empty PATH is one empty entry, which means the child's working directory.
+std::string child_path(const std::vector<std::string>& child_env)
+{
+    auto it = migraphx::find_if(
+        child_env, [](const std::string& entry) { return starts_with(entry, "PATH="); });
+    if(it == child_env.end())
+        return default_search_path();
+    return remove_prefix(*it, "PATH=");
+}
+
+// Keeps empty entries. A trailing colon is the working directory, and std::getline drops it.
+std::vector<std::string> path_directories(const std::string& path)
+{
+    std::vector<std::string> dirs;
+    std::string dir;
+    for(char c : path)
+    {
+        if(c == ':')
+        {
+            dirs.push_back(std::move(dir));
+            dir.clear();
+        }
+        else
+        {
+            dir.push_back(c);
+        }
+    }
+    dirs.push_back(std::move(dir));
+    return dirs;
+}
+
+fs::path working_directory(const fs::path& cwd)
+{
+    if(cwd.empty())
+        return fs::current_path();
+    return fs::absolute(cwd);
+}
+
+fs::path command_in_directory(const fs::path& base, const std::string& dir, const std::string& cmd)
+{
+    fs::path candidate = dir.empty() ? base / cmd : fs::path{dir} / cmd;
+    if(not candidate.is_absolute())
+        candidate = base / candidate;
+    return candidate;
+}
+
+bool is_executable_file(const fs::path& path)
+{
+    std::error_code error;
+    // A directory is X_OK, and execvp skips it. Follow a symlink to its target.
+    if(not fs::is_regular_file(path, error))
+        return false;
+    return access(path.c_str(), X_OK) == 0;
+}
+
+// posix_spawnp searches the parent's PATH and ignores both the envp PATH and the child's cwd.
+std::string
+search_path(const std::string& cmd, const std::vector<std::string>& child_env, const fs::path& cwd)
+{
+    auto base = working_directory(cwd);
+    for(const auto& dir : path_directories(child_path(child_env)))
+    {
+        auto candidate = command_in_directory(base, dir, cmd);
+        if(is_executable_file(candidate))
+            return candidate.lexically_normal().string();
+    }
+    return {};
+}
+
+// Absolute paths are used as given. A relative path is against the child's cwd. A bare name is
+// the first executable on the child's PATH. argv[0] is left as the caller wrote it.
+std::string executable_path(const std::string& cmd,
+                            const std::vector<std::string>& child_env,
+                            const fs::path& cwd)
+{
+    fs::path path{cmd};
+    if(path.is_absolute())
+        return cmd;
+    if(cmd.find('/') != std::string::npos)
+        return (working_directory(cwd) / path).lexically_normal().string();
+
+    auto resolved = search_path(cmd, child_env, cwd);
+    if(resolved.empty())
+        MIGRAPHX_THROW("Failed to spawn process " + cmd + " (errno " + std::to_string(ENOENT) +
+                       ")");
+    return resolved;
+}
+
 // stdin_fd and stdout_fd are installed as the child's stdin and stdout; -1 leaves it sharing ours.
-// posix_spawnp, so PATH is searched for a cmd without a slash: the default src_compiler is a bare
-// "c++". posix_spawn rather than fork: the parent has the HIP runtime loaded and many threads
-// running, and fork in that state is a hazard.
+// posix_spawn rather than fork: the parent has the HIP runtime loaded and many threads running,
+// and fork in that state is a hazard.
 pid_t spawn_child(const std::string& cmd,
                   const std::vector<std::string>& args,
                   const spawn_options& options,
@@ -1127,9 +1228,9 @@ pid_t spawn_child(const std::string& cmd,
 #if !MIGRAPHX_HAS_SPAWN_ADDCHDIR
     if(not options.cwd.empty())
     {
-        // The script is fixed; cwd and argv reach it as positional parameters, so nothing in them
-        // is interpreted.
-        argv = {"/bin/sh", "-c", R"(cd -- "$0" && exec "$@")", options.cwd.string()};
+        // -p keeps bash from importing BASH_FUNC_* , so a function named cd cannot replace the
+        // builtin. The script is fixed; cwd and argv reach it as positional parameters.
+        argv = {"/bin/sh", "-p", "-c", R"(cd -- "$0" && exec "$@")", options.cwd.string()};
     }
 #endif
     argv.push_back(cmd);
@@ -1139,6 +1240,9 @@ pid_t spawn_child(const std::string& cmd,
 
     auto env_storage = make_child_environment(options.envs);
     auto child_envp  = to_c_strings(env_storage);
+    // Resolve before spawn. The shell fallback executes /bin/sh, which is already absolute, and
+    // that shell then applies the child's PATH after its cd.
+    auto file = executable_path(argv.front(), env_storage, options.cwd);
 
     // posix_spawn's dup2 action clears O_CLOEXEC on the duplicate, so the child gets these as its
     // stdin/stdout while our other fds stay O_CLOEXEC; stderr is inherited untouched.
@@ -1162,8 +1266,8 @@ pid_t spawn_child(const std::string& cmd,
     int spawn_result = action_result;
     if(spawn_result == 0)
     {
-        spawn_result = posix_spawnp(
-            &pid, child_argv.front(), &file_actions, nullptr, child_argv.data(), child_envp.data());
+        spawn_result = posix_spawn(
+            &pid, file.c_str(), &file_actions, nullptr, child_argv.data(), child_envp.data());
     }
     posix_spawn_file_actions_destroy(&file_actions);
     if(spawn_result != 0)
@@ -1434,7 +1538,9 @@ void process::exec()
 #endif
 }
 
-void process::write(const std::function<void(writer)>& pipe_in)
+// By value so the exported signature matches what existing callers link against.
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
+void process::write(std::function<void(writer)> pipe_in)
 {
 #ifndef _WIN32
     impl->trace();

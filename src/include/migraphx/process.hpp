@@ -58,7 +58,7 @@ struct MIGRAPHX_EXPORT process
     process& env(const std::vector<std::string>& envs);
 
     void exec();
-    void write(const std::function<void(writer)>& pipe_in);
+    void write(std::function<void(writer)> pipe_in);
     void read(const writer& output) const;
 
     /// Writes the bytes `pipe_in` produces to the child's stdin while concurrently draining its

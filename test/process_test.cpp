@@ -199,6 +199,55 @@ TEST_CASE(environment_variable_without_value_throws)
     }));
 }
 
+// A bare name is resolved on the PATH the child receives. The parent PATH has no such command.
+#ifndef _WIN32
+TEST_CASE(bare_command_uses_child_path)
+{
+    auto tmp = migraphx::tmp_dir{};
+    auto bin = tmp.path / "bin";
+    migraphx::fs::create_directories(bin);
+    migraphx::fs::create_symlink("/bin/echo", bin / "migraphx-child-path-echo");
+
+    std::string buffer;
+    migraphx::process{std::string{"migraphx-child-path-echo"}, {"hello"}}
+        .env({"PATH=" + bin.string()})
+        .read([&](const char* buf, std::size_t n) { buffer.assign(buf, n); });
+    EXPECT(buffer == "hello\n");
+}
+
+// A relative PATH entry is against the child's cwd. The parent's cwd has no bin/ directory.
+TEST_CASE(relative_path_entry_uses_child_cwd)
+{
+    auto tmp  = migraphx::tmp_dir{};
+    auto work = tmp.path / "work";
+    auto bin  = work / "bin";
+    migraphx::fs::create_directories(bin);
+    migraphx::fs::create_symlink("/bin/echo", bin / "migraphx-child-path-echo");
+
+    std::string buffer;
+    migraphx::process{std::string{"migraphx-child-path-echo"}, {"hello"}}
+        .cwd(work)
+        .env({"PATH=bin"})
+        .read([&](const char* buf, std::size_t n) { buffer.assign(buf, n); });
+    EXPECT(buffer == "hello\n");
+}
+
+// On glibc before 2.29, cwd runs this script under /bin/sh. -p must stop bash from importing a
+// cd function and running it. Newer glibc chdirs with a file action and never starts the shell.
+TEST_CASE(cwd_ignores_imported_shell_cd_function)
+{
+    auto tmp    = migraphx::tmp_dir{};
+    auto marker = tmp.path / "cd-function-ran";
+    std::string buffer;
+    migraphx::process{executable, {"--stdout"}}
+        .cwd(tmp.path)
+        .env({"BASH_FUNC_cd%%=() { /bin/touch -- '" + marker.string() + "'; }"})
+        .read([&](const char* buf, std::size_t n) { buffer.assign(buf, n); });
+    EXPECT(buffer == string_data);
+    EXPECT(not migraphx::fs::exists(marker));
+}
+#endif
+
 // read_write: stdin and stdout pumped at the same time.
 
 // Introduces every child mode below, so all other argv stays with the modes above and with

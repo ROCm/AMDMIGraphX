@@ -5840,6 +5840,11 @@ TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
         EXPECT(migraphx::none_of(*mod, [](const auto& ins) {
             return not migraphx::starts_with(ins.name(), "@") and ins.get_shape().dynamic();
         }));
+        EXPECT(migraphx::none_of(*mod, [](const auto& ins) {
+            const auto& s = ins.get_shape();
+            return s.type() != migraphx::shape::tuple_type and not s.dynamic() and
+                   migraphx::contains(s.lens(), std::size_t{0});
+        }));
     }
 
     p.compile(migraphx::make_target("ref"));
@@ -5856,6 +5861,9 @@ TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
         EXPECT(result.get_shape() == expected_shape);
         EXPECT(values == expected_values);
     };
+    check_result({0, 0, 0, 0}, migraphx::shape{migraphx::shape::float_type, {2, 0}, {0, 1}}, {});
+    check_result(
+        {0, 1, 0, 0}, migraphx::shape{migraphx::shape::float_type, {2, 1}, {1, 1}}, {0.0f, 1.0f});
     check_result({0, 1, 1, 0},
                  migraphx::shape{migraphx::shape::float_type, {2, 2}, {4, 1}},
                  {0.0f, 1.0f, 1.0f, 0.0f});

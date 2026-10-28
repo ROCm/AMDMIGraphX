@@ -115,7 +115,7 @@ struct expression_sets
             }
         }
 
-        // iterate over substitutions to resolve when there are expressions that can substitue into
+        // iterate over substitutions to resolve when there are expressions that can substitute into
         // those of other sets. Example A == B and 2*B == C to get C -> 2*A.
         constexpr int max_iterations = 20;
         for(int i = 0; i < max_iterations; ++i)

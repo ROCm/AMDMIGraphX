@@ -109,6 +109,7 @@ environment.
       .. code-block:: bash
          :substitutions:
 
+         python -c "import torch; print(torch.__version__); assert torch.version.hip, 'ROCm PyTorch required'" && \
          python -m pip install --extra-index-url |WHL_PKG_REPO| \
              |WHL|
 

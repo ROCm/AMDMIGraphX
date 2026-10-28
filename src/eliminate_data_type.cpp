@@ -126,6 +126,9 @@ void eliminate_data_type::apply(module& m) const
             continue;
         if(contains(skip_op_names, ins->name()) and not contains(unsupported_ops, ins->name()))
             continue;
+        // quant_dot with block scales (MX) has no dot equivalent
+        if(ins->name() == "quant_dot" and ins->inputs().size() == 4)
+            continue;
         if(contains(unsupported_ops, "all") or contains(unsupported_ops, ins->name()))
             insert_convert_to_supported_type(m, ins, target_type, unsupported_types);
     }

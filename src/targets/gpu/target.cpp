@@ -210,7 +210,8 @@ struct pipeline_factory
             enable_pass(not gpu::gfx_has_fp8ocp_intrinsics(*get_context()) and
                             gpu::gfx_has_fp8fnuz_intrinsics(*get_context()),
                         dead_code_elimination{}),
-            simplify_qdq{.use_mx_quant = gpu::gfx_has_mx_intrinsics(*get_context())},
+            simplify_qdq{.use_mx_quant       = gpu::gfx_has_mx_intrinsics(*get_context()),
+                         .use_mx_e4m3_scales = gpu::gfx_has_mx_e4m3_scales(*get_context())},
             enable_pass(not mlir_enabled(), rewrite_quantization{}),
             dead_code_elimination{},
             eliminate_data_type_for_gpu{.disable_64bit = options.fast_math, .ctx = get_context()},

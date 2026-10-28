@@ -1963,6 +1963,46 @@ TEST_CASE(unpack_fp4_dot_odd)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(unpack_fp4_dequantizelinear_dot)
+{
+    migraphx::program p1;
+    {
+        auto* m     = p1.get_main_module();
+        auto x      = m->add_parameter("x", {migraphx::shape::float_type, {2, 3, 8}});
+        auto packed = m->add_parameter("w", {migraphx::shape::fp4x2_type, {2, 8, 1}});
+        auto scale  = m->add_parameter("scale", {migraphx::shape::float_type, {2, 8, 2}});
+        auto unpack = m->add_instruction(migraphx::make_op("unpack_fp4"), packed);
+        auto dq     = add_pointwise(
+            p1, "main:pointwise0", {unpack, scale}, single_pointwise("dequantizelinear"));
+        auto dot = m->add_instruction(migraphx::make_op("dot"), x, dq);
+        m->add_return({dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* m     = p2.get_main_module();
+        auto x      = m->add_parameter("x", {migraphx::shape::float_type, {2, 3, 8}});
+        auto packed = m->add_parameter("w", {migraphx::shape::fp4x2_type, {2, 8, 1}});
+        auto scale  = m->add_parameter("scale", {migraphx::shape::float_type, {2, 8, 2}});
+        auto unpack = m->add_instruction(migraphx::make_op("unpack_fp4"), packed);
+        auto fused  = add_mlir(
+            p2,
+            "main:pointwise0:mlir_dot0",
+            {unpack, scale, x},
+            {"x0", "x1", "x2"},
+            [=](auto* pm, const auto& inputs) {
+                auto dq = pm->add_instruction(
+                    migraphx::make_op("dequantizelinear"), inputs[0], inputs[1]);
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[2], dq);
+                return std::make_tuple(dot->get_operator(), dot);
+            },
+            "standalone_dot");
+        m->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(unpack_fp4_nonstandard)
 {
     using migraphx::shape;

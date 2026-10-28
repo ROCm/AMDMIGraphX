@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/simplify_qdq.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/instruction.hpp>
@@ -2163,6 +2164,194 @@ TEST_CASE(fp4x2_odd_remove_qdq)
 
     run_pass(m1);
     EXPECT(m1 == m2);
+}
+
+static void run_pass_e4m3(migraphx::module& m)
+{
+    run_passes(m,
+               {migraphx::simplify_qdq{.use_mx_quant = true, .use_mx_e4m3_scales = true},
+                migraphx::dead_code_elimination{}});
+}
+
+// Expands block scales along axis as done by the block dequantizelinear builder
+static migraphx::instruction_ref add_block_expand(migraphx::module& m,
+                                                  migraphx::instruction_ref scale,
+                                                  int64_t axis,
+                                                  std::size_t block_size)
+{
+    auto unsqueeze =
+        m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {axis + 1}}}), scale);
+    auto bc_lens      = unsqueeze->get_shape().lens();
+    bc_lens[axis + 1] = block_size;
+    auto mbcast =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bc_lens}}), unsqueeze);
+    auto lens = scale->get_shape().lens();
+    lens[axis] *= block_size;
+    return m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), mbcast);
+}
+
+// NVFP4 two-level scales: fp8e4m3fn block scales dequantized by a per-tensor scale
+static migraphx::instruction_ref add_nvfp4_scale(migraphx::module& m,
+                                                 migraphx::instruction_ref scale,
+                                                 migraphx::instruction_ref per_tensor_scale,
+                                                 int64_t axis,
+                                                 std::size_t block_size)
+{
+    auto bcast = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", scale->get_shape().lens()}}),
+        per_tensor_scale);
+    auto dq = m.add_instruction(migraphx::make_op("dequantizelinear"), scale, bcast);
+    return add_block_expand(m, dq, axis, block_size);
+}
+
+// dot of {4, 64} x {64, 8} NVFP4 operands with block scales along K. B is stored as {8, 64},
+// packed along K, and transposed unless b_packed_along_n.
+static void
+add_nvfp4_dot(migraphx::module& m, std::size_t block_size, bool b_packed_along_n = false)
+{
+    std::vector<std::size_t> b_lens       = {8, 32};
+    std::vector<std::size_t> scale_b_lens = {8, 64 / block_size};
+    if(b_packed_along_n)
+    {
+        b_lens       = {64, 4};
+        scale_b_lens = {64 / block_size, 8};
+    }
+    auto packed_a = m.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+    auto packed_b = m.add_parameter("b", {migraphx::shape::fp4x2_type, b_lens});
+    auto scale_a =
+        m.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 64 / block_size}});
+    auto scale_b  = m.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, scale_b_lens});
+    auto global_a = m.add_literal(0.5f);
+    auto global_b = m.add_literal(0.25f);
+    auto unpack_a = m.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+    auto unpack_b = m.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+    auto dq_a     = m.add_instruction(migraphx::make_op("dequantizelinear"),
+                                      unpack_a,
+                                      add_nvfp4_scale(m, scale_a, global_a, 1, block_size));
+    auto dq_b     = m.add_instruction(
+        migraphx::make_op("dequantizelinear"),
+        unpack_b,
+        add_nvfp4_scale(m, scale_b, global_b, b_packed_along_n ? 0 : 1, block_size));
+    if(not b_packed_along_n)
+        dq_b = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dq_b);
+    auto dot = m.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
+    m.add_return({dot});
+}
+
+static void add_nvfp4_quant_dot(migraphx::module& m, std::size_t block_size)
+{
+    auto packed_a = m.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+    auto packed_b = m.add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+    auto scale_a =
+        m.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 64 / block_size}});
+    auto scale_b =
+        m.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 64 / block_size}});
+    auto global_a = m.add_literal(0.5f);
+    auto global_b = m.add_literal(0.25f);
+    auto unpack_a = m.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+    auto unpack_b = m.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+    auto bscale_a = add_block_expand(m, scale_a, 1, block_size);
+    auto bscale_b = add_block_expand(m, scale_b, 1, block_size);
+    auto trans_b =
+        m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), unpack_b);
+    auto trans_bscale_b =
+        m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), bscale_b);
+    auto quant_dot = m.add_instruction(
+        migraphx::make_op("quant_dot"), unpack_a, trans_b, bscale_a, trans_bscale_b);
+    auto global = migraphx::add_common_op(m, migraphx::make_op("mul"), {global_a, global_b});
+    auto mul    = migraphx::add_common_op(m, migraphx::make_op("mul"), {quant_dot, global});
+    m.add_return({mul});
+}
+
+TEST_CASE(nvfp4_quant_dot)
+{
+    migraphx::module m1;
+    add_nvfp4_dot(m1, 16);
+    migraphx::module m2;
+    add_nvfp4_quant_dot(m2, 16);
+    run_pass_e4m3(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_quant_dot_block_32)
+{
+    migraphx::module m1;
+    add_nvfp4_dot(m1, 32);
+    migraphx::module m2;
+    add_nvfp4_quant_dot(m2, 32);
+    run_pass_e4m3(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_quant_dot_block_8)
+{
+    // blocks of 16 along K would mix two different scales
+    migraphx::module m1;
+    add_nvfp4_dot(m1, 8);
+    migraphx::module m2;
+    add_nvfp4_dot(m2, 8);
+    run_pass_e4m3(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_quant_dot_packed_along_n)
+{
+    // fp4 operands of the scaled gemm must be packed along K
+    migraphx::module m1;
+    add_nvfp4_dot(m1, 16, true);
+    migraphx::module m2;
+    add_nvfp4_dot(m2, 16, true);
+    run_pass_e4m3(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_no_mx_e8m0_quant_dot)
+{
+    // MX (e8m0) scaled gemms cannot represent fp8e4m3fn block scales
+    migraphx::module m1;
+    add_nvfp4_dot(m1, 16);
+    migraphx::module m2;
+    add_nvfp4_dot(m2, 16);
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_quant_dot_correctness)
+{
+    migraphx::program p1;
+    add_nvfp4_dot(*p1.get_main_module(), 16);
+    migraphx::program p2;
+    add_nvfp4_dot(*p2.get_main_module(), 16);
+    run_pass_e4m3(*p2.get_main_module());
+    EXPECT(std::any_of(p2.get_main_module()->begin(),
+                       p2.get_main_module()->end(),
+                       [](const auto& ins) { return ins.name() == "quant_dot"; }));
+
+    p1.compile(migraphx::target(migraphx::make_target("ref")));
+    p2.compile(migraphx::target(migraphx::make_target("ref")));
+
+    std::vector<uint8_t> a_bits(4 * 32);
+    std::vector<uint8_t> b_bits(64 * 4);
+    std::iota(a_bits.begin(), a_bits.end(), 0);
+    std::iota(b_bits.begin(), b_bits.end(), 37);
+    const std::vector<float> scale_values = {0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f};
+    auto make_scales                      = [&](std::vector<std::size_t> lens) {
+        std::vector<float> values(lens[0] * lens[1]);
+        for(std::size_t i = 0; i < values.size(); ++i)
+            values[i] = scale_values[i % scale_values.size()];
+        return migraphx::literal{{migraphx::shape::fp8e4m3fn_type, lens}, values}.get_argument();
+    };
+    migraphx::parameter_map params;
+    params["a"]       = migraphx::argument{{migraphx::shape::fp4x2_type, {4, 32}}, a_bits.data()};
+    params["b"]       = migraphx::argument{{migraphx::shape::fp4x2_type, {8, 32}}, b_bits.data()};
+    params["scale_a"] = make_scales({4, 4});
+    params["scale_b"] = make_scales({8, 4});
+
+    std::vector<float> rv1;
+    p1.eval(params).back().visit([&](auto output) { rv1.assign(output.begin(), output.end()); });
+    std::vector<float> rv2;
+    p2.eval(params).back().visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(rv1, rv2));
 }
 
 TEST_CASE(qdq_computed_scale)

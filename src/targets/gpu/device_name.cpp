@@ -121,6 +121,21 @@ bool gfx_has_mx_intrinsics(const context& ctx)
     return gfx_has_mx_intrinsics_impl(get_gfx_name(ctx.get_current_device().get_device_name()));
 }
 
+static bool gfx_has_mx_e4m3_scales_impl(const std::string& gfx_name)
+{
+    return starts_with(gfx_name, "gfx125");
+}
+
+bool gfx_has_mx_e4m3_scales()
+{
+    return gfx_has_mx_e4m3_scales_impl(get_gfx_name(get_device_name()));
+}
+
+bool gfx_has_mx_e4m3_scales(const context& ctx)
+{
+    return gfx_has_mx_e4m3_scales_impl(get_gfx_name(ctx.get_current_device().get_device_name()));
+}
+
 #if MIGRAPHX_USE_HIPBLASLT
 
 static bool gfx_default_rocblas_impl(const std::string& gfx_name)

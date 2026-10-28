@@ -713,8 +713,10 @@ struct mlir_program
     {
         auto new_lens    = s.lens();
         auto new_strides = s.strides();
+        // Strides tie when the packed axis has a length of 1, so pick the innermost fastest axis
         int fast_axis =
-            std::min_element(s.strides().cbegin(), s.strides().cend()) - s.strides().cbegin();
+            s.strides().size() - 1 -
+            (std::min_element(s.strides().crbegin(), s.strides().crend()) - s.strides().crbegin());
         new_lens[fast_axis] *= 2;
         for(auto i : range(new_strides.size()))
         {

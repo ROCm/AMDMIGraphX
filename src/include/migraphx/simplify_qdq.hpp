@@ -40,6 +40,8 @@ struct MIGRAPHX_EXPORT simplify_qdq
 {
     bool remove_qdq_only = false;
     bool use_mx_quant    = false;
+    // Rewrite dot on fp4 with two-level fp8e4m3fn block scales (NVFP4) to quant_dot
+    bool use_mx_e4m3_scales = false;
     std::string name() const { return "simplify_qdq"; }
     void apply(module& m) const;
 };

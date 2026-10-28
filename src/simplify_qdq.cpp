@@ -427,6 +427,176 @@ inline auto block_dq(const std::string& scale)
     // clang-format on
 }
 
+// Checks if the block scales of a dequantizelinear are themselves dequantized from fp8, as in
+// the two-level scales of NVFP4: DQ(x, expand(DQ(scale_fp8, per_tensor_scale)))
+bool has_fp8_block_scale(instruction_ref dq)
+{
+    auto ins = dq->inputs().at(1);
+    while(contains({"broadcast",
+                    "multibroadcast",
+                    "unsqueeze",
+                    "squeeze",
+                    "reshape",
+                    "slice",
+                    "transpose",
+                    "contiguous"},
+                   ins->name()))
+        ins = ins->inputs().front();
+    if(not contains({"dequantizelinear", "convert"}, ins->name()))
+        return false;
+    return contains(fp8_types{}.get(), ins->inputs().front()->get_shape().type());
+}
+
+// Two-level block scales of NVFP4: DQ(scale, per_tensor_scale) with fp8e4m3fn block scales,
+// expanded to the shape of the quantized data as done by the block dequantizelinear builder
+// (unsqueeze, multibroadcast, reshape and a slice for a runt block).
+struct e4m3_block_scale
+{
+    instruction_ref scale;
+    instruction_ref per_tensor_scale;
+    // ordered like get_between_ins: the op applied first is last
+    std::vector<instruction_ref> expand_ops;
+    std::size_t axis       = 0;
+    std::size_t block_size = 0;
+};
+
+std::optional<e4m3_block_scale> find_e4m3_block_scale(instruction_ref dq)
+{
+    e4m3_block_scale result;
+    auto ins = dq->inputs().at(1);
+    if(ins->name() == "slice")
+    {
+        result.expand_ops.push_back(ins);
+        ins = ins->inputs().front();
+    }
+    if(ins->name() != "reshape")
+        return std::nullopt;
+    result.expand_ops.push_back(ins);
+    auto mbcast = ins->inputs().front();
+    if(mbcast->name() != "multibroadcast")
+        return std::nullopt;
+    result.expand_ops.push_back(mbcast);
+    auto unsqueeze = mbcast->inputs().front();
+    if(unsqueeze->name() != "unsqueeze")
+        return std::nullopt;
+    result.expand_ops.push_back(unsqueeze);
+
+    auto unsqueeze_axes = unsqueeze->get_operator().to_value()["axes"].to_vector<int64_t>();
+    if(unsqueeze_axes.size() != 1 or unsqueeze_axes.front() < 1)
+        return std::nullopt;
+    result.axis       = unsqueeze_axes.front() - 1;
+    result.block_size = mbcast->get_shape().lens().at(result.axis + 1);
+
+    auto scale_dq = unsqueeze->inputs().front();
+    if(scale_dq->name() != "dequantizelinear" or scale_dq->inputs().size() != 2)
+        return std::nullopt;
+    result.scale = scale_dq->inputs().front();
+    if(result.scale->get_shape().type() != shape::fp8e4m3fn_type)
+        return std::nullopt;
+    auto per_tensor_scale = scale_dq->inputs().at(1);
+    while(contains({"broadcast", "multibroadcast"}, per_tensor_scale->name()))
+        per_tensor_scale = per_tensor_scale->inputs().front();
+    if(per_tensor_scale->get_shape().elements() != 1)
+        return std::nullopt;
+    result.per_tensor_scale = per_tensor_scale;
+    return result;
+}
+
+// Follows the block axis of a dequantizelinear output through the ops between it and the dot
+std::optional<std::size_t> follow_axis(std::size_t axis,
+                                       const std::vector<instruction_ref>& ins_between)
+{
+    for(auto it : reverse_iterator_for(ins_between))
+    {
+        auto ins = *it;
+        if(ins->name() == "transpose")
+        {
+            auto perm = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
+            axis      = std::find(perm.begin(), perm.end(), axis) - perm.begin();
+        }
+        else if(ins->name() == "multibroadcast")
+        {
+            axis += ins->get_shape().ndim() - ins->inputs().front()->get_shape().ndim();
+        }
+        else if(not contains({"contiguous", "convert"}, ins->name()))
+        {
+            return std::nullopt;
+        }
+    }
+    return axis;
+}
+
+/**
+ * Handles NVFP4: fp4 operands with fp8e4m3fn block scales (block size 16) and per-tensor
+ * scales. The block scales go to quant_dot and the per-tensor scales are applied to its output:
+ * dot(DQ(a, expand(DQ(sa, ga))), DQ(b, expand(DQ(sb, gb)))) ->
+ * quant_dot(a, b, expand(sa), expand(sb)) * ga * gb
+ */
+struct match_find_mx_e4m3_quantizable_ops
+{
+    static constexpr std::size_t block_size = 16;
+
+    auto matcher() const
+    {
+        auto dq1 = match::arg(0)(skip_post_dq_ops(block_dq("scale1").bind("dq1")));
+        auto dq2 = match::arg(1)(skip_post_dq_ops(block_dq("scale2").bind("dq2")));
+        return match::name("dot")(dq1, dq2);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto dot = r.result;
+        auto dq1 = r.instructions["dq1"];
+        auto dq2 = r.instructions["dq2"];
+        if(dq1->inputs().front()->name() != "unpack_fp4" or
+           dq2->inputs().front()->name() != "unpack_fp4")
+            return;
+        auto scale1 = find_e4m3_block_scale(dq1);
+        auto scale2 = find_e4m3_block_scale(dq2);
+        if(not scale1 or not scale2)
+            return;
+        // the kernel needs blocks of 16 along K, so larger blocks must be multiples of 16
+        if(scale1->block_size % block_size != 0 or scale2->block_size % block_size != 0)
+            return;
+        // and fp4 packed along K, the block axis
+        auto packed_along_block_axis = [](instruction_ref dq, const e4m3_block_scale& s) {
+            auto unpack = dq->inputs().front();
+            auto axis   = unpack->get_operator().to_value()["axis"].to<int64_t>();
+            if(axis < 0)
+                axis += unpack->get_shape().ndim();
+            return static_cast<std::size_t>(axis) == s.axis;
+        };
+        if(not packed_along_block_axis(dq1, *scale1) or not packed_along_block_axis(dq2, *scale2))
+            return;
+
+        auto dot_args     = dot->inputs();
+        auto ndim         = dot_args.front()->get_shape().ndim();
+        auto k            = dot_args.front()->get_shape().lens().back();
+        auto ins_between1 = get_between_ins(dq1, dot_args[0]);
+        auto ins_between2 = get_between_ins(dq2, dot_args[1]);
+        if(k % block_size != 0 or follow_axis(scale1->axis, ins_between1) != ndim - 1 or
+           follow_axis(scale2->axis, ins_between2) != ndim - 2)
+            return;
+
+        auto expanded_scale1 = propagate_quantized_ins(m, dq1, scale1->scale, scale1->expand_ops);
+        auto expanded_scale2 = propagate_quantized_ins(m, dq2, scale2->scale, scale2->expand_ops);
+        std::vector<instruction_ref> qdot_args = {
+            propagate_quantized_ins(m, dq1, dq1->inputs().front(), ins_between1, true),
+            propagate_quantized_ins(m, dq2, dq2->inputs().front(), ins_between2, true),
+            propagate_quantized_ins(m, dq1, expanded_scale1, ins_between1, true),
+            propagate_quantized_ins(m, dq2, expanded_scale2, ins_between2, true)};
+        auto qdot = m.insert_instruction(dot, make_op("quant_dot"), qdot_args);
+
+        auto per_tensor_scale = insert_common_op(
+            m, dot, make_op("mul"), {scale1->per_tensor_scale, scale2->per_tensor_scale});
+        auto result = insert_common_op(m, dot, make_op("mul"), {qdot, per_tensor_scale});
+        if(result->get_shape().type() != dot->get_shape().type())
+            result = m.insert_instruction(
+                dot, make_op("convert", {{"target_type", dot->get_shape().type()}}), result);
+        m.replace_instruction(dot, result);
+    }
+};
+
 /**
  * Handles block quantization for MX types.
  * Matcher checks that dequantizelinear has no zero point and that
@@ -449,6 +619,9 @@ struct match_find_mx_quantizable_ops
         auto dq2    = r.instructions["dq2"];
         auto scale1 = r.instructions["scale1"];
         auto scale2 = r.instructions["scale2"];
+        // MX scales are e8m0 powers of two: fp8 block scales (NVFP4) are not supported here
+        if(has_fp8_block_scale(dq1) or has_fp8_block_scale(dq2))
+            return;
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         // Construct 4 arguments for block quantized op
@@ -788,6 +961,11 @@ void simplify_qdq::apply(module& m) const
         migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
         match::find_matches(m, match_find_quantizable_add{});
         migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        if(use_mx_e4m3_scales)
+        {
+            match::find_matches(m, match_find_mx_e4m3_quantizable_ops{});
+            migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        }
         if(use_mx_quant)
         {
             match::find_matches(m, match_find_mx_quantizable_ops{});

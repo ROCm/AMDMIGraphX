@@ -1386,9 +1386,10 @@ struct find_unpack_int4_mlir_op
 };
 
 /**
- * Move unpack_fp4 instructions into the mlir_op submodule.
- * Slice and reshape instructions should already be fused into the mlir_op.
- * rocMLIR will do the unpacking and dequantization.
+ * Move unpack_fp4 instructions into the mlir_op submodule of a scaled gemm (quant_dot with
+ * block scales). Slice and reshape instructions should already be fused into the mlir_op.
+ * rocMLIR will do the unpacking and dequantization. rocMLIR cannot fuse other ops on fp4
+ * inputs, so for those mlir_ops unpack_fp4 stays outside.
  */
 struct find_unpack_fp4_mlir_op
 {
@@ -1400,8 +1401,12 @@ struct find_unpack_fp4_mlir_op
 
     void apply(module_pass_manager& mpm, const match::matcher_result& mr) const
     {
-        auto mlir_op  = mr.result;
-        auto* mm      = mlir_op->module_inputs().front();
+        auto mlir_op = mr.result;
+        auto* mm     = mlir_op->module_inputs().front();
+        if(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
+               return ins.name() == "quant_dot" and ins.inputs().size() == 4;
+           }))
+            return;
         module_ref nm = mpm.create_module("fp4:" + mm->name());
         nm->set_bypass();
         std::vector<instruction_ref> new_mlir_op_args;

@@ -39,6 +39,7 @@
 #include <queue>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -606,21 +607,36 @@ void instruction::debug_print() const
 
 std::vector<instruction_ref> instruction::get_output_alias(instruction_ref ins, bool shallow)
 {
-    auto alias_indices = ins->get_operator().output_alias(to_shapes(ins->inputs()));
-    if(alias_indices.empty())
-        return {ins};
-    std::vector<instruction_ref> result;
-    for(auto i : alias_indices)
+    if(shallow)
     {
-        if(shallow)
-        {
+        auto alias_indices = ins->get_operator().output_alias(to_shapes(ins->inputs()));
+        if(alias_indices.empty())
+            return {ins};
+        std::vector<instruction_ref> result;
+        for(auto i : alias_indices)
             result.push_back(ins->inputs().at(i));
-        }
-        else
+        return result;
+    }
+
+    // Iterative. A long chain of views (reshape/identity/slice) is thousands
+    // deep on an unrolled recurrence and overflows the C stack.
+    std::vector<instruction_ref> result;
+    std::vector<instruction_ref> pending{ins};
+    std::unordered_set<instruction_ref> seen;
+    while(not pending.empty())
+    {
+        auto cur = pending.back();
+        pending.pop_back();
+        if(not seen.insert(cur).second)
+            continue;
+        auto alias_indices = cur->get_operator().output_alias(to_shapes(cur->inputs()));
+        if(alias_indices.empty())
         {
-            auto nested = get_output_alias(ins->inputs().at(i));
-            result.insert(result.end(), nested.begin(), nested.end());
+            result.push_back(cur);
+            continue;
         }
+        for(auto i : alias_indices)
+            pending.push_back(cur->inputs().at(i));
     }
     return result;
 }

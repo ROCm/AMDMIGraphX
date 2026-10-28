@@ -108,7 +108,12 @@ struct concat_compiler : compiler<concat_compiler>
             });
             concat_args.push_back("pack(" + join_strings(pack_args, ", ") + ")");
         }
-        auto ninputs             = concat_params.size();
+        auto ninputs = concat_params.size();
+        // fuse_concat keeps concats at or below this. Past it, the parameter
+        // pack in the generated kernel overflows the compiler stack.
+        if(ninputs > 32)
+            MIGRAPHX_THROW("concat of " + std::to_string(ninputs) +
+                           " inputs exceeds the kernel limit");
         auto max_elements_per_op = max_size(options.virtual_inputs, ninputs, concat_axis);
         auto avg_elements_per_op = output.lens()[concat_axis] / op_names.size();
         std::size_t group        = 1;

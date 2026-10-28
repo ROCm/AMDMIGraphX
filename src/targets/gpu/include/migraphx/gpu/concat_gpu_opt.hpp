@@ -50,12 +50,26 @@ struct concat_gpu_optimization
     {
         return ins->name() == "gpu::precompile_op";
     }
-    // precompile_op derives its shape from the data inputs, but the kernel is
-    // compiled for whatever shape is reported, so any static layout can be
-    // pinned through the output_shape field
+    // JIT kernels are compiled from the output buffer they are given, so a
+    // static slice layout can be pinned. rocMLIR convolution kernels keep the
+    // layout baked into the submodule: pinning a concat slice makes that
+    // buffer disagree with the kernel, and the precompile then fails or hangs.
+    static bool compiler_honors_output_shape(const operation& op)
+    {
+        const auto name = op.name();
+        if(name == "quant_convolution" or name == "convolution")
+            return false;
+        if(name != "gpu::mlir_op")
+            return true;
+        const auto wrapped = from_value<operation>(op.to_value().at("op"));
+        return wrapped.name() != "quant_convolution" and wrapped.name() != "convolution";
+    }
     bool supports_output_shape(instruction_ref ins, const shape& s) const
     {
-        return ins->name() == "gpu::precompile_op" and not s.dynamic();
+        if(ins->name() != "gpu::precompile_op" or s.dynamic())
+            return false;
+        const auto inner = from_value<operation>(ins->get_operator().to_value().at("op"));
+        return compiler_honors_output_shape(inner);
     }
     void set_output_shape(instruction_ref ins, const shape& s) const
     {

@@ -156,4 +156,16 @@ TEST_CASE(alias_vector_size)
     EXPECT(aliases_multi.size() == 2);
 }
 
+TEST_CASE(long_alias_chain)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(1);
+    for(int i = 0; i < 6000; ++i)
+        x = mm->add_instruction(pass_op{}, x);
+    auto aliases = migraphx::instruction::get_output_alias(x);
+    EXPECT(aliases.size() == 1);
+    EXPECT(aliases.front()->name() == "@literal");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

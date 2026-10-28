@@ -27,7 +27,6 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
@@ -323,6 +322,66 @@ struct find_pointwise_concat_split
     }
 };
 
+// One GPU concat kernel is compiled as a parameter pack. A few hundred inputs
+// overflows that compiler, which is what the unrolled segmentation concats hit.
+constexpr std::size_t max_concat_inputs = 32;
+
+int64_t concat_axis(instruction_ref ins)
+{
+    return ins->normalized_operator().to_value()["axis"].to<int64_t>();
+}
+
+// Inline same-axis, single-use concat inputs. Iterative so a chain of hundreds
+// of concats does not recurse the call stack.
+std::vector<instruction_ref> flatten_concat(instruction_ref ins, int64_t axis)
+{
+    std::vector<instruction_ref> args;
+    std::vector<instruction_ref> pending;
+    auto enqueue = [&](instruction_ref concat) {
+        auto inputs = concat->inputs();
+        pending.insert(pending.end(), inputs.rbegin(), inputs.rend());
+    };
+    enqueue(ins);
+    while(not pending.empty())
+    {
+        auto input = pending.back();
+        pending.pop_back();
+        if(input->name() == "concat" and concat_axis(input) == axis and
+           input->outputs().size() == 1)
+            enqueue(input);
+        else
+            args.push_back(input);
+    }
+    return args;
+}
+
+// Rebuild as a tree of concats that each stay within the kernel input limit.
+void replace_with_chunked_concat(module& m,
+                                 instruction_ref ins,
+                                 std::vector<instruction_ref> args)
+{
+    auto op = ins->normalized_operator();
+    while(args.size() > max_concat_inputs)
+    {
+        std::vector<instruction_ref> next;
+        next.reserve((args.size() + max_concat_inputs - 1) / max_concat_inputs);
+        for(std::size_t i = 0; i < args.size();)
+        {
+            auto n = std::min(max_concat_inputs, args.size() - i);
+            if(n == 1)
+                next.push_back(args[i]);
+            else
+            {
+                std::vector<instruction_ref> chunk(args.begin() + i, args.begin() + i + n);
+                next.push_back(m.insert_instruction(ins, op, chunk));
+            }
+            i += n;
+        }
+        args = std::move(next);
+    }
+    m.replace_instruction(ins, op, args);
+}
+
 // Merge a same-axis concat that feeds directly into another concat
 struct find_nested_concat
 {
@@ -332,26 +391,26 @@ struct find_nested_concat
         return match::name("concat")(match::any_of[match::inputs()](concat_used_once));
     }
 
-    static int64_t get_axis(instruction_ref ins)
-    {
-        return ins->normalized_operator().to_value()["axis"].to<int64_t>();
-    }
-
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins  = r.result;
-        auto axis = get_axis(ins);
-        std::vector<instruction_ref> args;
-        fix([&](auto self, auto&& inputs) {
-            for(auto&& i : inputs)
-            {
-                if(i->name() == "concat" and get_axis(i) == axis and i->outputs().size() == 1)
-                    self(i->inputs());
-                else
-                    args.push_back(i);
-            }
-        })(ins->inputs());
-        mpm.get_module().replace_instruction(ins, ins->normalized_operator(), args);
+        auto axis = concat_axis(ins);
+        replace_with_chunked_concat(mpm.get_module(), ins, flatten_concat(ins, axis));
+    }
+};
+
+// A single concat can already be wider than the kernel limit.
+struct find_wide_concat
+{
+    auto matcher() const { return match::name("concat"); }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        if(ins->inputs().size() <= max_concat_inputs)
+            return;
+        std::vector<instruction_ref> args(ins->inputs().begin(), ins->inputs().end());
+        replace_with_chunked_concat(mpm.get_module(), ins, std::move(args));
     }
 };
 
@@ -362,6 +421,8 @@ void fuse_concat::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_pointwise_concat_split{});
     mpm.run_pass(migraphx::dead_code_elimination{});
     match::find_matches(mpm, find_nested_concat{});
+    mpm.run_pass(migraphx::dead_code_elimination{});
+    match::find_matches(mpm, find_wide_concat{});
     mpm.run_pass(migraphx::dead_code_elimination{});
     match::find_matches(mpm, find_pointwise_concat_pointwise{});
     mpm.run_pass(migraphx::dead_code_elimination{});

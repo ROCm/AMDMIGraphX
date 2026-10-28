@@ -1942,24 +1942,53 @@ module& module::sort()
     });
     for(auto last : lasts)
     {
-        fix([&](auto self, auto ins) {
-            if(visited.insert(ins).second == false)
-                return;
-            auto ins_inputs = ins->inputs();
-            if(implicit_deps.find(ins) != implicit_deps.end())
+        // Heap stack. write_literals sorts the whole program after GPU
+        // codegen, and an unrolled recurrence is thousands of ops deep.
+        struct frame
+        {
+            instruction_ref ins = {};
+            std::vector<instruction_ref> inputs;
+            std::size_t next = 0;
+            bool entered     = false;
+        };
+        std::vector<frame> stack;
+        stack.push_back({last, {}, 0, false});
+        while(not stack.empty())
+        {
+            if(not stack.back().entered)
             {
-                auto ins_implict_inputs = implicit_deps.at(ins);
-                ins_inputs.insert(
-                    ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
-            }
-            for(auto child : ins_inputs)
-            {
-                if(not contains(this->impl->instructions, child))
+                auto ins = stack.back().ins;
+                if(visited.insert(ins).second == false)
+                {
+                    stack.pop_back();
                     continue;
-                self(child);
+                }
+                auto ins_inputs = ins->inputs();
+                if(implicit_deps.find(ins) != implicit_deps.end())
+                {
+                    auto ins_implict_inputs = implicit_deps.at(ins);
+                    ins_inputs.insert(
+                        ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
+                }
+                std::vector<instruction_ref> kids;
+                for(auto child : ins_inputs)
+                {
+                    if(not contains(this->impl->instructions, child))
+                        continue;
+                    kids.push_back(child);
+                }
+                stack.back().inputs  = std::move(kids);
+                stack.back().entered = true;
             }
-            this->move_instruction(ins, this->end());
-        })(last);
+            if(stack.back().next == stack.back().inputs.size())
+            {
+                this->move_instruction(stack.back().ins, this->end());
+                stack.pop_back();
+                continue;
+            }
+            auto child = stack.back().inputs[stack.back().next++];
+            stack.push_back({child, {}, 0, false});
+        }
     }
     assert(this->validate() == this->end());
     return *this;

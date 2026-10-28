@@ -2430,4 +2430,19 @@ TEST_CASE(module_print_static_shape)
         printed_py(s), R"(migraphx.shape(type="float_type", lens=[2, 3, 4], strides=[1, 8, 2]))"));
 }
 
+TEST_CASE(sort_long_chain)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    auto x = m.add_parameter("x", s);
+    auto y = x;
+    for(int i = 0; i < 6000; ++i)
+        y = m.add_instruction(migraphx::make_op("neg"), y);
+    m.add_return({y});
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+    EXPECT(std::prev(m.end())->name() == "@return");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

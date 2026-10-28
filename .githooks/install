@@ -4,5 +4,6 @@ cd $(git rev-parse --git-dir)
 
 echo "Installing hooks..." 
 mkdir -p hooks
-ln -s ../../.githooks/pre-commit hooks/pre-commit
+ln -sfn ../../.githooks/pre-commit hooks/pre-commit
+ln -sfn ../../.githooks/pre-push hooks/pre-push
 echo "Done!"

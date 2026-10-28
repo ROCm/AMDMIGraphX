@@ -3,6 +3,9 @@
 # This pre-commit hook checks if any versions of clang-format
 # are installed, and if so, uses the installed version to format
 # the staged changes.
+#
+# That binary is not the one CI runs. .githooks/pre-push formats with the
+# CI image and is what rejects a push the format job would fail.
 
 # Do everything from top - level
 cd $(git rev-parse --show-toplevel)

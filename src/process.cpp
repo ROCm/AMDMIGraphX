@@ -1371,19 +1371,19 @@ void process::read(const writer& output) const
     constexpr std::string_view filename = "stdout";
     auto tmp                            = tmp_dir{};
     HANDLE handle                       = CreateFile((tmp.path / filename).string().c_str(),
-                               GENERIC_READ | GENERIC_WRITE,
-                               0,
-                               nullptr,
-                               CREATE_ALWAYS,
-                               FILE_ATTRIBUTE_NORMAL,
-                               nullptr);
-    auto ec                             = migraphx::exec(impl->command,
+                                                     GENERIC_READ | GENERIC_WRITE,
+                                                     0,
+                                                     nullptr,
+                                                     CREATE_ALWAYS,
+                                                     FILE_ATTRIBUTE_NORMAL,
+                                                     nullptr);
+    auto ec = migraphx::exec(impl->command,
                              impl->options.cwd.string(),
                              impl->args(),
                              join_strings(impl->options.envs, " "),
                              handle == nullptr or handle == INVALID_HANDLE_VALUE
-                                                             ? GetStdHandle(STD_OUTPUT_HANDLE)
-                                                             : handle);
+                                 ? GetStdHandle(STD_OUTPUT_HANDLE)
+                                 : handle);
     // Close before throwing, so a failing command does not leak the capture file.
     CloseHandle(handle);
     if(ec != 0)

@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+# Reject a push that would fail the CI license or format jobs.
+#
+# The format job in .github/workflows/ci.yaml runs tools/format.py inside
+# rocm/migraphx-ci-jenkins-ubuntu. That image's clang-format is a different
+# major version from the host binary, including /opt/rocm/llvm/bin/clang-format,
+# and the two disagree on wrapping. Formatting on the host can look clean and
+# still fail CI. This hook runs the same image.
+#
+# Override the image with MIGRAPHX_CI_IMAGE and the diff base with
+# MIGRAPHX_FORMAT_BASE. git push --no-verify skips this hook.
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+base="${MIGRAPHX_FORMAT_BASE:-origin/develop}"
+if ! git rev-parse --verify "$base" >/dev/null 2>&1; then
+    echo "pre-push: $base is not available. Fetch it before pushing." >&2
+    exit 1
+fi
+
+echo "pre-push: license stamp against $base"
+python3 tools/check_stamped.py "$base" || exit 1
+
+image="${MIGRAPHX_CI_IMAGE:-rocm/migraphx-ci-jenkins-ubuntu:latest}"
+if ! command -v docker >/dev/null 2>&1; then
+    echo "pre-push: docker is required so format uses the CI clang-format." >&2
+    exit 1
+fi
+
+echo "pre-push: format against $base using $image"
+# Run as the host user. A root container would leave reformatted files owned
+# by root, which is what the CI "Fix file ownership" step repairs.
+if ! docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+    -v "$PWD":/data -w /data "$image" \
+    bash -lc "git config --global --add safe.directory /data && python3 tools/format.py $base"
+then
+    echo "pre-push: CI clang-format would change files. Apply it, commit, and push again:" >&2
+    echo "  docker run --rm --user \"\$(id -u):\$(id -g)\" -e HOME=/tmp -v \"\$PWD\":/data -w /data $image bash -lc 'git config --global --add safe.directory /data && python3 tools/format.py -i --exit-zero $base'" >&2
+    exit 1
+fi

@@ -228,4 +228,28 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_if_two_range_empty, int)
     EXPECT(result.empty());
 }
 
+TEST_CASE(find_sentinel_c_string)
+{
+    const char* s   = "abc";
+    const char* end = migraphx::find_sentinel(s, '\0');
+    EXPECT(end == s + 3);
+    EXPECT(*end == '\0');
+}
+
+TEST_CASE(find_sentinel_at_first_element)
+{
+    const char* s   = "";
+    const char* end = migraphx::find_sentinel(s, '\0');
+    EXPECT(end == s);
+    EXPECT(*end == '\0');
+}
+
+TEST_CASE(find_sentinel_null_terminated_array)
+{
+    const char* values[]   = {"one", "two", nullptr};
+    const char* const* end = migraphx::find_sentinel(values, nullptr);
+    EXPECT(end == values + 2);
+    EXPECT(*end == nullptr);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

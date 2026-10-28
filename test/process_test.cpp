@@ -41,6 +41,7 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/process.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/filesystem.hpp>
 
 #ifndef _WIN32
@@ -189,15 +190,14 @@ TEST_CASE(environment_variable_overrides_inherited)
     EXPECT(buffer == reversed);
 }
 
-#ifndef _WIN32
 TEST_CASE(environment_variable_without_value_throws)
 {
     EXPECT(test::throws([&] {
-        migraphx::process{executable, {"--stdout"}}.env({"NOT_AN_ASSIGNMENT"}).read(
-            [](const char*, std::size_t) {});
+        migraphx::process{executable, {"--stdout"}}
+            .env({"NOT_AN_ASSIGNMENT"})
+            .read([](const char*, std::size_t) {});
     }));
 }
-#endif
 
 // read_write: stdin and stdout pumped at the same time.
 
@@ -216,23 +216,11 @@ static std::vector<char> make_payload(std::size_t n)
     return result;
 }
 
-// The "args" child mode writes each argument followed by a null byte.
+// The "args" child mode terminates each argument with a null byte, so the last split is empty.
 static std::vector<std::string> split_at_nul(const std::vector<char>& data)
 {
-    std::vector<std::string> result;
-    std::string current;
-    for(auto c : data)
-    {
-        if(c == '\0')
-        {
-            result.push_back(current);
-            current.clear();
-        }
-        else
-        {
-            current.push_back(c);
-        }
-    }
+    auto result = migraphx::split_string(std::string(data.begin(), data.end()), '\0');
+    result.pop_back();
     return result;
 }
 
@@ -409,11 +397,8 @@ static std::vector<char> read_child(const std::vector<std::string>& mode_args,
     std::vector<std::string> args{child_flag};
     args.insert(args.end(), mode_args.begin(), mode_args.end());
     std::vector<char> result;
-    migraphx::process{executable, args}.cwd(cwd).read([&](const char* buf, std::size_t n) {
-        // data() may be null when the child wrote nothing.
-        if(n > 0)
-            result.assign(buf, buf + n);
-    });
+    migraphx::process{executable, args}.cwd(cwd).read(
+        [&](const char* buf, std::size_t n) { result.assign(buf, buf + n); });
     return result;
 }
 
@@ -431,11 +416,12 @@ TEST_CASE(read_large_binary_stdout)
 }
 #endif
 
-// Shell syntax in an argument reaches the child unchanged. None of these has a space or a quote,
-// which the Windows command line joins without quoting.
+// Shell syntax in an argument reaches the child unchanged. No spaces or quotes: Windows joins
+// the arguments into one command line without quoting them.
 TEST_CASE(read_shell_metacharacters_are_not_interpreted)
 {
-    std::vector<std::string> args = {"a;b", "$HOME", "`false`", "$(false)", "*", "a|b", ">out", "&"};
+    std::vector<std::string> args = {
+        "a;b", "$HOME", "`false`", "$(false)", "*", "a|b", ">out", "&"};
     std::vector<std::string> mode_args = {"args"};
     mode_args.insert(mode_args.end(), args.begin(), args.end());
 
@@ -599,8 +585,8 @@ int main(int argc, const char* argv[])
             return 0;
         }
     }
-    // Anything else is for test::run. posix_spawn and CreateProcessA do not search PATH, so a
-    // bare-name argv[0] would not resolve.
+    // Anything else is for test::run. An absolute path is still required: a child whose cwd was
+    // changed would not find a bare name, and CreateProcessA does not search PATH.
     executable = migraphx::fs::absolute(argv[0]);
     test::run(argc, argv);
     return 0;

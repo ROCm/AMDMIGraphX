@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/split_sym/analyzer.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,7 +62,21 @@ struct analyze_topk : analyzer<analyze_topk>
         // Tuple elements own the externally visible symbolic outputs. Keep TopK deferred so it is
         // absorbed into those blocks rather than routed as an unsupported tuple block output.
         result.output_symbolic_axes.clear();
+        result.freezer = freeze;
         return result;
+    }
+
+    static instruction_ref freeze(module& m,
+                                  instruction_ref source,
+                                  const std::vector<instruction_ref>& args,
+                                  const std::unordered_map<sym::expr, std::size_t>&)
+    {
+        auto padded_args = args;
+        auto largest     = source->get_operator().to_value().at("largest").to<bool>();
+        auto fill        = largest ? fill_kind::lowest : fill_kind::highest;
+        padded_args.front() =
+            m.add_instruction(make_op("fixed_pad", {{"value", fill_value(fill)}}), args.front());
+        return m.add_instruction(source->get_operator(), padded_args);
     }
 };
 
@@ -84,7 +99,7 @@ struct analyze_topk_get_tuple_elem : analyzer<analyze_topk_get_tuple_elem>
                                   const std::vector<instruction_ref>& args,
                                   const std::unordered_map<sym::expr, std::size_t>& values)
     {
-        auto result = m.add_instruction(source->get_operator(), args);
+        auto result   = m.add_instruction(source->get_operator(), args);
         const auto& s = source->get_shape();
         if(s.symbolic())
             instruction::replace(

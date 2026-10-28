@@ -1290,7 +1290,13 @@ def template_eval(template, **kwargs):
     end = '%>'
     escaped = (re.escape(start), re.escape(end))
     mark = re.compile('%s(.*?)%s' % escaped, re.DOTALL)
-    namespace = dict(kwargs)
+    # Templates call these generators. They are not builtins, and run() passes
+    # no kwargs, so they have to be placed in the eval namespace explicitly.
+    namespace = {
+        'generate_c_header': generate_c_header,
+        'generate_c_api_body': generate_c_api_body,
+    }
+    namespace.update(kwargs)
     allowed_nodes = {
         ast.Expression,
         ast.Constant,

@@ -41,6 +41,7 @@ import os
 import pathlib
 import re
 import sys
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -117,11 +118,15 @@ def get_members_with_write_access(session: requests.Session) -> set[str]:
 
 # ── GraphQL ───────────────────────────────────────────────────────────
 GRAPHQL_URL = "https://api.github.com/graphql"
+# Each PR pulls up to 100 reviews and 100 comment bodies, so a page of 100 PRs
+# can exceed GitHub's GraphQL time limit; keep pages small.
+PR_PAGE_SIZE = 20
+GRAPHQL_RETRIES = 5
 
 PR_QUERY = """
-query($owner: String!, $repo: String!, $cursor: String) {
+query($owner: String!, $repo: String!, $cursor: String, $pageSize: Int!) {
   repository(owner: $owner, name: $repo) {
-    pullRequests(states: OPEN, first: 100, after: $cursor) {
+    pullRequests(states: OPEN, first: $pageSize, after: $cursor) {
       pageInfo { hasNextPage endCursor }
       nodes {
         number
@@ -163,13 +168,31 @@ query($owner: String!, $repo: String!, $cursor: String) {
 
 def graphql_query(session: requests.Session, query: str,
                   variables: dict) -> dict:
-    resp = session.post(GRAPHQL_URL,
-                        json={
-                            "query": query,
-                            "variables": variables
-                        })
-    resp.raise_for_status()
-    body = resp.json()
+    # GitHub cuts off GraphQL requests that run past ~10s, which shows up as a
+    # 502, an empty body, or a truncated JSON body; these are worth retrying.
+    for attempt in range(GRAPHQL_RETRIES):
+        try:
+            resp = session.post(GRAPHQL_URL,
+                                json={
+                                    "query": query,
+                                    "variables": variables
+                                },
+                                timeout=60)
+            if resp.status_code < 500:
+                resp.raise_for_status()
+                body = resp.json()
+                break
+            error = f"HTTP {resp.status_code}"
+        except (requests.ConnectionError, requests.Timeout,
+                requests.JSONDecodeError) as e:
+            error = f"{type(e).__name__}: {e}"
+        if attempt + 1 == GRAPHQL_RETRIES:
+            raise RuntimeError(f"GraphQL request failed after "
+                               f"{GRAPHQL_RETRIES} attempts: {error}")
+        delay = 2**(attempt + 1)
+        print(f"  GraphQL request failed ({error}); retrying in {delay}s…",
+              file=sys.stderr)
+        time.sleep(delay)
     if "errors" in body:
         raise RuntimeError(f"GraphQL errors: {body['errors']}")
     return body["data"]
@@ -184,6 +207,7 @@ def fetch_all_prs(session: requests.Session) -> list[dict]:
             "owner": OWNER,
             "repo": REPO,
             "cursor": cursor,
+            "pageSize": PR_PAGE_SIZE,
         })
         connection = data["repository"]["pullRequests"]
         for node in connection["nodes"]:

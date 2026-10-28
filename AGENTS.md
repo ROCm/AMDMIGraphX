@@ -74,8 +74,22 @@ python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
 
 **Format code:**
 ```bash
-python3 tools/format.py -i
+python3 tools/format.py -i origin/develop
 ```
+`tools/format.py` runs `git-clang-format` against the given base, so it formats only
+the lines you changed (CI does the same). Do not run `clang-format -i` on a whole
+file: lines committed under an older clang-format get reformatted and show up as
+unrelated hunks in your diff. The script reads the git diff, so stage your work
+first or it reports "No modified cpp files to format".
+
+**Incremental builds:** trust `make`. It tracks kernel-header → embed → relink
+(`cmake/Embed.cmake`), so a kernel-header edit followed by a ~5s `make -C build driver`
+is a real rebuild, not a no-op. Never delete build artifacts to force a rebuild; to
+confirm a header edit landed, grep the string in `build/lib/libmigraphx_gpu.so.*`.
+
+**Before running ctest:** rebuild the test executables with `make -C build -k tests`.
+Building only the library leaves the other test binaries stale against the fresh
+`libmigraphx.so`, and they then fail in ways that look like real regressions.
 
 **Install git hooks:**
 ```bash
@@ -105,7 +119,49 @@ python3 tools/format.py -i
 ### Linting
 
 - `.clang-tidy` runs via CMake; treat warnings seriously (they are enforced in CI)
-- `cppcheck` is enabled with custom rules
+- `cppcheck` is enabled with custom rules (`tools/cppcheck/migraphx.py`, e.g.
+  `migraphx-RedundantCast`, `migraphx-RedundantStaticCastOp`, `migraphx-AvoidNestedValue`)
+
+**Running the analyzers:** use `make -C build analyze` (runs both cppcheck and
+clang-tidy with the project's flags and suppressions) rather than hand-assembling a
+cppcheck or clang-tidy command line. It is a whole-repo sweep that takes many minutes:
+run it detached, never kill it mid-run (an interrupted run corrupts the
+`build/cppcheck-build` cache and produces phantom `Failed to execute addon` errors), and
+do not edit files while it runs. Judge the result by the exit code — `analyze` exits
+non-zero on any finding. Greps under-report: cppcheck reports as `style:`, and
+clang-tidy emits ANSI colour escapes between the location and the severity, so strip
+them first (`sed -e 's/\x1b\[[0-9;]*m//g'`). For quick clang-tidy iteration on one file
+use the per-file `make tidy-target-...` targets; there is no per-file cppcheck target.
+
+**Fixing lint findings:**
+- `readability-identifier-naming`: rename to the correct `lower_case` name — never
+  `NOLINT`. Resolve a clash with a loop index by renaming the bound (`out_c`, not `C`),
+  and rename code only, not the `K`/`C`/`N` notation in `static_assert` strings or
+  math/hardware comments.
+- `performance-unnecessary-value-param` on an opaque cheap-to-copy type (e.g.
+  `__amdgpu_buffer_rsrc_t`): append the type to
+  `performance-unnecessary-value-param.AllowedTypes` in the **root** `.clang-tidy`
+  instead of a `NOLINT`.
+- Never redefine a parent `.clang-tidy` key in a child config: clang-tidy merges per
+  key, so the child silently drops the parent's value. Child configs only add genuinely
+  new options; everything else is fixed at the source with `NOLINT(check-name)` /
+  `NOLINTNEXTLINE` / `NOLINTBEGIN…NOLINTEND` or a refactor.
+- `readability-function-size` and `cppcoreguidelines-pro-type-const-cast` on genuinely
+  irreducible kernel code (fixed-arity WMMA unrolls, buffer-intrinsic `const_cast`) may
+  be `NOLINT`ed.
+- For idioms cppcheck misreads, suppress rather than restructure: keep
+  `static_cast<T&&>(x)` moves in the kernel headers (`// cppcheck-suppress
+  migraphx-RedundantCast`), and keep `::value` reads in **tests** (`migraphx-AvoidNestedValue`;
+  use `cppcheck-suppress-begin` / `-end` around a block of `static_assert`s). In `src`
+  headers apply the real fix (`is_void<T>::value` → `is_void<T>{}`).
+- When cppcheck's preprocessor cannot parse code (recursive macros), guard it with
+  `#ifndef CPPCHECK` — never `// cppcheck-suppress syntaxError`, which silently aborts
+  analysis of everything after it.
+- cppcheck and clang-tidy can demand opposite things on one cast
+  (`RedundantStaticCastOp` versus `readability-implicit-bool-conversion`): cast the
+  bool to a type that differs from the other operand, e.g. `sizeof(T) * 8 -
+  static_cast<int>(is_signed)`.
+- `#elifdef` / `#elifndef` are C++23; use `#elif defined(...)`.
 
 ### Style Guidelines
 
@@ -161,7 +217,25 @@ python3 tools/format.py -i
 
 - **Use std::tie for Lexicographical Comparisons** - Use `std::tie` or `std::lexicographical_compare` instead of manually writing lexicographical comparisons.
 
-- **Use shape class to compute offsets and indexing** - The `migraphx::shape` class provides methods for computing offsets, strides, and indexing. Use these instead of manual calculations with mod and division.
+- **Use shape class to compute offsets and indexing** - The `migraphx::shape` class provides methods for computing offsets, strides, and indexing. Use these instead of manual calculations with mod and division. This applies in kernel code too: `constexpr auto gs = make_shape(index_ints<G, N>{}); auto m = gs.multi(i);` rather than `i / N` and `i % N`.
+
+- **Structured bindings** - Unpack pair/tuple returns with `auto [a, b] = f(...)`, not `auto r = f(...); auto& a = r.first;`. A C++17 lambda cannot capture a structured binding directly (`-Wc++20-extensions`); use an init-capture — `[&, &x = x]` — rather than avoiding the binding.
+
+- **No locally-called named lambdas** - A lambda that is only called from the enclosing function (`auto used_outside = [&](...) {...};`) is a function in disguise with hidden captures. Make it a `static` free function with explicit parameters, or inline it at the single call site. Lambdas that are *passed* to an algorithm or callback are fine.
+
+- **Helpers in headers** - A non-template helper is declared in the header (with the target's export macro, e.g. `MIGRAPHX_GPU_EXPORT`) and implemented in the `.cpp`. Only templates and trivial one-line accessors stay inline; an inline definition pulls its includes into every consumer.
+
+- **Split big functions into a helper struct, not static helpers with long parameter lists** - When `readability-function-size` forces a split and the pieces would each take 5+ parameters, make a (nested) struct whose value members hold the shared state and whose methods add to it (see `tuning_solutions` in `src/targets/gpu/jit/reduce.cpp`). Value members only, never reference members; `context&` and other external state are still passed to the methods that need them.
+
+- **Static member helpers stay where they are** - A `static` member function that uses no member state is still scoped to the class it serves on purpose. Do not hoist it to a file-static free function during cleanup.
+
+- **Comments** - One to three lines stating the non-obvious *why*: the constraint, invariant, or workaround. Do not restate what the code shows or enumerate consequences.
+
+- **Narrow predicates do not go in core headers** - Do not add a GPU- or conv-specific helper such as `is_nhwc(const shape&)` to a widely included header like `permutation.hpp`; write the stride check inline at each site with a comment.
+
+- **JIT kernel source templates stay explicit** - Keep one raw-string template per kernel rather than a shared `${...}` shell; readability of the generated source beats de-duplicating the boilerplate.
+
+- **Rewrites use insert + replace + DCE** - Insert the new instruction, `replace_instruction(ins, new_ref)`, and let `dead_code_elimination` remove the old one. Do not rewrite an instruction in place with `replace_instruction(ins, op, inputs)` to avoid leaving dead code; if a later step of the same pass must not see the stale instruction, run `dead_code_elimination` between the steps.
 
 ## Code Quality
 
@@ -503,6 +577,22 @@ TEST_CASE(test_relu)
 }
 ```
 
+**Tests over several types:** write the test as a function template and register each
+instantiation, so a failure names the type and each one is listable:
+```cpp
+template <class T>
+static void match_foo()
+{
+    // ...
+}
+TEST_CASE_REGISTER(match_foo<std::uint32_t>);
+TEST_CASE_REGISTER(match_foo<std::int64_t>);
+```
+Do not write an `expect_*` helper template called from one plain `TEST_CASE`. Kernel
+tests under `test/gpu/kernels` use `template <class T> TEST_CASE_TEMPLATE(name)` plus
+`TEST_CASE_REGISTER(name<T>)` instead, and never take the test manager as an explicit
+parameter.
+
 ### Testing Passes
 
 When adding a pass that rewrites structure:
@@ -510,7 +600,31 @@ When adding a pass that rewrites structure:
 2. Run only the new pass (plus prerequisites and dead_code_elimination for cleanup)
 3. Create a new module with the expected final structure and assert that it is the same
 
+This is the only form a pass unit test takes: build the exact expected module by hand
+and `EXPECT(m1 == m2)`. Do not write property-based or randomized sweeps as the pass
+test; numerical checks of a transformed program go in `test/verify/` with fixed inputs.
+
+When the pass must leave a module **unchanged**, build it once, copy it, and compare
+instead of constructing it twice:
+```cpp
+migraphx::module m2 = m1;
+run_pass(m1);
+EXPECT(m1 == m2);
+```
+
 Use driver for inspection: `migraphx-driver compile --text --apply-pass your_pass`
+(`-p` is the short form; both append, so repeat them to run several passes in order.
+There is no `--passes` option.)
+
+### Which tests to run
+
+Run only the tests that exercise the code you changed; grepping for a keyword and
+running everything that matches is slower and no more informative. A change to an op's
+`point_op()` codegen string does not need the ONNX parser tests; a kernel-header change
+does not need the host-side shape tests unless shape logic moved.
+
+Do not modify a failing test to match the new output. The tests express the contract;
+fix the implementation, and if the contract itself must change, say so explicitly.
 
 ### Numerical Verification
 
@@ -559,6 +673,12 @@ The GPU backend (`src/targets/gpu/`) implements:
 - `device/` - Device-side utilities and kernels
 - `kernels/` - Custom kernel implementations
 - `include/migraphx/gpu/` - GPU-specific headers
+
+**Kernel header notes:**
+- Kernel headers are recompiled by the JIT at runtime, so template instantiation count is a real cost. `if constexpr` special cases that look redundant with the generic path (e.g. `arg_c` for `N == 0`) exist to cut instantiations; keep them and say so in a one-line comment.
+- The kernel functional library (`kernels/functional.hpp` and friends) is a general-purpose toolkit: a helper is kept even when a change removes its last caller.
+- Inline asm must reference operands as `%[name]`; never hardcode register numbers, which conflict with the compiler's allocator. Large hand-tuned asm kernels with explicit register allocation (MIOpen's Winograd kernels) cannot be embedded as inline asm and need a standalone code object.
+- Wavefront size is a target property: RDNA parts such as gfx1201 are wave32, not wave64.
 
 ### Fusion Strategies
 
@@ -756,10 +876,37 @@ migraphx-driver verify model.onnx --atol 1e-5 --rtol 1e-5
 - `MIGRAPHX_TRACE_COMPILE=1` - Trace compilation passes
 - `MIGRAPHX_TRACE_EVAL=1` - Trace evaluation
 - `MIGRAPHX_DISABLE_SCHEDULE_PASS=1` - Disable scheduling for debugging
+- `MIGRAPHX_DISABLE_PASSES=a,b` - Skip passes by name; bisect which pass corrupts the IR
+- `MIGRAPHX_GPU_DUMP_ASM=1` - Dump the ISA of the C++ kernels; first configure
+  CMake with `-DMIGRAPHX_USE_HIPRTC=OFF` and rebuild.
+  MIGraphX JIT-compiles itself (not rocMLIR's `mlir_*` kernels). A pure rename inside a
+  kernel must leave the dump byte-identical.
+- `MIGRAPHX_GPU_DEBUG=1` - Enable kernel asserts at runtime (works on a Release build)
+
+Env vars are read once per process and memoized. Never add an env read that bypasses the
+`MIGRAPHX_<NAME>{}` object pattern, and never use an env var to override per-shape tuning.
+
+**Asserts and the local build:** a `Release` build defines `NDEBUG`, so `assert()` never
+fires locally and a test can pass while violating an assert that the CI debug build trips.
+After adding an IR-rewrite path, grep the helpers it calls for `assert(` and check each
+one holds (e.g. `module_with_inputs::replace` asserts matching lens).
 
 **Performance reporting:**
 - `program.perf_report(std::ostream&, iterations, parameter_map)` - Get timing stats
-- Driver: `migraphx-driver perf --onnx model.onnx --gpu -n 50`
+- `migraphx-driver perf --onnx model.onnx --gpu -n 50` - Per-operator times for a whole
+  model; the numbers include kernel-launch overhead
+- `migraphx-driver time` - One isolated kernel without launch overhead; use it for the
+  clean number once `perf` has told you which op to look at
+- `migraphx-driver time -b N` rotates N parameter maps so inputs are cold; size N past
+  the last-level cache when measuring nontemporal or streaming loads
+
+**Benchmarking two variants:** absolute kernel times drift with GPU clocks and thermal
+state, so only the ratio of two variants measured in the same window is trustworthy.
+Alternate A and B back-to-back in the same loop, with no exhaustive-tune or other heavy
+GPU work between them, and report the median per-iteration ratio over at least five
+rounds. Never compare a number from one sweep against a number from another, and never
+benchmark while `make analyze` or another all-core CPU job runs — it skews the
+compile-time solution benchmarking as well, so the tuner picks the wrong solution.
 
 **IR inspection:**
 - `program.debug_print()` - Print IR to stdout
@@ -788,6 +935,10 @@ migraphx-driver verify model.onnx --atol 1e-5 --rtol 1e-5
 - **Pass ordering**: Passes have dependencies - check existing target pipelines
 - **Kernel packaging**: New GPU kernels must be included in CMake install targets
 - **Build failures**: Check clang-tidy warnings - they're enforced in CI
+- **`reshape` copies at runtime**: `op::reshape` and `flatten` allocate and copy in `compute`; they are not views and have no `output_alias`. The runtime view op is `reshape_lazy`. A pass that inserts a generated view chain (e.g. from `shape_transform_descriptor::generate()`) into a lowered GPU graph must convert `reshape` to `reshape_lazy` and reject chains that cannot alias (see `invert_alias_transforms` in `src/replace_allocate.cpp`); violating this is a GPU VM fault in the kernel writing through the "view". Separately, do not insert `contiguous` before `reshape` — reshape already handles non-standard input layouts.
+- **`squeeze` / `unsqueeze` are not inverses on scalars**: `unsqueeze` returns a rank-1 `{1}` input unchanged, and squeezing all axes clamps to rank-1 `{1}`. To invert a squeeze on an input whose lens are `{1}`, use `multibroadcast` to the reduce lens instead of `unsqueeze`.
+- **CI runner "shutdown signal" / exit 143 mid-compile**: the runner was OOM-killed compiling a matcher. A matcher that embeds the same sub-matcher more than once grows the nested closure type exponentially; local clang copes, but gcc and MSVC-target clang (where `MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER` is 1) do not. Wrap each intermediate level in `match::opaque(...)` as `src/fuse_attention.cpp` does. Reproduce with g++ 13 using the flags from `build/compile_commands.json` under `ulimit -v`.
+- **Target knobs**: expose a new target setting through `compile_options::backend_options` (the reflected struct in `src/targets/gpu/target.cpp`), not a dedicated `MIGRAPHX_*` env var; `MIGRAPHX_GPU_OPTIONS` already provides environment control as a JSON object merged into the backend options. Tests set `options.backend_options["name"] = value` — a test that calls `setenv` leaks into every later test in the process.
 
 ## Reference Materials
 

@@ -26,6 +26,7 @@
 #include <migraphx/gpu/json_problem_cache.hpp>
 #include <migraphx/gpu/sqlite_problem_cache.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/sqlite.hpp>
 #include <migraphx/stringutils.hpp>
 #include <algorithm>
 #include <cassert>
@@ -44,7 +45,7 @@ problem_cache::problem_cache() { writable_backends.emplace_back(json_problem_cac
 // priority list mix cache formats.
 static problem_cache_backend make_problem_cache_backend(const std::string& path)
 {
-    if(ends_with(path, ".db") or ends_with(path, ".sqlite"))
+    if(sqlite::is_database_path(path))
         return problem_cache_backend{sqlite_problem_cache{}};
     return problem_cache_backend{json_problem_cache{}};
 }
@@ -141,7 +142,8 @@ optional<value> problem_cache::get(const std::string& name, const value& problem
 {
     const auto key = create_key(name, problem);
     // Writable caches first (a locally tuned solution wins), then the read-only
-    // layers in priority order (first hit wins among them).
+    // layers in priority order (first hit wins among them). A null value is a
+    // mark() sentinel, which save() never persists.
     const auto search = [&](const std::vector<problem_cache_backend>& backends) -> optional<value> {
         const auto it = std::find_if(backends.begin(), backends.end(), [&](const auto& b) {
             return b.get(device_key, key).has_value();

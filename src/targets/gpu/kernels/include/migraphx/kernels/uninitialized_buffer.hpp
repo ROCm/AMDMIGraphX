@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,11 +30,11 @@
 
 namespace migraphx {
 
-template <typename T, index_int N>
+template <typename T, index_int N, index_int Align = alignof(T)>
 struct uninitialized_buffer
 {
     // Use aligned char storage to avoid initialization
-    alignas(T) char storage[sizeof(T) * N];
+    alignas(Align) char storage[sizeof(T) * N];
 
     __device__ T* data() { return reinterpret_cast<T*>(storage); }
 

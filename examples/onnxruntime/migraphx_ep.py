@@ -35,7 +35,10 @@ MIGRAPHX_EP = "MIGraphXExecutionProvider"
 # PCI vendor id ONNX Runtime uses to identify AMD GPU allocators/data-transfers,
 # needed to bind IO to the MIGraphX EP's device explicitly (see
 # bind_migraphx_output() below).
-MIGRAPHX_VENDOR_ID = onnxruntime.OrtDeviceVendorId.AMD
+try:
+    MIGRAPHX_VENDOR_ID = onnxruntime.OrtDeviceVendorId.AMD
+except AttributeError:
+    MIGRAPHX_VENDOR_ID = 0x1002  # AMD PCI vendor ID fallback
 
 
 def _find_migraphx_plugin_lib():
@@ -92,7 +95,8 @@ def _register_migraphx_plugin(registration_name):
             "MIGraphX plugin EP library not found; set MIGRAPHX_EP_LIB to its path"
         )
 
-    onnxruntime.register_execution_provider_library(registration_name, lib_path)
+    onnxruntime.register_execution_provider_library(registration_name,
+                                                    lib_path)
 
     ep_device = _find_migraphx_ep_device(registration_name)
     if ep_device is None:
@@ -141,7 +145,8 @@ def ensure_migraphx_ep(session_options,
     ep_device = _register_migraphx_plugin(registration_name)
 
     # Plugin EP: attach the discovered OrtEpDevice directly to session_options.
-    session_options.add_provider_for_devices([ep_device], provider_options or {})
+    session_options.add_provider_for_devices([ep_device], provider_options
+                                             or {})
     return None
 
 

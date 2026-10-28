@@ -145,13 +145,10 @@ struct parse_fused_matmul : op_parser<parse_fused_matmul>
         const auto r0 = s0.ndim();
         const auto r1 = s1.ndim();
 
-        if(trans_batch_a or trans_batch_b)
+        if((trans_batch_a or trans_batch_b) and (r0 != r1 or r0 < 3))
         {
-            if(r0 != r1 or r0 < 3)
-            {
-                MIGRAPHX_THROW("PARSE_FUSEDMATMUL: transBatchA/transBatchB require both inputs to "
-                               "have the same rank >= 3");
-            }
+            MIGRAPHX_THROW("PARSE_FUSEDMATMUL: transBatchA/transBatchB require both inputs to "
+                           "have the same rank >= 3");
         }
 
         // numpy.matmul 1-D promotion: only applied when no transBatch is requested. With

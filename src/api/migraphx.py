@@ -45,6 +45,23 @@ def shape_type_wrap(p):
         p.read = 'migraphx::to_shape_type(${name})'
 
 
+@api.cwrap('migraphx::verify::program_mode')
+def program_verify_mode_wrap(p):
+    if p.returns:
+        p.add_param('migraphx_program_verify_mode_t *')
+        p.bad_param('${name} == nullptr', 'Null pointer')
+        p.write = ['*${name} = migraphx::to_program_verify_mode(${result})']
+    else:
+        p.add_param('migraphx_program_verify_mode_t')
+        p.read = 'migraphx::to_program_verify_mode(${name})'
+
+
+@api.cwrap('migraphx::verify::program_precision')
+def program_verify_precision_wrap(p):
+    p.add_param('migraphx_program_verify_precision_t')
+    p.read = 'migraphx::to_program_verify_precision(${name})'
+
+
 def auto_handle(*args, **kwargs):
     def with_handle(f):
         return api.handle('migraphx_' + f.__name__, 'migraphx::' + f.__name__,
@@ -126,6 +143,13 @@ def shape(h):
         'create_dynamic',
         api.params(type='migraphx::shape::type_t',
                    dims='std::vector<migraphx::shape::dynamic_dimension>'))
+    h.constructor('create_symbolic',
+                  api.params(type='migraphx::shape::type_t',
+                             dims='const char* const*',
+                             ndims='size_t',
+                             strides='const char* const*',
+                             nstrides='size_t'),
+                  fname='migraphx::create_symbolic_shape')
     h.method('lengths',
              fname='lens',
              returns='const std::vector<size_t>&',
@@ -171,15 +195,14 @@ def argument(h):
 
 
 api.add_function('migraphx_argument_save',
-                 api.params(a='const migraphx::argument&', filename='const char*'),
-                 fname='migraphx::save_argument'
-                 )
+                 api.params(a='const migraphx::argument&',
+                            filename='const char*'),
+                 fname='migraphx::save_argument')
 
 api.add_function('migraphx_argument_load',
                  api.params(filename='const char*'),
                  fname='migraphx::load_argument',
-                 returns='migraphx::argument'
-                 )
+                 returns='migraphx::argument')
 
 api.add_function('migraphx_argument_generate',
                  api.params(s='const migraphx::shape&', seed='size_t'),
@@ -279,6 +302,7 @@ def module(h):
              returns='migraphx::instruction_ref')
     h.method('add_literal',
              api.params(shape='const migraphx::shape&', buffer='const char*'),
+             invoke='migraphx::add_literal($@)',
              returns='migraphx::instruction_ref')
     h.method('add_parameter',
              api.params(name='const char*', shape='const migraphx::shape&'),
@@ -313,6 +337,112 @@ api.add_callback('migraphx_trace_callback_t',
                  api.params(info='migraphx::trace_info', data='void*'))
 
 
+@api.handle('migraphx_program_verify_options',
+            'migraphx::verify::program_options')
+def program_verify_options(h):
+    h.constructor('create')
+    h.method(
+        'set_compile_options',
+        api.params(options='const migraphx::compile_options&'),
+        invoke='${program_verify_options}.compile = ${options}',
+    )
+    h.method(
+        'set_rms_tolerance',
+        api.params(value='double'),
+        invoke='${program_verify_options}.tols.rms_tol = ${value}',
+    )
+    h.method(
+        'set_absolute_tolerance',
+        api.params(value='double'),
+        invoke='${program_verify_options}.tols.atol = ${value}',
+    )
+    h.method(
+        'set_relative_tolerance',
+        api.params(value='double'),
+        invoke='${program_verify_options}.tols.rtol = ${value}',
+    )
+    h.method(
+        'set_precision',
+        api.params(precision='migraphx::verify::program_precision'),
+        invoke='${program_verify_options}.quantize = ${precision}',
+    )
+    h.method(
+        'set_ref_use_double',
+        api.params(value='bool'),
+        invoke='${program_verify_options}.ref_use_double = ${value}',
+    )
+    h.method(
+        'set_compiled_model',
+        api.params(value='const char*'),
+        invoke='migraphx::set_program_verify_compiled_model($@)',
+    )
+    h.method(
+        'set_name',
+        api.params(value='const char*'),
+        invoke='migraphx::set_program_verify_name($@)',
+    )
+
+
+@api.handle('migraphx_program_verify_layer_result',
+            'migraphx::verify::layer_result')
+def program_verify_layer_result(h):
+    h.method('get_name',
+             invoke='${program_verify_layer_result}.name',
+             returns='const std::string&',
+             const=True)
+    h.method('get_operator',
+             invoke='${program_verify_layer_result}.op',
+             returns='const std::string&',
+             const=True)
+    h.method('get_message',
+             invoke='${program_verify_layer_result}.message',
+             returns='const std::string&',
+             const=True)
+    h.method('get_index',
+             invoke='${program_verify_layer_result}.index',
+             returns='size_t',
+             const=True)
+    h.method('get_rms_error',
+             invoke='${program_verify_layer_result}.rms_error',
+             returns='double',
+             const=True)
+    h.method('passed',
+             invoke='${program_verify_layer_result}.passed',
+             returns='bool',
+             const=True)
+    h.method('threw_exception',
+             invoke='${program_verify_layer_result}.exception',
+             returns='bool',
+             const=True)
+
+
+@api.handle('migraphx_program_verify_result',
+            'migraphx::verify::program_result')
+def program_verify_result(h):
+    h.method('passed', returns='bool', const=True)
+    h.method('get_mode',
+             invoke='${program_verify_result}.mode',
+             returns='migraphx::verify::program_mode',
+             const=True)
+    h.method('size',
+             invoke='${program_verify_result}.results.size()',
+             returns='size_t',
+             const=True)
+    h.method('get',
+             api.params(index='size_t'),
+             invoke='${program_verify_result}.results.at(${index})',
+             returns='const migraphx::verify::layer_result&',
+             const=True)
+    h.method('has_failure_step',
+             invoke='${program_verify_result}.failure_step.has_value()',
+             returns='bool',
+             const=True)
+    h.method('get_failure_step',
+             invoke='${program_verify_result}.failure_step.value()',
+             returns='size_t',
+             const=True)
+
+
 @auto_handle()
 def program(h):
     h.constructor('create')
@@ -331,6 +461,16 @@ def program(h):
              returns='std::vector<migraphx::shape>')
     h.method('print', invoke='migraphx::print_program($@)', const=True)
     h.method('sort')
+    h.method(
+        'verify',
+        api.params(
+            target='const migraphx::target&',
+            mode='migraphx::verify::program_mode',
+            params='const std::unordered_map<std::string, migraphx::argument>&',
+            options='const migraphx::verify::program_options&'),
+        invoke='migraphx::verify::verify_program($@)',
+        returns='migraphx::verify::program_result',
+        const=True)
     h.method('run',
              api.params(
                  params='std::unordered_map<std::string, migraphx::argument>'),
@@ -390,6 +530,7 @@ api.add_function('migraphx_save',
                  fname='migraphx::save')
 
 if 'enable_onnx' in globals():
+
     @auto_handle()
     def onnx_options(h):
         h.constructor('create')
@@ -441,13 +582,11 @@ if 'enable_onnx' in globals():
             invoke='migraphx::set_dim_param($@)',
         )
 
-
     api.add_function('migraphx_parse_onnx',
                      api.params(name='const char*',
                                 options='migraphx::onnx_options'),
                      fname='migraphx::parse_onnx',
                      returns='migraphx::program')
-
 
     api.add_function('migraphx_parse_onnx_buffer',
                      api.params(data='const void*',
@@ -486,6 +625,7 @@ def compile_options(h):
 
 
 if 'enable_tensorflow' in globals():
+
     @auto_handle()
     def tf_options(h):
         h.constructor('create')
@@ -510,13 +650,11 @@ if 'enable_tensorflow' in globals():
             invoke='migraphx::set_output_names($@)',
         )
 
-
     api.add_function('migraphx_parse_tf',
                      api.params(name='const char*',
                                 options='migraphx::tf_options'),
                      fname='migraphx::parse_tf',
                      returns='migraphx::program')
-
 
     api.add_function('migraphx_parse_tf_buffer',
                      api.params(data='const void*',

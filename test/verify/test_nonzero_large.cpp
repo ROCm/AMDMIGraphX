@@ -42,9 +42,12 @@ struct test_nonzero_large : verify_program<test_nonzero_large<DType>>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{DType, {32, 32}};
-        auto x = mm->add_parameter("data", s);
-        auto r = mm->add_instruction(migraphx::make_op("nonzero"), x);
-        mm->add_return({r});
+        auto x       = mm->add_parameter("data", s);
+        auto nz      = mm->add_instruction(migraphx::make_op("nonzero"), x);
+        auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
+        auto num_nonzero =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
+        mm->add_return({indices, num_nonzero});
 
         return p;
     }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,8 +79,46 @@ __device__ __host__ auto as_vec(T x, Axis axis)
     if constexpr(N < 2)
         return x;
     else
-        return make_tensor_view(as_vec<N>(remove_bool(x.data())),
-                                shape_step<N>(x.get_shape(), axis));
+        return x.with(as_vec<N>(remove_bool(x.data())), shape_step<N>(x.get_shape(), axis));
+}
+
+/// The shape of an input with stride S along the axis read as strided
+/// vectors: each vector spans N*S elements of memory along the axis, so the
+/// axis counts vectors and the other strides count vectors as well
+
+template <index_int N, index_int S, class Shape, class Axis>
+constexpr auto shape_strided_step(Shape s, Axis)
+{
+    static_assert(N > 1, "Vector size must be greater than one");
+    static_assert(S > 1, "Stride must be greater than one");
+    return sequence(s.lens.size(), [&](auto... is) {
+        auto lens    = transform(s.lens, index_ints<is...>{}, [&](auto i, auto j) {
+            constexpr auto axis = Axis::to();
+            MIGRAPHX_ASSERT(j != axis or i % N == 0);
+            if(j == axis)
+                return i / N;
+            else
+                return i;
+        });
+        auto strides = transform(s.strides, index_ints<is...>{}, [&](auto i, auto j) {
+            constexpr auto axis = Axis::to();
+            MIGRAPHX_ASSERT(j == axis or i % (N * S) == 0);
+            if(j == axis)
+                return index_int{1};
+            else
+                return i / (N * S);
+        });
+        return make_shape(lens, strides);
+    });
+}
+
+template <index_int N, class T, class Axis>
+__device__ __host__ auto as_strided_vec(T x, Axis axis)
+{
+    constexpr auto s           = decltype(x.get_shape()){};
+    constexpr index_int stride = s.strides[axis];
+    return x.with(as_strided_vec<N, stride>(remove_bool(x.data())),
+                  shape_strided_step<N, stride>(s, axis));
 }
 
 template <index_int N, class T, class Axis>
@@ -94,7 +132,7 @@ constexpr auto tensor_step(T x, Axis axis)
     {
         constexpr auto s = decltype(x.get_shape()){};
         MIGRAPHX_ASSERT(s.strides[axis] == 0);
-        return make_tensor_view(x.data(), shape_step<N>(s, axis));
+        return x.with(x.data(), shape_step<N>(s, axis));
     }
 }
 
@@ -232,19 +270,38 @@ inline __device__ __host__ auto auto_vectorize()
     return make_transform([](auto f, auto... xs) { auto_vectorize_impl(f, xs...); });
 }
 
-template <index_int N, index_int Axis, class T>
+/// Vectorize the tensor by N along the axis. When Strided is set an input
+/// with a stride greater than one along the axis is read as strided vectors
+/// instead, which only the reduce kernels load correctly
+template <index_int N, index_int Axis, bool Strided = false, class T>
 __device__ __host__ auto vectorize_tensor(T x)
 {
-    constexpr auto shape = get_shape_c<T>{};
-    if constexpr(shape.lens[Axis] == 1)
-        return x;
-    else if constexpr(shape.strides[Axis] == 0)
-        return tensor_step<N>(x, _c<Axis>);
+    using type = typename T::type;
+    if constexpr(pack_factor<type>{} > 1)
+    {
+        // A packed element holds pack_factor values, so vectorizing by
+        // N/pack_factor gives the same vectorized lens as the other tensors at N
+        static_assert(N % pack_factor<type>{} == 0, "Vector size must cover the pack factor");
+        auto y = x.with(remove_packed(x.data()), x.get_shape());
+        return vectorize_tensor<N / pack_factor<type>{}, Axis, Strided>(y);
+    }
     else
-        return as_vec<N>(x, _c<Axis>);
+    {
+        constexpr auto shape = get_shape_c<T>{};
+        // An argument of lower rank, such as gather indices, is not an input
+        // of the reduction, and a unit axis has nothing to vectorize
+        if constexpr(Axis >= shape.lens.size() or shape.lens[Axis] == 1)
+            return x;
+        else if constexpr(shape.strides[Axis] == 0)
+            return tensor_step<N>(x, _c<Axis>);
+        else if constexpr(shape.strides[Axis] == 1 or not Strided)
+            return as_vec<N>(x, _c<Axis>);
+        else
+            return as_strided_vec<N>(x, _c<Axis>);
+    }
 }
 
-template <index_int N, index_int Axis>
+template <index_int N, index_int Axis, bool Strided = false>
 __device__ __host__ auto vectorize()
 {
     return make_transform([](auto f, auto... xs) {
@@ -254,7 +311,7 @@ __device__ __host__ auto vectorize()
         }
         else
         {
-            f(vectorize_tensor<N, Axis>(xs)...);
+            f(vectorize_tensor<N, Axis, Strided>(xs)...);
         }
     });
 }

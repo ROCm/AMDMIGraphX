@@ -36,6 +36,7 @@
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/fuse_reduce.hpp>
+#include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/normalize_ops.hpp>
@@ -51,6 +52,8 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/split_sym_dim.hpp>
 
 #include <migraphx/ranges.hpp>
 #include <unordered_map>
@@ -76,6 +79,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         fuse_attention{},
         fuse_pointwise{},
         fuse_reduce{},
+        fuse_topk{},
         inline_module{},
         insert_pad{},
         normalize_ops{},
@@ -91,6 +95,8 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         simplify_dyn_ops{},
         simplify_qdq{},
         simplify_reshapes{},
+        split_single_dyn_dim{},
+        split_sym_dim{},
     };
     // clang-format on
     for(const auto& pass : passes)

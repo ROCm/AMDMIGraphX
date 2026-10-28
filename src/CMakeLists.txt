@@ -85,12 +85,15 @@ add_library(migraphx
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
+    fuse_topk.cpp
     gemm.cpp
     generate.cpp
     graphviz.cpp
     inline_module.cpp
     insert_pad.cpp
+    insert_select_module.cpp
     instruction.cpp
+    instruction_traversal.cpp
     json.cpp
     layout_convolution.cpp
     lexing.cpp
@@ -114,6 +117,7 @@ add_library(migraphx
     preallocate_param.cpp
     process.cpp
     program.cpp
+    program_verify.cpp
     propagate_constant.cpp
     propagate_precision.cpp
     promote_literals.cpp
@@ -147,6 +151,7 @@ add_library(migraphx
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
+    split_sym_dim.cpp
     sym.cpp
     sym_argument.cpp
     target.cpp
@@ -161,10 +166,9 @@ enable_static_init(migraphx)
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp op/builder/torch/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 
-if(WIN32)
-    # Due to compilation crashing, we need to use type-erased matchers on Windows.
-    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
-endif()
+file(GLOB SPLIT_SYM_SRCS CONFIGURE_DEPENDS split_sym/*.cpp)
+target_sources(migraphx PRIVATE ${SPLIT_SYM_SRCS})
+target_include_directories(migraphx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/split_sym/include)
 
 configure_file(config.h.in include/migraphx/config.h)
 
@@ -235,6 +239,7 @@ register_migraphx_ops(
     gathernd
     get_tuple_elem
     greater
+    gridsample
     group
     identity
     if_op
@@ -309,6 +314,7 @@ register_migraphx_ops(
     scatternd_max
     scatternd_min
     select_module
+    select_module_index
     sigmoid
     sign
     sinh

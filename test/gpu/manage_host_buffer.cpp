@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <cstdint>
 #include <iostream>
 #include <vector>
 #include <hip/hip_runtime_api.h>
@@ -29,7 +30,9 @@
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 #include <basic_ops.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 
 #define MIGRAPHX_HIP_ASSERT(x) (EXPECT(x == hipSuccess))
@@ -93,6 +96,37 @@ TEST_CASE(arguments_lifetime)
     std::vector<float> x_data(ss.elements(), -1);
     migraphx::argument x{ss, x_data.data()};
     EXPECT(f(x));
+}
+
+// The registration must keep the host buffer alive until pending gpu reads finish; releasing
+// the buffer first lets the allocator reuse it while the copy kernel is still queued
+TEST_CASE(registered_buffer_outlives_pending_copy)
+{
+    migraphx::target gpu_t = migraphx::make_target("gpu");
+    auto gctx              = gpu_t.get_context();
+    auto* ctx              = gctx.any_cast<migraphx::gpu::context>();
+    EXPECT(ctx != nullptr);
+
+    migraphx::shape s{migraphx::shape::int64_type, {4}};
+    std::vector<std::int64_t> data = {3, 5, 7, 11};
+    auto dst                       = migraphx::gpu::allocate_gpu(s);
+
+    // Queue enough gpu work that the copy below is still pending when the registration dies
+    migraphx::shape busy_shape{migraphx::shape::int8_type, {256 * 1024 * 1024}};
+    auto busy_src = migraphx::gpu::allocate_gpu(busy_shape);
+    auto busy_dst = migraphx::gpu::allocate_gpu(busy_shape);
+    migraphx::gpu::gpu_copy(*ctx, busy_src, busy_dst);
+    {
+        auto registered = migraphx::gpu::register_on_gpu(migraphx::literal{s, data}.get_argument());
+        migraphx::gpu::gpu_copy(*ctx, registered, dst);
+    }
+    // Recycle the freed chunk so a premature release leaves stale data in the copy
+    auto reused = migraphx::literal{s, std::vector<std::int64_t>(data.size(), 0)}.get_argument();
+    EXPECT(reused.data() != nullptr);
+
+    std::vector<std::int64_t> result;
+    migraphx::gpu::from_gpu(dst).visit([&](auto v) { result.assign(v.begin(), v.end()); });
+    EXPECT(result == data);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

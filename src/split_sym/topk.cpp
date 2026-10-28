@@ -82,9 +82,14 @@ struct analyze_topk_get_tuple_elem : analyzer<analyze_topk_get_tuple_elem>
     static instruction_ref freeze(module& m,
                                   instruction_ref source,
                                   const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>&)
+                                  const std::unordered_map<sym::expr, std::size_t>& values)
     {
-        return m.add_instruction(source->get_operator(), args);
+        auto result = m.add_instruction(source->get_operator(), args);
+        const auto& s = source->get_shape();
+        if(s.symbolic())
+            instruction::replace(
+                result, result->get_operator(), s.to_static(values), result->inputs());
+        return result;
     }
 };
 

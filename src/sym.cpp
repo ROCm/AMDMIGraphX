@@ -1029,9 +1029,8 @@ static std::optional<expr> simplify_min_max(const op_def* op, const std::vector<
     if(not contains({"min", "max"}, op->name))
         return std::nullopt;
     assert(args.size() == 2);
-    if(std::none_of(args.begin(), args.end(), [](const expr& e) {
-           return fixed_value(e).has_value();
-       }))
+    if(std::none_of(
+           args.begin(), args.end(), [](const expr& e) { return fixed_value(e).has_value(); }))
         return std::nullopt;
 
     const auto& a = args[0];

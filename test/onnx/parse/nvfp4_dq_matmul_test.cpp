@@ -31,8 +31,8 @@ TEST_CASE(nvfp4_dq_matmul_test)
 
     // fp4 initializers are packed along the last dimension
     std::vector<uint8_t> w_bits(32, 0xd2);
-    auto w =
-        mm->add_literal(migraphx::literal{{migraphx::shape::fp4x2_type, {32, 1}}, w_bits.data()});
+    auto w = mm->add_literal(migraphx::literal::from_raw_buffer(
+        migraphx::shape{migraphx::shape::fp4x2_type, {32, 1}}, w_bits.data()));
     w      = mm->add_instruction(migraphx::make_op("unpack_fp4"), w);
     auto s = mm->add_literal(migraphx::literal{{migraphx::shape::fp8e4m3fn_type, {2, 2}},
                                                std::vector<float>{1.0f, 2.0f, 0.5f, 4.0f}});

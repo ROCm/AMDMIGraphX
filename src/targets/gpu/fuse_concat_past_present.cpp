@@ -24,6 +24,7 @@
 #include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/gpu/precompile_op.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/eliminate_concat.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_traversal.hpp>
 #include <migraphx/make_op.hpp>
@@ -33,6 +34,7 @@
 #include <migraphx/serialize.hpp>
 #include <algorithm>
 #include <cassert>
+#include <numeric>
 #include <string>
 
 namespace migraphx {
@@ -102,21 +104,26 @@ struct find_concat_past_present
                                                       match::arg(0)(match::skip(view)(producer)));
     }
 
-    // The producer must write exactly the elements of the cache slot, in the
-    // same memory order
-    static bool fills_slot(instruction_ref producer, instruction_ref cur, instruction_ref cache)
+    // The cache slot the append writes, in the layout of cur
+    static shape slot_shape(instruction_ref cur, instruction_ref cache)
     {
-        const auto& ps = producer->get_shape();
+        const auto& ks = cache->get_shape();
+        auto lens      = ks.lens();
+        lens[seq_axis] = cur->get_shape().lens()[seq_axis];
+        return {ks.type(), lens, ks.strides()};
+    }
+
+    // The concat input must cover exactly one cache slot
+    static bool fills_slot(instruction_ref cur, instruction_ref cache)
+    {
         const auto& cs = cur->get_shape();
         const auto& ks = cache->get_shape();
-        if(ps != cs or not ps.standard() or not ks.standard())
+        if(not ks.standard() or cs.type() != ks.type())
             return false;
         if(cs.ndim() != 4 or ks.ndim() != 4)
             return false;
-        auto seq       = cs.lens()[seq_axis];
-        auto slot      = ks.lens();
-        slot[seq_axis] = seq;
-        return cs.lens() == slot and seq <= ks.lens()[seq_axis];
+        return cs.lens() == slot_shape(cur, cache).lens() and
+               cs.lens()[seq_axis] <= ks.lens()[seq_axis];
     }
 
     // One host copy of the sequence length serves every concat that reads it
@@ -137,11 +144,25 @@ struct find_concat_past_present
         auto cur      = ins->inputs()[0];
         auto slk      = ins->inputs()[1];
         auto cache    = ins->inputs()[2];
-        if(not fills_slot(producer, cur, cache))
+        if(not fills_slot(cur, cache))
             return;
         assert(not producer->inputs().empty());
         auto alloc = producer->inputs().back();
         if(alloc->name() != "allocate" or alloc->outputs().size() != 1)
+            return;
+
+        // The producer writes in its own dims and layout, so the slot is
+        // re-indexed back through the views between it and the concat
+        auto path = get_input_path(cur);
+        std::vector<instruction_ref> chain(path.begin(),
+                                           std::find(path.begin(), path.end(), producer));
+        std::vector<operation> chain_ops;
+        std::transform(chain.rbegin(),
+                       chain.rend(),
+                       std::back_inserter(chain_ops),
+                       [](instruction_ref x) { return x->get_operator(); });
+        auto inverse = invert_view_chain(chain_ops, producer->get_shape(), slot_shape(cur, cache));
+        if(not inverse.has_value())
             return;
 
         auto seq = cur->get_shape().lens()[seq_axis];
@@ -166,21 +187,24 @@ struct find_concat_past_present
                 cache);
         }
 
-        // The view is defined at the concat, so the producer and its view chain
-        // move down to it; both are single-use so nothing in between needs them
-        auto path = get_input_path(cur);
-        std::vector<instruction_ref> chain(path.begin(),
-                                           std::find(path.begin(), path.end(), producer));
-        m.move_instruction(producer, ins);
-        std::for_each(chain.rbegin(), chain.rend(), [&](auto x) { m.move_instruction(x, ins); });
-
+        // A retargeted copy of the producer is inserted at the concat rather
+        // than rewriting it in place: the new strides could make the original
+        // view chain fail shape recomputation before it becomes dead
+        assert(view->get_shape() == slot_shape(cur, cache));
+        view = std::accumulate(inverse->first.begin(),
+                               inverse->first.end(),
+                               view,
+                               [&](instruction_ref start, const operation& op) {
+                                   return m.insert_instruction(ins, op, start);
+                               });
+        assert(view->get_shape() == inverse->second);
         auto v            = producer->get_operator().to_value();
-        v["output_shape"] = to_value(view->get_shape());
+        v["output_shape"] = to_value(inverse->second);
         auto inputs       = producer->inputs();
         inputs.back()     = view;
-        m.replace_instruction(
-            producer, make_op("gpu::precompile_op", v), inputs, producer->module_inputs());
-        m.replace_instruction(ins, make_op("identity"), {cache, producer});
+        auto fused        = m.insert_instruction(
+            ins, make_op("gpu::precompile_op", v), inputs, producer->module_inputs());
+        m.replace_instruction(ins, make_op("identity"), {cache, fused});
     }
 };
 

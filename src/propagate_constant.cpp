@@ -71,7 +71,7 @@ static literal as_packed(const argument& c)
 {
     // A broadcasted result only stores its element space, so it is already minimal
     if(c.get_shape().packed() or c.get_shape().broadcasted())
-        return {c.get_shape(), c.data()};
+        return literal::from_raw_buffer(c.get_shape(), c.data());
     auto s = c.get_shape().with_lens(c.get_shape().lens());
     literal result;
     c.visit([&](auto x) { result = literal{s, x.begin(), x.end()}; });

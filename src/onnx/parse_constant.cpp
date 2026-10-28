@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -74,7 +74,7 @@ struct parse_constant : op_parser<parse_constant>
         if(attr.has_t() and attr.t().dims_size() == 0)
         {
             migraphx::shape scalar_shape{v.get_shape().type()};
-            return info.add_literal(migraphx::literal{scalar_shape, v.data()});
+            return info.add_literal(migraphx::literal::from_raw_buffer(scalar_shape, v.data()));
         }
 
         return info.add_literal(v);

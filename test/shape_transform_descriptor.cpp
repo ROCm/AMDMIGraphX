@@ -349,6 +349,41 @@ TEST_CASE(record_broadcast2)
            all_axes{d_axes{{}}, d_axes{{0}}, d_axes{{1}}, d_axes{{}}, d_axes{{}}});
 }
 
+TEST_CASE(prepend_axis_transpose)
+{
+    auto desc = make_descriptor({4, 6}, make_op("transpose", {{"permutation", {1, 0}}}));
+    desc.prepend_axis(3);
+    EXPECT(desc.rank == 3);
+    EXPECT(get_final_lens(desc) == final_lens{3, 6, 4});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{2}}, d_axes{{1}}});
+    auto expected = ops{make_op("transpose", {{"permutation", {0, 2, 1}}})};
+    EXPECT(run_shape_transforms({3, 4, 6}, desc.generate()) ==
+           run_shape_transforms({3, 4, 6}, expected));
+}
+
+TEST_CASE(prepend_axis_reshape)
+{
+    auto desc = make_descriptor({4, 6}, make_op("reshape", {{"dims", {2, 2, 6}}}));
+    desc.prepend_axis(5);
+    EXPECT(get_final_lens(desc) == final_lens{5, 2, 2, 6});
+    EXPECT(get_all_axes(desc) ==
+           all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}, d_axes{{2}}});
+    auto expected = ops{make_op("reshape", {{"dims", {5, 2, 2, 6}}})};
+    EXPECT(run_shape_transforms({5, 4, 6}, desc.generate()) ==
+           run_shape_transforms({5, 4, 6}, expected));
+}
+
+TEST_CASE(prepend_axis_broadcast)
+{
+    auto desc = make_descriptor({1, 3}, make_op("multibroadcast", {{"out_lens", {2, 3}}}));
+    desc.prepend_axis(4);
+    EXPECT(get_final_lens(desc) == final_lens{4, 2, 3});
+    EXPECT(desc.find_broadcasted_axes() == std::set<std::size_t>{1});
+    auto expected = ops{make_op("multibroadcast", {{"out_lens", {4, 2, 3}}})};
+    EXPECT(run_shape_transforms({4, 1, 3}, desc.generate()) ==
+           run_shape_transforms({4, 1, 3}, expected));
+}
+
 TEST_CASE(simplify_dimension_merge_adjacent)
 {
     auto d = dimension{{sub{2, {0, 0}}, sub{3, {0, 1}}}};

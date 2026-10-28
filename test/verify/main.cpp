@@ -67,16 +67,22 @@ int main(int argc, const char* argv[])
 {
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
+    rv.set_compile_modes_for("gpu",
+                             {migraphx::compile_modes::eager, migraphx::compile_modes::balanced});
     rv.disable_test_for(
         "cpu",
         {"test_if_lp",
          "test_if_param",
          "test_if_literal",
          "test_select_module_add",
+         "test_select_module_aliased_outputs",
          "test_select_module_reduce",
          "test_select_module_conv",
          "test_select_module_index",
          "test_split_single_dyn_dim",
+         "test_split_sym_dim_softmax",
+         "test_fixed_pad_int64",
+         "test_fixed_pad_max_shape",
          "test_resize_dyn",
          "test_instancenorm_large_3d<migraphx::shape::float_type>",
          "test_instancenorm_large_3d<migraphx::shape::half_type>",

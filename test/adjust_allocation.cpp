@@ -28,6 +28,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/value.hpp>
 #include <test.hpp>
 
 // Test allocation operation
@@ -137,6 +139,28 @@ static void run_pass(migraphx::module& m)
     migraphx::run_passes(
         m,
         {migraphx::adjust_allocation{test_allocation_model{}}, migraphx::dead_code_elimination{}});
+}
+
+static migraphx::program make_select_module_program()
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape output_shapes{std::vector<migraphx::shape>{s}};
+    migraphx::program p;
+    auto* branch = p.create_module("branch");
+    branch->add_parameter("x", s);
+    auto branch_output = branch->add_parameter("#output_0", s);
+    branch->add_return({branch_output});
+
+    auto* mm    = p.get_main_module();
+    auto x      = mm->add_parameter("x", s);
+    auto alloc  = mm->add_instruction(test_allocate{s});
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
+        {x, alloc},
+        {branch});
+    mm->add_return({select});
+    return p;
 }
 
 // Test that adjust_allocation reallocates when the output shape differs from the allocated shape
@@ -576,6 +600,43 @@ TEST_CASE(fill_allocation)
         auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
         auto fill  = m2.add_instruction(migraphx::make_op("test::fill"), alloc);
         m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, fill);
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(skip_tuple_output_tensor_allocation)
+{
+    auto p        = make_select_module_program();
+    auto expected = make_select_module_program();
+
+    run_pass(*p.get_main_module());
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(realloc_tuple_allocation)
+{
+    migraphx::shape allocation_shape{std::vector<migraphx::shape>{
+        {migraphx::shape::float_type, {2, 3}}, {migraphx::shape::int64_type, {2, 3}}}};
+    migraphx::shape output_shape{
+        std::vector<migraphx::shape>{{migraphx::shape::float_type, {2, 3}, {1, 2}},
+                                     {migraphx::shape::int64_type, {2, 3}, {1, 2}}}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto allocation = m1.add_instruction(test_allocate{allocation_shape});
+        auto result     = m1.add_instruction(simple_op{output_shape}, x, allocation);
+        m1.add_return({result});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x          = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto allocation = m2.add_instruction(test_allocate{output_shape});
+        auto result     = m2.add_instruction(simple_op{output_shape}, x, allocation);
+        m2.add_return({result});
     }
 
     EXPECT(m1.sort() == m2.sort());

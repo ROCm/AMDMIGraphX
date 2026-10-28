@@ -159,7 +159,8 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
         {
             bias_bcast = add_instruction(
                 make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", to_value(s.dyn_dims())}}),
-                args[2]);
+                args[2],
+                curr_ins);
         }
         else if(s.dynamic())
         {
@@ -694,7 +695,9 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         else
         {
             result = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node_name, mod}, args);
+                *this,
+                {get_attributes(node), output_num, node_name, mod, std::string{node.domain()}},
+                args);
         }
         output_num = std::min<std::size_t>(output_num, result.size());
         std::transform(node.output().begin(),

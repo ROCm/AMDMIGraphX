@@ -1001,19 +1001,19 @@ constexpr std::size_t write_chunk_size = 4096;
 struct pipe_pump
 {
     pipe_pump(const std::vector<char>& data, fd_wrapper& write_end, fd_wrapper& read_end)
-        : stdin_data(data), stdin_write(write_end), stdout_read(read_end)
+        : stdin_data(&data), stdin_write(&write_end), stdout_read(&read_end)
     {
-        fds[0].fd     = stdin_write.get();
+        fds[0].fd     = stdin_write->get();
         fds[0].events = POLLOUT;
-        fds[1].fd     = stdout_read.get();
+        fds[1].fd     = stdout_read->get();
         fds[1].events = POLLIN;
-        if(stdin_data.empty())
+        if(stdin_data->empty())
             finish_writing();
     }
 
-    const std::vector<char>& stdin_data;
-    fd_wrapper& stdin_write;
-    fd_wrapper& stdout_read;
+    const std::vector<char>* stdin_data;
+    fd_wrapper* stdin_write;
+    fd_wrapper* stdout_read;
     std::array<pollfd, 2> fds{};
     std::size_t total_bytes_written = 0;
     std::size_t total_bytes_read    = 0;
@@ -1022,7 +1022,7 @@ struct pipe_pump
     // Stop feeding the child and let it see EOF. A negative fd is ignored by poll.
     void finish_writing()
     {
-        stdin_write.close();
+        stdin_write->close();
         fds[0].fd = -1;
     }
 
@@ -1037,10 +1037,10 @@ struct pipe_pump
         }
         if(not has_event(fds[0].revents, POLLOUT))
             return;
-        assert(total_bytes_written < stdin_data.size());
-        auto remaining = stdin_data.size() - total_bytes_written;
-        auto written   = ::write(stdin_write.get(),
-                                 stdin_data.data() + total_bytes_written,
+        assert(total_bytes_written < stdin_data->size());
+        auto remaining = stdin_data->size() - total_bytes_written;
+        auto written   = ::write(stdin_write->get(),
+                                 stdin_data->data() + total_bytes_written,
                                  std::min(remaining, write_chunk_size));
         if(written <= 0)
         {
@@ -1051,7 +1051,7 @@ struct pipe_pump
             return;
         }
         total_bytes_written += static_cast<std::size_t>(written);
-        if(total_bytes_written >= stdin_data.size())
+        if(total_bytes_written >= stdin_data->size())
             finish_writing();
     }
 
@@ -1067,7 +1067,7 @@ struct pipe_pump
         // object is not copied a second time on its way out.
         stdout_data.resize(total_bytes_read + read_chunk_size);
         auto bytes_read =
-            ::read(stdout_read.get(), stdout_data.data() + total_bytes_read, read_chunk_size);
+            ::read(stdout_read->get(), stdout_data.data() + total_bytes_read, read_chunk_size);
         if(bytes_read < 0)
         {
             if(errno == EINTR)

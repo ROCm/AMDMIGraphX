@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,10 +28,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 struct fp8_types
 {
-    const std::set<shape::type_t> types = {shape::fp8e4m3fnuz_type,
-                                           shape::fp8e5m2fnuz_type,
-                                           shape::fp8e4m3fn_type,
-                                           shape::fp8e5m2_type};
+    std::set<shape::type_t> types = {shape::fp8e4m3fnuz_type,
+                                     shape::fp8e5m2fnuz_type,
+                                     shape::fp8e4m3fn_type,
+                                     shape::fp8e5m2_type};
 
     std::set<shape::type_t> get() const { return types; }
 };

@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -324,6 +325,60 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             out);
 
         return {out, k_out, v_out};
+    }
+};
+
+// com.ryzenai.GQO: GroupQueryAttention fused with o_proj MatMulNBits.
+// Inputs 0-11 match microsoft GroupQueryAttention, including optional
+// position_ids, attention_bias, and head_sink. o_proj qweight/scales/qzeros
+// stay at 12-14 when bias or the NPU-only packed input is omitted.
+// Outputs: present_key, present_value, o_proj_output
+struct parse_gqo : op_parser<parse_gqo>
+{
+    std::vector<op_desc> operators() const { return {{"GQO"}}; }
+
+    std::vector<instruction_ref> parse(const op_desc& opd,
+                                       const onnx_parser& parser,
+                                       onnx_parser::node_info info,
+                                       const std::vector<instruction_ref>& args) const
+    {
+        // 12 attention slots plus qweight, scales, and qzeros.
+        constexpr std::size_t weight_index = 12;
+        if(args.size() < weight_index + 3)
+            MIGRAPHX_THROW("GQO: expects at least 15 inputs, got " + std::to_string(args.size()));
+
+        std::vector<instruction_ref> gqa_args(args.begin(), args.begin() + weight_index);
+        parse_group_query_attention gqa;
+        auto gqa_outs = gqa.parse(opd, parser, info, gqa_args);
+        assert(gqa_outs.size() == 3);
+
+        auto attn_out = gqa_outs[0];
+        auto k_out    = gqa_outs[1];
+        auto v_out    = gqa_outs[2];
+
+        if(not contains(info.attributes, "o_proj_N") or not contains(info.attributes, "o_proj_K") or
+           not contains(info.attributes, "o_proj_bits") or
+           not contains(info.attributes, "o_proj_block_size"))
+            MIGRAPHX_THROW("GQO: o_proj_N/K/bits/block_size attributes are required");
+
+        std::vector<instruction_ref> mm_args{
+            attn_out, args[weight_index], args[weight_index + 1], args[weight_index + 2]};
+        if(args.size() > weight_index + 3)
+            mm_args.push_back(args[weight_index + 3]);
+        // packed at weight_index + 4 is NPU-only and ignored.
+
+        auto o_proj =
+            op::builder::add(
+                "matmulnbits",
+                *info.mod,
+                mm_args,
+                {{"N", parser.parse_value(info.attributes.at("o_proj_N")).at<int>()},
+                 {"K", parser.parse_value(info.attributes.at("o_proj_K")).at<int>()},
+                 {"bits", parser.parse_value(info.attributes.at("o_proj_bits")).at<int>()},
+                 {"block_size",
+                  parser.parse_value(info.attributes.at("o_proj_block_size")).at<int>()}})
+                .at(0);
+        return {k_out, v_out, o_proj};
     }
 };
 

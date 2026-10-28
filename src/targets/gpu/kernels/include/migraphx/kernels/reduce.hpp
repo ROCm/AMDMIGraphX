@@ -585,13 +585,13 @@ struct reducer_base
     }
 
     /// Selects the top K elements of the reduction, returning the values and
-    /// their indices as a tuple of inner storages of K elements
-    template <index_int K, class Compare, class T>
+    /// their indices (as IndexType) as a tuple of inner storages of K elements
+    template <index_int K, class IndexType, class Compare, class T>
     __device__ auto topk(Compare compare, T init) const
     {
         return this->inner_sliced([=](auto n, auto&&... xs) {
             auto&& derived = static_cast<const Derived&>(*this);
-            return derived.template topk_impl<K>(compare, init, n, xs...);
+            return derived.template topk_impl<K, IndexType>(compare, init, n, xs...);
         });
     }
 
@@ -665,7 +665,7 @@ struct block_reducer_base : reducer_base<Derived>
     /// The elements are selected from the vectors of the input and packed
     /// back into vectors of the same width, with the indices as the scalar
     /// positions along the reduction
-    template <index_int K, class Compare, class T, class N, class X>
+    template <index_int K, class IndexType, class Compare, class T, class N, class X>
     __device__ auto topk_impl(Compare compare, T init, N n, X&& x) const
     {
         using type                    = remove_cv_t<typename remove_reference_t<X>::type>;
@@ -675,7 +675,7 @@ struct block_reducer_base : reducer_base<Derived>
         constexpr index_int nelements = N{} * width;
         using index_type              = topk_index_type<nelements>;
         using pair                    = topk_pair<elem, index_type>;
-        using index_vec               = vec_or_scalar_t<int64_t, vsize>;
+        using index_vec               = vec_or_scalar_t<IndexType, vsize>;
         constexpr auto nwrites        = index_c<K / width>;
         using max_iterations          = decltype(idx.max_local_stride_iterations(nwrites));
         inner_storage<type, max_iterations{}, decltype(nwrites)> values;
@@ -701,7 +701,7 @@ struct block_reducer_base : reducer_base<Derived>
                 {
                     values(i, d) = generate_vec(_c<width>, [&](auto e) { return ps[e].key; });
                     indices(i, d) =
-                        generate_vec(_c<width>, [&](auto e) -> int64_t { return ps[e].val; });
+                        generate_vec(_c<width>, [&](auto e) -> IndexType { return ps[e].val; });
                 }
             });
         return make_tuple(values, indices);

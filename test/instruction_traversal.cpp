@@ -24,6 +24,7 @@
 #include <migraphx/instruction_traversal.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -108,6 +109,51 @@ TEST_CASE(input_path_no_inputs)
     auto x = m.add_parameter("x", s);
 
     EXPECT(collect(migraphx::get_input_path(x)) == instruction_refs{x});
+}
+
+static bool is_view(migraphx::instruction_ref ins)
+{
+    return migraphx::contains({"squeeze", "unsqueeze", "transpose"}, ins->name());
+}
+
+TEST_CASE(input_ops_if_stops_at_pred)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x  = m.add_parameter("x", s);
+    auto p1 = m.add_instruction(pass_op{}, x);
+    auto u  = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), p1);
+    auto t  = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), u);
+
+    auto [root, ops] = migraphx::get_input_ops_if(t, &is_view);
+    EXPECT(root == p1);
+    EXPECT(ops == std::vector<migraphx::operation>{u->get_operator(), t->get_operator()});
+}
+
+TEST_CASE(input_ops_if_pred_fails_on_ins)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x  = m.add_parameter("x", s);
+    auto p1 = m.add_instruction(pass_op{}, x);
+
+    auto [root, ops] = migraphx::get_input_ops_if(p1, &is_view);
+    EXPECT(root == p1);
+    EXPECT(ops.empty());
+}
+
+// When the predicate holds for the whole path, `ins` is returned with no operators
+TEST_CASE(input_ops_if_pred_holds_for_whole_path)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x  = m.add_parameter("x", s);
+    auto p1 = m.add_instruction(pass_op{}, x);
+
+    auto [root, ops] =
+        migraphx::get_input_ops_if(p1, [](migraphx::instruction_ref) { return true; });
+    EXPECT(root == p1);
+    EXPECT(ops.empty());
 }
 
 TEST_CASE(alias_path_allocation)

@@ -33,8 +33,13 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
+struct literal;
 
 namespace gpu {
+
+// True for a square causal mask literal that prepare_mlir rewrites into a
+// compare of index iotas: fuse_mlir inlines exactly these into mlir modules
+MIGRAPHX_GPU_EXPORT bool is_causal_mask_literal(const literal& lit);
 
 struct MIGRAPHX_GPU_EXPORT prepare_mlir
 {

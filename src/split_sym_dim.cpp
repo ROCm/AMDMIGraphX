@@ -1974,7 +1974,11 @@ struct block_frame
         clone_module.add_return(clone_outputs);
         run_passes(clone_module, {dead_code_elimination{}});
         auto deduplicated_outputs = deduplicate_block_outputs(clone_module.get_returns());
-        if(clone_module.get_returns().size() > 1)
+        bool has_symbolic_slice = any_of(clone_module, [](const auto& ins) {
+            return ins.name() == "slice" and
+                   any_of(ins.inputs(), [](auto input) { return input->get_shape().symbolic(); });
+        });
+        if(clone_module.get_returns().size() > 1 and not has_symbolic_slice)
         {
             auto canonical_clone = clone_module;
             run_passes(canonical_clone,

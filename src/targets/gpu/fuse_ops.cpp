@@ -656,7 +656,7 @@ struct find_rocblas_gemm_pointwise : gemm_pointwise
             {
                 auto c = make_op("contiguous");
                 auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
-                c_ins  = m.add_literal(l.get_shape(), l.data());
+                c_ins  = m.add_literal(literal::from_raw_buffer(l.get_shape(), l.data()));
             }
             inputs.push_back(c_ins);
         }
@@ -716,7 +716,7 @@ struct find_hipblas_gemm_pointwise : gemm_pointwise
             {
                 auto c = make_op("contiguous");
                 auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
-                c_ins  = m.add_literal(l.get_shape(), l.data());
+                c_ins  = m.add_literal(literal::from_raw_buffer(l.get_shape(), l.data()));
             }
             inputs.push_back(c_ins);
         }

@@ -122,14 +122,14 @@ literal generate_literal(shape s, unsigned long seed)
     if(not s.computable())
     {
         auto v = generate_tensor_data<uint8_t>(s, seed);
-        result = {s, reinterpret_cast<char*>(v.get())};
+        result = literal::from_raw_buffer(s, reinterpret_cast<char*>(v.get()));
     }
     else
     {
         s.visit_type([&](auto as) {
             using type = typename decltype(as)::type;
             auto v     = generate_tensor_data<type>(s, seed);
-            result     = {s, reinterpret_cast<char*>(v.get())};
+            result     = literal::from_raw_buffer(s, reinterpret_cast<char*>(v.get()));
         });
     }
     return result;

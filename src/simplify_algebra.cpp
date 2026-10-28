@@ -555,6 +555,43 @@ struct find_dot_add
     }
 };
 
+// dot(a, b) + dot(a, c) -> dot(a, b + c) when b and c are constant, so b + c
+// folds and one dot remains. `shared_arg` is the position of a in both dots.
+struct find_add_dot_common
+{
+    std::size_t shared_arg = 0;
+
+    auto shared_operand_dot(const std::string& a, const std::string& b) const
+    {
+        return match::name("dot")(match::used_once(),
+                                  match::arg(shared_arg)(match::any().bind(a)),
+                                  match::arg(1 - shared_arg)(match::is_constant().bind(b)));
+    }
+
+    auto matcher() const
+    {
+        return match::name("add")(
+            match::args(shared_operand_dot("a1", "b"), shared_operand_dot("a2", "c")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto a   = r.instructions["a1"];
+        auto b   = r.instructions["b"];
+        auto c   = r.instructions["c"];
+        if(a != r.instructions["a2"] or not shape::same_lens(b->get_shape(), c->get_shape()))
+            return;
+        auto op = ins->inputs().front()->get_operator();
+        if(op != ins->inputs().back()->get_operator())
+            return;
+        auto sum = m.insert_instruction(ins, make_op("add"), b, c);
+        auto dot = shared_arg == 0 ? m.insert_instruction(ins, op, a, sum)
+                                   : m.insert_instruction(ins, op, sum, a);
+        m.replace_instruction(ins, dot);
+    }
+};
+
 static bool is_spatially_broadcast(const shape& s)
 {
     auto dims = range(2, s.ndim());
@@ -3168,6 +3205,12 @@ void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
+        // Before horizontal fusion, which would merge the dots that share an input
+        auto n = m.size();
+        match::find_matches(m, find_add_dot_common{0}, find_add_dot_common{1});
+        // The replaced dots would still look like siblings to horizontal fusion
+        if(m.size() != n)
+            dead_code_elimination{}.apply(m);
         match::find_matches(m,
                             find_conv_broadcast_input{},
                             find_inner_broadcast{},

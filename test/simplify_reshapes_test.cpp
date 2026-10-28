@@ -2609,6 +2609,22 @@ TEST_CASE(gather_axis_slice_broadcast)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_constant_indices_zero_output)
+{
+    migraphx::module m;
+    auto data    = m.add_parameter("data", {migraphx::shape::float_type, {0, 5}});
+    auto indices = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto gather  = m.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+    m.add_return({gather});
+    auto expected = m;
+
+    migraphx::run_passes(m,
+                         {migraphx::simplify_reshapes{.enable_op_shape_transform_op = true,
+                                                      .enable_gather_rewrite        = true}});
+
+    EXPECT(m == expected);
+}
+
 TEST_CASE(gather_constant_single_index)
 {
     migraphx::module m1;
@@ -3830,6 +3846,40 @@ TEST_CASE(pointwise_reshape_unary)
         auto reshape_ins =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), relu);
         m2.add_instruction(pass_op{}, reshape_ins);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(pointwise_reshape_unary_reduce)
+{
+    // The unary between the pointwise and the reduce moves up to the
+    // pointwise, so the reduce is rewritten in the pointwise's dimensions
+    migraphx::shape s{migraphx::shape::half_type, {2, 4, 8}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto y   = m1.add_parameter("y", s);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto reshape_ins =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 32}}}), mul);
+        auto convert = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+            reshape_ins);
+        auto rsum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), convert);
+        m1.add_return({rsum});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", s);
+        auto y       = m2.add_parameter("y", s);
+        auto mul     = m2.add_instruction(migraphx::make_op("mul"), x, y);
+        auto convert = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mul);
+        auto rsum =
+            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), convert);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsum);
+        m2.add_return({squeeze});
     }
     EXPECT(m1 == m2);
 }

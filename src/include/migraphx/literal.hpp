@@ -84,11 +84,14 @@ struct literal : raw_data<literal>
         fill(start, end);
     }
 
-    // Directly copies buffer of x
+    // x holds s.bytes(): raw storage in the layout described by s's strides
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
-    literal(const shape& s, T* x) : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+    static literal from_raw_buffer(const shape& s, T* x)
     {
-        std::copy(x, x + s.bytes(), buffer.get());
+        literal result;
+        result.m_shape = s;
+        result.buffer  = make_shared_array<char>(x, x + s.bytes());
+        return result;
     }
 
     // x holds nbytes: the elements of s in row-major order of s.lens(), regardless of s's strides

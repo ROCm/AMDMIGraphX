@@ -1629,6 +1629,8 @@ struct find_gather
         static std::optional<instruction_ref>
         transform_indices(const Indices& indices, module& m, instruction_ref start)
         {
+            if(indices.empty())
+                return std::nullopt;
             auto isegments      = from_ints(indices.begin(), indices.end());
             std::int64_t offset = isegments.front().base;
             auto s              = make_strided_view(shift(std::move(isegments), -offset));
@@ -1715,6 +1717,8 @@ struct find_gather
         auto indices_ins  = r.instructions["indices"];
         auto data_ins     = r.instructions["data"];
         auto gather_op    = any_cast<op::gather>(ins->get_operator());
+        if(ins->get_shape().elements() == 0)
+            return;
         const auto& dlens = data_ins->get_shape().lens();
         if(dlens.empty())
             return;
@@ -2146,22 +2150,14 @@ struct find_unary_shape_transforms
             y              = y->outputs().front();
         }
 
+        // The unary moves up to a producer that can fuse it: the shape
+        // transforms then sit next to the consumer, which absorbs them in the
+        // producer's dimensions. Otherwise it moves down to a fusable consumer,
+        // or up past the transforms below when neither neighbour fuses it.
         bool move_up   = can_fuse_unary(x);
-        bool move_down = can_fuse_unary(y);
-
-        if(move_up and move_down)
-        {
-            if(x->name() == "@literal")
-                move_down = false; // NOLINT(bugprone-branch-clone)
-            else if(yops.empty())
-                move_up = false;
-            else
-                move_down = false;
-        }
-        else if(not move_up and not move_down and not yops.empty())
-        {
+        bool move_down = not move_up and can_fuse_unary(y);
+        if(not move_up and not move_down and not yops.empty())
             move_up = true;
-        }
 
         if(move_up)
         {

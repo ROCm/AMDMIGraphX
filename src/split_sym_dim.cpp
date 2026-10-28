@@ -1765,23 +1765,14 @@ instruction_ref add_output_slice(module& m,
         make_op("eval_expr_from_shape", {{"expressions", to_value(start_expressions)}}), sources);
     auto ends = m.add_instruction(
         make_op("eval_expr_from_shape", {{"expressions", to_value(end_expressions)}}), sources);
-    auto result       = m.add_instruction(make_op("dyn_slice",
-                                                  {{"axes", axes},
-                                                   {"starts", to_value(start_expressions)},
-                                                   {"ends", to_value(end_expressions)}}),
+    auto result = m.add_instruction(make_op("dyn_slice",
+                                            {{"axes", axes},
+                                             {"starts", to_value(start_expressions)},
+                                             {"ends", to_value(end_expressions)},
+                                             {"ends_in_bounds", true}}),
                                     selected_output,
                                     starts,
                                     ends);
-    auto logical_dims = result->get_shape().dyn_dims();
-    auto logical_axes = range(logical_dims.size());
-    std::transform(logical_axes.begin(), logical_axes.end(), logical_dims.begin(), [&](auto axis) {
-        return contains(axes, static_cast<int64_t>(axis)) ? source_dims.at(axis)
-                                                          : logical_dims.at(axis);
-    });
-    auto logical_shape = shape{
-        result->get_shape().type(), std::move(logical_dims), result->get_shape().dyn_strides()};
-    instruction::replace(
-        result, result->get_operator(), std::move(logical_shape), result->inputs());
     result->set_normalized();
     if(not output.source->get_debug_symbols().empty())
         m.add_debug_symbols(result, output.source->get_debug_symbols());

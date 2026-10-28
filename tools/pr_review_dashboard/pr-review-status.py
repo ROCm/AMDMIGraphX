@@ -203,12 +203,13 @@ def fetch_all_prs(session: requests.Session) -> list[dict]:
     all_prs: list[dict] = []
     cursor = None
     while True:
-        data = graphql_query(session, PR_QUERY, {
-            "owner": OWNER,
-            "repo": REPO,
-            "cursor": cursor,
-            "pageSize": PR_PAGE_SIZE,
-        })
+        data = graphql_query(
+            session, PR_QUERY, {
+                "owner": OWNER,
+                "repo": REPO,
+                "cursor": cursor,
+                "pageSize": PR_PAGE_SIZE,
+            })
         connection = data["repository"]["pullRequests"]
         for node in connection["nodes"]:
             if not node["isDraft"]:

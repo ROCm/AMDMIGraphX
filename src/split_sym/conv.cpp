@@ -44,7 +44,7 @@ struct analyze_conv : analyzer<analyze_conv>
 {
     bool matches(const operation& op) const
     {
-        return op.name() == "convolution" or
+        return contains({"convolution", "convolution_backwards"}, op.name()) or
                op.attributes().get("general_data_type", std::string{}) == "convolution";
     }
 
@@ -55,11 +55,11 @@ struct analyze_conv : analyzer<analyze_conv>
         std::size_t group    = 0;
         std::vector<std::size_t> padding;
         std::size_t spatial_dimensions = 0;
-        if(op.name() == "convolution" or op.name() == "quant_convolution")
+        if(contains({"convolution", "convolution_backwards", "quant_convolution"}, op.name()))
         {
-            auto attributes    = op.to_value();
-            default_padding    = attributes.at("padding_mode").to<op::padding_mode_t>() ==
-                                 op::padding_mode_t::default_;
+            auto attributes = op.to_value();
+            default_padding = attributes.at("padding_mode").to<op::padding_mode_t>() ==
+                              op::padding_mode_t::default_;
             group              = attributes.at("group").to<std::size_t>();
             padding            = attributes.at("padding").to_vector<std::size_t>();
             spatial_dimensions = attributes.at("stride").to_vector<std::size_t>().size();

@@ -45,8 +45,7 @@ TEST_CASE(symbolic_reshape_constant)
             const auto output_shape =
                 migraphx::shape{migraphx::shape::float_type, sym_dims({batch, lit(4)})};
             auto constant_dims = m.add_instruction(
-                migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}),
-                std::vector<migraphx::instruction_ref>{args[1], args[0]});
+                migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), args[1]);
             auto constant_allocation = m.add_instruction(
                 migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}),
                 constant_dims);
@@ -54,8 +53,7 @@ TEST_CASE(symbolic_reshape_constant)
                 m.add_instruction(migraphx::make_op("reshape"), args[1], constant_allocation);
 
             auto attribute_dims = m.add_instruction(
-                migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}),
-                std::vector<migraphx::instruction_ref>{args[1], args[0]});
+                migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), args[1]);
             auto attribute_allocation = m.add_instruction(
                 migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}),
                 attribute_dims);

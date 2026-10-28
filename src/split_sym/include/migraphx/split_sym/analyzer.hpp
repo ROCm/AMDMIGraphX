@@ -195,8 +195,10 @@ symbolic_op_info analyze_axes(instruction_ref ins,
 {
     symbolic_op_info info{ins};
     info.shape_input_indices = std::move(shape_input_indices);
-    auto output_axes         = range(output_shape.ndim());
-    auto output_dims         = output_shape.to_symbolic().dyn_dims();
+    if(output_shape.dynamic() and not output_shape.symbolic())
+        return info;
+    auto output_axes = range(output_shape.ndim());
+    auto output_dims = output_shape.to_symbolic().dyn_dims();
 
     std::copy_if(output_axes.begin(),
                  output_axes.end(),

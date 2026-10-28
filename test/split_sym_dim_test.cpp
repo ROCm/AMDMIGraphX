@@ -5827,6 +5827,8 @@ TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
 
     run_pass(p);
 
+    EXPECT(migraphx::all_of(p.get_modules(),
+                            [](auto* module) { return module->validate() == module->end(); }));
     EXPECT(m.has_instruction(selected));
     auto selections = migraphx::find_all(migraphx::iterator_for(m),
                                          [](auto ins) { return ins->name() == "select_module"; });

@@ -72,8 +72,9 @@ struct expect_shape
 };
 
 template <class... Ts>
-expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
-    -> expect_shape<Ts...>;
+expect_shape(const migraphx::shape& expected,
+             const migraphx::operation& op,
+             Ts... xs) -> expect_shape<Ts...>;
 
 template <class...>
 struct always_false : std::false_type
@@ -1675,6 +1676,20 @@ TEST_CASE(dyn_slice_symbolic_end_static_input)
     EXPECT(not sout.is_fixed());
     EXPECT(sout.to_static({{n, 7}}) == migraphx::shape{migraphx::shape::float_type, {7}, {1}});
     EXPECT(sout.to_static({{n, 10}}) == migraphx::shape{migraphx::shape::float_type, {10}, {1}});
+}
+
+TEST_CASE(dyn_slice_end_proven_in_bounds)
+{
+    auto runtime = var("runtime", {0, 4});
+    auto target  = var("target", {0, 4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{target}}, {lit(1)}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{runtime}}, {lit(1)}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    auto op = migraphx::make_op(
+        "dyn_slice",
+        {{"axes", {0}}, {"starts", {0}}, {"ends", sym_bound(runtime)}, {"ends_in_bounds", true}});
+
+    EXPECT(op.compute_shape({input, bounds, bounds}) == output);
 }
 
 TEST_CASE(dyn_slice_symbolic_bounds)

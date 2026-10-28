@@ -37,7 +37,6 @@
 #include <array>
 #include <cmath>
 #include <numeric>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -71,18 +70,6 @@ struct roialign
     {
         return d.is_symbolic() ? shape::dynamic_dimension{sym::lit(static_cast<int64_t>(v))}
                                : shape::dynamic_dimension{v, v};
-    }
-
-    static std::optional<shape::dynamic_dimension>
-    common_num_rois(const shape::dynamic_dimension& rois, const shape::dynamic_dimension& indices)
-    {
-        if(rois.is_symbolic() or indices.is_symbolic())
-        {
-            if(rois == indices)
-                return rois;
-            return std::nullopt;
-        }
-        return rois.intersection(indices);
     }
 
     shape compute_shape(std::vector<shape> inputs) const

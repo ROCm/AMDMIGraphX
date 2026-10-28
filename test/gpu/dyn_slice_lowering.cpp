@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/optimize_copies.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -35,8 +36,10 @@
 static void run_lowering(migraphx::module& m, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(
-        m, {migraphx::gpu::lowering{&ctx, offload_copy}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m,
+                         {migraphx::gpu::lowering{&ctx, offload_copy},
+                          migraphx::gpu::optimize_copies{},
+                          migraphx::dead_code_elimination{}});
 }
 
 // After lowering, a slice with runtime inputs should have hip::copy_from_gpu

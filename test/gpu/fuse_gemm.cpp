@@ -31,6 +31,7 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/optimize_copies.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
@@ -47,9 +48,10 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(
-        *p.get_main_module(),
-        {migraphx::auto_contiguous{}, migraphx::gpu::lowering{&ctx, offload_copy}});
+    migraphx::run_passes(*p.get_main_module(),
+                         {migraphx::auto_contiguous{},
+                          migraphx::gpu::lowering{&ctx, offload_copy},
+                          migraphx::gpu::optimize_copies{}});
 }
 
 static void run_fuse_ops(migraphx::program& p)

@@ -25,6 +25,7 @@
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/optimize_copies.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
@@ -38,7 +39,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 static void run_lowering(migraphx::module& m, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(m, {migraphx::gpu::lowering{&ctx, offload_copy}});
+    migraphx::run_passes(
+        m, {migraphx::gpu::lowering{&ctx, offload_copy}, migraphx::gpu::optimize_copies{}});
 }
 
 TEST_CASE(hipblaslt_op)

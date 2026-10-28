@@ -35,6 +35,7 @@
 
 // includes needed for run_lowering
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/optimize_copies.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -44,9 +45,10 @@
 static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(
-        *p.get_main_module(),
-        {migraphx::auto_contiguous{}, migraphx::gpu::lowering{&ctx, offload_copy}});
+    migraphx::run_passes(*p.get_main_module(),
+                         {migraphx::auto_contiguous{},
+                          migraphx::gpu::lowering{&ctx, offload_copy},
+                          migraphx::gpu::optimize_copies{}});
 }
 /**
  * Tests the automatic GEMM tuning feature for rocBLAS and hipBLASLt.

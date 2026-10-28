@@ -24,6 +24,7 @@
 
 #include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/optimize_copies.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -37,7 +38,9 @@
 static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(*p.get_main_module(), {migraphx::gpu::lowering{&ctx, offload_copy}});
+    migraphx::run_passes(
+        *p.get_main_module(),
+        {migraphx::gpu::lowering{&ctx, offload_copy}, migraphx::gpu::optimize_copies{}});
 }
 
 TEST_CASE(dynamic_code_object_op)

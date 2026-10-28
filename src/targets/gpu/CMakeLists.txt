@@ -294,6 +294,7 @@ add_library(migraphx_gpu
     mlir.cpp
     nms_ops.cpp
     no_device.cpp
+    optimize_copies.cpp
     pack_args.cpp
     prefuse_ops.cpp
     prepare_mlir.cpp

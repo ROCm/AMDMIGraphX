@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/optimize_copies.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
@@ -35,7 +36,9 @@ static void run_lowering(migraphx::module& m)
 {
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(m,
-                         {migraphx::gpu::lowering{&ctx, false}, migraphx::dead_code_elimination{}});
+                         {migraphx::gpu::lowering{&ctx, false},
+                          migraphx::gpu::optimize_copies{},
+                          migraphx::dead_code_elimination{}});
 }
 
 // A device pointwise op produces the int64 slot. The select reads hip::load_scalar

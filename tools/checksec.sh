@@ -113,9 +113,17 @@ else:
     entry = payload
 
 checks = entry.get("checks", entry)
-canary = checks.get("canary", "")
-relro = checks.get("relro", "")
-pie = checks.get("pie", "")
+
+def field(value):
+    # checksec 3.x JSON reports {"value": "...", "status": "..."} per check.
+    # Older output is a plain string.
+    if isinstance(value, dict):
+        value = value.get("value", "")
+    return "" if value is None else str(value)
+
+canary = field(checks.get("canary", ""))
+relro = field(checks.get("relro", ""))
+pie = field(checks.get("pie", ""))
 
 failed = False
 if "Canary Found" not in canary:
@@ -128,7 +136,7 @@ if is_shared:
     if "DSO" not in pie.upper():
         print(f"Expected DSO for shared library {path}, got {pie!r}")
         failed = True
-elif "PIE Enabled" not in pie:
+elif "PIE Enabled" not in pie and "Static PIE" not in pie:
     print(f"Missing PIE for {path}: {pie!r}")
     failed = True
 
@@ -149,7 +157,12 @@ for bin in "${binaries[@]}"; do
 
     echo "Checking ${bin}"
     json=""
-    if json="$(run_checksec "${bin}" 2>/dev/null)"; then
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "python3 unavailable; falling back to readelf for ${bin}"
+        if ! verify_with_readelf "${bin}" "${is_shared}"; then
+            failed=1
+        fi
+    elif json="$(run_checksec "${bin}" 2>/dev/null)"; then
         echo "${json}"
         if ! verify_with_checksec_json "${bin}" "${is_shared}" "${json}"; then
             failed=1

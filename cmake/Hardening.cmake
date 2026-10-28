@@ -23,33 +23,61 @@
 #####################################################################################
 # Linux exploit-mitigation compiler and linker flags (SEC-00802 / SEC-00469)
 
+include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
-if(NOT WIN32 AND NOT APPLE AND MIGRAPHX_ENABLE_HARDENING)
+# HIP offload compiles one invocation for the host and the device. A host-only
+# flag such as -fcf-protection is an error on amdgcn. Clang accepts -Xarch_host
+# so the flag stays on the host pass; GCC does not, and host GCC builds use the
+# bare flag instead.
+function(migraphx_add_hardening_option flag)
+    string(MAKE_C_IDENTIFIER "${flag}" flag_id)
+    set(host_flag "-Xarch_host ${flag}")
+
+    check_cxx_compiler_flag("${host_flag}" MIGRAPHX_HARDEN_CXX_HOST_${flag_id})
+    check_c_compiler_flag("${host_flag}" MIGRAPHX_HARDEN_C_HOST_${flag_id})
+    if(MIGRAPHX_HARDEN_CXX_HOST_${flag_id} AND MIGRAPHX_HARDEN_C_HOST_${flag_id})
+        separate_arguments(host_flag_list NATIVE_COMMAND "${host_flag}")
+        add_compile_options(${host_flag_list})
+        return()
+    endif()
+
+    check_cxx_compiler_flag("${flag}" MIGRAPHX_HARDEN_CXX_${flag_id})
+    check_c_compiler_flag("${flag}" MIGRAPHX_HARDEN_C_${flag_id})
+    if(MIGRAPHX_HARDEN_CXX_${flag_id} AND MIGRAPHX_HARDEN_C_${flag_id})
+        add_compile_options("${flag}")
+    elseif(MIGRAPHX_HARDEN_CXX_${flag_id})
+        add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:${flag}>")
+    elseif(MIGRAPHX_HARDEN_C_${flag_id})
+        add_compile_options("$<$<COMPILE_LANGUAGE:C>:${flag}>")
+    endif()
+endfunction()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND MIGRAPHX_ENABLE_HARDENING)
     message(STATUS "Linux build hardening enabled")
 
-    check_cxx_compiler_flag("-fstack-protector-strong" MIGRAPHX_HAS_STACK_PROTECTOR_STRONG)
-    if(MIGRAPHX_HAS_STACK_PROTECTOR_STRONG)
-        add_compile_options(-fstack-protector-strong)
+    migraphx_add_hardening_option("-fstack-protector-strong")
+    migraphx_add_hardening_option("-Wformat-security")
+    migraphx_add_hardening_option("-fstack-clash-protection")
+
+    # glibc warns that _FORTIFY_SOURCE needs optimization, and -Werror turns
+    # that into a failed build for Debug and for an empty CMAKE_BUILD_TYPE.
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" migraphx_hardening_config)
+    if(migraphx_hardening_config MATCHES "^(RELEASE|RELWITHDEBINFO|MINSIZEREL)$")
+        migraphx_add_hardening_option("-D_FORTIFY_SOURCE=2")
     endif()
 
-    check_cxx_compiler_flag("-Wformat-security" MIGRAPHX_HAS_FORMAT_SECURITY)
-    if(MIGRAPHX_HAS_FORMAT_SECURITY)
-        add_compile_options(-Wformat-security)
+    check_cxx_compiler_flag("-Wl,-z,relro" MIGRAPHX_HAS_RELRO)
+    check_cxx_compiler_flag("-Wl,-z,now" MIGRAPHX_HAS_BIND_NOW)
+    if(MIGRAPHX_HAS_RELRO AND MIGRAPHX_HAS_BIND_NOW)
+        add_link_options(-Wl,-z,relro -Wl,-z,now)
     endif()
 
-    check_cxx_compiler_flag("-fstack-clash-protection" MIGRAPHX_HAS_STACK_CLASH_PROTECTION)
-    if(MIGRAPHX_HAS_STACK_CLASH_PROTECTION)
-        add_compile_options(-fstack-clash-protection)
+    # -pie is for executables. Shared libraries are already position-independent.
+    check_cxx_compiler_flag("-pie" MIGRAPHX_HAS_PIE)
+    if(MIGRAPHX_HAS_PIE)
+        string(APPEND CMAKE_EXE_LINKER_FLAGS " -pie")
     endif()
 
-    add_compile_definitions(_FORTIFY_SOURCE=2)
-
-    add_link_options(-Wl,-z,relro -Wl,-z,now)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
-
-    check_cxx_compiler_flag("-fcf-protection=full" MIGRAPHX_HAS_FCF_PROTECTION)
-    if(MIGRAPHX_HAS_FCF_PROTECTION)
-        add_compile_options(-fcf-protection=full)
-    endif()
+    migraphx_add_hardening_option("-fcf-protection=full")
 endif()

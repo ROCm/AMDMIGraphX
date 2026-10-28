@@ -75,17 +75,18 @@ void preserve_expected_output_slice_expressions(migraphx::program& p)
                    selected->inputs().front()->name() == "select_module";
         });
         std::for_each(slices.begin(), slices.end(), [](auto slice) {
-            auto attributes = slice->get_operator().to_value();
-            auto axes       = attributes.at("axes").template to_vector<int64_t>();
-            auto ends       = migraphx::from_value<std::vector<se>>(attributes.at("ends"));
-            auto dims       = slice->get_shape().dyn_dims();
+            auto attributes              = slice->get_operator().to_value();
+            attributes["ends_in_bounds"] = true;
+            auto axes                    = attributes.at("axes").template to_vector<int64_t>();
+            auto ends = migraphx::from_value<std::vector<se>>(attributes.at("ends"));
+            auto dims = slice->get_shape().dyn_dims();
             migraphx::for_each(
                 axes.begin(), axes.end(), ends.begin(), [&](auto axis, const auto& e) {
                     assert(axis >= 0);
                     dims.at(static_cast<std::size_t>(axis)) = dd{e};
                 });
             migraphx::instruction::replace(slice,
-                                           slice->get_operator(),
+                                           migraphx::make_op("dyn_slice", attributes),
                                            migraphx::shape{slice->get_shape().type(),
                                                            std::move(dims),
                                                            slice->get_shape().dyn_strides()},

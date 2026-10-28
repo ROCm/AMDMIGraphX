@@ -143,6 +143,12 @@ struct binary : op_name<Derived>
             .same_dims();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
+        // Symbolic: compatible expressions may differ, so keep s0's dimensions while selecting
+        // either input's layout.
+        // Non-symbolic: static inputs have equal lens; range-based or mixed inputs require exact
+        // shape equality below.
+        const auto output_dyn_dims =
+            s0.symbolic() ? s0.dyn_dims() : std::vector<shape::dynamic_dimension>{};
         // Range-based dynamic (or mixed dynamic/static) inputs only support strict equality.
         if((s0.dynamic() or s1.dynamic()) and not(s0.symbolic() and s1.symbolic()))
         {
@@ -152,13 +158,17 @@ struct binary : op_name<Derived>
         }
         const bool b0 = s0.broadcasted();
         const bool b1 = s1.broadcasted();
+        // Prefer a non-broadcasted layout; otherwise preserve every axis on which either input
+        // varies.
         if(s0 == s1 and (s0.packed() or b0))
         {
             return s0;
         }
         else if(s0.packed() != s1.packed())
         {
-            return s0.packed() ? s0 : s1;
+            if(s0.packed())
+                return s0;
+            return s1.symbolic() ? s1.with_lens(output_dyn_dims) : s1;
         }
         else if(b0 == b1 and (s0.element_space() == 1) != (s1.element_space() == 1))
         {
@@ -166,9 +176,11 @@ struct binary : op_name<Derived>
         }
         else if(b0 != b1)
         {
+            if(not s0.broadcasted())
+                return s0;
             if(s0.symbolic())
-                return b0 ? s1.with_lens(s0.dyn_dims()) : s0.with_lens(s0.dyn_dims());
-            return b0 ? s1.with_lens(s0.lens()) : s0.with_lens(s0.lens());
+                return s1.with_lens(output_dyn_dims);
+            return s1.with_lens(s0.lens());
         }
         else if(b0)
         {
@@ -180,7 +192,7 @@ struct binary : op_name<Derived>
         {
             if(s0.symbolic())
                 return shape::from_permutation(
-                    s0.type(), s0.dyn_dims(), find_permutation({s0, s1}));
+                    s0.type(), output_dyn_dims, find_permutation({s0, s1}));
             return shape::from_permutation(s0.type(), s0.lens(), find_permutation({s0, s1}));
         }
     }

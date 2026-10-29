@@ -29,7 +29,6 @@
 #include <migraphx/fileutils.hpp>
 #include <migraphx/logger.hpp>
 #include <algorithm>
-#include <atomic>
 #include <cassert>
 #include <iostream>
 #include <deque>
@@ -58,16 +57,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
-
-static std::atomic<bool>& hiprtc_processes_disabled_flag()
-{
-    static std::atomic<bool> disabled{false};
-    return disabled;
-}
-
-void disable_hiprtc_processes() { hiprtc_processes_disabled_flag().store(true); }
-
-bool hiprtc_processes_disabled() { return hiprtc_processes_disabled_flag().load(); }
 
 std::vector<std::string> compile_hip_options(const std::vector<std::string>& params,
                                              const std::string& arch)
@@ -261,6 +250,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
                                                const std::string& arch,
+                                               bool disable_processes,
                                                bool quiet)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
@@ -274,7 +264,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         }
     }
 
-    if(hiprtc_processes_disabled())
+    if(disable_processes)
         return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 
     auto fname  = make_executable_filename("migraphx-hiprtc-driver");
@@ -346,8 +336,10 @@ static src_compiler assemble(src_compiler compiler)
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::vector<std::string>& params,
                                                const std::string& arch,
+                                               bool /*disable_processes*/,
                                                bool /*quiet*/)
 {
+    // disable_processes has no effect on the clang path, there is no hiprtc subprocess to skip.
     assert(not srcs.empty());
 
     if(not is_hip_clang_compiler())
@@ -438,9 +430,11 @@ static hip_compiler_info parse_version(const std::vector<char>& obj)
     return {.major = fields[0], .minor = fields[1], .version = fields[2]};
 }
 
-const hip_compiler_info& hip_compiler_version()
+const hip_compiler_info& hip_compiler_version(bool disable_processes)
 {
-    static const hip_compiler_info info = [] {
+    // The answer does not depend on where the probe is compiled, so only the first caller's
+    // disable_processes matters.
+    static const hip_compiler_info info = [&] {
         try
         {
             // Interpolated so the markers parse_version searches for cannot drift from the ones
@@ -451,6 +445,7 @@ const hip_compiler_info& hip_compiler_version()
             auto cos = compile_hip_src({src_file{"main.cpp", probe}},
                                        {"-std=c++17"},
                                        version_probe_arch,
+                                       disable_processes,
                                        /* quiet */ true);
             if(not cos.empty())
                 return parse_version(cos.front());
@@ -466,7 +461,9 @@ const hip_compiler_info& hip_compiler_version()
     return info;
 }
 
-bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags)
+bool hip_can_compile(const std::string& src,
+                     const std::vector<std::string>& flags,
+                     bool disable_processes)
 {
     src_file input{"main.cpp", src};
     std::vector<src_file> srcs = {input};
@@ -474,7 +471,7 @@ bool hip_can_compile(const std::string& src, const std::vector<std::string>& fla
     try
     {
         std::string arch = "gfx900";
-        compile_hip_src(srcs, flags, arch, /* quiet */ true);
+        compile_hip_src(srcs, flags, arch, disable_processes, true);
         return true;
     }
     catch(...)
@@ -483,7 +480,10 @@ bool hip_can_compile(const std::string& src, const std::vector<std::string>& fla
     }
 }
 
-bool hip_has_flags(const std::vector<std::string>& flags) { return hip_can_compile(" ", flags); }
+bool hip_has_flags(const std::vector<std::string>& flags, bool disable_processes)
+{
+    return hip_can_compile(" ", flags, disable_processes);
+}
 
 std::string enum_params(std::size_t count, std::string param)
 {

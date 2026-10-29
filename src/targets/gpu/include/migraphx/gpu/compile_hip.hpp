@@ -74,20 +74,17 @@ std::vector<std::string> compile_hip_options(const std::vector<std::string>& par
  *
  * It need not be the compiler this library was built with, so the answer comes from compiling a
  * probe and reading back what it recorded. The result is determined once and reused; it is
- * empty if the compiler could not be asked.
+ * empty if the compiler could not be asked. `disable_processes` only affects the first call,
+ * which is the one that compiles the probe.
  */
-MIGRAPHX_GPU_EXPORT const hip_compiler_info& hip_compiler_version();
+MIGRAPHX_GPU_EXPORT const hip_compiler_info& hip_compiler_version(bool disable_processes = false);
 
 MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
-                                         const std::vector<std::string>& flags);
+                                         const std::vector<std::string>& flags,
+                                         bool disable_processes = false);
 
-MIGRAPHX_GPU_EXPORT bool hip_has_flags(const std::vector<std::string>& flags);
-
-/// Compile hiprtc in-process instead of spawning migraphx-hiprtc-driver. One-way and
-/// process-wide because the compiler probe results are cached per process.
-MIGRAPHX_GPU_EXPORT void disable_hiprtc_processes();
-
-MIGRAPHX_GPU_EXPORT bool hiprtc_processes_disabled();
+MIGRAPHX_GPU_EXPORT bool hip_has_flags(const std::vector<std::string>& flags,
+                                       bool disable_processes = false);
 
 MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
 compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
@@ -99,7 +96,8 @@ MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs,
                 const std::vector<std::string>& params,
                 const std::string& arch,
-                bool quiet = false);
+                bool disable_processes = false,
+                bool quiet             = false);
 
 MIGRAPHX_GPU_EXPORT std::string enum_params(std::size_t count, std::string param);
 

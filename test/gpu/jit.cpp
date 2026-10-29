@@ -267,6 +267,7 @@ TEST_CASE(compile_errors)
         migraphx::gpu::compile_hip_src({make_src_file("main.cpp", incorrect_program)},
                                        {},
                                        migraphx::gpu::get_device_name(),
+                                       false,
                                        true);
     }));
 }
@@ -277,6 +278,7 @@ TEST_CASE(compile_warnings)
         return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", unused_param)},
                                               params,
                                               migraphx::gpu::get_device_name(),
+                                              false,
                                               true);
     };
 
@@ -299,6 +301,28 @@ TEST_CASE(has_flags)
     EXPECT(migraphx::gpu::hip_has_flags({"-Wunused-parameter"}));
     EXPECT(not migraphx::gpu::hip_has_flags(
         {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}));
+}
+
+// The probes must give the same answers when compiled in-process as through
+// migraphx-hiprtc-driver.
+TEST_CASE(has_flags_disable_processes)
+{
+    EXPECT(migraphx::gpu::hip_has_flags({"--std=c++17"}, true));
+    EXPECT(not migraphx::gpu::hip_has_flags({"--non-existent-flag-to-test-in-migraphx"}, true));
+    EXPECT(migraphx::gpu::hip_has_flags({"-Wunused-parameter"}, true));
+    EXPECT(not migraphx::gpu::hip_has_flags(
+        {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}, true));
+}
+
+TEST_CASE(can_compile_disable_processes)
+{
+    EXPECT(migraphx::gpu::hip_can_compile(write_2s, {}, true));
+    EXPECT(not migraphx::gpu::hip_can_compile(incorrect_program, {}, true));
+}
+
+TEST_CASE(compiler_version_disable_processes)
+{
+    EXPECT(not migraphx::gpu::hip_compiler_version(true).empty());
 }
 
 TEST_CASE(code_object_hip)
@@ -547,6 +571,55 @@ TEST_CASE(assert_type_min_max)
             auto co = migraphx::gpu::compile_hip_code_object(ctx, src, options);
         });
     }
+}
+
+// Compile with disable_processes=true to force in-process hiprtc instead of spawning
+// migraphx-hiprtc-driver; the resulting binary must be valid and execute correctly.
+TEST_CASE(compile_hip_src_disable_processes)
+{
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, {}, migraphx::gpu::get_device_name(), true);
+    EXPECT(binaries.size() == 1);
+
+    migraphx::argument input{{migraphx::shape::int8_type, {5}}};
+    auto ginput = migraphx::gpu::to_gpu(input);
+    migraphx::gpu::kernel k{binaries.front(), "write"};
+    k.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int8_t>());
+    auto output = migraphx::gpu::from_gpu(ginput);
+
+    EXPECT(output != input);
+    auto data = output.get<std::int8_t>();
+    EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+// hiprtc_disable_processes set via backend_options must thread through the full GPU target
+// pass pipeline (backend_options -> context -> compile_hip_src) and still produce a correct result.
+// relu lowers to gpu::precompile_op so compile_ops::apply triggers hiprtc compilation,
+// exercising the disable_processes path end-to-end through the pass pipeline.
+TEST_CASE(compile_code_object_disable_processes_backend_option)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {5, 2}};
+    auto input_literal = migraphx::generate_literal(input_shape);
+
+    auto make_prog = [&] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        mm->add_return(
+            {mm->add_instruction(migraphx::make_op("relu"), mm->add_literal(input_literal))});
+        return p;
+    };
+
+    auto p_ref = make_prog();
+    p_ref.compile(migraphx::make_target("ref"), migraphx::compile_options{});
+    auto expected = p_ref.eval({}).front();
+
+    auto p_gpu = make_prog();
+    migraphx::compile_options options;
+    options.backend_options["hiprtc_disable_processes"] = migraphx::value(true);
+    p_gpu.compile(migraphx::make_target("gpu"), options);
+    auto result = migraphx::gpu::from_gpu(p_gpu.eval({}).front());
+
+    EXPECT(result == expected);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

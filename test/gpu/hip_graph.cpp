@@ -229,6 +229,58 @@ TEST_CASE(rebind_sliced_input)
     check_rebind(p, xs);
 }
 
+// Runtime slice metadata stays on the host with offload copy. Reusing the same
+// metadata buffers with new values must recompute the view instead of replaying
+// the offset captured by the first evaluation.
+TEST_CASE(replay_runtime_slice_metadata)
+{
+    migraphx::shape data_shape{migraphx::shape::float_type, {8}};
+    migraphx::shape index_shape{migraphx::shape::int32_type, {1}};
+    migraphx::shape slice_shape{migraphx::shape::float_type, {1}};
+
+    migraphx::program p_gpu;
+    auto* mm         = p_gpu.get_main_module();
+    auto data        = mm->add_parameter("data", data_shape);
+    auto index       = mm->add_parameter("index", index_shape);
+    auto index_alloc = mm->add_instruction(
+        migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(index_shape)}}));
+    auto index_gpu = mm->add_instruction(migraphx::make_op("hip::copy_to_gpu"), index, index_alloc);
+    auto index_host = mm->add_instruction(migraphx::make_op("hip::copy_from_gpu"), index_gpu);
+    auto slice =
+        mm->add_instruction(migraphx::make_op("gpu::slice_at", {{"axis", 0}}), data, index_host);
+    auto result = slice;
+    for(int i = 0; i < 3; ++i)
+        result = add_layer(*mm, result, slice_shape, 0);
+    mm->add_return({result});
+
+    migraphx::compile_options options;
+    options.backend_options["hip_graph"] = true;
+    p_gpu.compile(migraphx::make_target("gpu"), options);
+    EXPECT(captured_hip_graph(p_gpu));
+
+    std::vector<float> data_values{0.0f, 1.0f, 2.0f, 3.0f, 10.0f, 11.0f, 12.0f, 13.0f};
+    std::vector<int32_t> index_value{0};
+    migraphx::parameter_map params;
+    for(auto&& [name, param_shape] : p_gpu.get_parameter_shapes())
+        params[name] = migraphx::gpu::allocate_gpu(param_shape);
+    params["data"]  = migraphx::gpu::to_gpu(migraphx::argument{data_shape, data_values.data()});
+    params["index"] = migraphx::argument{index_shape, index_value.data()};
+
+    auto eval = [&] {
+        return migraphx::gpu::from_gpu(p_gpu.eval(params).back()).to_vector<float>();
+    };
+
+    auto first          = eval();
+    index_value.front() = 4;
+    auto second         = eval();
+    std::vector<float> first_ref{data_values.front() * 0.125f};
+    std::vector<float> second_ref{data_values.at(4) * 0.125f};
+
+    EXPECT(migraphx::verify::verify_rms_range(first, first_ref));
+    EXPECT(migraphx::verify::verify_rms_range(second, second_ref));
+    EXPECT(not migraphx::verify::verify_rms_range(first, second));
+}
+
 // The parameter names of the output buffers replace_allocate creates when
 // offload copy is disabled.
 static std::vector<std::string> output_param_names(const migraphx::program& p)

@@ -25,6 +25,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,22 +37,13 @@ struct find_redundant_copy : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
-        return match::any_of(
-            match::name("hip::copy_from_gpu")(match::arg(0)(match::name("hip::copy_to_gpu"))),
-            match::name("hip::copy_to_gpu")(match::arg(0)(match::name("hip::copy_from_gpu"))));
+        return match::name("hip::copy_from_gpu")(match::arg(0)(match::name("hip::copy_to_gpu")));
     }
 
-    static bool has_internal_destination(instruction_ref copy)
+    static bool is_returned(const module& m, instruction_ref copy)
     {
-        if(copy->inputs().size() == 1)
-            return true;
-        if(copy->inputs().size() != 2)
-            return false;
-
-        // A write to a caller-owned destination is externally observable.
-        const auto destination = copy->inputs().back();
-        return (destination->name() == "allocate" or destination->name() == "hip::allocate") and
-               destination->outputs().size() == 1;
+        auto returns = m.get_returns();
+        return std::find(returns.begin(), returns.end(), copy) != returns.end();
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -59,8 +51,7 @@ struct find_redundant_copy : match::supports_dynamic_shapes
         auto copy        = r.result;
         auto source_copy = copy->inputs().front();
         auto source      = source_copy->inputs().front();
-        if(has_internal_destination(source_copy) and has_internal_destination(copy) and
-           copy->get_shape() == source->get_shape())
+        if(not is_returned(m, copy) and copy->get_shape() == source->get_shape())
             m.replace_instruction(copy, source);
     }
 };

@@ -35,7 +35,7 @@ static void run_pass(migraphx::module& m)
         m, {migraphx::gpu::eliminate_device_copy{}, migraphx::dead_code_elimination{}});
 }
 
-TEST_CASE(copy_to_then_from_gpu_is_eliminated)
+TEST_CASE(copy_to_then_from_gpu_return_is_preserved)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};
 
@@ -49,26 +49,9 @@ TEST_CASE(copy_to_then_from_gpu_is_eliminated)
     run_pass(m1);
 
     migraphx::module m2;
-    auto expected = m2.add_parameter("input", s);
-    m2.add_return({expected});
-    EXPECT(m1 == m2);
-}
-
-TEST_CASE(copy_to_external_destination_before_copy_from_is_preserved)
-{
-    migraphx::shape s{migraphx::shape::float_type, {4}};
-
-    migraphx::module m1;
-    auto input    = m1.add_parameter("input", s);
-    auto output   = m1.add_parameter("output", s);
-    auto to_gpu   = m1.add_instruction(migraphx::make_op("hip::copy_to_gpu"), input, output);
-    auto from_gpu = m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), to_gpu);
-    m1.add_return({from_gpu});
-    run_pass(m1);
-
-    migraphx::module m2;
-    auto expected_input  = m2.add_parameter("input", s);
-    auto expected_output = m2.add_parameter("output", s);
+    auto expected_input = m2.add_parameter("input", s);
+    auto expected_output =
+        m2.add_instruction(migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s)}}));
     auto expected_to_gpu =
         m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), expected_input, expected_output);
     auto expected_from_gpu =
@@ -77,7 +60,7 @@ TEST_CASE(copy_to_external_destination_before_copy_from_is_preserved)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(copy_from_then_to_gpu_is_eliminated)
+TEST_CASE(copy_from_then_to_gpu_is_preserved)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};
 
@@ -91,32 +74,33 @@ TEST_CASE(copy_from_then_to_gpu_is_eliminated)
     run_pass(m1);
 
     migraphx::module m2;
-    auto expected = m2.add_parameter("input", s);
-    m2.add_return({expected});
+    auto expected_input = m2.add_parameter("input", s);
+    auto expected_from_gpu =
+        m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_input);
+    auto expected_output =
+        m2.add_instruction(migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s)}}));
+    auto expected_to_gpu = m2.add_instruction(
+        migraphx::make_op("hip::copy_to_gpu"), expected_from_gpu, expected_output);
+    m2.add_return({expected_to_gpu});
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(copy_to_external_destination_is_preserved)
+TEST_CASE(copy_from_then_to_private_buffer_before_fill_is_preserved)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};
 
     migraphx::module m1;
     auto input    = m1.add_parameter("input", s);
-    auto output   = m1.add_parameter("output", s);
     auto from_gpu = m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), input);
-    auto to_gpu   = m1.add_instruction(migraphx::make_op("hip::copy_to_gpu"), from_gpu, output);
-    m1.add_return({to_gpu});
+    auto output =
+        m1.add_instruction(migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s)}}));
+    auto to_gpu = m1.add_instruction(migraphx::make_op("hip::copy_to_gpu"), from_gpu, output);
+    auto fill   = m1.add_instruction(migraphx::make_op("hip::fill"), to_gpu);
+    m1.add_return({fill});
+    auto expected = m1;
     run_pass(m1);
 
-    migraphx::module m2;
-    auto expected_input  = m2.add_parameter("input", s);
-    auto expected_output = m2.add_parameter("output", s);
-    auto expected_copy =
-        m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_input);
-    auto expected_result =
-        m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), expected_copy, expected_output);
-    m2.add_return({expected_result});
-    EXPECT(m1 == m2);
+    EXPECT(m1 == expected);
 }
 
 TEST_CASE(eliminates_redundant_copy_before_consumer)

@@ -46,7 +46,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/optimize_copies.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
@@ -323,7 +323,7 @@ TEST_CASE(duplicate_kernels_compile_once_without_a_directory)
     auto p1 = two_identical_pointwise();
     migraphx::run_passes(*p1.get_main_module(),
                          {migraphx::gpu::lowering{&ctx, false},
-                          migraphx::gpu::optimize_copies{},
+                          migraphx::gpu::eliminate_device_copy{},
                           migraphx::gpu::compile_ops{&ctx}});
     EXPECT(count_code_objects(*p1.get_main_module()) == 2);
     EXPECT(cache->get_stats().compiled == 1);
@@ -331,7 +331,7 @@ TEST_CASE(duplicate_kernels_compile_once_without_a_directory)
     auto p2 = two_identical_pointwise();
     migraphx::run_passes(*p2.get_main_module(),
                          {migraphx::gpu::lowering{&ctx, false},
-                          migraphx::gpu::optimize_copies{},
+                          migraphx::gpu::eliminate_device_copy{},
                           migraphx::gpu::compile_ops{&ctx}});
     EXPECT(count_code_objects(*p2.get_main_module()) == 2);
     EXPECT(cache->get_stats().compiled == 1);
@@ -372,7 +372,7 @@ TEST_CASE(same_kernel_in_two_submodules_compiles_once)
     auto p = same_pointwise_in_two_submodules();
     migraphx::run_passes(p,
                          {migraphx::gpu::lowering{&ctx, false},
-                          migraphx::gpu::optimize_copies{},
+                          migraphx::gpu::eliminate_device_copy{},
                           migraphx::gpu::compile_ops{&ctx}});
     EXPECT(count_code_objects(*p.get_module("If_0_if")) == 1);
     EXPECT(count_code_objects(*p.get_module("If_0_else")) == 1);

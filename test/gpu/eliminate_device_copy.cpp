@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/optimize_copies.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
@@ -31,7 +31,8 @@
 
 static void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::gpu::optimize_copies{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        m, {migraphx::gpu::eliminate_device_copy{}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(copy_to_then_from_gpu_is_eliminated)
@@ -72,8 +73,7 @@ TEST_CASE(copy_to_external_destination_before_copy_from_is_preserved)
         m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), expected_input, expected_output);
     auto expected_from_gpu =
         m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_to_gpu);
-    auto sync = m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_from_gpu);
-    m2.add_return({sync});
+    m2.add_return({expected_from_gpu});
     EXPECT(m1 == m2);
 }
 
@@ -113,45 +113,13 @@ TEST_CASE(copy_to_external_destination_is_preserved)
     auto expected_output = m2.add_parameter("output", s);
     auto expected_copy =
         m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_input);
-    auto sync = m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_copy);
     auto expected_result =
-        m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), sync, expected_output);
+        m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), expected_copy, expected_output);
     m2.add_return({expected_result});
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(syncs_multiple_copies_before_consumer)
-{
-    migraphx::shape data_shape{migraphx::shape::float_type, {4}};
-    migraphx::shape index_shape{migraphx::shape::int64_type, {1}};
-    auto slice_op = migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}});
-
-    migraphx::module m1;
-    auto data        = m1.add_parameter("data", data_shape);
-    auto starts      = m1.add_parameter("starts", index_shape);
-    auto ends        = m1.add_parameter("ends", index_shape);
-    auto copy_starts = m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), starts);
-    auto copy_ends   = m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
-    auto slice       = m1.add_instruction(slice_op, data, copy_starts, copy_ends);
-    m1.add_return({slice});
-    run_pass(m1);
-
-    migraphx::module m2;
-    auto expected_data   = m2.add_parameter("data", data_shape);
-    auto expected_starts = m2.add_parameter("starts", index_shape);
-    auto expected_ends   = m2.add_parameter("ends", index_shape);
-    auto expected_copy_starts =
-        m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_starts);
-    auto expected_copy_ends =
-        m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_ends);
-    auto sync = m2.add_instruction(
-        migraphx::make_op("hip::sync_stream"), expected_copy_starts, expected_copy_ends);
-    auto expected_slice = m2.add_instruction(slice_op, expected_data, sync, expected_copy_ends);
-    m2.add_return({expected_slice});
-    EXPECT(m1 == m2);
-}
-
-TEST_CASE(eliminates_redundant_copy_before_sync)
+TEST_CASE(eliminates_redundant_copy_before_consumer)
 {
     migraphx::shape data_shape{migraphx::shape::float_type, {4}};
     migraphx::shape index_shape{migraphx::shape::int64_type, {1}};
@@ -178,32 +146,9 @@ TEST_CASE(eliminates_redundant_copy_before_sync)
     auto expected_ends   = m2.add_parameter("ends", index_shape);
     auto expected_copy_ends =
         m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_ends);
-    auto sync = m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_copy_ends);
-    auto expected_slice = m2.add_instruction(slice_op, expected_data, expected_starts, sync);
+    auto expected_slice =
+        m2.add_instruction(slice_op, expected_data, expected_starts, expected_copy_ends);
     m2.add_return({expected_slice});
-    EXPECT(m1 == m2);
-}
-
-TEST_CASE(syncs_multiple_copy_outputs_before_return)
-{
-    migraphx::shape s{migraphx::shape::float_type, {4}};
-
-    migraphx::module m1;
-    auto x      = m1.add_parameter("x", s);
-    auto y      = m1.add_parameter("y", s);
-    auto copy_x = m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), x);
-    auto copy_y = m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), y);
-    m1.add_return({copy_x, copy_y});
-    run_pass(m1);
-
-    migraphx::module m2;
-    auto expected_x      = m2.add_parameter("x", s);
-    auto expected_y      = m2.add_parameter("y", s);
-    auto expected_copy_x = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_x);
-    auto expected_copy_y = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_y);
-    auto sync =
-        m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_copy_x, expected_copy_y);
-    m2.add_return({sync, expected_copy_y});
     EXPECT(m1 == m2);
 }
 

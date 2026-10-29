@@ -31,7 +31,7 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/optimize_copies.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
@@ -51,7 +51,7 @@ static void run_lowering(migraphx::program& p, bool offload_copy = false)
     migraphx::run_passes(*p.get_main_module(),
                          {migraphx::auto_contiguous{},
                           migraphx::gpu::lowering{&ctx, offload_copy},
-                          migraphx::gpu::optimize_copies{}});
+                          migraphx::gpu::eliminate_device_copy{}});
 }
 
 static void run_fuse_ops(migraphx::program& p)

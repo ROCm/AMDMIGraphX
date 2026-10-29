@@ -24,7 +24,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/optimize_copies.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -1482,7 +1482,7 @@ TEST_CASE(nms_large_iou_mask_uses_gpu_bitmask)
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(*mm,
                          {migraphx::gpu::lowering{&ctx, false},
-                          migraphx::gpu::optimize_copies{},
+                          migraphx::gpu::eliminate_device_copy{},
                           migraphx::dead_code_elimination{}});
 
     auto filter = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
@@ -1516,7 +1516,7 @@ TEST_CASE(nms_unaddressable_bitmask_falls_back_to_host)
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(*mm,
                          {migraphx::gpu::lowering{&ctx, false},
-                          migraphx::gpu::optimize_copies{},
+                          migraphx::gpu::eliminate_device_copy{},
                           migraphx::dead_code_elimination{}});
 
     EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {

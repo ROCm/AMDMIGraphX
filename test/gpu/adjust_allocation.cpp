@@ -25,7 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/optimize_copies.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
@@ -54,7 +54,7 @@ static void run_lowering(migraphx::program& p, bool offload_copy = false)
         *p.get_main_module(),
         {migraphx::auto_contiguous{},
          migraphx::gpu::lowering{&ctx, offload_copy},
-         migraphx::gpu::optimize_copies{},
+         migraphx::gpu::eliminate_device_copy{},
          migraphx::dead_code_elimination{},
          migraphx::eliminate_contiguous{"gpu::contiguous"},
          migraphx::dead_code_elimination{},
@@ -127,10 +127,9 @@ TEST_CASE(no_copy_dead_param)
         auto xb = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
         auto gx = mm->add_instruction(migraphx::make_op("hip::copy_to_gpu"), x, xb);
         auto ab = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
-        auto sum  = mm->add_instruction(make_precompile_op("add"), gx, gx, ab);
-        auto r    = mm->add_instruction(migraphx::make_op("hip::copy_from_gpu"), sum);
-        auto sync = mm->add_instruction(migraphx::make_op("hip::sync_stream"), r);
-        mm->add_return({sync});
+        auto sum = mm->add_instruction(make_precompile_op("add"), gx, gx, ab);
+        auto r   = mm->add_instruction(migraphx::make_op("hip::copy_from_gpu"), sum);
+        mm->add_return({r});
 
         return p;
     };

@@ -23,7 +23,7 @@
  */
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/optimize_copies.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -37,12 +37,12 @@ static void run_lowering(migraphx::module& m, bool offload_copy = false)
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(m,
                          {migraphx::gpu::lowering{&ctx, offload_copy},
-                          migraphx::gpu::optimize_copies{},
+                          migraphx::gpu::eliminate_device_copy{},
                           migraphx::dead_code_elimination{}});
 }
 
-// dimensions_of reads the input's runtime lengths on host, so lowering should
-// sync the stream, run the op on host, and copy the result to the gpu.
+// dimensions_of reads the input's runtime lengths on host and copies the result
+// to the gpu. Synchronization is added after scheduling.
 TEST_CASE(dimensions_of_lowering_default)
 {
     migraphx::shape in_s{migraphx::shape::float_type, {{1, 4, {2, 4}}, {3, 3}, {4, 4}}};
@@ -61,8 +61,7 @@ TEST_CASE(dimensions_of_lowering_default)
         auto x      = m2.add_parameter("x", in_s);
         auto output = m2.add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
-        auto sync     = m2.add_instruction(migraphx::make_op("hip::sync_stream"), x);
-        auto host_out = m2.add_instruction(migraphx::make_op("dimensions_of", {{"end", 3}}), sync);
+        auto host_out = m2.add_instruction(migraphx::make_op("dimensions_of", {{"end", 3}}), x);
         auto gpu_out  = m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_out, output);
         m2.add_return({gpu_out});
     }
@@ -90,9 +89,8 @@ TEST_CASE(dimensions_of_lowering_start_end)
         auto x      = m2.add_parameter("x", in_s);
         auto output = m2.add_instruction(
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
-        auto sync     = m2.add_instruction(migraphx::make_op("hip::sync_stream"), x);
-        auto host_out = m2.add_instruction(
-            migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), sync);
+        auto host_out =
+            m2.add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), x);
         auto gpu_out = m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_out, output);
         m2.add_return({gpu_out});
     }

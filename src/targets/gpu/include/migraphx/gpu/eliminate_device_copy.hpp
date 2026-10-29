@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_OPTIMIZE_COPIES_HPP
-#define MIGRAPHX_GUARD_GPU_OPTIMIZE_COPIES_HPP
+#ifndef MIGRAPHX_GUARD_GPU_ELIMINATE_DEVICE_COPY_HPP
+#define MIGRAPHX_GUARD_GPU_ELIMINATE_DEVICE_COPY_HPP
 
 #include <migraphx/gpu/config.hpp>
 #include <string>
@@ -34,9 +34,9 @@ struct module;
 
 namespace gpu {
 
-struct MIGRAPHX_GPU_EXPORT optimize_copies
+struct MIGRAPHX_GPU_EXPORT eliminate_device_copy
 {
-    std::string name() const { return "gpu::optimize_copies"; }
+    std::string name() const { return "gpu::eliminate_device_copy"; }
     void apply(module& m) const;
 };
 
@@ -44,4 +44,4 @@ struct MIGRAPHX_GPU_EXPORT optimize_copies
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif // MIGRAPHX_GUARD_GPU_OPTIMIZE_COPIES_HPP
+#endif // MIGRAPHX_GUARD_GPU_ELIMINATE_DEVICE_COPY_HPP

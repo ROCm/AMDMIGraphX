@@ -23,7 +23,7 @@
  */
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/optimize_copies.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -38,12 +38,12 @@ static void run_lowering(migraphx::module& m, bool offload_copy = false)
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(m,
                          {migraphx::gpu::lowering{&ctx, offload_copy},
-                          migraphx::gpu::optimize_copies{},
+                          migraphx::gpu::eliminate_device_copy{},
                           migraphx::dead_code_elimination{}});
 }
 
 // After lowering, a slice with runtime inputs should have hip::copy_from_gpu
-// and hip::sync_stream inserted for the metadata inputs.
+// inserted for the metadata inputs. Synchronization is added after scheduling.
 TEST_CASE(dyn_slice_lowering_runtime_inputs)
 {
     migraphx::shape data_s{migraphx::shape::float_type, {{2, 4}, {2, 4}, {3, 8}}};
@@ -67,10 +67,8 @@ TEST_CASE(dyn_slice_lowering_runtime_inputs)
         auto ends        = m2.add_parameter("ends", idx_s);
         auto copy_starts = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), starts);
         auto copy_ends   = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
-        auto sync =
-            m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_starts, copy_ends);
-        auto sl =
-            m2.add_instruction(migraphx::make_op("slice", {{"axes", {2}}}), data, sync, copy_ends);
+        auto sl          = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}}), data, copy_starts, copy_ends);
         m2.add_return({sl});
     }
     EXPECT(m1 == m2);
@@ -100,9 +98,7 @@ TEST_CASE(dyn_slice_lowering_dyn_slice_op)
         auto ends        = m2.add_parameter("ends", idx_s);
         auto copy_starts = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), starts);
         auto copy_ends   = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
-        auto sync =
-            m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_starts, copy_ends);
-        auto sl = m2.add_instruction(op, data, sync, copy_ends);
+        auto sl          = m2.add_instruction(op, data, copy_starts, copy_ends);
         m2.add_return({sl});
     }
     EXPECT(m1 == m2);
@@ -143,8 +139,7 @@ TEST_CASE(dyn_slice_lowering_mixed_host_and_device_metadata)
         auto ends      = m2.add_parameter("ends", index_shape);
         auto starts    = m2.add_instruction(eval_op, source);
         auto copy_ends = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
-        auto sync      = m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_ends);
-        auto slice     = m2.add_instruction(slice_op, data, starts, sync);
+        auto slice     = m2.add_instruction(slice_op, data, starts, copy_ends);
         m2.add_return({slice});
     }
     EXPECT(m1 == m2);

@@ -21,14 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/optimize_copies.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
-#include <algorithm>
-#include <iterator>
-#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -69,62 +65,11 @@ struct find_redundant_copy : match::supports_dynamic_shapes
     }
 };
 
-struct find_copy_from_consumer : match::supports_dynamic_shapes
-{
-    static bool syncs_copies(instruction_ref ins, const std::vector<instruction_ref>& copied_inputs)
-    {
-        return std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref input) {
-            if(input->name() != "hip::sync_stream")
-                return false;
-            return std::all_of(
-                copied_inputs.begin(), copied_inputs.end(), [&](instruction_ref copied_input) {
-                    return std::find(input->inputs().begin(),
-                                     input->inputs().end(),
-                                     copied_input) != input->inputs().end();
-                });
-        });
-    }
-
-    auto matcher() const
-    {
-        return match::any(match::none_of(match::name("hip::sync_stream")),
-                          match::any_of[match::inputs()](match::name("hip::copy_from_gpu")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins = r.result;
-        std::vector<instruction_ref> copied_inputs;
-        std::copy_if(ins->inputs().begin(),
-                     ins->inputs().end(),
-                     std::back_inserter(copied_inputs),
-                     [](instruction_ref input) { return input->name() == "hip::copy_from_gpu"; });
-        if(syncs_copies(ins, copied_inputs))
-            return;
-
-        auto sync = m.insert_instruction(ins, make_op("hip::sync_stream"), copied_inputs);
-        instruction::replace_argument(ins, copied_inputs.front(), sync);
-    }
-};
-
-struct find_copy_from_implicit_return : match::supports_dynamic_shapes
-{
-    auto matcher() const { return match::name("hip::copy_from_gpu")(match::used_once()); }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        if(r.result->outputs().empty())
-            m.add_instruction(make_op("hip::sync_stream"), r.result);
-    }
-};
-
 } // namespace
 
-void optimize_copies::apply(module& m) const
+void eliminate_device_copy::apply(module& m) const
 {
     match::find_matches(m, find_redundant_copy{});
-    match::find_matches(m, find_copy_from_consumer{});
-    match::find_matches(m, find_copy_from_implicit_return{});
 }
 
 } // namespace gpu

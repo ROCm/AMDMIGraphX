@@ -271,6 +271,7 @@ add_library(migraphx_gpu
     device_description.cpp
     device_name.cpp
     eliminate_data_type_for_gpu.cpp
+    eliminate_device_copy.cpp
     file_binary_cache.cpp
     fixed_pad.cpp
     fuse_ck.cpp
@@ -294,7 +295,6 @@ add_library(migraphx_gpu
     mlir.cpp
     nms_ops.cpp
     no_device.cpp
-    optimize_copies.cpp
     pack_args.cpp
     prefuse_ops.cpp
     prepare_mlir.cpp

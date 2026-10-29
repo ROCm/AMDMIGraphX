@@ -320,11 +320,6 @@ TEST_CASE(can_compile_disable_processes)
     EXPECT(not migraphx::gpu::hip_can_compile(incorrect_program, {}, true));
 }
 
-TEST_CASE(compiler_version_disable_processes)
-{
-    EXPECT(not migraphx::gpu::hip_compiler_version(true).empty());
-}
-
 TEST_CASE(code_object_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(

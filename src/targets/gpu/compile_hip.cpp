@@ -430,11 +430,9 @@ static hip_compiler_info parse_version(const std::vector<char>& obj)
     return {.major = fields[0], .minor = fields[1], .version = fields[2]};
 }
 
-const hip_compiler_info& hip_compiler_version(bool disable_processes)
+const hip_compiler_info& hip_compiler_version()
 {
-    // The answer does not depend on where the probe is compiled, so only the first caller's
-    // disable_processes matters.
-    static const hip_compiler_info info = [&] {
+    static const hip_compiler_info info = [] {
         try
         {
             // Interpolated so the markers parse_version searches for cannot drift from the ones
@@ -445,7 +443,7 @@ const hip_compiler_info& hip_compiler_version(bool disable_processes)
             auto cos = compile_hip_src({src_file{"main.cpp", probe}},
                                        {"-std=c++17"},
                                        version_probe_arch,
-                                       disable_processes,
+                                       /* disable_processes */ false,
                                        /* quiet */ true);
             if(not cos.empty())
                 return parse_version(cos.front());

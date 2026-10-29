@@ -74,10 +74,9 @@ std::vector<std::string> compile_hip_options(const std::vector<std::string>& par
  *
  * It need not be the compiler this library was built with, so the answer comes from compiling a
  * probe and reading back what it recorded. The result is determined once and reused; it is
- * empty if the compiler could not be asked. `disable_processes` only affects the first call,
- * which is the one that compiles the probe.
+ * empty if the compiler could not be asked.
  */
-MIGRAPHX_GPU_EXPORT const hip_compiler_info& hip_compiler_version(bool disable_processes = false);
+MIGRAPHX_GPU_EXPORT const hip_compiler_info& hip_compiler_version();
 
 MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
                                          const std::vector<std::string>& flags,

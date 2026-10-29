@@ -459,9 +459,7 @@ const hip_compiler_info& hip_compiler_version()
     return info;
 }
 
-bool hip_can_compile(const std::string& src,
-                     const std::vector<std::string>& flags,
-                     bool disable_processes)
+bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags)
 {
     src_file input{"main.cpp", src};
     std::vector<src_file> srcs = {input};
@@ -469,7 +467,8 @@ bool hip_can_compile(const std::string& src,
     try
     {
         std::string arch = "gfx900";
-        compile_hip_src(srcs, flags, arch, disable_processes, /* quiet */ true);
+        // Probes are short and not run in parallel, so always compile them in-process.
+        compile_hip_src(srcs, flags, arch, /* disable_processes */ true, /* quiet */ true);
         return true;
     }
     catch(...)
@@ -478,10 +477,7 @@ bool hip_can_compile(const std::string& src,
     }
 }
 
-bool hip_has_flags(const std::vector<std::string>& flags, bool disable_processes)
-{
-    return hip_can_compile(" ", flags, disable_processes);
-}
+bool hip_has_flags(const std::vector<std::string>& flags) { return hip_can_compile(" ", flags); }
 
 std::string enum_params(std::size_t count, std::string param)
 {

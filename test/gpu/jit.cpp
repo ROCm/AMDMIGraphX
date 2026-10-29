@@ -294,24 +294,19 @@ TEST_CASE(compile_warnings)
 #endif
 }
 
-// Run through migraphx-hiprtc-driver and in-process, the probes must give the same answers.
-template <bool DisableProcesses>
-static void has_flags()
+TEST_CASE(has_flags)
 {
-    EXPECT(migraphx::gpu::hip_has_flags({"--std=c++17"}, DisableProcesses));
-    EXPECT(not migraphx::gpu::hip_has_flags({"--non-existent-flag-to-test-in-migraphx"},
-                                            DisableProcesses));
-    EXPECT(migraphx::gpu::hip_has_flags({"-Wunused-parameter"}, DisableProcesses));
+    EXPECT(migraphx::gpu::hip_has_flags({"--std=c++17"}));
+    EXPECT(not migraphx::gpu::hip_has_flags({"--non-existent-flag-to-test-in-migraphx"}));
+    EXPECT(migraphx::gpu::hip_has_flags({"-Wunused-parameter"}));
     EXPECT(not migraphx::gpu::hip_has_flags(
-        {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}, DisableProcesses));
+        {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}));
 }
-TEST_CASE_REGISTER(has_flags<false>);
-TEST_CASE_REGISTER(has_flags<true>);
 
-TEST_CASE(can_compile_disable_processes)
+TEST_CASE(can_compile)
 {
-    EXPECT(migraphx::gpu::hip_can_compile(write_2s, {}, /* disable_processes */ true));
-    EXPECT(not migraphx::gpu::hip_can_compile(incorrect_program, {}, /* disable_processes */ true));
+    EXPECT(migraphx::gpu::hip_can_compile(write_2s, {}));
+    EXPECT(not migraphx::gpu::hip_can_compile(incorrect_program, {}));
 }
 
 TEST_CASE(code_object_hip)

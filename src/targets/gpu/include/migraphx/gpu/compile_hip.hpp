@@ -80,10 +80,10 @@ MIGRAPHX_GPU_EXPORT const hip_compiler_info& hip_compiler_version();
 
 MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
                                          const std::vector<std::string>& flags,
-                                         bool disable_processes = false);
+                                         bool disable_processes);
 
 MIGRAPHX_GPU_EXPORT bool hip_has_flags(const std::vector<std::string>& flags,
-                                       bool disable_processes = false);
+                                       bool disable_processes);
 
 MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
 compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,

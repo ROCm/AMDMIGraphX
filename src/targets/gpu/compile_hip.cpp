@@ -469,7 +469,7 @@ bool hip_can_compile(const std::string& src,
     try
     {
         std::string arch = "gfx900";
-        compile_hip_src(srcs, flags, arch, disable_processes, true);
+        compile_hip_src(srcs, flags, arch, disable_processes, /* quiet */ true);
         return true;
     }
     catch(...)

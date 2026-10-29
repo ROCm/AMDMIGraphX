@@ -48,7 +48,6 @@ namespace op {
  *  Include or exclude the minimum value/index for range checking and clipping.
  * 5. `clip_max` vs. `not_clip_max` (default):
  *  Clip values greater than the maximum or not.
- *  `assume_leq_max` skips both clipping and range checking against the maximum.
  * 6. `include_max` vs. `exclude_max` (default):
  *  Include or exclude the maximum value/index for range checking and clipping.
  * 7. `normalize_padding`:
@@ -66,8 +65,7 @@ enum class normalize_attribute
     clip_min,
     include_max,
     include_min,
-    normalize_padding,
-    assume_leq_max
+    normalize_padding
 };
 
 } // namespace op

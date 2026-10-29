@@ -22,7 +22,8 @@
 #   rbuild build -d depend -B build
 #
 
-FROM ubuntu:24.04
+# Base image pinned to ubuntu:24.04 tag digest (sha256 from tag 24.04 as of 2026-08).
+FROM ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
 
 ARG PREFIX=/usr/local
 # ROCm release version (used in versioned package names, e.g. amdrocm-developer-tools7.13)

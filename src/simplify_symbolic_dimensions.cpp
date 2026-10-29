@@ -338,22 +338,20 @@ struct reshape_replacement
 operation_replacement make_operation_replacement(const operation& op, const substitutions& values)
 {
     operation_replacement result = std::nullopt;
-    auto find_and_replace = [&](auto&& handler) {
+    auto find_and_replace        = [&](auto&& handler) {
         if(result)
             return;
         if(not handler.matches(op))
             return;
         result = handler.replace(op, values);
     };
-    each_args(
-        find_and_replace,
-        dyn_slice_replacement{},
-        broadcast_replacement{},
-        shape_operation_replacement{},
-        dynamic_range_replacement{},
-        eval_expr_from_shape_replacement{},
-        reshape_replacement{}
-    );
+    each_args(find_and_replace,
+              dyn_slice_replacement{},
+              broadcast_replacement{},
+              shape_operation_replacement{},
+              dynamic_range_replacement{},
+              eval_expr_from_shape_replacement{},
+              reshape_replacement{});
     return result;
 }
 

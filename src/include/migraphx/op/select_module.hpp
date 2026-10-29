@@ -161,23 +161,25 @@ struct select_module
     // would reject every candidate, so the shared dynamic inputs are only checked on the selected
     // module; the static ones are checked when the submodule evaluates its parameters.
     template <class GetArgument>
-    const module_metadata& find_module(const module_set_metadata& metadata,
+    const module_metadata& find_module(const module_set_metadata& modules_metadata,
                                        std::size_t argument_count,
                                        GetArgument get_argument) const
     {
         auto module_iter =
-            std::find_if(metadata.modules.begin(), metadata.modules.end(), [&](const auto& info) {
-                return info.inputs.size() <= argument_count and
-                       std::all_of(info.selector_indices.begin(),
-                                   info.selector_indices.end(),
-                                   [&](std::size_t index) {
-                                       return matches_input_shape(
-                                           get_argument(index).get_shape(),
-                                           info.inputs[index].parameter_shape);
-                                   });
-            });
+            std::find_if(modules_metadata.modules.begin(),
+                         modules_metadata.modules.end(),
+                         [&](const auto& info) {
+                             return info.inputs.size() <= argument_count and
+                                    std::all_of(info.selector_indices.begin(),
+                                                info.selector_indices.end(),
+                                                [&](std::size_t index) {
+                                                    return matches_input_shape(
+                                                        get_argument(index).get_shape(),
+                                                        info.inputs[index].parameter_shape);
+                                                });
+                         });
 
-        if(module_iter == metadata.modules.end() or
+        if(module_iter == modules_metadata.modules.end() or
            not std::all_of(module_iter->shared_dynamic_indices.begin(),
                            module_iter->shared_dynamic_indices.end(),
                            [&](std::size_t index) {

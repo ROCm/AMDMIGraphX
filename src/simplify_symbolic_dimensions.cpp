@@ -30,6 +30,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/functional.hpp>
 
 #include <algorithm>
 #include <array>
@@ -333,28 +334,27 @@ struct reshape_replacement
     }
 };
 
-struct replacement_handler
-{
-    bool (*matches)(const operation&);
-    operation_replacement (*replace)(const operation&, const substitutions&);
-};
-
 // Route each supported operation to the handler that owns its complete attribute rewrite.
 operation_replacement make_operation_replacement(const operation& op, const substitutions& values)
 {
-    static const std::array<replacement_handler, 6> handlers    = {{
-        {dyn_slice_replacement::matches, dyn_slice_replacement::replace},
-        {broadcast_replacement::matches, broadcast_replacement::replace},
-        {shape_operation_replacement::matches, shape_operation_replacement::replace},
-        {dynamic_range_replacement::matches, dynamic_range_replacement::replace},
-        {eval_expr_from_shape_replacement::matches, eval_expr_from_shape_replacement::replace},
-        {reshape_replacement::matches, reshape_replacement::replace},
-    }};
-    const std::array<replacement_handler, 6>::const_iterator it = std::find_if(
-        handlers.begin(), handlers.end(), [&](const auto& handler) { return handler.matches(op); });
-    if(it == handlers.end())
-        return std::nullopt;
-    return it->replace(op, values);
+    operation_replacement result = std::nullopt;
+    auto find_and_replace = [&](auto&& handler) {
+        if(result)
+            return;
+        if(not handler.matches(op))
+            return;
+        result = handler.replace(op, values);
+    };
+    each_args(
+        find_and_replace,
+        dyn_slice_replacement{},
+        broadcast_replacement{},
+        shape_operation_replacement{},
+        dynamic_range_replacement{},
+        eval_expr_from_shape_replacement{},
+        reshape_replacement{}
+    );
+    return result;
 }
 
 } // namespace
@@ -397,8 +397,7 @@ void simplify_symbolic_dimensions::apply(module& m) const
     std::unordered_map<instruction_ref, instruction_ref> replacements;
     for(auto ins : original)
     {
-        if(ins->name() == "@literal" or ins->name() == "@param" or ins->name() == "@outline" or
-           ins->name() == "@comment")
+        if(contains({"@literal", "@param", "@outline", "@comment"}, ins->name()))
             replacements.emplace(ins, ins);
     }
     auto outputs = m.add_instructions(

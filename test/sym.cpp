@@ -2711,6 +2711,19 @@ TEST_CASE(builtin_min_max_same_operand)
     EXPECT(max(max(x, y), max(x, y)) == max(x, y));
 }
 
+TEST_CASE(builtin_min_max_same_symbol_combines_metadata)
+{
+    auto c1       = interval{int64_t{1}, int64_t{20}};
+    auto c2       = interval{int64_t{2}, int64_t{10}};
+    auto x1       = var("x", c1);
+    auto x2       = var("x", c2);
+    auto expected = var("x", std::vector<interval>{c1, c2});
+    EXPECT(min(x1, x2) == expected);
+    EXPECT(min(x2, x1) == expected);
+    EXPECT(max(x1, x2) == expected);
+    EXPECT(max(x2, x1) == expected);
+}
+
 TEST_CASE(builtin_min_max_distinct_operands_not_folded)
 {
     auto x = var("x");
@@ -2723,28 +2736,38 @@ TEST_CASE(builtin_min_max_distinct_operands_not_folded)
 
 TEST_CASE(builtin_min_proven_order)
 {
-    auto x     = var("x", {2, 4});
-    auto upper = var("upper", {4, 4});
+    auto x             = var("x", {2, 4});
+    auto upper         = var("upper", {4, 4});
+    auto dynamic_upper = var("dynamic_upper", {4, 8});
+    auto overlap       = var("overlap", {3, 5});
     EXPECT(min(x, lit(4)) == x);
     EXPECT(min(lit(4), x) == x);
     EXPECT(min(x, upper) == x);
     EXPECT(min(upper, x) == x);
+    EXPECT(min(x, dynamic_upper) == x);
+    EXPECT(min(dynamic_upper, x) == x);
     EXPECT(min(x, lit(1)) == lit(1));
     // still min b/c not provably less than or equal
     EXPECT(min(x, lit(3)).name() == "min");
+    EXPECT(min(x, overlap).name() == "min");
 }
 
 TEST_CASE(builtin_max_proven_order)
 {
-    auto x     = var("x", {2, 4});
-    auto lower = var("lower", {2, 2});
+    auto x             = var("x", {2, 4});
+    auto lower         = var("lower", {2, 2});
+    auto dynamic_lower = var("dynamic_lower", {0, 2});
+    auto overlap       = var("overlap", {1, 3});
     EXPECT(max(x, lit(2)) == x);
     EXPECT(max(lit(2), x) == x);
     EXPECT(max(x, lower) == x);
     EXPECT(max(lower, x) == x);
+    EXPECT(max(x, dynamic_lower) == x);
+    EXPECT(max(dynamic_lower, x) == x);
     EXPECT(max(x, lit(5)) == lit(5));
     // still max b/c not provably less than or equal
     EXPECT(max(x, lit(3)).name() == "max");
+    EXPECT(max(x, overlap).name() == "max");
 }
 
 TEST_CASE(builtin_min_max_same_operand_eval)

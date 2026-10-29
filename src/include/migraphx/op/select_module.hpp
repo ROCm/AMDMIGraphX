@@ -45,14 +45,19 @@ struct select_module
 {
     shape output_dyn_shapes;
 
+    struct output_location
+    {
+        std::size_t index;
+        std::vector<std::size_t> path;
+    };
+
     struct parameter_metadata
     {
         std::string name;
         shape parameter_shape;
-        // Parent tuple slots this parameter writes, in parameter-subobject order. A fused
-        // GPU kernel can pack many returns into one tuple parameter whose get_tuple_elem
-        // users are not consecutive in the submodule return list.
-        std::vector<std::size_t> output_indices;
+        // Caller buffers this parameter writes, in parameter-leaf order. A location identifies
+        // both the submodule return slot and a path within that return's buffer.
+        std::vector<output_location> output_locations;
     };
 
     enum class source_kind
@@ -218,8 +223,13 @@ struct select_module
         std::size_t leaf_index = 0;
         auto prepared          = fix<argument>([&](auto self, const shape& expected) {
             if(expected.type() != shape::tuple_type)
-                return prepare_output_shape(
-                    output, expected, get_output(output.output_indices.at(leaf_index++)));
+            {
+                const auto& location = output.output_locations.at(leaf_index++);
+                auto result          = get_output(location.index);
+                for(auto index : location.path)
+                    result = result.get_sub_object(index);
+                return prepare_output_shape(output, expected, result);
+            }
 
             std::vector<argument> result;
             result.reserve(expected.sub_shapes().size());
@@ -229,7 +239,7 @@ struct select_module
                            [&](const shape& sub_shape) { return self(sub_shape); });
             return argument{result};
         })(output.parameter_shape);
-        assert(leaf_index == output.output_indices.size());
+        assert(leaf_index == output.output_locations.size());
         return prepared;
     }
 

@@ -230,6 +230,7 @@ struct MIGRAPHX_EXPORT module
     std::vector<instruction_ref> get_returns() const;
 
     std::size_t size() const;
+    std::size_t select_module_candidates_size() const;
     instruction_ref begin() const;
     instruction_ref end() const;
     instruction_ref insert_end() const;

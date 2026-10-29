@@ -760,24 +760,6 @@ static std::vector<argument> generic_eval(const module* mod,
     return {results.at(std::prev(mod->end()))};
 }
 
-// The number of instructions the select_module candidates of a module can evaluate in one run,
-// which is the largest candidate of each select_module since only one of them runs. Zero when
-// the module has no select_module.
-static std::size_t select_module_candidates_size(const module& m)
-{
-    return transform_accumulate(
-        m.begin(), m.end(), std::size_t{0}, std::plus<>{}, [](const instruction& ins) {
-            if(ins.name() != "select_module")
-                return std::size_t{0};
-            const auto& candidates = ins.module_inputs();
-            auto largest =
-                std::max_element(candidates.begin(),
-                                 candidates.end(),
-                                 by(std::less<>{}, [](module_ref c) { return c->size(); }));
-            return largest == candidates.end() ? std::size_t{0} : (*largest)->size();
-        });
-}
-
 template <class F>
 static std::vector<argument> generic_eval(const program& p,
                                           std::vector<context>& ctx,
@@ -786,7 +768,7 @@ static std::vector<argument> generic_eval(const program& p,
                                           bool select_fast_path = false)
 {
     const module* mm = p.get_main_module();
-    if(auto candidates_size = select_fast_path ? select_module_candidates_size(*mm) : 0;
+    if(auto candidates_size = select_fast_path ? mm->select_module_candidates_size() : 0;
        candidates_size > 0)
     {
         // Main dispatches to select_module candidates, so the leaves they capture are computed

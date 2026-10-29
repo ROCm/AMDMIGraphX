@@ -99,12 +99,58 @@ TEST_CASE(select_module_output_parameter_reshapes_larger_buffer)
     migraphx::parameter_map params;
     params["data"]   = migraphx::argument{data_s, data_vec.data()};
     params["output"] = migraphx::argument{max_s, output_vec.data()};
+    EXPECT(mm->select_module_candidates_size() == 0);
     finalize_program(p);
+    EXPECT(mm->select_module_candidates_size() ==
+           std::max(candidates.front()->size(), candidates.back()->size()));
     auto results = p.eval(params);
     EXPECT(results.size() == 1);
     EXPECT(results.front().get_shape() == data_s);
     EXPECT(results.front().data() == params.at("output").data());
     EXPECT(results.front().to_vector<float>() == std::vector<float>{-1, -2, -3, -4});
+
+    mm->add_parameter("unused", max_s);
+    EXPECT(mm->select_module_candidates_size() == 0);
+}
+
+TEST_CASE(select_module_preserves_parameter_orders_when_copying_a_module_with_a_gap)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::module source{"source"};
+    auto removed = source.add_parameter("removed", s);
+    source.add_parameter("data", s);
+    source.remove_instruction(removed);
+
+    migraphx::module copied = source;
+    auto copied_data        = copied.get_parameter("data");
+    auto copied_output      = copied.add_parameter("sub:#output_0", s);
+    copied.add_return({copied.add_instruction(copy_into_op{}, copied_data, copied_output)});
+
+    migraphx::program p;
+    auto* submod = p.create_module("sub", std::move(copied));
+    auto* mm     = p.get_main_module();
+    auto data    = mm->add_parameter("data", s);
+    auto output  = mm->add_parameter("output", s);
+    auto select  = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}})}}),
+        {data, output},
+        {submod});
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
+
+    std::vector<float> data_vec{1, 2, 3, 4};
+    std::vector<float> output_vec(s.elements(), 0);
+    migraphx::parameter_map params;
+    params["data"]   = migraphx::argument{s, data_vec.data()};
+    params["output"] = migraphx::argument{s, output_vec.data()};
+    finalize_program(p);
+    auto results = p.eval(params);
+
+    EXPECT(results.size() == 1);
+    EXPECT(results.front().data() == params.at("output").data());
+    EXPECT(results.front().to_vector<float>() == data_vec);
 }
 
 TEST_CASE(select_module_output_parameter_buffer_too_small_error)
@@ -245,6 +291,177 @@ TEST_CASE(select_module_tuple_output_parameter_through_alias)
     EXPECT(output1_vec == std::vector<float>{-1, -2, -3, -4});
 }
 
+TEST_CASE(select_module_tuple_projection_through_alias_wrapper)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    auto* nested  = p.create_module("nested");
+    auto ndata    = nested->add_parameter("data", s);
+    auto noutput0 = nested->add_parameter("nested:#output_0", s);
+    auto noutput1 = nested->add_parameter("nested:#output_1", s);
+    auto neg      = nested->add_instruction(migraphx::make_op("neg"), ndata);
+    nested->add_return({nested->add_instruction(copy_into_op{}, ndata, noutput0),
+                        nested->add_instruction(copy_into_op{}, neg, noutput1)});
+
+    auto* submod = p.create_module("fused");
+    auto sdata   = submod->add_parameter("data", s);
+    auto fused   = submod->add_parameter("fused:#output_0", migraphx::shape{{s, s}});
+    auto first =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+    auto second =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+    auto selected = submod->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{{s, s}})}}),
+        {sdata, second, first},
+        {nested});
+    auto wrapped = submod->add_instruction(pass_op{}, selected);
+    auto out0 =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), wrapped);
+    auto out1 =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), wrapped);
+    submod->add_return({out0, out1});
+
+    auto* mm     = p.get_main_module();
+    auto data    = mm->add_parameter("data", s);
+    auto output0 = mm->add_parameter("output0", s);
+    auto output1 = mm->add_parameter("output1", s);
+    auto select  = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{{s, s}})}}),
+        {data, output0, output1},
+        {submod});
+    auto result0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto result1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
+    mm->add_return({result0, result1});
+
+    std::vector<float> data_vec{1, 2, 3, 4};
+    std::vector<float> output0_vec(s.elements(), 0);
+    std::vector<float> output1_vec(s.elements(), 0);
+    migraphx::parameter_map params;
+    params["data"]    = migraphx::argument{s, data_vec.data()};
+    params["output0"] = migraphx::argument{s, output0_vec.data()};
+    params["output1"] = migraphx::argument{s, output1_vec.data()};
+    finalize_program(p);
+    auto results = p.eval(params);
+
+    EXPECT(results.size() == 2);
+    EXPECT(output0_vec == data_vec);
+    EXPECT(output1_vec == std::vector<float>{-1, -2, -3, -4});
+}
+
+TEST_CASE(select_module_direct_tuple_output_parameter)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::shape tuple_s{{s, s}};
+    auto* submod = p.create_module("fused");
+    auto sdata   = submod->add_parameter("data", s);
+    auto fused   = submod->add_parameter("fused:#output_0", tuple_s);
+    auto first =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+    auto second =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+    auto neg = submod->add_instruction(migraphx::make_op("neg"), sdata);
+    submod->add_instruction(copy_into_op{}, sdata, first);
+    submod->add_instruction(copy_into_op{}, neg, second);
+    submod->add_return({submod->add_instruction(pass_op{}, fused)});
+
+    auto* mm    = p.get_main_module();
+    auto data   = mm->add_parameter("data", s);
+    auto output = mm->add_parameter("output", tuple_s);
+    migraphx::shape output_shapes{std::vector<migraphx::shape>{tuple_s}};
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
+        {data, output},
+        {submod});
+    auto tuple_result =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto result0 =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), tuple_result);
+    auto result1 =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), tuple_result);
+    mm->add_return({result0, result1});
+
+    std::vector<float> data_vec{1, 2, 3, 4};
+    std::vector<float> output0_vec(s.elements(), 0);
+    std::vector<float> output1_vec(s.elements(), 0);
+    migraphx::parameter_map params;
+    params["data"]   = migraphx::argument{s, data_vec.data()};
+    params["output"] = migraphx::argument{
+        {migraphx::argument{s, output0_vec.data()}, migraphx::argument{s, output1_vec.data()}}};
+    finalize_program(p);
+    auto results = p.eval(params);
+
+    EXPECT(results.size() == 2);
+    auto output_objects = params.at("output").get_sub_objects();
+    EXPECT(results[0].data() == output_objects[0].data());
+    EXPECT(results[1].data() == output_objects[1].data());
+    EXPECT(output0_vec == data_vec);
+    EXPECT(output1_vec == std::vector<float>{-1, -2, -3, -4});
+}
+
+TEST_CASE(select_module_direct_subtuple_output_parameter)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::shape tail_s{{s, s}};
+    migraphx::shape tuple_s{{s, tail_s}};
+    auto* submod = p.create_module("fused");
+    auto sdata   = submod->add_parameter("data", s);
+    auto fused   = submod->add_parameter("fused:#output_0", tuple_s);
+    auto first =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+    auto tail = submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+    auto second =
+        submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), tail);
+    auto third = submod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), tail);
+    auto neg   = submod->add_instruction(migraphx::make_op("neg"), sdata);
+    auto sum   = submod->add_instruction(migraphx::make_op("add"), sdata, sdata);
+    submod->add_instruction(copy_into_op{}, sdata, first);
+    submod->add_instruction(copy_into_op{}, neg, second);
+    submod->add_instruction(copy_into_op{}, sum, third);
+    submod->add_return(
+        {submod->add_instruction(pass_op{}, first), submod->add_instruction(pass_op{}, tail)});
+
+    auto* mm     = p.get_main_module();
+    auto data    = mm->add_parameter("data", s);
+    auto output0 = mm->add_parameter("output0", s);
+    auto output1 = mm->add_parameter("output1", tail_s);
+    migraphx::shape output_shapes{std::vector<migraphx::shape>{s, tail_s}};
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shapes)}}),
+        {data, output0, output1},
+        {submod});
+    auto result0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto tail_result =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
+    auto result1 =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), tail_result);
+    auto result2 =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), tail_result);
+    mm->add_return({result0, result1, result2});
+
+    std::vector<float> data_vec{1, 2, 3, 4};
+    std::vector<float> output0_vec(s.elements(), 0);
+    std::vector<float> output1_vec(s.elements(), 0);
+    std::vector<float> output2_vec(s.elements(), 0);
+    migraphx::parameter_map params;
+    params["data"]    = migraphx::argument{s, data_vec.data()};
+    params["output0"] = migraphx::argument{s, output0_vec.data()};
+    params["output1"] = migraphx::argument{
+        {migraphx::argument{s, output1_vec.data()}, migraphx::argument{s, output2_vec.data()}}};
+    finalize_program(p);
+    auto results = p.eval(params);
+
+    EXPECT(results.size() == 3);
+    EXPECT(output0_vec == data_vec);
+    EXPECT(output1_vec == std::vector<float>{-1, -2, -3, -4});
+    EXPECT(output2_vec == std::vector<float>{2, 4, 6, 8});
+}
+
 // One return is the tuple parameter itself and the other only reads it, so neither identifies the
 // element it writes
 TEST_CASE(select_module_tuple_output_parameter_unaliased_element_error)
@@ -277,8 +494,7 @@ TEST_CASE(select_module_tuple_output_parameter_unaliased_element_error)
     params["output0"] = migraphx::argument{s, output0_vec.data()};
     params["output1"] = migraphx::argument{s, output1_vec.data()};
     EXPECT(test::throws<migraphx::exception>(
-        [&] { finalize_program(p); },
-        "is not aliased by get_tuple_elem returns for every subobject"));
+        [&] { finalize_program(p); }, "is not aliased by module returns for every subobject"));
 }
 
 TEST_CASE(select_module_output_count_mismatch_error)

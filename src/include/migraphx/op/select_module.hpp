@@ -31,11 +31,8 @@
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
 #include <algorithm>
-#include <atomic>
 #include <cassert>
 #include <functional>
-#include <memory>
-#include <mutex>
 #include <numeric>
 #include <unordered_map>
 #include <vector>
@@ -73,7 +70,7 @@ struct select_module
 
     struct module_metadata
     {
-        module_ref mod;
+        std::size_t module_index;
         std::vector<parameter_metadata> inputs;
         std::vector<parameter_metadata> outputs;
         std::vector<std::size_t> selector_indices;
@@ -85,39 +82,12 @@ struct select_module
 
     struct module_set_metadata
     {
-        std::vector<module_ref> candidates;
         std::vector<module_metadata> modules;
     };
 
-    struct metadata_cache_storage
-    {
-        std::mutex mutex;
-        std::vector<std::shared_ptr<const module_set_metadata>> entries;
-        std::shared_ptr<const module_set_metadata> last_entry;
-    };
-
-    struct metadata_cache
-    {
-        std::shared_ptr<metadata_cache_storage> storage =
-            std::make_shared<metadata_cache_storage>();
-
-        metadata_cache() = default;
-
-        // An operation clone belongs to a different instruction and can receive unrelated
-        // module_refs. Do not carry non-owning module_refs from the source operation into it.
-        metadata_cache(const metadata_cache&) : storage(std::make_shared<metadata_cache_storage>())
-        {
-        }
-
-        metadata_cache& operator=(const metadata_cache& other)
-        {
-            if(this != &other)
-                storage = std::make_shared<metadata_cache_storage>();
-            return *this;
-        }
-    };
-
-    metadata_cache cache;
+    // Built from the instruction's fixed submodule list during finalization. Candidate indices
+    // avoid retaining non-owning module pointers when a finalized program is copied.
+    module_set_metadata metadata;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -163,25 +133,19 @@ struct select_module
     MIGRAPHX_EXPORT module_set_metadata
     build_module_metadata(const std::vector<module_ref>& candidates) const;
 
-    // Built once for each list of candidates used by this operator instance. Evaluation almost
-    // always repeats the last list, which is checked without taking the lock.
-    std::shared_ptr<const module_set_metadata>
-    get_module_metadata(const std::vector<module_ref>& submodule_list) const
+    void finalize(context&,
+                  const shape&,
+                  const std::vector<shape>&,
+                  const std::vector<module_ref>& submodule_list)
     {
-        auto last_entry = std::atomic_load(&cache.storage->last_entry);
-        if(last_entry != nullptr and last_entry->candidates == submodule_list)
-            return last_entry;
+        metadata = build_module_metadata(submodule_list);
+    }
 
-        std::lock_guard<std::mutex> lock{cache.storage->mutex};
-        auto entry = std::find_if(cache.storage->entries.begin(),
-                                  cache.storage->entries.end(),
-                                  [&](const auto& e) { return e->candidates == submodule_list; });
-        if(entry == cache.storage->entries.end())
-            entry = cache.storage->entries.insert(
-                cache.storage->entries.end(),
-                std::make_shared<const module_set_metadata>(build_module_metadata(submodule_list)));
-        std::atomic_store(&cache.storage->last_entry, *entry);
-        return *entry;
+    const module_set_metadata& finalized_metadata(std::size_t module_count) const
+    {
+        if(metadata.modules.empty() or metadata.modules.size() != module_count)
+            MIGRAPHX_THROW("SELECT_MODULE: operation was not finalized");
+        return metadata;
     }
 
     static bool matches_input_shape(const shape& actual, const shape& expected)
@@ -273,12 +237,12 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        auto metadata = get_module_metadata(submodule_list);
+        const auto& finalized = finalized_metadata(submodule_list.size());
         const auto& module_info =
-            find_module(*metadata, args.size(), [&](std::size_t index) -> const argument& {
+            find_module(finalized, args.size(), [&](std::size_t index) -> const argument& {
                 return args[index];
             });
-        auto* module_to_run = module_info.mod;
+        auto* module_to_run = submodule_list.at(module_info.module_index);
         std::unordered_map<std::string, argument> p_map;
         p_map.reserve(module_info.inputs.size() + module_info.outputs.size());
 
@@ -330,11 +294,11 @@ struct select_module
                                                 const std::vector<module_ref>& submodule_list,
                                                 Run run) const
     {
-        auto metadata           = get_module_metadata(submodule_list);
-        const auto& module_info = find_module(*metadata, argument_count, get_argument);
+        const auto& finalized   = finalized_metadata(submodule_list.size());
+        const auto& module_info = find_module(finalized, argument_count, get_argument);
         auto params             = positional_parameter_view<GetArgument>{
             this, &module_info, get_argument, argument_count - num_outputs()};
-        auto* module_to_run = module_info.mod;
+        auto* module_to_run = submodule_list.at(module_info.module_index);
         return argument{run(module_to_run, params)};
     }
 

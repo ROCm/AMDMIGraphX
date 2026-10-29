@@ -440,39 +440,75 @@ std::vector<std::size_t> output_alias_op(const T&, const std::vector<shape>&)
 }
 
 template <class T>
-auto finalize_op(
-    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+auto finalize_op(rank<2>,
+                 T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input,
+                 const std::vector<module_ref>& mod_args)
+    -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input, mod_args), void())
+{
+    x.finalize(auto_any_cast(ctx), output_shape, input, mod_args);
+}
+
+template <class T>
+auto finalize_op(rank<1>,
+                 T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input,
+                 const std::vector<module_ref>&)
     -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input), void())
 {
     x.finalize(auto_any_cast(ctx), output_shape, input);
 }
 
 template <class T>
-void finalize_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+void finalize_op(
+    rank<0>, T&, context&, const shape&, const std::vector<shape>&, const std::vector<module_ref>&)
 {
 }
 
 template <class T>
-void finalize_op(T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+void finalize_op(T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input,
+                 const std::vector<module_ref>& mod_args)
 {
-    finalize_op(rank<1>{}, x, ctx, output_shape, input);
+    finalize_op(rank<2>{}, x, ctx, output_shape, input, mod_args);
 }
 
 template <class T>
-auto has_finalize_op(
-    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+auto has_finalize_op(rank<2>,
+                     T& x,
+                     context& ctx,
+                     const shape& output_shape,
+                     const std::vector<shape>& input,
+                     const std::vector<module_ref>& mod_args)
+    -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input, mod_args), std::true_type{});
+
+template <class T>
+auto has_finalize_op(rank<1>,
+                     T& x,
+                     context& ctx,
+                     const shape& output_shape,
+                     const std::vector<shape>& input,
+                     const std::vector<module_ref>&)
     -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input), std::true_type{});
 
 template <class T>
-auto has_finalize_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+auto has_finalize_op(
+    rank<0>, T&, context&, const shape&, const std::vector<shape>&, const std::vector<module_ref>&)
     -> std::false_type;
 
 template <class T>
-auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
+auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<2>{},
                                                            std::declval<T&>(),
                                                            std::declval<context&>(),
                                                            std::declval<const shape&>(),
-                                                           std::declval<std::vector<shape>>()))
+                                                           std::declval<std::vector<shape>>(),
+                                                           std::declval<std::vector<module_ref>>()))
 {
     return {};
 }
@@ -549,6 +585,11 @@ struct MIGRAPHX_EXPORT operation
     value compile(context& ctx, const shape& output, const std::vector<shape>& input);
     // (optional)
     void finalize(context& ctx, const shape& output, const std::vector<shape>& input);
+    // (optional)
+    void finalize(context& ctx,
+                  const shape& output,
+                  const std::vector<shape>& input,
+                  const std::vector<module_ref>& mod_args);
     // (optional)
     shape compute_shape(const std::vector<shape>& input) const;
     // (optional)
@@ -685,10 +726,11 @@ struct operation
                                                    T&& private_detail_te_self,
                                                    context& ctx,
                                                    const shape& output,
-                                                   const std::vector<shape>& input)
-        -> decltype(private_detail_te_self.finalize(ctx, output, input))
+                                                   const std::vector<shape>& input,
+                                                   const std::vector<module_ref>& mod_args)
+        -> decltype(private_detail_te_self.finalize(ctx, output, input, mod_args))
     {
-        private_detail_te_self.finalize(ctx, output, input);
+        private_detail_te_self.finalize(ctx, output, input, mod_args);
     }
 
     template <class T>
@@ -696,9 +738,10 @@ struct operation
                                                    T&& private_detail_te_self,
                                                    context& ctx,
                                                    const shape& output,
-                                                   const std::vector<shape>& input)
+                                                   const std::vector<shape>& input,
+                                                   const std::vector<module_ref>& mod_args)
     {
-        detail::finalize_op(private_detail_te_self, ctx, output, input);
+        detail::finalize_op(private_detail_te_self, ctx, output, input, mod_args);
     }
 
     template <class T>
@@ -933,7 +976,8 @@ struct operation
                                                     std::declval<PrivateDetailTypeErasedT>(),
                                                     std::declval<context&>(),
                                                     std::declval<const shape&>(),
-                                                    std::declval<const std::vector<shape>&>()),
+                                                    std::declval<const std::vector<shape>&>(),
+                                                    std::declval<const std::vector<module_ref>&>()),
                  private_detail_te_default_compute_shape(char(0),
                                                          std::declval<PrivateDetailTypeErasedT>(),
                                                          std::declval<const std::vector<shape>&>()),
@@ -1098,8 +1142,16 @@ struct operation
 
     void finalize(context& ctx, const shape& output, const std::vector<shape>& input)
     {
+        finalize(ctx, output, input, {});
+    }
+
+    void finalize(context& ctx,
+                  const shape& output,
+                  const std::vector<shape>& input,
+                  const std::vector<module_ref>& mod_args)
+    {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().finalize(ctx, output, input);
+        (*this).private_detail_te_get_handle().finalize(ctx, output, input, mod_args);
     }
 
     shape compute_shape(const std::vector<shape>& input) const
@@ -1207,9 +1259,11 @@ struct operation
         virtual lifetime get_lifetime() const                                                = 0;
         virtual std::vector<std::size_t> output_alias(const std::vector<shape>& input) const = 0;
         virtual value
-        compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
-        virtual void
-        finalize(context& ctx, const shape& output, const std::vector<shape>& input)       = 0;
+        compile(context& ctx, const shape& output, const std::vector<shape>& input)        = 0;
+        virtual void finalize(context& ctx,
+                              const shape& output,
+                              const std::vector<shape>& input,
+                              const std::vector<module_ref>& mod_args)                     = 0;
         virtual shape compute_shape(const std::vector<shape>& input) const                 = 0;
         virtual shape compute_shape(const std::vector<shape>& inputs,
                                     const std::vector<module_ref>& mod_args) const         = 0;
@@ -1304,11 +1358,14 @@ struct operation
                 char(0), private_detail_te_value, ctx, output, input);
         }
 
-        void finalize(context& ctx, const shape& output, const std::vector<shape>& input) override
+        void finalize(context& ctx,
+                      const shape& output,
+                      const std::vector<shape>& input,
+                      const std::vector<module_ref>& mod_args) override
         {
 
             private_detail_te_default_finalize(
-                char(0), private_detail_te_value, ctx, output, input);
+                char(0), private_detail_te_value, ctx, output, input, mod_args);
         }
 
         shape compute_shape(const std::vector<shape>& input) const override

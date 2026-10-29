@@ -854,6 +854,12 @@ struct side_effect_leaf_op
 
 std::size_t side_effect_leaf_op::calls = 0;
 
+void finalize_modules(migraphx::program& p)
+{
+    std::vector<migraphx::context> contexts(1);
+    p.get_main_module()->finalize(contexts);
+}
+
 // The leaf is read only by the select_module candidate, so it is computed when the candidate
 // reads it
 TEST_CASE(select_module_lazy_leaf)
@@ -880,7 +886,8 @@ TEST_CASE(select_module_lazy_leaf)
     std::vector<float> data_vec{1, 2, 3, 4};
     migraphx::parameter_map params;
     params["data"] = migraphx::argument{s, data_vec.data()};
-    auto result    = p.eval(params).back();
+    finalize_modules(p);
+    auto result = p.eval(params).back();
     EXPECT(result.to_vector<float>() == std::vector<float>{3, 6, 9, 12});
 }
 
@@ -907,7 +914,8 @@ TEST_CASE(select_module_lazy_leaf_returned_directly)
     std::vector<float> data_vec{1};
     migraphx::parameter_map params;
     params["data"] = migraphx::argument{s, data_vec.data()};
-    auto result    = p.eval(params).back();
+    finalize_modules(p);
+    auto result = p.eval(params).back();
     EXPECT(result.to_vector<float>() == std::vector<float>{3});
 }
 
@@ -1007,6 +1015,7 @@ TEST_CASE(select_module_lazy_leaf_without_context_error)
     std::vector<float> data_vec{1, 2, 3, 4};
     migraphx::parameter_map params;
     params["data"] = migraphx::argument{s, data_vec.data()};
+    finalize_modules(p);
     EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval(params); },
                                              "No context available for fill_leaf_ctx"));
 }

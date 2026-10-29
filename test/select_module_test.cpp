@@ -56,6 +56,12 @@ struct copy_into_op
     }
 };
 
+void finalize_program(migraphx::program& p)
+{
+    std::vector<migraphx::context> contexts(1);
+    p.get_main_module()->finalize(contexts);
+}
+
 TEST_CASE(select_module_output_parameter_reshapes_larger_buffer)
 {
     migraphx::program p;
@@ -93,7 +99,8 @@ TEST_CASE(select_module_output_parameter_reshapes_larger_buffer)
     migraphx::parameter_map params;
     params["data"]   = migraphx::argument{data_s, data_vec.data()};
     params["output"] = migraphx::argument{max_s, output_vec.data()};
-    auto results     = p.eval(params);
+    finalize_program(p);
+    auto results = p.eval(params);
     EXPECT(results.size() == 1);
     EXPECT(results.front().get_shape() == data_s);
     EXPECT(results.front().data() == params.at("output").data());
@@ -129,6 +136,7 @@ TEST_CASE(select_module_output_parameter_buffer_too_small_error)
     migraphx::parameter_map params;
     params["data"]   = migraphx::argument{s, data_vec.data()};
     params["output"] = migraphx::argument{small_s, output_vec.data()};
+    finalize_program(p);
     EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval(params); },
                                              "output buffer for \"dim_2:#output_0\""));
 }
@@ -156,6 +164,7 @@ TEST_CASE(select_module_missing_output_allocations_error)
     std::vector<float> data_vec(s.elements(), 1);
     migraphx::parameter_map params;
     params["data"] = migraphx::argument{s, data_vec.data()};
+    finalize_program(p);
     EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval(params); },
                                              "missing output allocations"));
 }
@@ -186,7 +195,7 @@ TEST_CASE(select_module_output_parameter_read_is_not_alias)
     migraphx::parameter_map params;
     params["data"]   = migraphx::argument{s, data_vec.data()};
     params["output"] = migraphx::argument{s, output_vec.data()};
-    EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval(params); },
+    EXPECT(test::throws<migraphx::exception>([&] { finalize_program(p); },
                                              "does not alias a module output"));
 }
 
@@ -227,7 +236,8 @@ TEST_CASE(select_module_tuple_output_parameter_through_alias)
     params["data"]    = migraphx::argument{s, data_vec.data()};
     params["output0"] = migraphx::argument{s, output0_vec.data()};
     params["output1"] = migraphx::argument{s, output1_vec.data()};
-    auto results      = p.eval(params);
+    finalize_program(p);
+    auto results = p.eval(params);
     EXPECT(results.size() == 2);
     EXPECT(results[0].data() == params.at("output0").data());
     EXPECT(results[1].data() == params.at("output1").data());
@@ -267,7 +277,7 @@ TEST_CASE(select_module_tuple_output_parameter_unaliased_element_error)
     params["output0"] = migraphx::argument{s, output0_vec.data()};
     params["output1"] = migraphx::argument{s, output1_vec.data()};
     EXPECT(test::throws<migraphx::exception>(
-        [&] { std::ignore = p.eval(params); },
+        [&] { finalize_program(p); },
         "is not aliased by get_tuple_elem returns for every subobject"));
 }
 
@@ -299,7 +309,7 @@ TEST_CASE(select_module_output_count_mismatch_error)
     params["data"]    = migraphx::argument{s, data_vec.data()};
     params["output0"] = migraphx::argument{s, output0_vec.data()};
     params["output1"] = migraphx::argument{s, output1_vec.data()};
-    EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval(params); },
+    EXPECT(test::throws<migraphx::exception>([&] { finalize_program(p); },
                                              "output allocation count does not match"));
 }
 
@@ -329,6 +339,8 @@ TEST_CASE(select_module_compute_maps_parameters_by_name)
     migraphx::argument data_arg{s, data_vec.data()};
     migraphx::argument output_arg{max_s, output_vec.data()};
     std::unordered_map<std::string, migraphx::argument> seen;
+    migraphx::context ctx;
+    op.finalize(ctx, {}, {}, {&small, &submod});
     auto result = op.compute(migraphx::shape{std::vector<migraphx::shape>{s}},
                              {data_arg, output_arg},
                              {&small, &submod},

@@ -167,11 +167,12 @@ std::vector<std::size_t> output_indices(const std::string& name,
     return result;
 }
 
-module_metadata make_module_metadata(const select_module& select, module_ref mod)
+module_metadata
+make_module_metadata(const select_module& select, module_ref mod, std::size_t module_index)
 {
     module_metadata result;
-    result.mod      = mod;
-    auto parameters = mod->get_parameters();
+    result.module_index = module_index;
+    auto parameters     = mod->get_parameters();
     std::unordered_map<std::string, instruction_ref> parameter_by_name;
     std::transform(parameters.begin(),
                    parameters.end(),
@@ -256,12 +257,14 @@ select_module::module_set_metadata
 select_module::build_module_metadata(const std::vector<module_ref>& candidates) const
 {
     module_set_metadata result;
-    result.candidates = candidates;
     result.modules.reserve(candidates.size());
-    std::transform(candidates.begin(),
-                   candidates.end(),
-                   std::back_inserter(result.modules),
-                   [&](module_ref mod) { return make_module_metadata(*this, mod); });
+    auto candidate_indices = range(candidates.size());
+    std::transform(
+        candidates.begin(),
+        candidates.end(),
+        candidate_indices.begin(),
+        std::back_inserter(result.modules),
+        [&](module_ref mod, std::size_t index) { return make_module_metadata(*this, mod, index); });
     std::vector<std::vector<std::size_t>> selectors;
     selectors.reserve(result.modules.size());
     std::transform(result.modules.begin(),

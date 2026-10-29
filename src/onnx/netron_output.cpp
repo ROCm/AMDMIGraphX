@@ -127,7 +127,7 @@ void add_node(onnx::GraphProto* graph,
     auto op_value       = ins->get_operator().to_value();
     std::for_each(op_value.begin(), op_value.end(), [&](const auto& v) {
         const std::string& attr_key = v.get_key();
-        if(v.is_binary() or attr_key == "code_object")
+        if(v.is_binary() or v.is_null() or attr_key == "code_object")
         {
             return;
         }

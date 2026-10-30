@@ -24,6 +24,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -98,8 +99,8 @@ TEST_CASE(nms_default_test)
                             score_threshold);
     add_nms_return(mm, nms);
 
-    std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     std::vector<float> scores_vec = {0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
     int64_t max_out_val           = 4;
     float iou_val                 = 0.5f;
@@ -406,10 +407,10 @@ TEST_CASE(nms_multi_batch_test)
                             score_threshold);
     add_nms_return(mm, nms);
 
-    std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0,
-                                     0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0,
+                                    0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     std::vector<float> scores_vec = {
         0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f, 0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
     int64_t max_out_val = 4;
@@ -1480,7 +1481,9 @@ TEST_CASE(nms_large_iou_mask_uses_gpu_bitmask)
 
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(*mm,
-                         {migraphx::gpu::lowering{&ctx, false}, migraphx::dead_code_elimination{}});
+                         {migraphx::gpu::lowering{&ctx, false},
+                          migraphx::gpu::eliminate_device_copy{},
+                          migraphx::dead_code_elimination{}});
 
     auto filter = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
         if(ins.name() != "gpu::precompile_op")
@@ -1512,7 +1515,9 @@ TEST_CASE(nms_unaddressable_bitmask_falls_back_to_host)
 
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(*mm,
-                         {migraphx::gpu::lowering{&ctx, false}, migraphx::dead_code_elimination{}});
+                         {migraphx::gpu::lowering{&ctx, false},
+                          migraphx::gpu::eliminate_device_copy{},
+                          migraphx::dead_code_elimination{}});
 
     EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
         if(ins.name() != "gpu::precompile_op")

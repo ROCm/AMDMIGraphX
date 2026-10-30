@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,8 +24,8 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GPU_SYNC_DEVICE_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GPU_SYNC_DEVICE_HPP
 
+#include <migraphx/gpu/config.hpp>
 #include <string>
-#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -33,7 +33,7 @@ struct module;
 
 namespace gpu {
 
-struct sync_device
+struct MIGRAPHX_GPU_EXPORT sync_device
 {
     std::string name() const { return "sync_device"; }
     void apply(module& m) const;

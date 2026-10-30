@@ -24,8 +24,19 @@
 #include <migraphx/stack_segment.hpp>
 #include <array>
 #include <cstddef>
+#include <mutex>
+#include <thread>
 #include <vector>
 #include <test.hpp>
+
+// The std::thread fallback runs the segment on a new thread, so thread
+// affinity is only guaranteed by the native implementations
+static bool same_thread_segment()
+{
+    std::thread::id inner;
+    migraphx::run_on_new_stack([&] { inner = std::this_thread::get_id(); });
+    return inner == std::this_thread::get_id();
+}
 
 TEST_CASE(run_on_new_stack_basic)
 {
@@ -83,6 +94,22 @@ TEST_CASE(run_on_new_stack_stack_space)
     // Each level holds a 1MB frame across its nested call, so 50 live levels
     // need far more stack than a single fixed-size stack provides
     consume_stack(50);
+}
+
+TEST_CASE(run_on_new_stack_recursive_mutex)
+{
+    if(not same_thread_segment())
+        return;
+    // A recursive_mutex held by the caller can be reacquired inside the
+    // segment since the native implementations stay on the same thread
+    std::recursive_mutex m;
+    std::lock_guard<std::recursive_mutex> outer{m};
+    int x = 0;
+    migraphx::run_on_new_stack([&] {
+        std::lock_guard<std::recursive_mutex> inner{m};
+        x = 1;
+    });
+    EXPECT(x == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

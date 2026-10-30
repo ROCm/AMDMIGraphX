@@ -25,11 +25,22 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
+#include <thread>
 #include <test.hpp>
 
 // Deep enough to overflow a fixed-size stack without stack segmentation
 static constexpr std::uint64_t deep_n = 1 << 18;
+
+// The std::thread fallback runs the segment on a new thread, so thread
+// affinity is only guaranteed by the native implementations
+static bool same_thread_segment()
+{
+    std::thread::id inner;
+    migraphx::run_on_new_stack([&] { inner = std::this_thread::get_id(); });
+    return inner == std::this_thread::get_id();
+}
 
 TEST_CASE(fix_factorial)
 {
@@ -122,6 +133,23 @@ TEST_CASE(fix_deep_void)
         count += pad / i;
     })(deep_n);
     EXPECT(count == deep_n);
+}
+
+TEST_CASE(fix_recursive_mutex)
+{
+    if(not same_thread_segment())
+        return;
+    // Every frame holds the recursive_mutex across self, so hopping to a new
+    // stack must stay on the same thread for the reacquisition to succeed
+    std::recursive_mutex m;
+    std::size_t count = 0;
+    migraphx::fix([&](auto self, std::size_t i) {
+        std::lock_guard<std::recursive_mutex> lock{m};
+        count++;
+        if(i > 0)
+            self(i - 1);
+    })(2048);
+    EXPECT(count == 2049);
 }
 
 TEST_CASE(fix_deep_throw)

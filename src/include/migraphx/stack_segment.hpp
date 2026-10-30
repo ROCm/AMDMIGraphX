@@ -30,9 +30,12 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// Runs f on a freshly heap-allocated stack segment on the current thread, so
-// recursion can grow into new segments instead of overflowing the current
-// stack. f must not throw.
+// Runs f on a freshly heap-allocated stack segment, so recursion can grow into
+// new segments instead of overflowing the current stack. f must not throw.
+// The native implementations only switch stacks, so f runs on the current
+// thread and thread-affine state(thread locals, recursive_mutex ownership)
+// behaves like same-thread recursion. The std::thread fallback runs f on a new
+// thread, so f must not depend on thread identity there.
 MIGRAPHX_EXPORT void run_on_new_stack(std::function<void()> f);
 
 } // namespace MIGRAPHX_INLINE_NS

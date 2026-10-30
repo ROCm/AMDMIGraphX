@@ -398,4 +398,111 @@ TEST_CASE(kv_cache_plain_q_single_head)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// A reshape that splits the unpacked axis of an int4 weight into groups is
+// moved in front of the unpack so rocMLIR never reshapes an i4 unpack result
+TEST_CASE(unpack_int4_reshape_split)
+{
+    migraphx::shape ps{migraphx::shape::uint8_type, {4, 16}};
+
+    migraphx::module m1;
+    {
+        auto wp  = m1.add_parameter("wp", ps);
+        auto up  = m1.add_instruction(migraphx::make_op("unpack_int4"), wp);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4, 8}}}), up);
+        m1.add_return({rsp});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto wp  = m2.add_parameter("wp", ps);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4, 4}}}), wp);
+        auto up  = m2.add_instruction(migraphx::make_op("unpack_int4"), rsp);
+        m2.add_return({up});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Merging the unpacked axis into the leading axes keeps the nibble order
+TEST_CASE(unpack_int4_reshape_merge)
+{
+    migraphx::shape ps{migraphx::shape::uint8_type, {4, 16}};
+
+    migraphx::module m1;
+    {
+        auto wp  = m1.add_parameter("wp", ps);
+        auto up  = m1.add_instruction(migraphx::make_op("unpack_int4"), wp);
+        auto rsp = m1.add_instruction(migraphx::make_op("flatten", {{"axis", 0}}), up);
+        m1.add_return({rsp});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto wp  = m2.add_parameter("wp", ps);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 64}}}), wp);
+        auto up  = m2.add_instruction(migraphx::make_op("unpack_int4"), rsp);
+        m2.add_return({up});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Running the pass a second time makes no further changes
+TEST_CASE(unpack_int4_reshape_idempotent)
+{
+    migraphx::shape ps{migraphx::shape::uint8_type, {4, 16}};
+
+    migraphx::module m1;
+    {
+        auto wp  = m1.add_parameter("wp", ps);
+        auto up  = m1.add_instruction(migraphx::make_op("unpack_int4"), wp);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4, 8}}}), up);
+        m1.add_return({rsp});
+    }
+    run_pass(m1);
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A reshape whose last dim is odd cannot hold both nibbles of a byte, so the
+// unpack has to stay on the unpacked layout
+TEST_CASE(unpack_int4_reshape_odd_last_dim)
+{
+    migraphx::shape ps{migraphx::shape::uint8_type, {4, 16}};
+
+    migraphx::module m1;
+    {
+        auto wp  = m1.add_parameter("wp", ps);
+        auto up  = m1.add_instruction(migraphx::make_op("unpack_int4"), wp);
+        auto rsp = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), up);
+        m1.add_return({rsp});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Only an unpack along the last axis interleaves nibbles in memory order
+TEST_CASE(unpack_int4_reshape_inner_axis)
+{
+    migraphx::shape ps{migraphx::shape::uint8_type, {4, 16}};
+
+    migraphx::module m1;
+    {
+        auto wp  = m1.add_parameter("wp", ps);
+        auto up  = m1.add_instruction(migraphx::make_op("unpack_int4", {{"axis", 0}}), wp);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 16}}}), up);
+        m1.add_return({rsp});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -169,12 +169,20 @@ argument allocate_gpu(const shape& s, bool host)
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
+// Unregistering waits for pending gpu work that may still read the host buffer, so the
+// registration is declared last to be released before the buffer
+struct registered_host_buffer
+{
+    argument host;
+    std::shared_ptr<void> registration;
+};
+
 argument register_on_gpu(const argument& arg)
 {
-    auto arg_shared = arg.share();
-    auto p          = register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes());
-    auto s          = arg_shared.get_shape();
-    return {s, [p, a = std::move(arg_shared)]() mutable { return get_device_ptr(p.get()); }};
+    auto r          = std::make_shared<registered_host_buffer>();
+    r->host         = arg.share();
+    r->registration = register_on_gpu(r->host.data(), r->host.get_shape().bytes());
+    return {r->host.get_shape(), [r] { return get_device_ptr(r->registration.get()); }};
 }
 
 argument to_gpu(const argument& arg, bool host)

@@ -186,21 +186,25 @@ struct find_gemm_softmax_gemm
 {
     bool enable_attention = false;
 
+    // gemm1 and mul are each matched several times, so erase each level with opaque to
+    // keep the nested matcher type from growing exponentially (gcc/msvc OOM)
     auto matcher() const
     {
-        auto gemm1 = match::skip(match::name("contiguous"))(match::name("dot")(
-            match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm1")));
-        auto mul   = match::name("mul")(
-            match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
-        auto where = match::name("where")(match::arg(2)(match::is_constant().bind("select_const")),
-                                          match::arg(1)(mul),
-                                          match::arg(0)(match::any().bind("select_cond")));
-        auto add =
+        auto gemm1 = match::opaque(match::skip(match::name("contiguous"))(match::name("dot")(
+            match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm1"))));
+        auto mul   = match::opaque(match::name("mul")(
+            match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1)));
+        auto where = match::opaque(
+            match::name("where")(match::arg(2)(match::is_constant().bind("select_const")),
+                                 match::arg(1)(mul),
+                                 match::arg(0)(match::any().bind("select_cond"))));
+        auto add = match::opaque(
             match::name("add")(is_bias_supported(),
                                match::nargs(2),
-                               match::either_arg(0, 1)(match::none_of(mul).bind("bias"), mul));
-        auto softmax = match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1, where)))
-                           .bind("softmax");
+                               match::either_arg(0, 1)(match::none_of(mul).bind("bias"), mul)));
+        auto softmax = match::opaque(
+            match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1, where)))
+                .bind("softmax"));
 
         return match::name("dot")(
             match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm2"))(

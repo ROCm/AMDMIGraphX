@@ -27,6 +27,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/raw_data.hpp>
+#include <migraphx/register_target.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 #include <algorithm>
@@ -56,11 +57,7 @@ struct copy_into_op
     }
 };
 
-void finalize_program(migraphx::program& p)
-{
-    std::vector<migraphx::context> contexts(1);
-    p.get_main_module()->finalize(contexts);
-}
+void finalize_program(migraphx::program& p) { p.finalize(migraphx::make_target("ref")); }
 
 TEST_CASE(select_module_output_parameter_reshapes_larger_buffer)
 {
@@ -99,58 +96,12 @@ TEST_CASE(select_module_output_parameter_reshapes_larger_buffer)
     migraphx::parameter_map params;
     params["data"]   = migraphx::argument{data_s, data_vec.data()};
     params["output"] = migraphx::argument{max_s, output_vec.data()};
-    EXPECT(mm->select_module_candidates_size() == 0);
     finalize_program(p);
-    EXPECT(mm->select_module_candidates_size() ==
-           std::max(candidates.front()->size(), candidates.back()->size()));
     auto results = p.eval(params);
     EXPECT(results.size() == 1);
     EXPECT(results.front().get_shape() == data_s);
     EXPECT(results.front().data() == params.at("output").data());
     EXPECT(results.front().to_vector<float>() == std::vector<float>{-1, -2, -3, -4});
-
-    mm->add_parameter("unused", max_s);
-    EXPECT(mm->select_module_candidates_size() == 0);
-}
-
-TEST_CASE(select_module_preserves_parameter_orders_when_copying_a_module_with_a_gap)
-{
-    migraphx::shape s{migraphx::shape::float_type, {4}};
-    migraphx::module source{"source"};
-    auto removed = source.add_parameter("removed", s);
-    source.add_parameter("data", s);
-    source.remove_instruction(removed);
-
-    migraphx::module copied = source;
-    auto copied_data        = copied.get_parameter("data");
-    auto copied_output      = copied.add_parameter("sub:#output_0", s);
-    copied.add_return({copied.add_instruction(copy_into_op{}, copied_data, copied_output)});
-
-    migraphx::program p;
-    auto* submod = p.create_module("sub", std::move(copied));
-    auto* mm     = p.get_main_module();
-    auto data    = mm->add_parameter("data", s);
-    auto output  = mm->add_parameter("output", s);
-    auto select  = mm->add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes",
-                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}})}}),
-        {data, output},
-        {submod});
-    mm->add_return(
-        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
-
-    std::vector<float> data_vec{1, 2, 3, 4};
-    std::vector<float> output_vec(s.elements(), 0);
-    migraphx::parameter_map params;
-    params["data"]   = migraphx::argument{s, data_vec.data()};
-    params["output"] = migraphx::argument{s, output_vec.data()};
-    finalize_program(p);
-    auto results = p.eval(params);
-
-    EXPECT(results.size() == 1);
-    EXPECT(results.front().data() == params.at("output").data());
-    EXPECT(results.front().to_vector<float>() == data_vec);
 }
 
 TEST_CASE(select_module_output_parameter_buffer_too_small_error)

@@ -60,19 +60,6 @@ struct select_module
         std::vector<output_location> output_locations;
     };
 
-    enum class source_kind
-    {
-        unused,
-        input,
-        output
-    };
-
-    struct parameter_source
-    {
-        source_kind kind;
-        std::size_t index;
-    };
-
     struct module_metadata
     {
         std::size_t module_index;
@@ -82,7 +69,6 @@ struct select_module
         // Dynamic inputs that every candidate shares. Parameter evaluation does not check
         // dynamic shapes, so these are checked once the module is selected.
         std::vector<std::size_t> shared_dynamic_indices;
-        std::vector<parameter_source> parameters;
     };
 
     struct module_set_metadata
@@ -278,40 +264,6 @@ struct select_module
                        });
         auto results = run(module_to_run, p_map);
         return argument{results};
-    }
-
-    template <class GetArgument>
-    struct positional_parameter_view
-    {
-        const select_module* select;
-        const module_metadata* metadata;
-        GetArgument get_argument;
-        std::size_t output_start;
-
-        argument get_parameter(std::size_t order) const
-        {
-            const auto& source = metadata->parameters.at(order);
-            assert(source.kind != source_kind::unused);
-            if(source.kind == source_kind::input)
-                return get_argument(source.index);
-            return select->prepare_output(metadata->outputs[source.index], [&](std::size_t index) {
-                return get_argument(output_start + index);
-            });
-        }
-    };
-
-    template <class GetArgument, class Run>
-    argument compute_with_positional_parameters(std::size_t argument_count,
-                                                GetArgument get_argument,
-                                                const std::vector<module_ref>& submodule_list,
-                                                Run run) const
-    {
-        const auto& finalized   = finalized_metadata(submodule_list.size());
-        const auto& module_info = find_module(finalized, argument_count, get_argument);
-        auto params             = positional_parameter_view<GetArgument>{
-            this, &module_info, get_argument, argument_count - num_outputs()};
-        auto* module_to_run = submodule_list.at(module_info.module_index);
-        return argument{run(module_to_run, params)};
     }
 
     // The caller's output buffers are appended after the input arguments during lowering.

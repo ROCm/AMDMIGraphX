@@ -47,7 +47,6 @@
 #include <array>
 #include <set>
 #include <utility>
-#include <unordered_map>
 #include <unordered_set>
 
 namespace migraphx {
@@ -65,13 +64,6 @@ struct module_impl
     bool bypass      = false; // used for skipping compiler passes
     bit_signal<64> changed{};
     std::size_t num_ins_with_debug_symbols = 0;
-    std::size_t select_module_candidates   = 0;
-
-    void notify_changed()
-    {
-        changed.notify();
-        select_module_candidates = 0;
-    }
 
     bool contains(instruction_ref ins) const
     {
@@ -87,7 +79,7 @@ struct module_impl
     template <class... Ts>
     instruction_ref emplace(instruction_ref pos, Ts&&... xs)
     {
-        notify_changed();
+        changed.notify();
         // cppcheck-suppress redundantInitialization
         auto r = instructions.emplace(pos, std::forward<Ts>(xs)...);
         instruction_set.insert(std::addressof(*r));
@@ -95,7 +87,7 @@ struct module_impl
     }
     instruction_ref insert(instruction_ref pos, const instruction& ins)
     {
-        notify_changed();
+        changed.notify();
         return emplace(pos, ins);
     }
 
@@ -126,7 +118,7 @@ struct module_impl
 
     void reset_instructions()
     {
-        notify_changed();
+        changed.notify();
         instructions.clear();
         instruction_set.clear();
         nparams                    = 0;
@@ -158,7 +150,7 @@ struct module_impl
 
     instruction_ref erase(instruction_ref pos)
     {
-        notify_changed();
+        changed.notify();
         instruction_set.erase(std::addressof(*pos));
         if(num_ins_with_debug_symbols > 0 and not pos->get_debug_symbols().empty())
             --num_ins_with_debug_symbols;
@@ -167,7 +159,7 @@ struct module_impl
 
     instruction_ref erase(instruction_ref start, instruction_ref last)
     {
-        notify_changed();
+        changed.notify();
         std::for_each(start, last, [&](auto& ins) {
             instruction_set.erase(std::addressof(ins));
             if(num_ins_with_debug_symbols > 0 and not ins.get_debug_symbols().empty())
@@ -253,11 +245,6 @@ void module::assign(const module& m)
         impl->reset_instructions();
     }
 
-    std::unordered_map<std::string, uint32_t> parameter_orders;
-    uint32_t parameter_order = 0;
-    for(const auto& name : m.get_parameter_names())
-        parameter_orders.emplace(name, parameter_order++);
-
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(m))
     {
@@ -269,13 +256,12 @@ void module::assign(const module& m)
         }
         else if(ins->name() == "@param")
         {
-            auto param    = ins->get_operator().to_value();
-            auto name     = param.at("parameter").to<std::string>();
-            auto order    = parameter_orders.at(name);
-            auto s        = ins->get_shape();
-            copy_ins      = impl->insert(impl->instructions.end(),
-                                         {builtin::param{name, order}, std::move(s), {}});
-            impl->nparams = std::max(impl->nparams, order + 1);
+            auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            auto order  = any_cast<builtin::param>(ins->get_operator()).order;
+            auto s      = ins->get_shape();
+            copy_ins    = impl->insert(impl->instructions.end(),
+                                       {builtin::param{name, order}, std::move(s), {}});
+            impl->nparams++;
         }
         else if(ins->name() == "@outline")
         {
@@ -304,7 +290,6 @@ void module::assign(const module& m)
         add_debug_symbols(copy_ins, ins->get_debug_symbols());
         ins_map[ins] = copy_ins;
     }
-    impl->select_module_candidates = m.impl->select_module_candidates;
 }
 
 template <class Range, class Inserter>
@@ -544,7 +529,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             std::vector<instruction_ref> args,
                                             std::vector<module_ref> module_args)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
     auto guard     = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
@@ -565,7 +550,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 
 instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     assert(has_instruction(ins));
     assert(ins != rep);
 
@@ -619,7 +604,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 std::vector<instruction_ref>
 module::batch_replace_instruction(const std::vector<instruction_replacement>& replacers)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     std::vector<instruction_ref> ret;
     std::unordered_set<instruction_ref> old_max_splices;
     std::unordered_set<instruction_ref> new_max_splices;
@@ -714,7 +699,7 @@ instruction_ref module::remove_instructions(instruction_ref first, instruction_r
 
 instruction_ref module::move_instruction(instruction_ref src, instruction_ref dst)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     assert(has_instruction(src));
     assert(has_instruction(dst) or is_end(dst, this->end()));
     impl->instructions.splice(dst, impl->instructions, src);
@@ -896,7 +881,7 @@ instruction_ref module::insert_parameter(instruction_ref ins, std::string name, 
 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")
@@ -985,7 +970,7 @@ std::vector<instruction_ref> module::get_parameters() const
 
 void module::rename_parameter(instruction_ref ins, const std::string& name)
 {
-    impl->notify_changed();
+    impl->changed.notify();
     assert(ins->name() == "@param");
     auto op      = any_cast<builtin::param>(ins->get_operator());
     op.parameter = name;
@@ -1012,7 +997,6 @@ std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 bool module::has_instruction(instruction_ref ins) const { return impl->contains(ins); }
 
 std::size_t module::size() const { return impl->instructions.size(); }
-std::size_t module::select_module_candidates_size() const { return impl->select_module_candidates; }
 instruction_ref module::begin() const { return impl->instructions.begin(); }
 instruction_ref module::end() const { return impl->instructions.end(); }
 instruction_ref module::insert_end() const
@@ -1193,18 +1177,6 @@ void module::finalize(std::vector<context>& contexts)
             smod->finalize(contexts);
         }
     }
-
-    impl->select_module_candidates = transform_accumulate(
-        begin(), end(), std::size_t{0}, std::plus<>{}, [](const instruction& ins) {
-            if(ins.name() != "select_module")
-                return std::size_t{0};
-            const auto& candidates = ins.module_inputs();
-            auto largest =
-                std::max_element(candidates.begin(),
-                                 candidates.end(),
-                                 by(std::less<>{}, [](module_ref c) { return c->size(); }));
-            return largest == candidates.end() ? std::size_t{0} : (*largest)->size();
-        });
 
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });

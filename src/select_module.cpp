@@ -43,13 +43,6 @@ namespace {
 using module_metadata    = select_module::module_metadata;
 using output_location    = select_module::output_location;
 using parameter_metadata = select_module::parameter_metadata;
-using parameter_source   = select_module::parameter_source;
-using source_kind        = select_module::source_kind;
-
-std::size_t parameter_order(instruction_ref parameter)
-{
-    return any_cast<builtin::param>(parameter->get_operator()).order;
-}
 
 // The ref target wraps every operator in ref::op, which reports the wrapped one in to_value.
 std::optional<std::size_t> tuple_element_index(instruction_ref ins)
@@ -201,22 +194,13 @@ make_module_metadata(const select_module& select, module_ref mod, std::size_t mo
                            any_cast<builtin::param>(parameter->get_operator()).parameter,
                            parameter);
                    });
-    auto slots = transform_accumulate(
-        parameters.begin(),
-        parameters.end(),
-        std::size_t{0},
-        [](std::size_t x, std::size_t y) { return std::max(x, y); },
-        [](instruction_ref parameter) { return parameter_order(parameter) + 1; });
-    result.parameters.resize(slots, parameter_source{source_kind::unused, 0});
 
     auto input_names = select.get_input_parameter_names(mod);
     std::transform(input_names.begin(),
                    input_names.end(),
                    std::back_inserter(result.inputs),
-                   [&, index = std::size_t{0}](const std::string& name) mutable {
+                   [&](const std::string& name) {
                        auto parameter = parameter_by_name.at(name);
-                       result.parameters[parameter_order(parameter)] =
-                           parameter_source{source_kind::input, index++};
                        return parameter_metadata{name, parameter->get_shape(), {}};
                    });
 
@@ -228,10 +212,8 @@ make_module_metadata(const select_module& select, module_ref mod, std::size_t mo
         output_names.begin(),
         output_names.end(),
         std::back_inserter(result.outputs),
-        [&, index = std::size_t{0}](const std::string& name) mutable {
+        [&](const std::string& name) {
             auto parameter = parameter_by_name.at(name);
-            result.parameters[parameter_order(parameter)] =
-                parameter_source{source_kind::output, index++};
             return parameter_metadata{
                 name,
                 parameter->get_shape(),

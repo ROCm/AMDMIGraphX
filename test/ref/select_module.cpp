@@ -442,13 +442,7 @@ TEST_CASE(select_module_unaliased_output_error)
         {submod});
     auto out = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
     mm->add_return({out});
-    p.compile(migraphx::make_target("ref"));
-    std::vector<float> data_vec(4, 1);
-    std::vector<float> output_vec(4, 0);
-    migraphx::parameter_map params;
-    params["data"]   = migraphx::argument{s, data_vec.data()};
-    params["output"] = migraphx::argument{s, output_vec.data()};
-    EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval(params); },
+    EXPECT(test::throws<migraphx::exception>([&] { p.compile(migraphx::make_target("ref")); },
                                              "does not alias a module output"));
 }
 

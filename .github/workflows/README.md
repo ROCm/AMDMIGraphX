@@ -83,6 +83,48 @@ Overall, this workflow automates the process of building and testing the AMDMIGr
     For more details, please refer to the [ci.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/ci.yaml) file in the repository.
 
 ---
+## `claude-review.yaml`
+
+<p>
+This workflow runs the repository's <code>/migraphx-code-review</code> Claude Code skill on a pull request and posts the findings as inline review comments plus a summary comment. Model requests go through the internal LLM gateway, so the job runs on a self-hosted runner.
+</p>
+
+- ## Trigger
+    The workflow is triggered by the following events:
+
+     - A comment containing `@claude review` on a pull request, written by a repository owner, organization member, or collaborator. An optional effort level (`low`, `medium`, `high`, `xhigh`, `max`) can follow the phrase; the default is `xhigh`.
+
+     - The label `claude-review` (xhigh) or `claude-review-<level>` being added to a same-repo pull request. This runs the workflow file from the PR branch, so it can be used to test changes to the workflow before merging. The label is removed again when the job finishes.
+
+- ## Jobs
+    The workflow has a single job named `review`. The following steps are executed in this job:
+     - `Pick the PR and effort level from the trigger`: reads the PR number and the optional effort level from the comment or the label.
+
+     - `actions/checkout`: checks out the pull request head with full history so the skill can diff against `origin/develop`.
+
+     - `Install bubblewrap`: installs the sandbox tool Claude Code needs for `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`.
+
+     - `Check the gateway resolves from this runner`: fails fast if the runner cannot resolve the gateway host.
+
+     - `Claude review`: runs `anthropics/claude-code-action` against the gateway (configured through `ANTHROPIC_BASE_URL` and `ANTHROPIC_CUSTOM_HEADERS`) and invokes the skill with `--comment` so findings are posted as inline comments. The job log contains the full session output.
+
+     - `Remove the trigger label`: for label-triggered runs, removes the label so the PR can be labeled again.
+
+    GitHub runs `issue_comment` workflows from the default branch, so the comment trigger only takes effect once this file is on `develop`.
+
+- ## Secrets
+    The workflow requires the following repository secrets:
+
+     - `ANTHROPIC_BASE_URL`: base URL of the LLM gateway.
+
+     - `LLM_GATEWAY_KEY`: gateway subscription key, sent as the `Ocp-Apim-Subscription-Key` header.
+
+     - `USER_NTID`: user identifier sent as the `user` header.
+
+    For more details, please refer to the [claude-review.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/claude-review.yaml) file in the repository.
+
+---
+
 ## `clean-closed-pr-caches.yaml`
 
 <p>

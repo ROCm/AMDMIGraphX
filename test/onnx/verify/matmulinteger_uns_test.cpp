@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,6 @@ TEST_CASE(matmulinteger_uns_test)
     auto result = p.eval(pp).back();
     std::vector<int32_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<int32_t> gold = {45730, 44641, 46108, 45010, 46486, 45379, 46864, 45748};
-    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+    std::vector<int32_t> gold = {34, 97, 28, 82, 22, 67, 16, 52};
+    EXPECT(result_vector == gold);
 }

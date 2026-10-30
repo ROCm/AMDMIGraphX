@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
@@ -1144,10 +1145,125 @@ using find_mlir_standalone_conv_backwards_op = find_mlir_standalone_op<&is_mlir_
 using find_mlir_standalone_conv_op           = find_mlir_standalone_op<&is_mlir_conv>;
 using find_mlir_standalone_dot_op            = find_mlir_standalone_op<&is_mlir_dot>;
 
+std::unordered_map<instruction_ref, instruction_ref>
+invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    std::unordered_map<instruction_ref, instruction_ref> inverse_map;
+    for(auto const& [key, value] : map_ins)
+    {
+        assert(not contains(inverse_map, value));
+        inverse_map[value] = key;
+    }
+    return inverse_map;
+}
+
+// Rebuilds an attention group as the module of a gpu::mlir_op, fusing each
+// group output's single-use pointwise consumer in as an epilogue (eg the
+// attention-sink gate sigmoid(lse - sinks) on the lse output)
+struct mlir_attention_builder
+{
+    instruction_ref group;
+    module_ref mlir_attn;
+    std::vector<instruction_ref> attn_outs                                     = {};
+    std::unordered_map<instruction_ref, instruction_ref> map_main_to_mlir_attn = {};
+    std::unordered_map<instruction_ref, instruction_ref> inss_to_replace       = {};
+
+    // The map copy keeps the group module params out of map_main_to_mlir_attn
+    // so it stays invertible
+    void fuse_group_mod()
+    {
+        std::unordered_map<instruction_ref, instruction_ref> map_group_mod_to_mlir_attn(
+            map_main_to_mlir_attn);
+        attn_outs = mlir_attn->fuse(
+            *group->module_inputs().front(), group->inputs(), &map_group_mod_to_mlir_attn);
+    }
+
+    // A pointwise that also depends on another output of the group (eg the mul
+    // applying the sink gate to the attention output) would make the mlir_op
+    // an input of itself
+    bool creates_cycle(instruction_ref pw, instruction_ref attn_output_ins) const
+    {
+        return std::any_of(pw->inputs().begin(), pw->inputs().end(), [&](instruction_ref input) {
+            return input != attn_output_ins and reaches(group, input);
+        });
+    }
+
+    // Only fuse attention outputs that are used once by pointwise ops
+    void fuse_pointwise_outputs(module& m)
+    {
+        if(group->outputs().size() != 1 and attn_outs.size() <= 1)
+            return;
+        std::size_t out_idx  = 0;
+        auto attn_output_ins = group;
+        for(auto out : group->outputs())
+        {
+            auto op = out->get_operator();
+            if(op.name() == "get_tuple_elem")
+            {
+                inss_to_replace[out]  = out;
+                out_idx               = op.to_value()["index"].to<std::size_t>();
+                auto tuple_elem_users = out->outputs();
+                if(tuple_elem_users.size() > 1)
+                    continue;
+
+                attn_output_ins = out;
+                out             = tuple_elem_users.front();
+            }
+
+            auto match_pw = match::match_instruction(m, out, mlir_pointwise());
+            if(match_pw.result != out)
+                continue;
+            if(creates_cycle(out, attn_output_ins))
+                continue;
+
+            map_main_to_mlir_attn[attn_output_ins] = attn_outs[out_idx];
+            inss_to_replace[attn_output_ins]       = out;
+
+            auto lit_map = create_param_map_with_literals(
+                mlir_attn, out->module_inputs().front(), out->get_shape());
+            mlir_attn->add_params(out->inputs(), &map_main_to_mlir_attn);
+            map_main_to_mlir_attn.insert(lit_map.begin(), lit_map.end());
+            std::unordered_map<instruction_ref, instruction_ref> map_pm_to_mlir_attn(
+                map_main_to_mlir_attn);
+            auto fused_pw_outs =
+                mlir_attn->fuse(*out->module_inputs().front(), out->inputs(), &map_pm_to_mlir_attn);
+            assert(fused_pw_outs.size() == 1);
+
+            map_main_to_mlir_attn[out] = fused_pw_outs.front();
+            attn_outs[out_idx]         = fused_pw_outs.front();
+        }
+    }
+
+    // Insert the mlir_op and replace the group outputs and fused users with
+    // its tuple outputs
+    void replace_group(module_pass_manager& mpm, const operation& op) const
+    {
+        mlir_attn->add_return(attn_outs);
+
+        auto map_mlir_attn_to_main = invert_map_ins(map_main_to_mlir_attn);
+        auto new_inputs            = mlir_attn->get_inputs(map_mlir_attn_to_main);
+
+        auto mlir_ins = mpm.get_module().insert_instruction(
+            group, op, mlir_contiguous(mpm, new_inputs), {mlir_attn});
+
+        if(inss_to_replace.empty())
+        {
+            mpm.get_module().replace_instruction(group, mlir_ins);
+            return;
+        }
+        for(auto const& [attn_out, fused_user] : inss_to_replace)
+        {
+            auto replace_ins = mlir_ins;
+            auto output_op   = attn_out->get_operator();
+            if(output_op.name() == "get_tuple_elem")
+                replace_ins = mpm.get_module().insert_instruction(group, output_op, {mlir_ins});
+            mpm.get_module().replace_instruction(fused_user, replace_ins);
+        }
+    }
+};
+
 struct find_mlir_kv_cache_attention_op
 {
-    mlir_mode dot_mode = mlir_mode::none;
-
     auto matcher() const
     {
         return match::name("group")(match::has_op_value("tag", "kv_cache_attention"));
@@ -1155,10 +1271,16 @@ struct find_mlir_kv_cache_attention_op
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto group   = r.result;
-        auto* m_attn = group->module_inputs()[0];
-        mpm.get_module().replace_instruction(
-            group, mlir_op{group->get_operator()}, mlir_contiguous(mpm, group->inputs()), {m_attn});
+        auto group           = r.result;
+        auto* group_mod      = group->module_inputs().front();
+        module_ref mlir_attn = mpm.create_module("mlir_" + group_mod->name());
+        mlir_attn->set_bypass();
+
+        mlir_attention_builder builder{group, mlir_attn};
+        mlir_attn->add_params(group->inputs(), &builder.map_main_to_mlir_attn);
+        builder.fuse_group_mod();
+        builder.fuse_pointwise_outputs(mpm.get_module());
+        builder.replace_group(mpm, mlir_op{group->get_operator()});
     }
 };
 
@@ -1169,101 +1291,19 @@ struct find_mlir_attention_op
         return match::name("group")(match::has_op_value("tag", "attention")).bind("group");
     }
 
-    std::unordered_map<instruction_ref, instruction_ref>
-    invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
-    {
-        std::unordered_map<instruction_ref, instruction_ref> inverse_map;
-        for(auto const& [key, value] : map_ins)
-        {
-            assert(not contains(inverse_map, value));
-            inverse_map[value] = key;
-        }
-        return inverse_map;
-    }
-
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto group = r.instructions["group"];
-
-        auto* group_mod = group->module_inputs().front();
-
-        std::string module_name = "mlir_" + group_mod->name();
-        module_ref mlir_attn    = mpm.create_module(module_name);
+        auto group           = r.instructions["group"];
+        auto* group_mod      = group->module_inputs().front();
+        module_ref mlir_attn = mpm.create_module("mlir_" + group_mod->name());
         mlir_attn->set_bypass();
 
+        mlir_attention_builder builder{group, mlir_attn};
         // Fuse any input reshapes
-        std::unordered_map<instruction_ref, instruction_ref> map_main_to_mlir_attn;
-        fuse_input_ops(mlir_attn, group->inputs(), &map_main_to_mlir_attn);
-
-        std::unordered_map<instruction_ref, instruction_ref> map_group_mod_to_mlir_attn(
-            map_main_to_mlir_attn);
-        auto attn_outs = mlir_attn->fuse(*group_mod, group->inputs(), &map_group_mod_to_mlir_attn);
-
-        std::unordered_map<instruction_ref, instruction_ref> inss_to_replace;
-        // Only fuse attention outputs that are used once by pointwise ops
-        if(group->outputs().size() == 1 or attn_outs.size() > 1)
-        {
-            std::size_t out_idx  = 0;
-            auto attn_output_ins = group;
-            for(auto out : group->outputs())
-            {
-                auto op = out->get_operator();
-                if(op.name() == "get_tuple_elem")
-                {
-                    inss_to_replace[out]  = out;
-                    out_idx               = op.to_value()["index"].to<std::size_t>();
-                    auto tuple_elem_users = out->outputs();
-                    if(tuple_elem_users.size() > 1)
-                        continue;
-
-                    attn_output_ins = out;
-                    out             = tuple_elem_users.front();
-                }
-
-                auto match_pw = match::match_instruction(mpm.get_module(), out, mlir_pointwise());
-                if(match_pw.result != out)
-                    continue;
-
-                map_main_to_mlir_attn[attn_output_ins] = attn_outs[out_idx];
-                inss_to_replace[attn_output_ins]       = out;
-
-                auto lit_map = create_param_map_with_literals(
-                    mlir_attn, out->module_inputs().front(), out->get_shape());
-                mlir_attn->add_params(out->inputs(), &map_main_to_mlir_attn);
-                map_main_to_mlir_attn.insert(lit_map.begin(), lit_map.end());
-                std::unordered_map<instruction_ref, instruction_ref> map_pm_to_mlir_attn(
-                    map_main_to_mlir_attn);
-                auto fused_pw_outs = mlir_attn->fuse(
-                    *out->module_inputs().front(), out->inputs(), &map_pm_to_mlir_attn);
-                assert(fused_pw_outs.size() == 1);
-
-                map_main_to_mlir_attn[out] = fused_pw_outs.front();
-                attn_outs[out_idx]         = fused_pw_outs.front();
-            }
-        }
-        mlir_attn->add_return(attn_outs);
-
-        auto map_mlir_attn_to_main = invert_map_ins(map_main_to_mlir_attn);
-        auto new_inputs            = mlir_attn->get_inputs(map_mlir_attn_to_main);
-
-        auto mlir_ins = mpm.get_module().insert_instruction(
-            group, mlir_op{make_op("dot")}, mlir_contiguous(mpm, new_inputs), {mlir_attn});
-
-        if(inss_to_replace.empty())
-        {
-            mpm.get_module().replace_instruction(group, mlir_ins);
-        }
-        else
-        {
-            for(auto const& [attn_out, fused_user] : inss_to_replace)
-            {
-                auto replace_ins = mlir_ins;
-                auto output_op   = attn_out->get_operator();
-                if(output_op.name() == "get_tuple_elem")
-                    replace_ins = mpm.get_module().insert_instruction(group, output_op, {mlir_ins});
-                mpm.get_module().replace_instruction(fused_user, replace_ins);
-            }
-        }
+        fuse_input_ops(mlir_attn, group->inputs(), &builder.map_main_to_mlir_attn);
+        builder.fuse_group_mod();
+        builder.fuse_pointwise_outputs(mpm.get_module());
+        builder.replace_group(mpm, mlir_op{make_op("dot")});
     }
 };
 
@@ -1661,7 +1701,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_channel_slice_convolution{});
     mpm.run_pass(dead_code_elimination{});
 
-    match::find_matches(mpm, find_mlir_kv_cache_attention_op{mlir_mode::all});
+    match::find_matches(mpm, find_mlir_kv_cache_attention_op{});
     mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(mpm, find_mlir_attention_op{});

@@ -25,6 +25,7 @@
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/match/softmax.hpp>
@@ -215,7 +216,6 @@ std::vector<instruction_ref> get_lse_instructions(const std::vector<instruction_
         return lse_inss;
     auto add = log_outs.front();
     lse_inss.insert(lse_inss.end(), {*log, add});
-
     return lse_inss;
 }
 
@@ -281,7 +281,9 @@ struct find_quant_attention
 // sigmoid factor is constant along the reduction axis, so it commutes past the
 // second gemm (and its transpose/reshape output tail) and is applied there as a
 // small pointwise epilogue. The log/add lse chain hangs off the softmax
-// reductions and becomes a second output of the fused attention group.
+// reductions and is captured into the fused attention group, which returns the
+// lse as a second output; the sigmoid gate stays outside so the backend can
+// fuse it (eg into the mlir attention module as an output epilogue).
 struct find_attention_sinks
 {
     // ext and exp are each matched twice, so erase each level with opaque to
@@ -564,8 +566,7 @@ struct find_attention
             attn_inss.insert(attn_inss.end(), lse_inss.begin(), lse_inss.end());
             required_outputs = find_outputs(attn_inss);
 
-            // Final outputs should be the second gemm and add instruction
-            // (shift lse to adjust for subtracting max during stable softmax computation)
+            // Final outputs are the second gemm and the lse
             if(required_outputs.size() != 2)
                 return;
         }
@@ -1263,6 +1264,11 @@ struct find_kv_cache_attention
                 if(contains(inss, input))
                     continue;
                 if(not is_valid_attn_op(input))
+                    continue;
+                // mlir only takes scalar, range and mask literals; other
+                // constants (eg a bias) stay inputs of the group
+                if(not is_inlinable_constant(input) and
+                   input->get_shape().type() != shape::bool_type)
                     continue;
                 if(input->get_operator().attributes().get("reduce", false))
                     continue;

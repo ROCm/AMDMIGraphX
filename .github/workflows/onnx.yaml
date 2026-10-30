@@ -1,0 +1,99 @@
+name: MIGraphX ONNX Model Tests
+
+on:
+  pull_request_target:
+    branches: [develop]
+    types: [opened, synchronize, closed]
+  schedule:
+    - cron: "0 7 * * 1-6"
+  workflow_dispatch:
+    inputs:
+      rocm_release:
+        description: ROCm Version
+        required: true
+        default: "6.4.2"
+      onnx_reports_repo:
+        description: Repository where ONNX reports are stored
+        required: true
+        default: "danieyan-amd/migraphx-reports"
+      benchmark_utils_repo:
+        description: Repository where benchmark utils are stored
+        required: true
+        default: "danieyan-amd/migraphx-benchmark-utils"
+      organization:
+        description: Organization based on which location of files will be different
+        required: true
+        default: "AMD"
+      result_number:
+        description: Last N results
+        required: true
+        default: "10"
+      model_timeout:
+        description: If a model exceeds this timeout in the test script, it will be skipped
+        required: true
+        default: "30m"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "perftest-${{ github.head_ref || github.base_ref || 'schedule' }}"
+  cancel-in-progress: true
+
+jobs:
+  get_config:
+    runs-on: ubuntu-latest
+    outputs:
+      rocm_version:  ${{ steps.read_config.outputs.rocm_version }}
+      utils_repo:    ${{ steps.read_config.outputs.utils_repo }}
+      reports_repo:  ${{ steps.read_config.outputs.reports_repo }}
+      repo_org:      ${{ steps.read_config.outputs.repo_org }}
+      perf_number:   ${{ steps.read_config.outputs.perf_number }}
+      perf_timeout:  ${{ steps.read_config.outputs.perf_timeout }}
+    steps:
+      - name: Checkout (this repo)
+        uses: actions/checkout@v4
+
+      - name: Read config defaults
+        id: read_config
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONFIG=".github/workflows/config.md"
+          grab() {
+            if [[ -f "$CONFIG" ]]; then
+              (grep -m1 "$1" "$CONFIG" | cut -d"'" -f2) || true
+            fi
+          }
+          ROCM_VERSION="$(grab ROCM_VERSION)";                         : "${ROCM_VERSION:=6.4.2}"
+          BENCHMARK_UTILS_REPO="$(grab BENCHMARK_UTILS_REPO)";         : "${BENCHMARK_UTILS_REPO:=danieyan-amd/migraphx-benchmark-utils}"
+          ONNX_REPORTS_REPO="$(grab ONNX_REPORTS_REPO)";               : "${ONNX_REPORTS_REPO:=danieyan-amd/migraphx-reports}"
+          ORGANIZATION_REPO="$(grab ORGANIZATION_REPO)";               : "${ORGANIZATION_REPO:=AMD}"
+          RESULTS_TO_COMPARE="$(grab RESULTS_TO_COMPARE)";             : "${RESULTS_TO_COMPARE:=10}"
+          PERFORMANCE_TEST_TIMEOUT="$(grab PERFORMANCE_TEST_TIMEOUT)"; : "${PERFORMANCE_TEST_TIMEOUT:=30m}"
+          echo "rocm_version=$ROCM_VERSION"            >> "$GITHUB_OUTPUT"
+          echo "utils_repo=$BENCHMARK_UTILS_REPO"      >> "$GITHUB_OUTPUT"
+          echo "reports_repo=$ONNX_REPORTS_REPO"       >> "$GITHUB_OUTPUT"
+          echo "repo_org=$ORGANIZATION_REPO"           >> "$GITHUB_OUTPUT"
+          echo "perf_number=$RESULTS_TO_COMPARE"       >> "$GITHUB_OUTPUT"
+          echo "perf_timeout=$PERFORMANCE_TEST_TIMEOUT">> "$GITHUB_OUTPUT"
+          echo "Resolved config:"
+          echo "  ROCM_VERSION=$ROCM_VERSION"
+          echo "  BENCHMARK_UTILS_REPO=$BENCHMARK_UTILS_REPO"
+          echo "  ONNX_REPORTS_REPO=$ONNX_REPORTS_REPO"
+          echo "  ORGANIZATION_REPO=$ORGANIZATION_REPO"
+          echo "  RESULTS_TO_COMPARE=$RESULTS_TO_COMPARE"
+          echo "  PERFORMANCE_TEST_TIMEOUT=$PERFORMANCE_TEST_TIMEOUT"
+
+  call_reusable:
+    needs: get_config
+    uses: danieyan-amd/migraphx-benchmark/.github/workflows/onnx-model.yaml@main
+    with:
+      rocm_release:         ${{ github.event.inputs.rocm_release         || needs.get_config.outputs.rocm_version }}
+      benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || needs.get_config.outputs.utils_repo }}
+      onnx_reports_repo:    ${{ github.event.inputs.onnx_reports_repo    || needs.get_config.outputs.reports_repo }}
+      organization:         ${{ github.event.inputs.organization         || needs.get_config.outputs.repo_org }}
+      result_number:        ${{ github.event.inputs.result_number        || needs.get_config.outputs.perf_number }}
+      model_timeout:        ${{ github.event.inputs.model_timeout        || needs.get_config.outputs.perf_timeout }}
+    secrets:
+      gh_token:  ${{ secrets.MIGRAPHX_BOT_TOKEN }}

@@ -50,6 +50,25 @@ static void run_pass(migraphx::module& m)
                          });
 }
 
+TEST_CASE(preserve_non_saturating_affine_conversion)
+{
+    migraphx::module m1;
+    auto x        = m1.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto w        = m1.add_parameter("w", {migraphx::shape::half_type, {2, 2}});
+    auto bias     = m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {2, 2}},
+                                                     {65504.0f, 65504.0f, 65504.0f, 65504.0f}});
+    auto affine   = m1.add_instruction(migraphx::make_op("add"), x, bias);
+    auto narrowed = m1.add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::shape::half_type}, {"saturate", false}}),
+        affine);
+    auto dot = m1.add_instruction(migraphx::make_op("dot"), narrowed, w);
+    m1.add_return({dot});
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 inline static std::vector<std::vector<std::size_t>>
 to_lens(const std::vector<migraphx::shape>& shapes)
 {

@@ -244,10 +244,7 @@ TEST_CASE(param_error_test)
 
     mm->add_instruction(sum_op{}, x, y);
     EXPECT(test::throws<migraphx::exception>(
-        [&] {
-            p.eval({{"x", migraphx::literal{1}.get_argument()}});
-        },
-        "Parameter not found: y"));
+        [&] { p.eval({{"x", migraphx::literal{1}.get_argument()}}); }, "Parameter not found: y"));
 }
 
 TEST_CASE(param_error_shape_test)
@@ -805,6 +802,16 @@ TEST_CASE(finalize_target_no_passes)
     // sum(2, 1) == 3, if compile(invert_target) had run, it would have produced minus(2, 1) == 1.
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
+}
+
+TEST_CASE(eval_without_context_error)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    mm->add_instruction(id_ctx_op{}, one);
+    EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval({}); },
+                                             "No context available"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -22,76 +22,48 @@
  * THE SOFTWARE.
  */
 #include <migraphx/eliminate_pad.hpp>
-#include <migraphx/program.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/op/convolution.hpp>
-#include <migraphx/op/im2col.hpp>
+#include <migraphx/op/common.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/pad.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/float_equal.hpp>
+#include <algorithm>
+#include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static void update_op(const instruction_ref& input, const instruction_ref& ins, module& m)
+// Op padding can only absorb non-negative pads on the spatial dims
+static bool can_fold_pads(const op::pad& pad_op)
 {
-    auto pad_op = any_cast<op::pad>(input->get_operator());
-
-    auto kdims    = input->get_shape().lens().size() - 2;
-    auto kdims_it = pad_op.pads.begin() + 2;
-
-    std::vector<size_t> pads_l(kdims_it, kdims_it + kdims);
-    std::vector<size_t> pads_r(kdims_it + kdims + 2, pad_op.pads.end());
-
-    auto op = ins->get_operator();
-    std::vector<size_t> padding(kdims * 2, 0);
-
-    std::transform(
-        pads_l.begin(), pads_l.end(), padding.begin(), padding.begin(), std::plus<size_t>());
-    std::transform(pads_r.begin(),
-                   pads_r.end(),
-                   padding.begin() + kdims,
-                   padding.begin() + kdims,
-                   std::plus<size_t>());
-
-    op.from_value({{"padding", padding}});
-
-    std::vector<instruction_ref> new_inputs{ins->inputs()};
-    new_inputs.front() = input->inputs().front();
-
-    m.replace_instruction(ins, op, new_inputs);
+    const auto& pads = pad_op.pads;
+    auto ndim        = pad_op.pad_ndims();
+    if(std::any_of(pads.begin(), pads.end(), [](auto p) { return p < 0; }))
+        return false;
+    return pads[0] == 0 and pads[1] == 0 and pads[ndim] == 0 and pads[ndim + 1] == 0;
 }
 
-static void update_pooling(const instruction_ref& input, const instruction_ref& ins, module& m)
+// Pads of the spatial dims as {begin..., end...}
+static std::vector<std::size_t> spatial_pads(const op::pad& pad_op)
 {
-    auto op = any_cast<op::pooling>(ins->get_operator());
-    if(op.mode == op::pooling_mode::average)
-    {
-        return;
-    }
-    auto pad_op = any_cast<op::pad>(input->get_operator());
+    const auto& pads = pad_op.pads;
+    auto ndim        = pad_op.pad_ndims();
+    std::vector<std::size_t> result(pads.begin() + 2, pads.begin() + ndim);
+    result.insert(result.end(), pads.begin() + ndim + 2, pads.end());
+    return result;
+}
 
-    auto kdims    = input->get_shape().lens().size() - 2;
-    auto kdims_it = pad_op.pads.begin() + 2;
-
-    std::vector<size_t> pads_l(kdims_it, kdims_it + kdims);
-    std::vector<size_t> pads_r(kdims_it + kdims + 2, pad_op.pads.end());
-
-    std::transform(
-        pads_l.begin(), pads_l.end(), op.padding.begin(), op.padding.begin(), std::plus<size_t>());
-    std::transform(pads_r.begin(),
-                   pads_r.end(),
-                   op.padding.begin() + kdims,
-                   op.padding.begin() + kdims,
-                   std::plus<size_t>());
-
-    std::vector<instruction_ref> new_inputs{ins->inputs()};
-    new_inputs.front() = input->inputs().front();
-
-    m.replace_instruction(ins, op, new_inputs);
+// Expand a symmetric {p...} op padding to the {begin..., end...} form
+static std::vector<std::size_t> expand_padding(const std::vector<std::size_t>& padding,
+                                               std::size_t kdims)
+{
+    if(padding.size() == 2 * kdims)
+        return padding;
+    std::vector<std::size_t> result(padding);
+    result.insert(result.end(), padding.begin(), padding.end());
+    return result;
 }
 
 void eliminate_pad::apply(module& m) const
@@ -109,10 +81,30 @@ void eliminate_pad::apply(module& m) const
         if(pad_op.mode != op::pad::pad_op_mode_t::constant_pad or
            not float_equal(pad_op.value, 0.0f))
             continue;
-        if(op_name == "convolution" or op_name == "im2col")
-            update_op(input, ins, m);
-        else if(op_name == "pooling")
-            update_pooling(input, ins, m);
+        if(not can_fold_pads(pad_op))
+            continue;
+        if(not asym_pad and not pad_op.symmetric())
+            continue;
+        auto op = ins->get_operator();
+        auto v  = op.to_value();
+        // Auto padding is computed from dynamic input dims at runtime, which the pad would change
+        bool auto_pad = v.at("padding_mode").to<int>() != op::padding_mode_t::default_;
+        if(auto_pad and input->get_shape().dynamic())
+            continue;
+        // Average pooling may exclude its padding from the divisor, unlike a pad op
+        if(op_name == "pooling" and any_cast<op::pooling>(op).mode == op::pooling_mode::average)
+            continue;
+
+        auto kdims   = pad_op.pad_ndims() - 2;
+        auto padding = expand_padding(v.at("padding").to_vector<std::size_t>(), kdims);
+        auto pads    = spatial_pads(pad_op);
+        std::transform(pads.begin(), pads.end(), padding.begin(), padding.begin(), std::plus<>{});
+        // Static shapes ignore padding_mode, so the explicit padding now describes the op
+        op.from_value({{"padding", padding}, {"padding_mode", op::padding_mode_t::default_}});
+
+        auto new_inputs    = ins->inputs();
+        new_inputs.front() = input->inputs().front();
+        m.replace_instruction(ins, op, new_inputs);
     }
 }
 

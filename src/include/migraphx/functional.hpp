@@ -26,6 +26,7 @@
 
 #include <cstddef>
 #include <exception>
+#include <functional>
 #include <type_traits>
 #include <utility>
 #include <migraphx/config.hpp>
@@ -103,6 +104,13 @@ struct fix_f
         if constexpr(std::is_void<R>{})
         {
             run_segment([&] { next.f(next, std::forward<Ts>(xs)...); });
+        }
+        else if constexpr(std::is_reference<R>{})
+        {
+            // optional cant store a reference, so store a reference_wrapper
+            optional<std::reference_wrapper<std::remove_reference_t<R>>> result;
+            run_segment([&] { result.emplace(next.f(next, std::forward<Ts>(xs)...)); });
+            return result->get();
         }
         else
         {

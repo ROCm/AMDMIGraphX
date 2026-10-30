@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/functional.hpp>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -95,6 +96,33 @@ TEST_CASE(fix_move_only_result)
     EXPECT(*result == 15);
 }
 
+TEST_CASE(fix_reference_result)
+{
+    std::array<int, 4> data{{3, 9, 5, 7}};
+    auto& result = migraphx::fix<int&>([&](auto self, std::size_t i) -> int& {
+        if(i == 0)
+            return data[0];
+        auto& prev = self(i - 1);
+        return data[i] > prev ? data[i] : prev;
+    })(data.size() - 1);
+    EXPECT(&result == &data[1]);
+    result = 42;
+    EXPECT(data[1] == 42);
+}
+
+TEST_CASE(fix_const_reference_result)
+{
+    std::array<int, 3> data{{5, 9, 7}};
+    const int& result = migraphx::fix<const int&>([&](auto self, std::size_t i) -> const int& {
+        if(i == 0)
+            return data[0];
+        const int& prev = self(i - 1);
+        return data[i] > prev ? data[i] : prev;
+    })(data.size() - 1);
+    EXPECT(&result == &data[1]);
+    EXPECT(result == 9);
+}
+
 TEST_CASE(fix_shallow_throw)
 {
     EXPECT(test::throws<std::runtime_error>(
@@ -133,6 +161,21 @@ TEST_CASE(fix_deep_void)
         count += pad / i;
     })(deep_n);
     EXPECT(count == deep_n);
+}
+
+TEST_CASE(fix_deep_reference_result)
+{
+    // The returned reference must survive crossing the stack segments
+    std::uint64_t x = 0;
+    auto& result = migraphx::fix<std::uint64_t&>([&](auto self, std::uint64_t i) -> std::uint64_t& {
+        if(i == 0)
+            return x;
+        auto& r = self(i - 1);
+        r += 1;
+        return r;
+    })(deep_n);
+    EXPECT(&result == &x);
+    EXPECT(x == deep_n);
 }
 
 TEST_CASE(fix_recursive_mutex)

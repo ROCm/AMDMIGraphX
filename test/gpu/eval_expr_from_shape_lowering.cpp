@@ -64,7 +64,8 @@ TEST_CASE(eval_expr_from_shape_lowering_single_input)
         auto host_result = m2.add_instruction(op, input);
         auto gpu_result =
             m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_result, output);
-        m2.add_return({gpu_result});
+        auto sync_result = m2.add_instruction(migraphx::make_op("hip::sync_stream"), gpu_result);
+        m2.add_return({sync_result});
     }
     EXPECT(m1 == m2);
 }
@@ -99,7 +100,8 @@ TEST_CASE(eval_expr_from_shape_lowering_multi_input)
         auto host_result = m2.add_instruction(op, a, b);
         auto gpu_result =
             m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_result, output);
-        m2.add_return({gpu_result});
+        auto sync_result = m2.add_instruction(migraphx::make_op("hip::sync_stream"), gpu_result);
+        m2.add_return({sync_result});
     }
     EXPECT(m1 == m2);
 }

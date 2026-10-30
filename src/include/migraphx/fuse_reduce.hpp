@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/module_ref.hpp>
+#include <cstddef>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -47,6 +48,11 @@ struct MIGRAPHX_EXPORT fuse_reduce
     // inputs can no longer be remapped by the reshape and broadcast rewrites,
     // so this is left to the last reduce fusion of a pipeline.
     bool enable_gather = true;
+    /// Fusing a trailing pointwise whose output is larger than what the
+    /// reduction reads makes the kernel write that output with one workgroup
+    /// per reduction output, so it is only fused when there are at least
+    /// this many reduction outputs to stream it well
+    std::size_t min_fused_outputs = 1;
 };
 
 /// Inserts the submodule of ins into sm with its parameters mapped to the inputs of ins

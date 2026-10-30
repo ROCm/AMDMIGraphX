@@ -391,19 +391,46 @@ bool instruction::can_eval() const
 #else
     pmr::unordered_map<const instruction*, bool> cache;
 #endif
-    return fix<bool>([&](auto self, const instruction& ins) -> bool {
-        auto it = cache.find(&ins);
-        if(it != cache.end())
-            return it->second;
-        bool evaluable = false;
-        if(ins.name() == "@literal")
-            evaluable = true;
-        else if(is_context_free(ins.get_operator()) and not has_finalize(ins.get_operator()))
-            evaluable = std::all_of(
-                ins.inputs().begin(), ins.inputs().end(), [&](auto arg) { return self(*arg); });
-        cache.emplace(&ins, evaluable);
-        return evaluable;
-    })(*this);
+    // Heap stack. Context-free chains can be thousands deep.
+    std::vector<const instruction*> pending{this};
+    while(not pending.empty())
+    {
+        const instruction* ins = pending.back();
+        if(contains(cache, ins))
+        {
+            pending.pop_back();
+            continue;
+        }
+        if(ins->name() == "@literal")
+        {
+            cache.emplace(ins, true);
+            pending.pop_back();
+            continue;
+        }
+        if(not is_context_free(ins->get_operator()) or has_finalize(ins->get_operator()))
+        {
+            cache.emplace(ins, false);
+            pending.pop_back();
+            continue;
+        }
+        bool ready = true;
+        for(auto arg : ins->inputs())
+        {
+            if(not contains(cache, std::addressof(*arg)))
+            {
+                pending.push_back(std::addressof(*arg));
+                ready = false;
+            }
+        }
+        if(not ready)
+            continue;
+        bool evaluable = std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto arg) {
+            return cache.at(std::addressof(*arg));
+        });
+        cache.emplace(ins, evaluable);
+        pending.pop_back();
+    }
+    return cache.at(this);
 }
 
 argument instruction::eval(bool check_eval) const
@@ -421,23 +448,49 @@ argument instruction::eval(bool check_eval) const
 #else
     pmr::unordered_map<const instruction*, argument> cache;
 #endif
-    return fix<argument>([&](auto self, const instruction& ins) -> argument {
-        if(ins.name() == "@literal")
-            return ins.get_literal().get_argument();
-        if(not is_context_free(ins.get_operator()))
-            return {};
-        auto it = cache.find(&ins);
-        if(it != cache.end())
-            return it->second;
+    // Heap stack. Same deep context-free chains as can_eval.
+    std::vector<const instruction*> pending{this};
+    while(not pending.empty())
+    {
+        const instruction* ins = pending.back();
+        if(contains(cache, ins))
+        {
+            pending.pop_back();
+            continue;
+        }
+        if(ins->name() == "@literal")
+        {
+            cache.emplace(ins, ins->get_literal().get_argument());
+            pending.pop_back();
+            continue;
+        }
+        if(not is_context_free(ins->get_operator()))
+        {
+            cache.emplace(ins, argument{});
+            pending.pop_back();
+            continue;
+        }
+        bool ready = true;
+        for(auto arg : ins->inputs())
+        {
+            if(not contains(cache, std::addressof(*arg)))
+            {
+                pending.push_back(std::addressof(*arg));
+                ready = false;
+            }
+        }
+        if(not ready)
+            continue;
         std::vector<argument> args;
-        std::transform(ins.inputs().begin(),
-                       ins.inputs().end(),
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
                        std::back_inserter(args),
-                       [&](auto arg) { return self(*arg); });
-        auto value = ins.normalized_operator().compute(ins.get_shape(), args);
-        cache.emplace(&ins, value);
-        return value;
-    })(*this);
+                       [&](auto arg) { return cache.at(std::addressof(*arg)); });
+        auto value = ins->normalized_operator().compute(ins->get_shape(), args);
+        cache.emplace(ins, value);
+        pending.pop_back();
+    }
+    return cache.at(this);
 }
 
 static sym_argument lift_sym_argument(const argument& value)

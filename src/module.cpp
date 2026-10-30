@@ -750,21 +750,29 @@ void module::move_output_instructions_after(instruction_ref src, instruction_ref
             return it->second;
         return this->end();
     };
-    fix([&](auto self, instruction_ref ins) {
+    // Heap stack. Output chains on an unrolled recurrence are thousands deep,
+    // and the recursive walk overflows the C stack during fusion.
+    std::vector<instruction_ref> pending{src};
+    std::unordered_set<instruction_ref> seen;
+    while(not pending.empty())
+    {
+        auto ins = pending.back();
+        pending.pop_back();
         for(auto output : ins->outputs())
         {
             output = resolve_output(output);
             if(is_end(output, this->end()))
                 continue;
-            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
+            if(contains(seen, output))
                 continue;
             auto i = std::distance(src, output);
             if(i >= d)
                 continue;
+            seen.insert(output);
             instructions.emplace_back(i, output);
-            self(output);
+            pending.push_back(output);
         }
-    })(src);
+    }
     std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) {
                   return p.first;
               }));
@@ -1121,15 +1129,29 @@ instruction_ref module::validate() const
 
 static bool is_borrowed(instruction_ref ins)
 {
-    auto aliases = instruction::get_output_alias(ins, true);
-    if(aliases.size() == 1 and aliases.front() == ins)
-        return false;
-    return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
-        lifetime l = alias->get_operator().get_lifetime();
-        if(l == lifetime::borrow)
-            return true;
-        return is_borrowed(alias);
-    });
+    // Iterative. Shallow aliases still form chains thousands deep on an
+    // unrolled recurrence; the recursive form overflows the C stack during
+    // program::compile's dangling-reference check.
+    std::vector<instruction_ref> pending{ins};
+    std::unordered_set<instruction_ref> seen;
+    while(not pending.empty())
+    {
+        auto cur = pending.back();
+        pending.pop_back();
+        if(not seen.insert(cur).second)
+            continue;
+        auto aliases = instruction::get_output_alias(cur, true);
+        if(aliases.size() == 1 and aliases.front() == cur)
+            continue;
+        for(auto alias : aliases)
+        {
+            lifetime l = alias->get_operator().get_lifetime();
+            if(l == lifetime::borrow)
+                return true;
+            pending.push_back(alias);
+        }
+    }
+    return false;
 }
 
 static bool is_global(instruction_ref ins)

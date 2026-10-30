@@ -405,6 +405,42 @@ if(MIGRAPHX_ENABLE_MLIR)
                                PRIVATE "-DMIGRAPHX_ROCMLIR_ID=\"${MIGRAPHX_ROCMLIR_ID}\"")
     # Make this private to avoid multiple inclusions of LLVM symbols.
     target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
+
+    # rocMLIR Triton codegen is loaded at runtime, so it is not discoverable as a regular
+    # link dependency. Install it next to MIGraphX runtime libraries so the installed
+    # driver can dlopen it without requiring an external LD_LIBRARY_PATH.
+    set(MIGRAPHX_TRITON_AMD_CODEGEN_LIB "")
+    set(MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME
+        "${CMAKE_SHARED_LIBRARY_PREFIX}triton_amd_codegen${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    foreach(MIGRAPHX_ROCKCOMPILER_LIB IN LISTS MIGRAPHX_ROCKCOMPILER_LIBS)
+        if(EXISTS "${MIGRAPHX_ROCKCOMPILER_LIB}" AND NOT IS_DIRECTORY "${MIGRAPHX_ROCKCOMPILER_LIB}")
+            get_filename_component(MIGRAPHX_ROCKCOMPILER_LIB_DIR "${MIGRAPHX_ROCKCOMPILER_LIB}" DIRECTORY)
+            if(EXISTS "${MIGRAPHX_ROCKCOMPILER_LIB_DIR}/${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME}")
+                set(MIGRAPHX_TRITON_AMD_CODEGEN_LIB
+                    "${MIGRAPHX_ROCKCOMPILER_LIB_DIR}/${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME}")
+                break()
+            endif()
+            if(WIN32)
+                get_filename_component(MIGRAPHX_ROCKCOMPILER_PREFIX
+                                       "${MIGRAPHX_ROCKCOMPILER_LIB_DIR}/.." ABSOLUTE)
+                if(EXISTS "${MIGRAPHX_ROCKCOMPILER_PREFIX}/bin/${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME}")
+                    set(MIGRAPHX_TRITON_AMD_CODEGEN_LIB
+                        "${MIGRAPHX_ROCKCOMPILER_PREFIX}/bin/${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME}")
+                    break()
+                endif()
+            endif()
+        endif()
+    endforeach()
+    if(MIGRAPHX_TRITON_AMD_CODEGEN_LIB)
+        if(WIN32)
+            install(FILES "${MIGRAPHX_TRITON_AMD_CODEGEN_LIB}" DESTINATION bin)
+        else()
+            install(FILES "${MIGRAPHX_TRITON_AMD_CODEGEN_LIB}" DESTINATION lib)
+        endif()
+    else()
+        message(FATAL_ERROR "Could not find ${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME} near rocMLIR libraries")
+    endif()
+
     # Hide LLVM internals that come from rocMLIR.
     if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
         target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")

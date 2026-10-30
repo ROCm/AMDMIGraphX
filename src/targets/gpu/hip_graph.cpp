@@ -379,7 +379,11 @@ struct hip_graph_op
                 if(consumer->name() == "gpu::code_object")
                 {
                     const auto& cop = any_cast<code_object_op>(consumer->get_operator());
-                    out.emplace(cop.k.get_function(), &cop.kernel_args);
+                    // Code objects sharing a module_id share this handle too; their binaries
+                    // are identical, so any of them describes the pointer slot layout.
+                    [[maybe_unused]] auto it =
+                        out.emplace(cop.k.get_function(), &cop.kernel_args).first;
+                    assert(it->second->size() == cop.kernel_args.size());
                     // An in-place kernel passes the buffer to its readers;
                     // follow so they are patched too.
                     if(aliases_input(consumer, ins))

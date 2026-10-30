@@ -26,12 +26,12 @@
 
 #include <cstddef>
 #include <exception>
-#include <thread>
 #include <type_traits>
 #include <utility>
 #include <migraphx/config.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/returns.hpp>
+#include <migraphx/stack_segment.hpp>
 
 // Lifts an expression into a function object so it can be passed to a higher-order function
 // NOLINTNEXTLINE
@@ -64,9 +64,8 @@ struct fix_f
     F f;
     std::size_t depth = 0;
 
-    // Frames per stack segment before hopping to a fresh stack. Sized so a
-    // segment stays within the smallest default thread stacks even with large
-    // unoptimized frames.
+    // Frames per stack segment before hopping to a fresh segment. Sized so the
+    // frames stay well within the segment even when large and unoptimized.
     static constexpr std::size_t max_depth = 512;
 
     template <class... Ts>
@@ -74,15 +73,15 @@ struct fix_f
     {
         fix_f next{f, depth + 1};
         if(next.depth % max_depth == 0)
-            return run_on_new_stack(next, std::forward<Ts>(xs)...);
+            return continue_on_new_stack(next, std::forward<Ts>(xs)...);
         return f(next, std::forward<Ts>(xs)...);
     }
 
     template <class G>
-    static void run_in_thread(G g)
+    static void run_segment(G g)
     {
         std::exception_ptr error;
-        std::thread worker{[&] {
+        run_on_new_stack([&] {
             try
             {
                 g();
@@ -91,25 +90,24 @@ struct fix_f
             {
                 error = std::current_exception();
             }
-        }};
-        worker.join();
+        });
         if(error)
             std::rethrow_exception(error);
     }
 
-    // Continue the recursion on a freshly spawned thread so deep recursion
-    // grows into new stacks instead of overflowing the current one.
+    // Continue the recursion on a heap-allocated stack segment so deep
+    // recursion grows into new segments instead of overflowing the stack
     template <class... Ts>
-    static R run_on_new_stack(const fix_f& next, Ts&&... xs)
+    static R continue_on_new_stack(const fix_f& next, Ts&&... xs)
     {
         if constexpr(std::is_void<R>{})
         {
-            run_in_thread([&] { next.f(next, std::forward<Ts>(xs)...); });
+            run_segment([&] { next.f(next, std::forward<Ts>(xs)...); });
         }
         else
         {
             optional<R> result;
-            run_in_thread([&] { result.emplace(next.f(next, std::forward<Ts>(xs)...)); });
+            run_segment([&] { result.emplace(next.f(next, std::forward<Ts>(xs)...)); });
             return std::move(*result);
         }
     }

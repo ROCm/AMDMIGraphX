@@ -92,8 +92,9 @@ static void consume_stack(std::size_t levels)
 TEST_CASE(run_on_new_stack_stack_space)
 {
     // Each level holds a 1MB frame across its nested call, so 50 live levels
-    // need far more stack than a single fixed-size stack provides
-    consume_stack(50);
+    // need far more stack than a single fixed-size stack provides. Start on a
+    // segment since the frame is too big for the 1MB main stack on windows.
+    migraphx::run_on_new_stack([] { consume_stack(50); });
 }
 
 TEST_CASE(run_on_new_stack_recursive_mutex)

@@ -2139,28 +2139,6 @@ static migraphx::literal make_triangle_literal(const migraphx::shape& s, float a
     return migraphx::literal{s, data};
 }
 
-// The (t, t) mask literal must be inlined into the mlir module rather than
-// passed as a kernel input
-static void expect_mask_inlined(const migraphx::module& mm, std::size_t t)
-{
-    EXPECT(std::none_of(mm.begin(), mm.end(), [](const auto& ins) {
-        if(ins.name() != "gpu::mlir_op")
-            return false;
-        const auto& inputs = ins.inputs();
-        return std::any_of(inputs.begin(), inputs.end(), [](auto input) {
-            return input->get_shape().ndim() == 2;
-        });
-    }));
-    auto geg = std::find_if(
-        mm.begin(), mm.end(), [](const auto& ins) { return ins.name() == "gpu::mlir_op"; });
-    EXPECT(bool{geg != mm.end()});
-    const auto* gm = geg->module_inputs().front();
-    EXPECT(std::any_of(gm->begin(), gm->end(), [&](const auto& ins) {
-        return ins.name() == "@literal" and
-               ins.get_shape().lens() == std::vector<std::size_t>{t, t};
-    }));
-}
-
 TEST_CASE(dot_causal_mask_dot)
 // Attention-shaped masked gemm-gemm: the causal mask literal between the two
 // gemms is inlined into the geg module instead of passed as a kernel input;
@@ -2196,11 +2174,37 @@ TEST_CASE(dot_causal_mask_dot)
         mm->add_return({dot2});
     }
     run_pass(p1);
-    std::stringstream ss;
-    ss << p1;
-    std::string program_str = ss.str();
-    EXPECT(program_str.find("geg") != std::string::npos);
-    expect_mask_inlined(*p1.get_main_module(), 64);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto q     = mm->add_parameter("q", {migraphx::shape::half_type, {4, 64, 32}});
+        auto k     = mm->add_parameter("k", {migraphx::shape::half_type, {4, 32, 64}});
+        auto v     = mm->add_parameter("v", {migraphx::shape::half_type, {4, 64, 32}});
+        auto zero  = mm->add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {0.0f}});
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0_mlir_dot1_geg",
+            {q, k, zero, v},
+            [=](auto* pm, const auto& inputs) {
+                auto mask = pm->add_literal(
+                    make_triangle_literal({migraphx::shape::bool_type, {64, 64}}, 1.0f, 0.0f));
+                auto mask_b = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), mask);
+                auto zero_b = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), inputs[2]);
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto cvt  = pm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    dot1);
+                auto w      = pm->add_instruction(migraphx::make_op("where"), mask_b, zero_b, cvt);
+                auto masked = pm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), masked, inputs[3]);
+                return std::make_tuple(dot2->get_operator(), dot2);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(dot_mul_mask_dot)
@@ -2233,12 +2237,26 @@ TEST_CASE(dot_mul_mask_dot)
         mm->add_return({dot2});
     }
     run_pass(p1);
-    std::stringstream ss;
-    ss << p1;
-    std::string program_str = ss.str();
-    EXPECT(program_str.find("geg") != std::string::npos);
-    EXPECT(program_str.find("mul(") != std::string::npos);
-    expect_mask_inlined(*p1.get_main_module(), 64);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto q     = mm->add_parameter("q", qs);
+        auto k     = mm->add_parameter("k", ks);
+        auto v     = mm->add_parameter("v", vs);
+        auto fused = add_mlir(
+            p2, "mlir_main:pointwise0_mlir_dot1_geg", {q, k, v}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto mask = pm->add_literal(
+                    make_triangle_literal({migraphx::shape::half_type, {64, 64}}, 0.0f, 1.0f));
+                auto mask_b = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}), mask);
+                auto masked = pm->add_instruction(migraphx::make_op("mul"), dot1, mask_b);
+                auto dot2   = pm->add_instruction(migraphx::make_op("dot"), masked, inputs[2]);
+                return std::make_tuple(dot2->get_operator(), dot2);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(dot_causal_mask_dot_long_seq)
@@ -2275,10 +2293,38 @@ TEST_CASE(dot_causal_mask_dot_long_seq)
         mm->add_return({dot2});
     }
     run_pass(p1);
-    std::stringstream ss;
-    ss << p1;
-    std::string program_str = ss.str();
-    EXPECT(program_str.find("geg") != std::string::npos);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto q     = mm->add_parameter("q", {migraphx::shape::half_type, {4, 1024, 64}});
+        auto k     = mm->add_parameter("k", {migraphx::shape::half_type, {4, 64, 1024}});
+        auto v     = mm->add_parameter("v", {migraphx::shape::half_type, {4, 1024, 64}});
+        auto zero  = mm->add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {0.0f}});
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0_mlir_dot1_geg",
+            {q, k, zero, v},
+            [=](auto* pm, const auto& inputs) {
+                auto mask = pm->add_literal(
+                    make_triangle_literal({migraphx::shape::bool_type, {1024, 1024}}, 1.0f, 0.0f));
+                auto mask_b = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {4, 1024, 1024}}}), mask);
+                auto zero_b = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {4, 1024, 1024}}}),
+                    inputs[2]);
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto cvt  = pm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    dot1);
+                auto w      = pm->add_instruction(migraphx::make_op("where"), mask_b, zero_b, cvt);
+                auto masked = pm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), masked, inputs[3]);
+                return std::make_tuple(dot2->get_operator(), dot2);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(dot_add_dot_cab)

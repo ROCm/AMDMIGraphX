@@ -58,6 +58,124 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
 
+namespace {
+
+// Quotes and backslashes group arguments the way a shell would, without expanding or running
+// anything. Repeated spaces still produce no argument. An explicit "" is one empty argument.
+struct flag_splitter
+{
+    std::vector<std::string> result;
+    std::string token;
+    bool in_token = false;
+    char quote    = 0;
+
+    void push()
+    {
+        if(not in_token)
+            return;
+        result.push_back(std::move(token));
+        token.clear();
+        in_token = false;
+    }
+
+    void add(char c)
+    {
+        token.push_back(c);
+        in_token = true;
+    }
+
+    void begin_quote(char c)
+    {
+        quote    = c;
+        in_token = true;
+    }
+
+    void take_escaped(const std::string& flags, std::size_t& i)
+    {
+        if(i + 1 >= flags.size())
+            MIGRAPHX_THROW("Unterminated escape in compiler flags");
+        add(flags[++i]);
+    }
+
+    void consume_double(const std::string& flags, std::size_t& i)
+    {
+        char c = flags[i];
+        if(c == '"')
+        {
+            quote = 0;
+            return;
+        }
+        // POSIX double quotes: only these escapes drop the backslash. Anything else keeps it.
+        if(c == '\\' and i + 1 < flags.size())
+        {
+            char next = flags[i + 1];
+            if(next == '"' or next == '\\' or next == '$' or next == '`' or next == '\n')
+            {
+                add(next);
+                ++i;
+                return;
+            }
+        }
+        add(c);
+    }
+
+    void consume_unquoted(const std::string& flags, std::size_t& i)
+    {
+        char c = flags[i];
+        if(c == ' ')
+        {
+            push();
+            return;
+        }
+        if(c == '\'' or c == '"')
+        {
+            begin_quote(c);
+            return;
+        }
+        if(c == '\\')
+        {
+            take_escaped(flags, i);
+            return;
+        }
+        add(c);
+    }
+
+    void consume(const std::string& flags, std::size_t& i)
+    {
+        if(quote == '\'')
+        {
+            if(flags[i] == '\'')
+                quote = 0;
+            else
+                add(flags[i]);
+            return;
+        }
+        if(quote == '"')
+        {
+            consume_double(flags, i);
+            return;
+        }
+        consume_unquoted(flags, i);
+    }
+
+    std::vector<std::string> split(const std::string& flags)
+    {
+        for(std::size_t i = 0; i < flags.size(); ++i)
+            consume(flags, i);
+        if(quote != 0)
+            MIGRAPHX_THROW("Unterminated quote in compiler flags");
+        push();
+        return std::move(result);
+    }
+};
+
+std::vector<std::string> split_flags(const std::string& flags)
+{
+    return flag_splitter{}.split(flags);
+}
+
+} // namespace
+
 std::vector<std::string> compile_hip_options(const std::vector<std::string>& params,
                                              const std::string& arch)
 {
@@ -77,8 +195,7 @@ std::vector<std::string> compile_hip_options(const std::vector<std::string>& par
     options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
     options.push_back("--offload-arch=" + arch);
-    std::vector<std::string> extra_flags =
-        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
+    auto extra_flags = split_flags(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""));
     options.insert(options.end(), extra_flags.begin(), extra_flags.end());
 
     return options;
@@ -356,7 +473,9 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     compiler.flags.emplace_back("-c");
     compiler.flags.emplace_back("--cuda-device-only");
     compiler.flags.emplace_back("-Wno-unused-command-line-argument");
-    compiler.flags.emplace_back(MIGRAPHX_HIP_COMPILER_FLAGS);
+    static const auto hip_compiler_flags = split_flags(MIGRAPHX_HIP_COMPILER_FLAGS);
+    compiler.flags.insert(
+        compiler.flags.end(), hip_compiler_flags.begin(), hip_compiler_flags.end());
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {

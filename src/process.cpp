@@ -40,8 +40,20 @@
 // cppcheck-suppress definePrefix
 #define WIN32_LEAN_AND_MEAN
 #endif
+#else
+// glibc 2.29 added posix_spawn_file_actions_addchdir_np; anything else goes through /bin/sh.
+// features.h defines __GLIBC__. Overridable from the build.
+#include <features.h>
+#ifndef MIGRAPHX_HAS_SPAWN_ADDCHDIR
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 29))
+#define MIGRAPHX_HAS_SPAWN_ADDCHDIR 1
+#else
+#define MIGRAPHX_HAS_SPAWN_ADDCHDIR 0
+#endif
+#endif
 #endif
 
+#include <migraphx/algorithm.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/process.hpp>
@@ -81,50 +93,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_CMD_EXECUTE)
 
-#ifndef _WIN32
-
-static std::function<void(const char*)> redirect_to(std::ostream& os)
-{
-    return [&](const char* x) { os << x; };
-}
-
-template <class F>
-static int exec(const std::string& cmd, const char* type, F f)
-{
-    int ec = 0;
-    if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
-        std::cout << cmd << std::endl;
-    auto closer = [&](FILE* stream) {
-        auto status = pclose(stream);
-        ec          = WIFEXITED(status) ? WEXITSTATUS(status) : 0; // NOLINT
-    };
-    {
-        // TODO: Use execve instead of popen
-        std::unique_ptr<FILE, decltype(closer)> pipe(popen(cmd.c_str(), type), closer); // NOLINT
-        if(not pipe)
-            MIGRAPHX_THROW("popen() failed: " + cmd);
-        f(pipe.get());
-    }
-    return ec;
-}
-
-static int exec(const std::string& cmd, const std::function<void(const char*)>& std_out)
-{
-    return exec(cmd, "r", [&](FILE* f) {
-        std::array<char, 128> buffer;
-        while(fgets(buffer.data(), buffer.size(), f) != nullptr)
-            std_out(buffer.data());
-    });
-}
-
-static int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
-{
-    return exec(cmd, "w", [&](FILE* f) {
-        std_in([&](const char* buffer, std::size_t n) { std::fwrite(buffer, 1, n, f); });
-    });
-}
-
-#else
+#ifdef _WIN32
 
 constexpr std::size_t MIGRAPHX_PROCESS_BUFSIZE = 4096;
 
@@ -396,13 +365,15 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
 #endif
 
 // ---------------------------------------------------------------------------------------------
-// Bidirectional exec, backing process::read_write.
+// Direct spawning, and the bidirectional exec backing process::read_write.
 //
-// The exec helpers above each own a single pipe -- all popen can give us, and all the other process
-// methods need. read_write must pump both directions at once: a request larger than the 64 KB pipe
-// buffer deadlocks if write and read are sequenced, and hipRTC compile requests are an order of
-// magnitude larger than that. Both pipes are driven from one thread, with overlapped I/O on Windows
-// and poll() on POSIX.
+// On POSIX the command is spawned directly, so nothing in it, its arguments, its cwd, or its
+// environment is ever interpreted by a shell; exec, read, and write each need only one pipe.
+//
+// read_write must pump both directions at once: a request larger than the 64 KB pipe buffer
+// deadlocks if write and read are sequenced, and hipRTC compile requests are an order of magnitude
+// larger than that. Both pipes are driven from one thread, with overlapped I/O on Windows and
+// poll() on POSIX.
 //
 // Derived from rocFFT's shared/subprocess.h (Copyright (C) 2024 Advanced Micro Devices, Inc., MIT).
 // ---------------------------------------------------------------------------------------------
@@ -417,21 +388,19 @@ struct exec_result
     std::vector<char> stdout_data{};
 };
 
+// cwd and env are the process's settings. The pipe ends are per spawn and stay with the helper
+// that owns them.
+struct spawn_options
+{
+    fs::path cwd{};
+    // NAME=value entries layered over our own environment.
+    std::vector<std::string> envs{};
+};
+
 // Big enough that a multi-megabyte payload does not cost thousands of syscalls. Neither a POSIX
 // read() after POLLIN nor an overlapped ReadFile blocks waiting to fill this, so size does not
 // affect how promptly we drain.
 constexpr std::size_t read_chunk_size = 64 * 1024;
-
-void trace_read_write_command(const std::string& cmd, const std::vector<std::string>& argv)
-{
-    if(not enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
-        return;
-    // stderr, not stdout: a caller may be redirecting stdout to collect real output.
-    std::cerr << cmd;
-    if(not argv.empty())
-        std::cerr << " " << join_strings(argv, " ");
-    std::cerr << std::endl;
-}
 
 #ifdef _WIN32
 
@@ -898,7 +867,17 @@ struct fd_wrapper
     int fd = -1;
 };
 
-// Reaps the child on every path out of exec_read_write, so a throw between posix_spawn and the
+// Repeats a system call for as long as a signal interrupts it before it does anything.
+template <class F>
+auto retry_on_eintr(F f)
+{
+    auto result = f();
+    while(result < 0 and errno == EINTR)
+        result = f();
+    return result;
+}
+
+// Reaps the child on every path out of the exec helpers, so a throw between posix_spawn and the
 // explicit wait does not leave a zombie behind. Declared before the pipe wrappers so that it is
 // destroyed after them -- waiting while we still hold the pipes open would deadlock against a child
 // blocked on a full stdout pipe or on a stdin that never reaches EOF.
@@ -909,35 +888,23 @@ struct child_reaper
     child_reaper& operator=(const child_reaper&) = delete;
     ~child_reaper()
     {
-        while(pid > 0)
-        {
-            int status  = 0;
-            auto result = waitpid(pid, &status, 0);
-            if(result >= 0 or errno != EINTR)
-                pid = -1;
-        }
+        int status = 0;
+        if(pid > 0)
+            retry_on_eintr([&] { return waitpid(pid, &status, 0); });
     }
 
     void reset(pid_t p) { pid = p; }
 
     int wait()
     {
-        for(;;)
-        {
-            int status  = 0;
-            auto result = waitpid(pid, &status, 0);
-            if(result == pid)
-            {
-                pid = -1;
-                return status;
-            }
-            if(errno == EINTR)
-                continue;
-            // Nothing left to reap (the host may have SIGCHLD set to SIG_IGN), so do not let the
-            // destructor block on it either.
-            pid = -1;
+        int status  = 0;
+        auto result = retry_on_eintr([&] { return waitpid(pid, &status, 0); });
+        // Reaped, or nothing left to reap (the host may have SIGCHLD set to SIG_IGN); either way
+        // the destructor must not wait again.
+        pid = -1;
+        if(result < 0)
             MIGRAPHX_THROW("Failed to wait for child process");
-        }
+        return status;
     }
 
     pid_t pid = -1;
@@ -972,11 +939,7 @@ struct sigpipe_blocker
             sigemptyset(&wait_set);
             sigaddset(&wait_set, SIGPIPE);
             const struct timespec no_wait = {0, 0};
-            // Empty body is intentional: sigtimedwait does the work, we only retry on EINTR.
-            // cppcheck-suppress migraphx-EmptyWhileStatement
-            while(sigtimedwait(&wait_set, nullptr, &no_wait) < 0 and errno == EINTR)
-            {
-            }
+            retry_on_eintr([&] { return sigtimedwait(&wait_set, nullptr, &no_wait); });
         }
         pthread_sigmask(SIG_SETMASK, &old_set, nullptr);
     }
@@ -1089,97 +1052,340 @@ struct pipe_pump
     }
 };
 
-exec_result exec_read_write(const std::string& cmd,
-                            const std::vector<std::string>& argv,
-                            const std::vector<char>& stdin_data)
+struct pipe_ends
 {
-    // Declared before the pipes so it is destroyed after them; see child_reaper's comment.
-    child_reaper child;
+    fd_wrapper read;
+    fd_wrapper write;
+};
 
-    std::array<int, 2> stdin_fds{-1, -1};
-    if(pipe2(stdin_fds.data(), O_CLOEXEC) != 0)
-        MIGRAPHX_THROW("Failed to create stdin pipe");
-    fd_wrapper child_stdin_read{stdin_fds[0]};
-    fd_wrapper child_stdin_write{stdin_fds[1]};
+// Both ends are O_CLOEXEC, so a spawn racing on another thread cannot inherit them.
+pipe_ends make_pipe(const std::string& name)
+{
+    std::array<int, 2> fds{-1, -1};
+    if(pipe2(fds.data(), O_CLOEXEC) != 0)
+        MIGRAPHX_THROW("Failed to create " + name + " pipe");
+    return {fd_wrapper{fds[0]}, fd_wrapper{fds[1]}};
+}
 
-    std::array<int, 2> stdout_fds{-1, -1};
-    if(pipe2(stdout_fds.data(), O_CLOEXEC) != 0)
-        MIGRAPHX_THROW("Failed to create stdout pipe");
-    fd_wrapper child_stdout_read{stdout_fds[0]};
-    fd_wrapper child_stdout_write{stdout_fds[1]};
+// -1 for a signaled child: the caller only needs "did it work", so which signal is not reported.
+int exit_code_of(int wait_status)
+{
+    return WIFEXITED(wait_status) ? WEXITSTATUS(wait_status) : -1; // NOLINT
+}
 
-    std::vector<const char*> child_argv;
-    child_argv.reserve(argv.size() + 2);
-    child_argv.push_back(cmd.c_str());
-    migraphx::transform(
-        argv, std::back_inserter(child_argv), [](const std::string& arg) { return arg.c_str(); });
-    child_argv.push_back(nullptr);
+// Our environment, with every variable named in envs replaced by the value given there -- what a
+// `NAME=value cmd` prefix does in a shell.
+std::vector<std::string> make_child_environment(const std::vector<std::string>& envs)
+{
+    // Kept as "NAME=", so that a variable whose name merely starts with NAME is left alone.
+    std::vector<std::string> prefixes;
+    migraphx::transform(envs, std::back_inserter(prefixes), [](const std::string& entry) {
+        auto eq = entry.find('=');
+        // process::env() rejects anything else before a command is spawned.
+        assert(eq != std::string::npos and eq != 0);
+        return entry.substr(0, eq + 1);
+    });
+
+    std::vector<std::string> result;
+    if(environ != nullptr)
+        result.assign(environ, find_sentinel(environ, nullptr));
+    auto overridden = [&](const std::string& var) {
+        return migraphx::any_of(prefixes,
+                                [&](const std::string& p) { return starts_with(var, p); });
+    };
+    result.erase(std::remove_if(result.begin(), result.end(), overridden), result.end());
+    result.insert(result.end(), envs.begin(), envs.end());
+    return result;
+}
+
+// posix_spawn takes null-terminated arrays of C strings and does not modify them despite the
+// non-const signature. The pointers alias strings, which must outlive the spawn.
+std::vector<char*> to_c_strings(std::vector<std::string>& strings)
+{
+    std::vector<char*> result;
+    result.reserve(strings.size() + 1);
+    migraphx::transform(strings,
+                        std::back_inserter(result),
+                        // Non-const: a const string's data() is const char*.
+                        // cppcheck-suppress constParameterReference
+                        [](std::string& s) { return s.data(); });
+    result.push_back(nullptr);
+    return result;
+}
+
+// confstr(_CS_PATH), which is what execvp uses when PATH is unset.
+std::string default_search_path()
+{
+    auto length = confstr(_CS_PATH, nullptr, 0);
+    if(length == 0)
+        return "/bin:/usr/bin";
+    std::string path(length, '\0');
+    confstr(_CS_PATH, path.data(), path.size());
+    while(not path.empty() and path.back() == '\0')
+        path.pop_back();
+    return path;
+}
+
+// The PATH the child will see, not the parent's. An unset PATH falls back to the execvp default;
+// a set but empty PATH is one empty entry, which means the child's working directory.
+std::string child_path(const std::vector<std::string>& child_env)
+{
+    auto it = migraphx::find_if(
+        child_env, [](const std::string& entry) { return starts_with(entry, "PATH="); });
+    if(it == child_env.end())
+        return default_search_path();
+    return remove_prefix(*it, "PATH=");
+}
+
+// Keeps empty entries. A trailing colon is the working directory, and std::getline drops it.
+std::vector<std::string> path_directories(const std::string& path)
+{
+    std::vector<std::string> dirs;
+    std::string dir;
+    for(char c : path)
+    {
+        if(c == ':')
+        {
+            dirs.push_back(std::move(dir));
+            dir.clear();
+        }
+        else
+        {
+            dir.push_back(c);
+        }
+    }
+    dirs.push_back(std::move(dir));
+    return dirs;
+}
+
+fs::path working_directory(const fs::path& cwd)
+{
+    if(cwd.empty())
+        return fs::current_path();
+    return fs::absolute(cwd);
+}
+
+fs::path command_in_directory(const fs::path& base, const std::string& dir, const std::string& cmd)
+{
+    fs::path candidate = dir.empty() ? base / cmd : fs::path{dir} / cmd;
+    if(not candidate.is_absolute())
+        candidate = base / candidate;
+    return candidate;
+}
+
+bool is_executable_file(const fs::path& path)
+{
+    std::error_code error;
+    // A directory is X_OK, and execvp skips it. Follow a symlink to its target.
+    if(not fs::is_regular_file(path, error))
+        return false;
+    return access(path.c_str(), X_OK) == 0;
+}
+
+// posix_spawnp searches the parent's PATH and ignores both the envp PATH and the child's cwd.
+std::string
+search_path(const std::string& cmd, const std::vector<std::string>& child_env, const fs::path& cwd)
+{
+    auto base = working_directory(cwd);
+    for(const auto& dir : path_directories(child_path(child_env)))
+    {
+        auto candidate = command_in_directory(base, dir, cmd);
+        if(is_executable_file(candidate))
+            return candidate.lexically_normal().string();
+    }
+    return {};
+}
+
+// Absolute paths are used as given. A relative path is against the child's cwd. A bare name is
+// the first executable on the child's PATH. argv[0] is left as the caller wrote it.
+std::string executable_path(const std::string& cmd,
+                            const std::vector<std::string>& child_env,
+                            const fs::path& cwd)
+{
+    fs::path path{cmd};
+    if(path.is_absolute())
+        return cmd;
+    if(cmd.find('/') != std::string::npos)
+        return (working_directory(cwd) / path).lexically_normal().string();
+
+    auto resolved = search_path(cmd, child_env, cwd);
+    if(resolved.empty())
+        MIGRAPHX_THROW("Failed to spawn process " + cmd + " (errno " + std::to_string(ENOENT) +
+                       ")");
+    return resolved;
+}
+
+// stdin_fd and stdout_fd are installed as the child's stdin and stdout; -1 leaves it sharing ours.
+// posix_spawn rather than fork: the parent has the HIP runtime loaded and many threads running,
+// and fork in that state is a hazard.
+pid_t spawn_child(const std::string& cmd,
+                  const std::vector<std::string>& args,
+                  const spawn_options& options,
+                  int stdin_fd,
+                  int stdout_fd)
+{
+    std::vector<std::string> argv;
+#if !MIGRAPHX_HAS_SPAWN_ADDCHDIR
+    if(not options.cwd.empty())
+    {
+        // -p keeps bash from importing BASH_FUNC_* , so a function named cd cannot replace the
+        // builtin. The script is fixed; cwd and argv reach it as positional parameters.
+        argv = {"/bin/sh", "-p", "-c", R"(cd -- "$0" && exec "$@")", options.cwd.string()};
+    }
+#endif
+    argv.push_back(cmd);
+    argv.insert(argv.end(), args.begin(), args.end());
+
+    auto child_argv = to_c_strings(argv);
+
+    auto env_storage = make_child_environment(options.envs);
+    auto child_envp  = to_c_strings(env_storage);
+    // Resolve before spawn. The shell fallback executes /bin/sh, which is already absolute, and
+    // that shell then applies the child's PATH after its cd.
+    auto file = executable_path(argv.front(), env_storage, options.cwd);
 
     // posix_spawn's dup2 action clears O_CLOEXEC on the duplicate, so the child gets these as its
-    // stdin/stdout while our other fds stay O_CLOEXEC; stderr is inherited untouched. Use
-    // posix_spawn rather than fork: the parent has the HIP runtime loaded and many threads running,
-    // and fork in that state is a hazard.
+    // stdin/stdout while our other fds stay O_CLOEXEC; stderr is inherited untouched.
     posix_spawn_file_actions_t file_actions;
     if(posix_spawn_file_actions_init(&file_actions) != 0)
         MIGRAPHX_THROW("Failed to allocate spawn file actions");
 
     // Separate statements: the actions are applied in the order they are added, so the order must
     // not be left to the compiler.
-    int action_result =
-        posix_spawn_file_actions_adddup2(&file_actions, child_stdin_read.get(), STDIN_FILENO);
-    if(action_result == 0)
-    {
-        action_result = posix_spawn_file_actions_adddup2(
-            &file_actions, child_stdout_write.get(), STDOUT_FILENO);
-    }
+    int action_result = 0;
+    if(stdin_fd != -1)
+        action_result = posix_spawn_file_actions_adddup2(&file_actions, stdin_fd, STDIN_FILENO);
+    if(action_result == 0 and stdout_fd != -1)
+        action_result = posix_spawn_file_actions_adddup2(&file_actions, stdout_fd, STDOUT_FILENO);
+#if MIGRAPHX_HAS_SPAWN_ADDCHDIR
+    if(action_result == 0 and not options.cwd.empty())
+        action_result = posix_spawn_file_actions_addchdir_np(&file_actions, options.cwd.c_str());
+#endif
 
     pid_t pid        = 0;
     int spawn_result = action_result;
     if(spawn_result == 0)
     {
-        // posix_spawn does not modify argv, but its signature is not const-correct.
-        spawn_result = posix_spawn(&pid,
-                                   cmd.c_str(),
-                                   &file_actions,
-                                   nullptr,
-                                   const_cast<char* const*>(child_argv.data()), // NOLINT
-                                   environ);
+        spawn_result = posix_spawn(
+            &pid, file.c_str(), &file_actions, nullptr, child_argv.data(), child_envp.data());
     }
     posix_spawn_file_actions_destroy(&file_actions);
     if(spawn_result != 0)
         MIGRAPHX_THROW("Failed to spawn process " + cmd + " (errno " +
                        std::to_string(spawn_result) + ")");
-    child.reset(pid);
+    return pid;
+}
+
+// Bytes read into buffer, or 0 at EOF.
+std::size_t read_some(const fd_wrapper& fd, std::vector<char>& buffer)
+{
+    auto n = retry_on_eintr([&] { return ::read(fd.get(), buffer.data(), buffer.size()); });
+    if(n < 0)
+        MIGRAPHX_THROW("Failed to read from child stdout");
+    return static_cast<std::size_t>(n);
+}
+
+// Hands each chunk of the child's stdout to std_out as it arrives.
+int exec_read(const std::string& cmd,
+              const std::vector<std::string>& args,
+              const spawn_options& options,
+              const process::writer& std_out)
+{
+    // Declared before the pipe so it is destroyed after it; see child_reaper's comment.
+    child_reaper child;
+    auto out = make_pipe("stdout");
+
+    child.reset(spawn_child(cmd, args, options, -1, out.write.get()));
+    // Drop our copy of the child's end, or stdout never reports EOF.
+    out.write.close();
+
+    std::vector<char> buffer(read_chunk_size);
+    // A zero-length read on a pipe means every write end is closed.
+    for(auto n = read_some(out.read, buffer); n > 0; n = read_some(out.read, buffer))
+        std_out(buffer.data(), n);
+    out.read.close();
+    return exit_code_of(child.wait());
+}
+
+// EPIPE is not an error here: the rest is dropped and the child's exit status decides the
+// outcome, as in read_write.
+void write_all(fd_wrapper& fd, const char* buffer, std::size_t n)
+{
+    while(n > 0 and fd.get() != -1)
+    {
+        auto written = retry_on_eintr([&] { return ::write(fd.get(), buffer, n); });
+        if(written < 0)
+        {
+            if(errno != EPIPE)
+                MIGRAPHX_THROW("Failed to write to child stdin");
+            fd.close();
+        }
+        else
+        {
+            // A blocking pipe write returns at least one byte and never more than requested.
+            assert(written > 0 and static_cast<std::size_t>(written) <= n);
+            buffer += written;
+            n -= static_cast<std::size_t>(written);
+        }
+    }
+}
+
+// The child's stdout stays shared with ours.
+int exec_write(const std::string& cmd,
+               const std::vector<std::string>& args,
+               const spawn_options& options,
+               const std::function<void(process::writer)>& std_in)
+{
+    // Declared before the pipe so it is destroyed after it; see child_reaper's comment.
+    child_reaper child;
+    auto in = make_pipe("stdin");
+
+    child.reset(spawn_child(cmd, args, options, in.read.get(), -1));
+    // Drop our copy of the child's end, or a dead child never shows up as EPIPE.
+    in.read.close();
+
+    {
+        sigpipe_blocker no_sigpipe;
+        std_in([&](const char* buffer, std::size_t n) { write_all(in.write, buffer, n); });
+    }
+    // The child sees EOF only once this is closed, so it must happen before the wait.
+    in.write.close();
+    return exit_code_of(child.wait());
+}
+
+exec_result exec_read_write(const std::string& cmd,
+                            const std::vector<std::string>& argv,
+                            const std::vector<char>& stdin_data)
+{
+    // Declared before the pipes so it is destroyed after them; see child_reaper's comment.
+    child_reaper child;
+    auto in  = make_pipe("stdin");
+    auto out = make_pipe("stdout");
+
+    child.reset(spawn_child(cmd, argv, {}, in.read.get(), out.write.get()));
 
     // Drop our copies of the child's ends, or stdout never reports EOF and a dead child never shows
     // up as an error on the write side.
-    child_stdin_read.close();
-    child_stdout_write.close();
+    in.read.close();
+    out.write.close();
 
-    pipe_pump pump{stdin_data, child_stdin_write, child_stdout_read};
+    pipe_pump pump{stdin_data, in.write, out.read};
 
     sigpipe_blocker no_sigpipe;
-    for(;;)
+    do
     {
-        if(poll(pump.fds.data(), static_cast<nfds_t>(pump.fds.size()), -1) < 0)
-        {
-            if(errno == EINTR)
-                continue;
+        auto ready = retry_on_eintr(
+            [&] { return poll(pump.fds.data(), static_cast<nfds_t>(pump.fds.size()), -1); });
+        if(ready < 0)
             MIGRAPHX_THROW("Failed to poll child pipes for " + cmd);
-        }
         pump.handle_write_event();
-        if(not pump.handle_read_event())
-            break;
-    }
+    } while(pump.handle_read_event());
     // Both pipes must be closed before the wait. A child that closed stdout early but is still
     // reading would otherwise never see EOF, and we would wait on it forever.
     pump.finish_writing();
-    child_stdout_read.close();
+    out.read.close();
 
-    int wait_status = child.wait();
-    // Report a signaled child as a generic failure; the caller only needs "did it work".
-    int exit_code = WIFSIGNALED(wait_status) ? -1 : WEXITSTATUS(wait_status); // NOLINT
-    return {exit_code, pump.take_stdout()};
+    return {exit_code_of(child.wait()), pump.take_stdout()};
 }
 
 #endif
@@ -1188,35 +1394,43 @@ exec_result exec_read_write(const std::string& cmd,
 
 struct process_impl
 {
-    std::string envs{};
     std::string command{};
-    fs::path cwd{};
-    // read_write spawns the command directly instead of through a shell, so the arguments are kept
-    // unjoined and the shell-facing form is built on demand.
+    spawn_options options{};
+    // posix_spawn takes an argv array and CreateProcess one command line, so the arguments are kept
+    // unjoined and joined on demand for Windows.
     std::vector<std::string> arg_list{};
 
     std::string args() const { return join_strings(arg_list, " "); }
 
+    // For messages and tracing only; nothing ever runs this string.
     std::string get_command() const
     {
         std::string result;
-        if(not cwd.empty())
-            result += "cd " + cwd.string() + "; ";
-        if(not envs.empty())
-            result += envs + " ";
+        if(not options.cwd.empty())
+            result += "cd " + options.cwd.string() + "; ";
+        if(not options.envs.empty())
+            result += join_strings(options.envs, " ") + " ";
         result += command;
         if(not arg_list.empty())
             result += " " + args();
         return result;
     }
 
-    template <class... Ts>
-    void check_exec(Ts&&... xs) const
+    void trace() const
     {
-        int ec = migraphx::exec(std::forward<Ts>(xs)...);
-        if(ec != 0)
-            MIGRAPHX_THROW("Command " + get_command() + " exited with status " +
-                           std::to_string(ec));
+        if(not enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
+            return;
+        // stderr, not stdout: a caller may be redirecting stdout to collect real output.
+        std::cerr << get_command() << std::endl;
+    }
+
+    // Negative rather than -1: the Windows exec helpers return an SEH status cast to int. Thrown by
+    // the caller, so the error names the method that ran the command.
+    std::string exit_error(int ec) const
+    {
+        assert(ec != 0);
+        return "Command " + get_command() +
+               (ec < 0 ? " terminated abnormally" : " exited with status " + std::to_string(ec));
     }
 };
 
@@ -1239,36 +1453,45 @@ process::~process() noexcept = default;
 
 process& process::cwd(const fs::path& p)
 {
-    impl->cwd = p;
+    impl->options.cwd = p;
     return *this;
 }
 
 process& process::env(const std::vector<std::string>& envs)
 {
-    if(not envs.empty())
-    {
-        impl->envs = join_strings(envs, " ");
-    }
+    auto malformed = migraphx::find_if(envs, [](const std::string& entry) {
+        auto eq = entry.find('=');
+        return eq == std::string::npos or eq == 0;
+    });
+    if(malformed != envs.end())
+        MIGRAPHX_THROW("Environment variable must be given as NAME=value: " + *malformed);
+    impl->options.envs = envs;
     return *this;
 }
 
 void process::read(const writer& output) const
 {
 #ifdef _WIN32
-    // clang-format off
     constexpr std::string_view filename = "stdout";
-    auto tmp = tmp_dir{};
-    HANDLE handle = CreateFile((tmp.path / filename).string().c_str(),
-                               GENERIC_READ | GENERIC_WRITE,
-                               0,
-                               nullptr,
-                               CREATE_ALWAYS,
-                               FILE_ATTRIBUTE_NORMAL,
-                               nullptr);
-    impl->check_exec(impl->command, impl->cwd.string(), impl->args(), impl->envs,
-                     handle == nullptr or handle == INVALID_HANDLE_VALUE ?
-                                     GetStdHandle(STD_OUTPUT_HANDLE) : handle);
+    auto tmp                            = tmp_dir{};
+    HANDLE handle                       = CreateFile((tmp.path / filename).string().c_str(),
+                                                     GENERIC_READ | GENERIC_WRITE,
+                                                     0,
+                                                     nullptr,
+                                                     CREATE_ALWAYS,
+                                                     FILE_ATTRIBUTE_NORMAL,
+                                                     nullptr);
+    auto ec = migraphx::exec(impl->command,
+                             impl->options.cwd.string(),
+                             impl->args(),
+                             join_strings(impl->options.envs, " "),
+                             handle == nullptr or handle == INVALID_HANDLE_VALUE
+                                 ? GetStdHandle(STD_OUTPUT_HANDLE)
+                                 : handle);
+    // Close before throwing, so a failing command does not leak the capture file.
     CloseHandle(handle);
+    if(ec != 0)
+        MIGRAPHX_THROW(impl->exit_error(ec));
     handle = CreateFile((tmp.path / filename).string().c_str(),
                         GENERIC_READ | GENERIC_WRITE,
                         0,
@@ -1283,11 +1506,13 @@ void process::read(const writer& output) const
     if(ReadFile(handle, result.data(), size, nullptr, nullptr) == FALSE)
         MIGRAPHX_THROW("Failed reading file: " + (tmp.path / filename));
     CloseHandle(handle);
-    // clang-format on
 #else
-    std::stringstream ss;
-    impl->check_exec(impl->get_command(), redirect_to(ss));
-    auto result = ss.str();
+    std::string result;
+    auto append = [&](const char* data, std::size_t n) { result.append(data, n); };
+    impl->trace();
+    auto ec = exec_read(impl->command, impl->arg_list, impl->options, append);
+    if(ec != 0)
+        MIGRAPHX_THROW(impl->exit_error(ec));
 #endif
     output(result.data(), result.size());
 }
@@ -1295,32 +1520,49 @@ void process::read(const writer& output) const
 void process::exec()
 {
 #ifndef _WIN32
-    impl->check_exec(impl->get_command(), redirect_to(std::cout));
+    auto to_cout = [](const char* data, std::size_t n) {
+        std::cout.write(data, static_cast<std::streamsize>(n));
+    };
+    impl->trace();
+    auto ec = exec_read(impl->command, impl->arg_list, impl->options, to_cout);
+    if(ec != 0)
+        MIGRAPHX_THROW(impl->exit_error(ec));
 #else
-    // clang-format off
-    impl->check_exec(impl->command, impl->cwd.string(), impl->args(), impl->envs,
-                     GetStdHandle(STD_OUTPUT_HANDLE));
-    // clang-format on
+    auto ec = migraphx::exec(impl->command,
+                             impl->options.cwd.string(),
+                             impl->args(),
+                             join_strings(impl->options.envs, " "),
+                             GetStdHandle(STD_OUTPUT_HANDLE));
+    if(ec != 0)
+        MIGRAPHX_THROW(impl->exit_error(ec));
 #endif
 }
 
+// By value so the exported signature matches what existing callers link against.
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 void process::write(std::function<void(writer)> pipe_in)
 {
 #ifndef _WIN32
-    impl->check_exec(impl->get_command(), std::move(pipe_in));
+    impl->trace();
+    auto ec = exec_write(impl->command, impl->arg_list, impl->options, pipe_in);
+    if(ec != 0)
+        MIGRAPHX_THROW(impl->exit_error(ec));
 #else
-    // clang-format off
-    impl->check_exec(impl->command, impl->cwd.string(),
-                     impl->args(), impl->envs, std::move(pipe_in));
-    // clang-format on
+    auto ec = migraphx::exec(impl->command,
+                             impl->options.cwd.string(),
+                             impl->args(),
+                             join_strings(impl->options.envs, " "),
+                             pipe_in);
+    if(ec != 0)
+        MIGRAPHX_THROW(impl->exit_error(ec));
 #endif
 }
 
 void process::read_write(const std::function<void(writer)>& pipe_in, const writer& output)
 {
-    // Neither is plumbed through: the direct spawn has nowhere to put a shell's `cd` and `VAR=x`
-    // prefixes, and no caller needs them. Better to say so than to silently drop them.
-    if(not impl->cwd.empty() or not impl->envs.empty())
+    // exec_read_write takes neither, on either platform, and no caller needs them; reject rather
+    // than silently drop.
+    if(not impl->options.cwd.empty() or not impl->options.envs.empty())
         MIGRAPHX_THROW("Command " + impl->get_command() +
                        " uses read_write, which does not support cwd or env");
 
@@ -1335,15 +1577,10 @@ void process::read_write(const std::function<void(writer)>& pipe_in, const write
             stdin_data.insert(stdin_data.end(), buffer, buffer + n);
     });
 
-    trace_read_write_command(impl->command, impl->arg_list);
+    impl->trace();
     auto result = exec_read_write(impl->command, impl->arg_list, stdin_data);
     if(result.exit_code != 0)
-    {
-        MIGRAPHX_THROW("Command " + impl->get_command() +
-                       (result.exit_code < 0
-                            ? " terminated abnormally"
-                            : " exited with status " + std::to_string(result.exit_code)));
-    }
+        MIGRAPHX_THROW(impl->exit_error(result.exit_code));
     output(result.stdout_data.data(), result.stdout_data.size());
 }
 

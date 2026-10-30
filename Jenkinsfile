@@ -417,6 +417,40 @@ pipeline {
                     }
                 }
 
+                stage('HIP Clang Release Serial Compile Diagnostic') {
+                    agent {
+                        label rocmnodename('mi300+')
+                    }
+                    environment {
+                        MIGRAPHX_TRACE_BENCHMARKING = '2'
+                        MIGRAPHX_GPU_COMPILE_PARALLEL = '1'
+                    }
+                    steps {
+                        script {
+                            rocmtest([:]) {
+                                cmake_build(skip_package: true, flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                            }
+                        }
+                    }
+                }
+
+                stage('HIP Clang Release No MLIR Attention Diagnostic') {
+                    agent {
+                        label rocmnodename('mi300+')
+                    }
+                    environment {
+                        MIGRAPHX_TRACE_BENCHMARKING = '2'
+                        MIGRAPHX_MLIR_USE_SPECIFIC_OPS = '!attention'
+                    }
+                    steps {
+                        script {
+                            rocmtest([:]) {
+                                cmake_build(skip_package: true, flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                            }
+                        }
+                    }
+                }
+
                 stage('HIP Clang Static') {
                     agent {
                         label rocmnodename('mi300+')

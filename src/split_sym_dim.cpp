@@ -25,7 +25,6 @@
 #include <migraphx/split_sym_dim.hpp>
 #include <migraphx/split_sym/analyzer.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/insert_select_module.hpp>
 #include <migraphx/instruction.hpp>
@@ -2284,15 +2283,6 @@ void specialize_blocks(module_pass_manager& mpm,
                 freeze[root->target_symbol]         = target;
                 subranges[root->root]               = runtime_range;
             }
-            bool fixed_specialization = all_of(
-                subranges, [](const auto& entry) { return entry.second.min == entry.second.max; });
-            bool all_outputs_empty =
-                fixed_specialization and all_of(frame->outputs, [&](const auto& output) {
-                    const auto& s = output.source->get_shape();
-                    return (s.symbolic() ? s.to_static(freeze) : s).elements() == 0;
-                });
-            if(all_outputs_empty)
-                continue;
             auto name = m.name() + ":split_sym_dim_" + std::to_string(block_number) + "_" +
                         std::to_string(clone_index);
             auto built =

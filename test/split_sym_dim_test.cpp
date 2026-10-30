@@ -284,7 +284,7 @@ TEST_CASE(split_sym_dim_supports_zero_length_root)
         {
             auto negative_infinity =
                 sm.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}},
-                                                        {-std::numeric_limits<float>::infinity()}});
+                                                            {-std::numeric_limits<float>::infinity()}});
             std::vector<int64_t> indices_data(clone.max);
             std::iota(indices_data.begin(), indices_data.end(), 0);
             auto indices = sm.add_literal(migraphx::literal{
@@ -3266,7 +3266,7 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge)
             auto x             = sm.add_parameter(
                 "x",
                 migraphx::shape{migraphx::shape::float_type,
-                                            {dd{lit(1)}, dd{lit(4)}, dd{clone_spatial}, dd{clone_spatial}}});
+                                                   {dd{lit(1)}, dd{lit(4)}, dd{clone_spatial}, dd{clone_spatial}}});
             x           = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), x);
             auto output = sm.add_instruction(migraphx::make_op("relu"), x);
             sm.add_return({output});
@@ -3394,7 +3394,7 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge_reversed_inputs)
             auto x             = sm.add_parameter(
                 "x",
                 migraphx::shape{migraphx::shape::float_type,
-                                            {dd{lit(1)}, dd{lit(4)}, dd{clone_spatial}, dd{clone_spatial}}});
+                                                   {dd{lit(1)}, dd{lit(4)}, dd{clone_spatial}, dd{clone_spatial}}});
             x           = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), x);
             auto output = sm.add_instruction(migraphx::make_op("relu"), x);
             sm.add_return({output});
@@ -4882,7 +4882,7 @@ TEST_CASE(split_sym_dim_coalesces_spatial_cnn)
         auto input         = sm.add_parameter(
             "image",
             migraphx::shape{migraphx::shape::float_type,
-                                    {dd{lit(1)}, dd{lit(3)}, dd{clone_spatial}, dd{clone_spatial}}});
+                                                      {dd{lit(1)}, dd{lit(3)}, dd{clone_spatial}, dd{clone_spatial}}});
         auto clone_w0 = sm.add_literal(migraphx::generate_literal(w0_shape));
         auto clone_w1 = sm.add_literal(migraphx::generate_literal(w1_shape));
         auto pad   = sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), input);
@@ -5170,14 +5170,14 @@ TEST_CASE(split_sym_dim_specializes_transformer_core)
         auto value =
             sm.add_parameter("value",
                              migraphx::shape{migraphx::shape::float_type,
-                                                    {dd{lit(2)}, dd{clone_sequence}, dd{lit(8)}}});
+                                                        {dd{lit(2)}, dd{clone_sequence}, dd{lit(8)}}});
         auto query =
             sm.add_parameter("query",
                              migraphx::shape{migraphx::shape::float_type,
-                                                    {dd{lit(2)}, dd{clone_sequence}, dd{lit(8)}}});
+                                                        {dd{lit(2)}, dd{clone_sequence}, dd{lit(8)}}});
         auto key = sm.add_parameter("key_transposed",
                                     migraphx::shape{migraphx::shape::float_type,
-                                                           {dd{lit(2)}, dd{lit(8)}, dd{clone_sequence}}});
+                                                               {dd{lit(2)}, dd{lit(8)}, dd{clone_sequence}}});
 
         auto padded_query =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), query);
@@ -5272,7 +5272,7 @@ TEST_CASE(split_sym_dim_specializes_transformer)
             migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.0f}});
         auto negative_infinity =
             sm.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}},
-                                                    {-std::numeric_limits<float>::infinity()}});
+                                                        {-std::numeric_limits<float>::infinity()}});
         std::vector<int64_t> indices_data(clone.max);
         std::iota(indices_data.begin(), indices_data.end(), 0);
         auto indices        = sm.add_literal(migraphx::literal{
@@ -5281,7 +5281,7 @@ TEST_CASE(split_sym_dim_specializes_transformer)
         auto input =
             sm.add_parameter("x",
                              migraphx::shape{migraphx::shape::float_type,
-                                                    {dd{lit(2)}, dd{clone_sequence}, dd{lit(8)}}});
+                                                        {dd{lit(2)}, dd{clone_sequence}, dd{lit(8)}}});
         auto wq = sm.add_literal(migraphx::generate_literal(weight_shape, 0));
         auto wk = sm.add_literal(migraphx::generate_literal(weight_shape, 1));
         auto wv = sm.add_literal(migraphx::generate_literal(weight_shape, 2));
@@ -5377,7 +5377,7 @@ TEST_CASE(split_sym_dim_masks_contraction_operands_independently)
         auto clone_a        = sm.add_parameter(
             "a",
             migraphx::shape{migraphx::shape::float_type,
-                                   {dd{lit(1)}, dd{lit(1)}, dd{clone_sequence}, dd{lit(4)}}});
+                                                     {dd{lit(1)}, dd{lit(1)}, dd{clone_sequence}, dd{lit(4)}}});
         auto clone_b = sm.add_parameter(
             "b",
             migraphx::shape{migraphx::shape::float_type,
@@ -5474,7 +5474,7 @@ TEST_CASE(split_sym_dim_keeps_softmax_mask_off_contract_axis)
             migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.0f}});
         auto negative_infinity =
             sm.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}},
-                                                    {-std::numeric_limits<float>::infinity()}});
+                                                        {-std::numeric_limits<float>::infinity()}});
         std::vector<int64_t> indices_data(clone.max);
         std::iota(indices_data.begin(), indices_data.end(), 0);
         auto indices        = sm.add_literal(migraphx::literal{
@@ -5483,11 +5483,11 @@ TEST_CASE(split_sym_dim_keeps_softmax_mask_off_contract_axis)
         auto input =
             sm.add_parameter("x",
                              migraphx::shape{migraphx::shape::float_type,
-                                                    {dd{lit(2)}, dd{clone_sequence}, dd{clone_sequence}}});
+                                                        {dd{lit(2)}, dd{clone_sequence}, dd{clone_sequence}}});
         auto value =
             sm.add_parameter("value",
                              migraphx::shape{migraphx::shape::float_type,
-                                                    {dd{lit(2)}, dd{clone_sequence}, dd{lit(8)}}});
+                                                        {dd{lit(2)}, dd{clone_sequence}, dd{lit(8)}}});
 
         auto padded_input =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), input);

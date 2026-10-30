@@ -115,12 +115,12 @@ struct dyn_concat_compiler : compiler<dyn_concat_compiler>
         transform(range(num_inputs), std::back_inserter(copies), [&](std::size_t i) {
             auto count = "dyn_concat_count<" + std::to_string(capacities.at(i)) + ">(counts, " +
                          std::to_string(i) + ")";
-            const auto& input_shape    = inputs.at(i);
-            const bool fixed_capacity  = not input_shape.dynamic() or
-                                         (input_shape.symbolic() and
-                                          all_of(input_shape.dyn_strides(), [](const auto& stride) {
+            const auto& input_shape   = inputs.at(i);
+            const bool fixed_capacity = not input_shape.dynamic() or
+                                        (input_shape.symbolic() and
+                                         all_of(input_shape.dyn_strides(), [](const auto& stride) {
                                              return sym::fixed_value(stride).has_value();
-                                          }));
+                                         }));
             const auto source_capacity = fixed_capacity ? std::to_string(capacities.at(i)) : count;
             return "        dyn_concat_copy<" + std::to_string(outer) + ", " +
                    std::to_string(capacities.at(i)) + ", " + std::to_string(output_capacity) +

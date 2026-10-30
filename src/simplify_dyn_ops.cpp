@@ -101,8 +101,8 @@ struct find_static_dyn_concat : match::supports_dynamic_shapes
             return;
 
         auto axis         = tune_axis(data.front()->get_shape().ndim(),
-                                      ins->get_operator().to_value().at("axis").to<int64_t>(),
-                                      ins->name());
+                              ins->get_operator().to_value().at("axis").to<int64_t>(),
+                              ins->name());
         auto count_values = inputs.back()->sym_eval();
         if(count_values.empty())
             return;

@@ -134,8 +134,11 @@ struct concat_compiler : compiler<concat_compiler>
             options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
         }
 
-        // The kernel takes the output first, so the tensor views generated from virtual_inputs
-        // are rotated to match; rotating inside the kernel instead costs quadratic instantiations.
+        // The arguments passed to make_tensors() are rotated so the output pointer comes first,
+        // which saves the kernel a rotate_last over the whole pack and its quadratic
+        // instantiations. make_tensors() pairs its i-th argument with make_tensor<i>, generated
+        // from virtual_inputs[i], so virtual_inputs is rotated the same way to keep each pointer
+        // with its own shape.
         std::rotate(options.virtual_inputs.rbegin(),
                     options.virtual_inputs.rbegin() + 1,
                     options.virtual_inputs.rend());

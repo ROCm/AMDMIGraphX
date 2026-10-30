@@ -22,6 +22,8 @@
  * THE SOFTWARE.
  */
 #include <migraphx/common_dims.hpp>
+#include <migraphx/common.hpp>
+#include <migraphx/sym.hpp>
 #include <test.hpp>
 
 using axes_map = std::vector<std::vector<std::size_t>>;

@@ -1,0 +1,27 @@
+&slice_symbolic_data_static_bounds_test:ó
+/starts"Constant*
+value*:Bstarts 
++ends"Constant*
+value*:Bends 
++axes"Constant*
+value*:Baxes 
+-steps"Constant*
+value*:Bsteps 
+0
+data
+starts
+ends
+axes
+stepsoutput"Slice&slice_symbolic_data_static_bounds_testZ4
+data,
+*&
+
+batch_size
+sequence_length
+€b'
+output
+
+
+batch_size
+
+€B

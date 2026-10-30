@@ -28,8 +28,16 @@
 
 TEST_CASE(group_query_attention_head_sink_decode_test)
 {
-    auto p = read_onnx("group_query_attention_head_sink_decode_test.onnx");
-    p.compile(migraphx::make_target("ref"));
+    auto static_program = read_onnx("group_query_attention_head_sink_decode_test.onnx");
+    static_program.compile(migraphx::make_target("ref"));
+
+    auto sequence = migraphx::sym::var("sequence", {1, 4});
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes = true;
+    options.map_dyn_input_dims["qkv"] =
+        sym_dims({migraphx::sym::lit(1), sequence, migraphx::sym::lit(96)});
+    auto symbolic_program = read_onnx("group_query_attention_head_sink_decode_test.onnx", options);
+    symbolic_program.compile(migraphx::make_target("ref"));
 
     migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 1, 96}};
     std::vector<float> qkv_data = {
@@ -67,10 +75,14 @@ TEST_CASE(group_query_attention_head_sink_decode_test)
     pp["past_key_values_value"] = past_key_values_value.get_argument();
     pp["seqlens_k"]             = seqlens_k.get_argument();
 
-    auto outputs       = p.eval(pp);
-    const auto& result = outputs.front();
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    auto evaluate = [&](migraphx::program& p) {
+        auto result = p.eval(pp).front();
+        std::vector<float> output;
+        result.visit([&](auto values) { output.assign(values.begin(), values.end()); });
+        return output;
+    };
+    auto result_vector          = evaluate(static_program);
+    auto symbolic_result_vector = evaluate(symbolic_program);
 
     // numpy gold: no rotary; softmax denominator includes the per-head sink logit {0.5, -1},
     // so head 0 (whose visible values are all ones) drops below 1 by the sink probability mass
@@ -83,4 +95,8 @@ TEST_CASE(group_query_attention_head_sink_decode_test)
 
     EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
                                                          migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(symbolic_result_vector,
+                                                         migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        symbolic_result_vector, migraphx::verify::expected{result_vector}));
 }

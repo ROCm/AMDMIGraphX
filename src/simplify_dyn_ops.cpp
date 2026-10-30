@@ -121,21 +121,20 @@ struct find_resize_static : match::supports_dynamic_shapes
 };
 
 /**
- * Convert 2 input static shape broadcast/multibroadcast into 1 input version.
+ * Convert a static shape broadcast/multibroadcast with shape donors into a 1 input version.
  * Some compiler passes (ex. simplify_algebra) only support the 1 input versions
  * of the broadcasting operators.
  * From:
- * broadcast_op(argument_with_static_shape, argument_with_static_shape)
+ * broadcast_op(argument_with_static_shape, static_shape_donors...)
  * To:
  * broadcast_op(argument_with_static_shape); broadcast_op.out_lens = constant_output_dims
  */
-struct find_static_2in_broadcasts : match::supports_dynamic_shapes
+struct find_static_donor_broadcasts : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
-        return match::broadcast(match::nargs(2),
-                                match::arg(0)(match::static_shape()),
-                                match::arg(1)(match::static_shape()));
+        return match::broadcast(match::none_of(match::nargs(1)),
+                                match::all_of[match::inputs()](match::static_shape()));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -693,7 +692,7 @@ void simplify_dyn_ops::apply(module& m) const
                         find_resize_static{},
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},
-                        find_static_2in_broadcasts{},
+                        find_static_donor_broadcasts{},
                         find_static_fixed_pad{},
                         find_const_2in_slice{},
                         find_const_3in_slice{},

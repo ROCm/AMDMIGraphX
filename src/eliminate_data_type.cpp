@@ -100,6 +100,7 @@ static void insert_convert_to_supported_type(module& m,
 void eliminate_data_type::apply(module& m) const
 {
     static const std::vector<std::string> skip_op_names = {"addressof",
+                                                           "concat_past_present",
                                                            "convert",
                                                            "deref",
                                                            "dyn_slice",

@@ -84,8 +84,13 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto params         = init_params(inputs, v);
-        auto gqa_params_str = params.make_init_str();
+        if(any_of(inputs, [](const auto& input) { return input.dynamic(); }))
+            MIGRAPHX_THROW(
+                "CONCAT_PAST_PRESENT: GPU compilation requires specialized input layouts");
+
+        auto params                    = init_params(inputs, v);
+        params.seqlen_present_kv_cache = inputs.back().lens().at(2);
+        auto gqa_params_str            = params.make_init_str();
 
         // Every chunk offset is a multiple of head_size, so copy in the widest
         // vector dividing it, capped at 4 since memory coloring only aligns

@@ -378,6 +378,7 @@ TEST_CASE(allocate_out_select_module_dynamic_parameter_return)
     params["data"]   = migraphx::argument{input_shape, input_values.data()};
     params["buffer"] = migraphx::argument{capacity_s, buffer_values.data()};
     std::vector<migraphx::context> contexts(1);
+    p.get_main_module()->finalize(contexts);
     auto result = p.eval_with_context(contexts, params).front();
 
     EXPECT(result.get_shape() == input_shape);

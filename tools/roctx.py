@@ -3,7 +3,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,8 @@
 import json
 import argparse
 import os
+import subprocess
+import shlex
 from sys import argv as sysargs
 from sys import version_info as python_version
 from sys import exit as sys_exit
@@ -209,18 +211,43 @@ def parse(file):
     return df2, total_time, max_kernel_info
 
 
+def newest_trace_dirs(root, count):
+    found = []
+    for name in os.listdir(root):
+        parent = os.path.join(root, name)
+        if not os.path.isdir(parent):
+            continue
+        for child in os.listdir(parent):
+            path = os.path.join(parent, child)
+            if os.path.isdir(path):
+                found.append(path)
+    found.sort(key=os.path.getmtime, reverse=True)
+    return [path + os.sep for path in found[:count]]
+
+
 def run():
     repeat_count = args.repeat
     if (repeat_count == 0 or repeat_count == float('inf') or not repeat_count):
         raise Exception("REPEAT COUNT CANNOT BE ZERO/INFINITY/NULL")
-    run_args = args.run
-    #configurations
-    configs = '--hip-trace --roctx-trace --flush-rate 10ms --timestamp on'
-    output_dir = f"-d {args.out}"
-    executable = f"/opt/rocm/bin/migraphx-driver roctx {run_args}"
-    process_args = configs + ' ' + output_dir + ' ' + executable
+    # rocprof receives the driver invocation as trailing arguments. Keep each
+    # path as its own argv element so spaces are not re-split.
+    cmd = [
+        'rocprof',
+        '--hip-trace',
+        '--roctx-trace',
+        '--flush-rate',
+        '10ms',
+        '--timestamp',
+        'on',
+        '-d',
+        args.out,
+        '/opt/rocm/bin/migraphx-driver',
+        'roctx',
+    ]
+    if args.run:
+        cmd.extend(shlex.split(args.run))
     for i in range(repeat_count):
-        os.system('rocprof ' + process_args)
+        subprocess.run(cmd, check=True)
     print("RUN COMPLETE.")
 
 
@@ -254,18 +281,21 @@ def main():
         rpd_path = '/tmp/rocm-profile-data/rocmProfileData/'
         if not os.path.exists(rpd_path):
             print("rocmProfileData DOES NOT EXIST. CLONING...")
-            os.system(
-                f"git clone https://github.com/ROCmSoftwarePlatform/rocmProfileData.git {rpd_path}"
-            )
+            subprocess.run([
+                'git', 'clone',
+                'https://github.com/ROCmSoftwarePlatform/rocmProfileData.git',
+                rpd_path
+            ],
+                         check=True)
         os.chdir(rpd_path + "rocpd_python/")
-        os.system(python_bin + ' -m pip install --upgrade pip')
-        os.system(python_bin + ' setup.py install')
+        subprocess.run([python_bin, '-m', 'pip', 'install', '--upgrade', 'pip'],
+                       check=True)
+        subprocess.run([python_bin, 'setup.py', 'install'], check=True)
         os.chdir(curr)
         run()
         os.chdir(curr + f"/{args.out}/")
-        out_path = os.popen(f"ls -td $PWD/*/*/ | head -{args.repeat}").read()
-        print(f"\nFOLLOWING PATHS WILL BE PARSED:\n{out_path}")
-        out_path = out_path.splitlines()
+        out_path = newest_trace_dirs(os.getcwd(), args.repeat)
+        print("\nFOLLOWING PATHS WILL BE PARSED:\n" + "\n".join(out_path))
         df_tot = pd.DataFrame()
         tot_time = []
         max_kernel_info_list = []
@@ -273,11 +303,19 @@ def main():
             path = path.strip('\n')
             print("\nPARSING OUTPUT PATH: " + path)
             os.chdir(path)
-            os.system(
-                f"{python_bin} -m rocpd.rocprofiler_import --ops_input_file hcc_ops_trace.txt --api_input_file hip_api_trace.txt --roctx_input_file roctx_trace.txt trace.rpd"
-            )
-            os.system(
-                f"{python_bin} {rpd_path}/rpd2tracing.py trace.rpd trace.json")
+            subprocess.run([
+                python_bin, '-m', 'rocpd.rocprofiler_import',
+                '--ops_input_file', 'hcc_ops_trace.txt', '--api_input_file',
+                'hip_api_trace.txt', '--roctx_input_file', 'roctx_trace.txt',
+                'trace.rpd'
+            ],
+                           check=True)
+            subprocess.run([
+                python_bin,
+                os.path.join(rpd_path, 'rpd2tracing.py'), 'trace.rpd',
+                'trace.json'
+            ],
+                           check=True)
             os.chdir(curr)
             df, total_time, path_max_kernel_info = parse(path + "trace.json")
             max_kernel_info_list.append(path_max_kernel_info)

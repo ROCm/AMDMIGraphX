@@ -81,6 +81,21 @@ constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
 }
 
 template <class InputIt, class OutputIt>
+constexpr OutputIt partial_sum(InputIt first, InputIt last, OutputIt d_first)
+{
+    if(first == last)
+        return d_first;
+    auto sum = *first;
+    *d_first = sum;
+    while(++first != last)
+    {
+        sum        = sum + *first;
+        *++d_first = sum;
+    }
+    return ++d_first;
+}
+
+template <class InputIt, class OutputIt>
 constexpr OutputIt copy(InputIt first, InputIt last, OutputIt d_first)
 {
     while(first != last)

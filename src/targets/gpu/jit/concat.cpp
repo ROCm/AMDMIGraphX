@@ -50,7 +50,7 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
-    transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, ${concat_params}, auto... xs) {
+    transform_args(make_tensors(), ${transformers})(${args})([](auto y, ${concat_params}, auto... xs) {
         concat::run<concat::${algo}, ${axis}>(${concat_args})(${post}, y, xs...);
     });
 }
@@ -134,10 +134,19 @@ struct concat_compiler : compiler<concat_compiler>
             options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
         }
 
+        // The kernel takes the output first, so the tensor views generated from virtual_inputs
+        // are rotated to match; rotating inside the kernel instead costs quadratic instantiations.
+        std::rotate(options.virtual_inputs.rbegin(),
+                    options.virtual_inputs.rbegin() + 1,
+                    options.virtual_inputs.rend());
+        std::vector<std::string> kernel_args = {"private_p" + std::to_string(inputs.size() - 1)};
+        transform(range(inputs.size() - 1), std::back_inserter(kernel_args), [](auto i) {
+            return "private_p" + std::to_string(i);
+        });
         auto src = interpolate_string(concat_kernel,
                                       {{"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
-                                       {"args", enum_params(inputs.size(), "private_p")},
+                                       {"args", join_strings(kernel_args, ",")},
                                        {"concat_params", join_strings(concat_params, ", ")},
                                        {"concat_args", join_strings(concat_args, ", ")},
                                        {"post", v.get("post", std::string{"op::id{}"})},

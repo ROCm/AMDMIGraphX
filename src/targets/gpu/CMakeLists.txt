@@ -410,20 +410,35 @@ if(MIGRAPHX_ENABLE_MLIR)
     # link dependency. Install it next to MIGraphX runtime libraries so the installed
     # driver can dlopen it without requiring an external LD_LIBRARY_PATH.
     set(MIGRAPHX_TRITON_AMD_CODEGEN_LIB "")
+    set(MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME
+        "${CMAKE_SHARED_LIBRARY_PREFIX}triton_amd_codegen${CMAKE_SHARED_LIBRARY_SUFFIX}")
     foreach(MIGRAPHX_ROCKCOMPILER_LIB IN LISTS MIGRAPHX_ROCKCOMPILER_LIBS)
         if(EXISTS "${MIGRAPHX_ROCKCOMPILER_LIB}" AND NOT IS_DIRECTORY "${MIGRAPHX_ROCKCOMPILER_LIB}")
             get_filename_component(MIGRAPHX_ROCKCOMPILER_LIB_DIR "${MIGRAPHX_ROCKCOMPILER_LIB}" DIRECTORY)
-            if(EXISTS "${MIGRAPHX_ROCKCOMPILER_LIB_DIR}/libtriton_amd_codegen.so")
+            if(EXISTS "${MIGRAPHX_ROCKCOMPILER_LIB_DIR}/${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME}")
                 set(MIGRAPHX_TRITON_AMD_CODEGEN_LIB
-                    "${MIGRAPHX_ROCKCOMPILER_LIB_DIR}/libtriton_amd_codegen.so")
+                    "${MIGRAPHX_ROCKCOMPILER_LIB_DIR}/${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME}")
                 break()
+            endif()
+            if(WIN32)
+                get_filename_component(MIGRAPHX_ROCKCOMPILER_PREFIX
+                                       "${MIGRAPHX_ROCKCOMPILER_LIB_DIR}/.." ABSOLUTE)
+                if(EXISTS "${MIGRAPHX_ROCKCOMPILER_PREFIX}/bin/${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME}")
+                    set(MIGRAPHX_TRITON_AMD_CODEGEN_LIB
+                        "${MIGRAPHX_ROCKCOMPILER_PREFIX}/bin/${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME}")
+                    break()
+                endif()
             endif()
         endif()
     endforeach()
     if(MIGRAPHX_TRITON_AMD_CODEGEN_LIB)
-        install(FILES "${MIGRAPHX_TRITON_AMD_CODEGEN_LIB}" DESTINATION lib)
+        if(WIN32)
+            install(FILES "${MIGRAPHX_TRITON_AMD_CODEGEN_LIB}" DESTINATION bin)
+        else()
+            install(FILES "${MIGRAPHX_TRITON_AMD_CODEGEN_LIB}" DESTINATION lib)
+        endif()
     else()
-        message(WARNING "Could not find libtriton_amd_codegen.so next to rocMLIR libraries; the installed runtime may require LD_LIBRARY_PATH.")
+        message(FATAL_ERROR "Could not find ${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME} near rocMLIR libraries")
     endif()
 
     # Hide LLVM internals that come from rocMLIR.

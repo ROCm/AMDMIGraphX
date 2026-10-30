@@ -434,6 +434,15 @@ struct compile_cell
     /// compiler cannot say.
     std::string key                   = {};
     optional<compiler_replace> result = nullopt;
+    /// Set when compile() throws. Ops with no tuning config have no other candidate, so this is
+    /// the codegen failure the caller must report.
+    std::string error;
+};
+
+struct compile_attempt
+{
+    optional<compiler_replace> result = nullopt;
+    std::string error;
 };
 
 struct compile_plan
@@ -478,23 +487,48 @@ struct compile_plan
     }
 
     /// Compile without touching the cache, so this can run in parallel with other compiles.
-    optional<compiler_replace> run_compile(const value& solution) const
+    /// A failure is returned as text rather than thrown: several solutions are attempted, and
+    /// the winner is chosen after they all finish.
+    compile_attempt run_compile(const value& solution) const
     {
         try
         {
-            return compile_fragment(*ctx, ins, preop, solution);
+            compile_attempt attempt;
+            attempt.result = compile_fragment(*ctx, ins, preop, solution);
+            return attempt;
         }
         catch(const std::exception& e)
         {
             const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
             if(trace_level > 0)
                 std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
-            return nullopt;
+            compile_attempt attempt;
+            attempt.error = e.what();
+            return attempt;
         }
         catch(...)
         {
-            return nullopt;
+            compile_attempt attempt;
+            attempt.error = "unknown exception";
+            return attempt;
         }
+    }
+
+    /// Distinct compile failures across the candidate cells. Shared cells repeat one error.
+    std::string codegen_errors() const
+    {
+        std::string text;
+        std::unordered_set<std::string> seen;
+        for(const auto& cell : results)
+        {
+            if(cell->result.has_value() or cell->error.empty() or
+               not seen.insert(cell->error).second)
+                continue;
+            if(not text.empty())
+                text += "\n";
+            text += cell->error;
+        }
+        return text;
     }
 
     struct candidate
@@ -689,8 +723,20 @@ struct compile_plan
         if(results.size() == 1)
         {
             if(not results.front()->result.has_value())
+            {
+                // No tuning config means this was the only kernel, so the failure is codegen
+                // rather than a missed tune. Keep the compile exception; "no config" alone
+                // hides an output-buffer or kernel-shape error.
+                const auto errors = codegen_errors();
+                if(not config.has_value())
+                    MIGRAPHX_THROW("Codegen failed for " + preop.name() +
+                                   (errors.empty() ? std::string{} : ": " + errors) + "\n\n" +
+                                   print_modules());
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string() + "\n\n" + print_modules());
+                               problem_string() +
+                               (errors.empty() ? std::string{} : "\n" + errors) + "\n\n" +
+                               print_modules());
+            }
             return *results.front()->result;
         }
         if(not config)
@@ -715,8 +761,13 @@ struct compile_plan
         if(skipped > 0 and trace_level > 1)
             std::cout << "No binary for " << skipped << " solutions" << std::endl;
         if(candidates.empty())
+        {
+            const auto errors = codegen_errors();
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           problem_string() + "\n\n" + print_modules());
+                           problem_string() +
+                           (errors.empty() ? std::string{} : "\n" + errors) + "\n\n" +
+                           print_modules());
+        }
         const auto& best = run_benchmark(*ctx, candidates);
         ctx->get_problem_cache().insert(preop.name(), config->problem, best.solution());
         if(trace_level > 0)
@@ -894,7 +945,11 @@ struct compile_manager
             if(cell->result.has_value())
                 cp->verify(cell->solution, cell->result->code);
             else
-                cell->result = cp->run_compile(cell->solution);
+            {
+                auto attempted = cp->run_compile(cell->solution);
+                cell->result   = std::move(attempted.result);
+                cell->error    = std::move(attempted.error);
+            }
         });
 
         store_results(tasks);

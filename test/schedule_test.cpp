@@ -23,7 +23,11 @@
  */
 #include <migraphx/schedule.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/fuse_concat.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/onnx.hpp>
 #include <migraphx/generate.hpp>
+#include <cstdlib>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
@@ -1003,6 +1007,67 @@ TEST_CASE(unused_param_test)
 
     EXPECT(t.has_stream(z) == false);
     EXPECT(t.has_stream(r) == false);
+}
+
+TEST_CASE(long_dependency_chain)
+{
+    migraphx::module mm;
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    auto x = mm.add_parameter("x", s);
+    auto y = x;
+    for(int i = 0; i < 6000; ++i)
+        y = mm.add_instruction(unary_op{}, y);
+    mm.add_return({y});
+
+    scheduler t{};
+    t.run_pass(mm);
+    // A single chain has no concurrency, so the model records no streams.
+    // The pass used to recurse this chain and overflow the C stack.
+    EXPECT(mm.size() == 6002);
+    EXPECT(y->name() == "unary");
+    EXPECT(std::prev(mm.end())->inputs().front() == y);
+}
+
+TEST_CASE(segmentation_concat_and_schedule)
+{
+    const char* path = std::getenv("MIGRAPHX_SEGMENTATION_ONNX");
+    if(path == nullptr)
+        test::skip("MIGRAPHX_SEGMENTATION_ONNX is not set");
+
+    auto prog = migraphx::parse_onnx(path);
+    migraphx::run_passes(prog, {migraphx::fuse_concat{}, migraphx::dead_code_elimination{}});
+
+    std::size_t concats = 0;
+    std::size_t widest  = 0;
+    for(auto ins : migraphx::iterator_for(*prog.get_main_module()))
+    {
+        if(ins->name() != "concat")
+            continue;
+        ++concats;
+        widest = std::max(widest, ins->inputs().size());
+        EXPECT(ins->inputs().size() <= 32);
+    }
+    EXPECT(concats > 0);
+    EXPECT(widest > 1);
+    EXPECT(widest <= 32);
+
+    // concurrency 1 still walks the full critical path. That walk used to
+    // recurse thousands of instructions and overflow the C stack.
+    struct one_stream
+    {
+        std::size_t concurrency() const { return 1; }
+        void sched(migraphx::module&, migraphx::instruction_ref, std::size_t) const {}
+        void wait(migraphx::module&, migraphx::instruction_ref, std::size_t) const {}
+        void record(migraphx::module&, migraphx::instruction_ref, std::size_t) const {}
+        std::size_t weight(const migraphx::operation& op) const
+        {
+            if(op.name().empty() or op.name().front() == '@')
+                return 0;
+            return 1;
+        }
+    };
+    migraphx::run_passes(*prog.get_main_module(), {migraphx::schedule{one_stream{}}});
+    EXPECT(prog.get_main_module()->size() > 0);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

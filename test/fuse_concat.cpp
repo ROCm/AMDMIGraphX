@@ -24,6 +24,7 @@
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
@@ -871,6 +872,79 @@ TEST_CASE(pointwise_concat_of_slices_single_input)
     migraphx::program p2 = p1;
     run_pass(p1);
     EXPECT(p1 == p2);
+}
+
+static std::vector<migraphx::instruction_ref> concat_leaves(migraphx::instruction_ref ins)
+{
+    std::vector<migraphx::instruction_ref> leaves;
+    std::vector<migraphx::instruction_ref> pending{ins};
+    while(not pending.empty())
+    {
+        auto cur = pending.back();
+        pending.pop_back();
+        if(cur->name() != "concat")
+        {
+            leaves.push_back(cur);
+            continue;
+        }
+        auto inputs = cur->inputs();
+        pending.insert(pending.end(), inputs.rbegin(), inputs.rend());
+    }
+    return leaves;
+}
+
+TEST_CASE(long_concat_chain_is_chunked)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    std::vector<migraphx::instruction_ref> inputs;
+    auto cat = mm->add_parameter("x0", s);
+    inputs.push_back(cat);
+    for(int i = 1; i < 40; ++i)
+    {
+        auto x = mm->add_parameter("x" + std::to_string(i), s);
+        inputs.push_back(x);
+        cat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), cat, x);
+    }
+    mm->add_return({cat});
+    run_pass(p);
+
+    for(auto ins : migraphx::iterator_for(*p.get_main_module()))
+    {
+        if(ins->name() != "concat")
+            continue;
+        EXPECT(ins->inputs().size() <= 32);
+        EXPECT(ins->inputs().size() >= 2);
+    }
+    auto ret = std::prev(p.get_main_module()->end())->inputs().front();
+    EXPECT(concat_leaves(ret) == inputs);
+}
+
+TEST_CASE(wide_concat_is_chunked)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    std::vector<migraphx::instruction_ref> inputs;
+    for(int i = 0; i < 40; ++i)
+        inputs.push_back(mm->add_parameter("x" + std::to_string(i), s));
+    auto cat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inputs);
+    mm->add_return({cat});
+    run_pass(p);
+
+    std::size_t concats = 0;
+    for(auto ins : migraphx::iterator_for(*p.get_main_module()))
+    {
+        if(ins->name() != "concat")
+            continue;
+        ++concats;
+        EXPECT(ins->inputs().size() <= 32);
+        EXPECT(ins->inputs().size() >= 2);
+    }
+    EXPECT(concats > 1);
+    auto ret = std::prev(p.get_main_module()->end())->inputs().front();
+    EXPECT(concat_leaves(ret) == inputs);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -160,8 +160,9 @@ std::vector<output_location> output_locations(const std::string& name,
                                    continue;
                                std::vector<std::size_t> output_path(
                                    leaf_path.begin() + path->size(), leaf_path.end());
-                               auto* output_shape = shape_at_path(output_shapes.at(r), output_path);
-                               auto* leaf_shape   = shape_at_path(parameter_shape, leaf_path);
+                               const auto* output_shape =
+                                   shape_at_path(output_shapes.at(r), output_path);
+                               const auto* leaf_shape = shape_at_path(parameter_shape, leaf_path);
                                if(output_shape == nullptr or leaf_shape == nullptr or
                                   output_shape->type() != leaf_shape->type())
                                    continue;

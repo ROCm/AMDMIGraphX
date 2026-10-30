@@ -62,6 +62,13 @@ resolve_reshape_dims(const shape& sym_in, const std::vector<sym::expr>& dims);
 MIGRAPHX_EXPORT void validate_reshape_dims(const std::string& name,
                                            const std::vector<dim_like>& dims);
 
+// Throws when the input and output element counts are provably different. An inferred symbolic
+// dimension is checked at runtime because its floor division is not generally resolvable here.
+MIGRAPHX_EXPORT void validate_reshape_element_count(const std::string& name,
+                                                    const shape& input,
+                                                    const shape& output,
+                                                    bool has_inferred_dim);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_RESHAPE_DIMS_HPP

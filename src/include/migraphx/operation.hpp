@@ -480,6 +480,12 @@ void finalize_op(T& x,
 }
 
 template <class T>
+void finalize_op(T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+{
+    finalize_op(rank<1>{}, x, ctx, output_shape, input, {});
+}
+
+template <class T>
 auto has_finalize_op(rank<2>,
                      T& x,
                      context& ctx,
@@ -719,6 +725,27 @@ struct operation
                                                    const std::vector<shape>& input)
     {
         return detail::compile_op(private_detail_te_self, ctx, output, input);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_finalize(char,
+                                                   T&& private_detail_te_self,
+                                                   context& ctx,
+                                                   const shape& output,
+                                                   const std::vector<shape>& input)
+        -> decltype(private_detail_te_self.finalize(ctx, output, input))
+    {
+        private_detail_te_self.finalize(ctx, output, input);
+    }
+
+    template <class T>
+    static void private_detail_te_default_finalize(float,
+                                                   T&& private_detail_te_self,
+                                                   context& ctx,
+                                                   const shape& output,
+                                                   const std::vector<shape>& input)
+    {
+        detail::finalize_op(private_detail_te_self, ctx, output, input);
     }
 
     template <class T>
@@ -976,6 +1003,11 @@ struct operation
                                                     std::declval<PrivateDetailTypeErasedT>(),
                                                     std::declval<context&>(),
                                                     std::declval<const shape&>(),
+                                                    std::declval<const std::vector<shape>&>()),
+                 private_detail_te_default_finalize(char(0),
+                                                    std::declval<PrivateDetailTypeErasedT>(),
+                                                    std::declval<context&>(),
+                                                    std::declval<const shape&>(),
                                                     std::declval<const std::vector<shape>&>(),
                                                     std::declval<const std::vector<module_ref>&>()),
                  private_detail_te_default_compute_shape(char(0),
@@ -1142,7 +1174,8 @@ struct operation
 
     void finalize(context& ctx, const shape& output, const std::vector<shape>& input)
     {
-        finalize(ctx, output, input, {});
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().finalize(ctx, output, input);
     }
 
     void finalize(context& ctx,
@@ -1259,7 +1292,9 @@ struct operation
         virtual lifetime get_lifetime() const                                                = 0;
         virtual std::vector<std::size_t> output_alias(const std::vector<shape>& input) const = 0;
         virtual value
-        compile(context& ctx, const shape& output, const std::vector<shape>& input)        = 0;
+        compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
+        virtual void
+        finalize(context& ctx, const shape& output, const std::vector<shape>& input)       = 0;
         virtual void finalize(context& ctx,
                               const shape& output,
                               const std::vector<shape>& input,
@@ -1355,6 +1390,13 @@ struct operation
         {
 
             return private_detail_te_default_compile(
+                char(0), private_detail_te_value, ctx, output, input);
+        }
+
+        void finalize(context& ctx, const shape& output, const std::vector<shape>& input) override
+        {
+
+            private_detail_te_default_finalize(
                 char(0), private_detail_te_value, ctx, output, input);
         }
 

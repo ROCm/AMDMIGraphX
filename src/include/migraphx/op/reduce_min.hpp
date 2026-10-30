@@ -25,6 +25,8 @@
 #define MIGRAPHX_GUARD_OPERATORS_REDUCE_MIN_HPP
 
 #include <migraphx/op/reduce_op.hpp>
+#include <migraphx/sym_argument.hpp>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,6 +43,19 @@ struct reduce_min : reduce_op<reduce_min>
     }
 
     auto init() const { return highest(); }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.size() != 1 or args.front().empty() or output_shape.elements() != 1)
+            return {};
+        auto values = args.front().get();
+        if(values.empty())
+            return {};
+        auto result = std::accumulate(
+            std::next(values.begin()), values.end(), values.front(), sym::resolve_min);
+        return sym_argument{{result}, output_shape};
+    }
 };
 
 } // namespace op

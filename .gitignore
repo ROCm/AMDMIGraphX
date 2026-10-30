@@ -86,7 +86,7 @@ docs/doxygen/DoxygenWarningLog.txt
 docs/doxygen/html
 docs/doxygen/xml
 docs/html
-docs/_toc.yml
+docs/sphinx/_toc.yml
 /_readthedocs
 
 # Environment / secret files

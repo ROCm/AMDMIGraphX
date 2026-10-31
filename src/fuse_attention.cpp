@@ -1498,13 +1498,15 @@ struct kv_fd_operands
            result.v->get_shape().lens()[rank - 2] != result.sequence_length)
             return std::nullopt;
 
-        // An axis-pinned broadcast does not follow the score split, so its consumers
-        // disagree with the split range literal. multibroadcast is rewritten instead.
-        const bool pinned_broadcast =
-            std::any_of(submod.begin(), submod.end(), [](const auto& ins) {
-                return ins.name() == "broadcast";
+        // An axis-pinned broadcast whose shape includes the key sequence does not
+        // follow the split of that axis. One that only expands other axes, such as
+        // a RoPE table onto the query, is copied unchanged. multibroadcast is rewritten.
+        const bool pinned_sequence =
+            std::any_of(submod.begin(), submod.end(), [&](const auto& ins) {
+                return ins.name() == "broadcast" and
+                       contains(ins.get_shape().lens(), result.sequence_length);
             });
-        if(pinned_broadcast)
+        if(pinned_sequence)
             return std::nullopt;
 
         const auto returned   = return_ins->inputs().front();

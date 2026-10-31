@@ -110,15 +110,21 @@ TEST_CASE(fix_reference_result)
     EXPECT(data[1] == 42);
 }
 
-TEST_CASE(fix_const_reference_result)
+// In a function so gcc wont flag the fix_f temporary with -Wdangling-reference
+static const int& max_element_ref(const std::array<int, 3>& data)
 {
-    std::array<int, 3> data{{5, 9, 7}};
-    const int& result = migraphx::fix<const int&>([&](auto self, std::size_t i) -> const int& {
+    return migraphx::fix<const int&>([&](auto self, std::size_t i) -> const int& {
         if(i == 0)
             return data[0];
         const int& prev = self(i - 1);
         return data[i] > prev ? data[i] : prev;
     })(data.size() - 1);
+}
+
+TEST_CASE(fix_const_reference_result)
+{
+    std::array<int, 3> data{{5, 9, 7}};
+    const int& result = max_element_ref(data);
     EXPECT(&result == &data[1]);
     EXPECT(result == 9);
 }

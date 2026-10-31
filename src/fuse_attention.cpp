@@ -172,9 +172,9 @@ instruction_ref broadcast_split_sequence(module& m,
     const auto n_split = lens.back() / num_groups;
     lens.back()        = num_groups;
     lens.push_back(n_split);
-    auto split = m.insert_instruction(pos, make_op("reshape", {{"dims", lens}}), input);
+    auto split         = m.insert_instruction(pos, make_op("reshape", {{"dims", lens}}), input);
     const int64_t axis = split->get_shape().ndim() - 1;
-    split           = m.insert_instruction(pos, make_op("unsqueeze", {{"axes", {axis}}}), split);
+    split              = m.insert_instruction(pos, make_op("unsqueeze", {{"axes", {axis}}}), split);
     return m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", split_lens}}), split);
 }
 

@@ -1387,18 +1387,18 @@ TEST_CASE(flash_decoding_3d_with_range_literal)
 
     migraphx::program p1;
     {
-        auto* mm   = p1.get_main_module();
+        auto* mm  = p1.get_main_module();
         auto q    = mm->add_parameter("q", s_3d);
         auto k    = mm->add_parameter("k", s_3d);
         auto v    = mm->add_parameter("v", s_3d);
         auto iota = mm->add_literal(migraphx::literal{s_iota, iota_vec});
         k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), k);
         v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), v);
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), q, k);
         auto iota_bc = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), iota);
         auto scaled = mm->add_instruction(migraphx::make_op("mul"), gemm1, iota_bc);
-        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), scaled);
+        auto rmax   = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), scaled);
         rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}),
                                    rmax);
         auto sub  = mm->add_instruction(migraphx::make_op("sub"), scaled, rmax);
@@ -1417,11 +1417,11 @@ TEST_CASE(flash_decoding_3d_with_range_literal)
 
     migraphx::program p2;
     {
-        auto* mm      = p2.get_main_module();
-        auto q        = mm->add_parameter("q", s_3d);
-        auto k        = mm->add_parameter("k", s_3d);
-        auto v        = mm->add_parameter("v", s_3d);
-        size_t g_axis = 1;
+        auto* mm                          = p2.get_main_module();
+        auto q                            = mm->add_parameter("q", s_3d);
+        auto k                            = mm->add_parameter("k", s_3d);
+        auto v                            = mm->add_parameter("v", s_3d);
+        size_t g_axis                     = 1;
         const std::vector<size_t> q_split = {1, num_splits, 4, 4};
         const std::vector<size_t> k_split = {1, num_splits, 4, 2};
         const std::vector<size_t> v_split = {1, num_splits, 2, 4};
@@ -1448,7 +1448,7 @@ TEST_CASE(flash_decoding_3d_with_range_literal)
             {q_broadcast, k_split_ins, v_reshape},
             {"x0", "x1", "x2"},
             [&](auto* gm, const auto& inputs) {
-                auto iota = gm->add_literal(migraphx::literal{
+                auto iota    = gm->add_literal(migraphx::literal{
                     migraphx::shape{migraphx::shape::half_type, {num_splits, 4, 2}}, split_iota});
                 auto iota_bc = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", k_split}}), iota);

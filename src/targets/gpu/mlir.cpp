@@ -709,16 +709,25 @@ struct mlir_program
         });
     }
 
-    static shape make_fp4_unpacked_shape(shape s)
+    // The axis an fp4x2 tensor is packed along, as given by the unpack_fp4 that reads it
+    static std::size_t get_fp4_packed_axis(instruction_ref ins, const shape& s)
+    {
+        auto is_unpack = [](instruction_ref out) { return out->name() == "unpack_fp4"; };
+        auto unpack    = std::find_if(ins->outputs().begin(), ins->outputs().end(), is_unpack);
+        if(unpack != ins->outputs().end())
+            return (*unpack)->normalized_operator().to_value().at("axis").to<std::size_t>();
+        // A packed axis of length 1 ties on stride, which find_permutation breaks by length
+        return find_permutation(s).back();
+    }
+
+    static shape make_fp4_unpacked_shape(shape s, std::size_t packed_axis)
     {
         auto new_lens    = s.lens();
         auto new_strides = s.strides();
-        int fast_axis =
-            std::min_element(s.strides().cbegin(), s.strides().cend()) - s.strides().cbegin();
-        new_lens[fast_axis] *= 2;
+        new_lens[packed_axis] *= 2;
         for(auto i : range(new_strides.size()))
         {
-            if(i != fast_axis)
+            if(i != packed_axis)
             {
                 new_strides.at(i) *= 2;
             }
@@ -740,7 +749,7 @@ struct mlir_program
         }
         else if(ins->get_shape().type() == shape::fp4x2_type)
         {
-            ret = make_fp4_unpacked_shape(ret);
+            ret = make_fp4_unpacked_shape(ret, get_fp4_packed_axis(ins, ret));
         }
         return ret;
     }
@@ -806,7 +815,7 @@ struct mlir_program
             }
             else if(ins->get_shape().type() == shape::fp4x2_type)
             {
-                ret = make_fp4_unpacked_shape(ret);
+                ret = make_fp4_unpacked_shape(ret, get_fp4_packed_axis(ins, ret));
             }
             return ret;
         };

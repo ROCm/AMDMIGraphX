@@ -93,6 +93,22 @@ TEST_CASE(quant)
     EXPECT(mm1 == mm2);
 }
 
+TEST_CASE(quant_dot_block_scales)
+{
+    // A quant_dot with block scales has no dot equivalent, so it keeps its types
+    migraphx::module mm1;
+    {
+        auto x  = mm1.add_parameter("x", {migraphx::shape::fp8e4m3fn_type, {2, 32}});
+        auto y  = mm1.add_parameter("y", {migraphx::shape::fp8e4m3fn_type, {32, 2}});
+        auto sx = mm1.add_parameter("sx", {migraphx::shape::float_type, {2, 32}});
+        auto sy = mm1.add_parameter("sy", {migraphx::shape::float_type, {32, 2}});
+        mm1.add_instruction(migraphx::make_op("quant_dot"), x, y, sx, sy);
+    }
+    auto mm2 = mm1;
+    run_pass(mm1, {migraphx::shape::fp8e4m3fn_type});
+    EXPECT(mm1 == mm2);
+}
+
 TEST_CASE(skip_convert_eval_expr_from_shape)
 {
     auto n = migraphx::sym::var("n", {1, 4});

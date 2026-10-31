@@ -172,8 +172,8 @@ instruction_ref broadcast_split_sequence(module& m,
     const auto n_split = lens.back() / num_groups;
     lens.back()        = num_groups;
     lens.push_back(n_split);
-    auto split      = m.insert_instruction(pos, make_op("reshape", {{"dims", lens}}), input);
-    const auto axis = static_cast<int64_t>(split->get_shape().ndim() - 1);
+    auto split = m.insert_instruction(pos, make_op("reshape", {{"dims", lens}}), input);
+    const int64_t axis = split->get_shape().ndim() - 1;
     split           = m.insert_instruction(pos, make_op("unsqueeze", {{"axes", {axis}}}), split);
     return m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", split_lens}}), split);
 }
@@ -322,9 +322,9 @@ struct flash_decoding_split
         assert(k.lens().size() == q.lens().size() and v.lens().size() == q.lens().size() and
                "Q, K, V must have same number of dimensions");
 
-        auto q_lens = q.lens();
-        auto k_lens = k.lens();
-        auto v_lens = v.lens();
+        const auto& q_lens = q.lens();
+        const auto& k_lens = k.lens();
+        const auto& v_lens = v.lens();
 
         // 3D: Q_lens = [B, M, k]
         // 4D: Q_lens = [B, H, M, k]
@@ -737,7 +737,7 @@ struct find_attention_sinks
            sinks->get_shape().dynamic())
             return false;
         const auto& lens = scores->get_shape().lens();
-        auto axis        = static_cast<int64_t>(lens.size()) - 1;
+        int64_t axis     = lens.size() - 1;
         if(sinks->get_shape().lens().back() != 1)
             return false;
         if(ext->normalized_operator().to_value()["axis"].to<int64_t>() != axis)
@@ -1542,13 +1542,13 @@ struct kv_cache_layout
     bool transpose_k = false;
 };
 
-static bool is_kv_cache_layout_op(const std::string& name)
+bool is_kv_cache_layout_op(const std::string& name)
 {
     return name == "reshape" or name == "multibroadcast" or name == "transpose" or
            name == "unsqueeze";
 }
 
-static bool is_last_two_transpose(const operation& op)
+bool is_last_two_transpose(const operation& op)
 {
     const auto perm = op.to_value().at("permutation").to_vector<int64_t>();
     if(perm.size() < 2)
@@ -1560,8 +1560,7 @@ static bool is_last_two_transpose(const operation& op)
 }
 
 // Fold the repeated-head axis into the axis before it.
-static std::vector<std::size_t> merge_repeat_dims(const std::vector<std::size_t>& lens,
-                                                  std::size_t axis)
+std::vector<std::size_t> merge_repeat_dims(const std::vector<std::size_t>& lens, std::size_t axis)
 {
     std::vector<std::size_t> dims(lens.begin(), lens.begin() + axis - 1);
     dims.push_back(lens[axis - 1] * lens[axis]);
@@ -1569,7 +1568,7 @@ static std::vector<std::size_t> merge_repeat_dims(const std::vector<std::size_t>
     return dims;
 }
 
-static instruction_ref insert_last_two_transpose(module& mm, instruction_ref input)
+instruction_ref insert_last_two_transpose(module& mm, instruction_ref input)
 {
     const auto rank = input->get_shape().ndim();
     std::vector<int64_t> perm(rank);
@@ -1578,8 +1577,60 @@ static instruction_ref insert_last_two_transpose(module& mm, instruction_ref inp
     return mm.insert_instruction(mm.end(), make_op("transpose", {{"permutation", perm}}), input);
 }
 
-static std::optional<kv_cache_layout> match_kv_cache_layout(instruction_ref dot_input,
-                                                            std::size_t sequence_length)
+// old_views is stored from the dot backward: reshape, broadcast, optional transpose, unsqueeze.
+bool read_cache_views(kv_cache_layout& layout, std::vector<std::size_t>& repeat_lens)
+{
+    auto it         = layout.old_views.begin();
+    const auto last = layout.old_views.end();
+    if(it != last and (*it)->name() == "reshape")
+    {
+        ++it;
+        if(it == last or (*it)->name() != "multibroadcast")
+            return false;
+        repeat_lens   = (*it)->get_operator().to_value().at("out_lens").to_vector<std::size_t>();
+        layout.repeat = kv_cache_layout::head_repeat{};
+        ++it;
+    }
+    if(it != last and (*it)->name() == "transpose")
+    {
+        if(not is_last_two_transpose((*it)->get_operator()))
+            return false;
+        layout.transpose_k = true;
+        ++it;
+    }
+    if(it != last and (*it)->name() == "unsqueeze")
+    {
+        const auto axes = (*it)->get_operator().to_value().at("axes").to_vector<int64_t>();
+        if(axes.size() != 1 or axes.front() <= 0)
+            return false;
+        if(layout.repeat.has_value())
+            layout.repeat->axis = axes.front();
+        ++it;
+    }
+    return it == last;
+}
+
+// The unsqueeze axis is the head-repeat axis. Reject axis 0: merging it would underflow.
+bool accept_head_repeat(kv_cache_layout& layout, const std::vector<std::size_t>& repeat_lens)
+{
+    if(layout.repeat->axis <= 0)
+        return false;
+    const std::size_t axis = layout.repeat->axis;
+    if(axis >= repeat_lens.size())
+        return false;
+    const auto merged =
+        layout.old_views.front()->get_operator().to_value().at("dims").to_vector<std::size_t>();
+    if(merged != merge_repeat_dims(repeat_lens, axis))
+        return false;
+    if(layout.transpose_k and axis + 2 >= repeat_lens.size())
+        return false;
+
+    layout.repeat->count = repeat_lens[axis];
+    return true;
+}
+
+std::optional<kv_cache_layout> match_kv_cache_layout(instruction_ref dot_input,
+                                                     std::size_t sequence_length)
 {
     kv_cache_layout layout;
     auto cur = dot_input;
@@ -1600,68 +1651,28 @@ static std::optional<kv_cache_layout> match_kv_cache_layout(instruction_ref dot_
     layout.sequence_axis = static_cast<std::size_t>(
         std::distance(lens.begin(), std::find(lens.begin(), lens.end(), sequence_length)));
 
-    auto it         = layout.old_views.begin();
-    const auto last = layout.old_views.end();
     std::vector<std::size_t> repeat_lens;
-    if(it != last and (*it)->name() == "reshape")
-    {
-        ++it;
-        if(it == last or (*it)->name() != "multibroadcast")
-            return std::nullopt;
-        repeat_lens   = (*it)->get_operator().to_value().at("out_lens").to_vector<std::size_t>();
-        layout.repeat = kv_cache_layout::head_repeat{};
-        ++it;
-    }
-    if(it != last and (*it)->name() == "transpose")
-    {
-        if(not is_last_two_transpose((*it)->get_operator()))
-            return std::nullopt;
-        layout.transpose_k = true;
-        ++it;
-    }
-    if(it != last and (*it)->name() == "unsqueeze")
-    {
-        const auto axes = (*it)->get_operator().to_value().at("axes").to_vector<int64_t>();
-        if(axes.size() != 1 or axes.front() <= 0)
-            return std::nullopt;
-        if(layout.repeat.has_value())
-            layout.repeat->axis = axes.front();
-        ++it;
-    }
-    if(it != last)
+    if(not read_cache_views(layout, repeat_lens))
         return std::nullopt;
-
     if(not layout.repeat.has_value())
     {
         if(not layout.transpose_k)
             return std::nullopt;
         return layout;
     }
-
-    if(layout.repeat->axis <= 0)
+    if(not accept_head_repeat(layout, repeat_lens))
         return std::nullopt;
-    const auto axis = static_cast<std::size_t>(layout.repeat->axis);
-    if(axis >= repeat_lens.size())
-        return std::nullopt;
-    const auto merged =
-        layout.old_views.front()->get_operator().to_value().at("dims").to_vector<std::size_t>();
-    if(merged != merge_repeat_dims(repeat_lens, axis))
-        return std::nullopt;
-    if(layout.transpose_k and axis + 2 >= repeat_lens.size())
-        return std::nullopt;
-
-    layout.repeat->count = repeat_lens[axis];
     return layout;
 }
 
 // Split the packed cache, then rebuild the head repeat as a broadcast. Returns false
 // without aliasing the old views when the built lens are not the expected split shape;
 // the inserted ops are left for dead-code elimination.
-static bool prebuild_kv_cache_split(module& mm,
-                                    std::unordered_map<instruction_ref, instruction_ref>& params,
-                                    const kv_cache_layout& layout,
-                                    std::size_t groups,
-                                    const std::vector<std::size_t>& expected)
+bool prebuild_kv_cache_split(module& mm,
+                             std::unordered_map<instruction_ref, instruction_ref>& params,
+                             const kv_cache_layout& layout,
+                             std::size_t groups,
+                             const std::vector<std::size_t>& expected)
 {
     if(not contains(params, layout.cache))
         return false;

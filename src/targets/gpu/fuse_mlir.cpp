@@ -1385,28 +1385,32 @@ struct find_unpack_int4_mlir_op
     }
 };
 
+// An mlir_op whose submodule runs a scaled gemm, a quant_dot with block scales
+MIGRAPHX_PRED_MATCHER(mlir_scaled_gemm, instruction_ref ins)
+{
+    const auto* mm = ins->module_inputs().front();
+    return std::any_of(mm->begin(), mm->end(), [](const instruction& i) {
+        return i.name() == "quant_dot" and i.inputs().size() == 4;
+    });
+}
+
 /**
- * Move unpack_fp4 instructions into the mlir_op submodule of a scaled gemm (quant_dot with
- * block scales). Slice and reshape instructions should already be fused into the mlir_op.
- * rocMLIR will do the unpacking and dequantization. rocMLIR cannot fuse other ops on fp4
- * inputs, so for those mlir_ops unpack_fp4 stays outside.
+ * Move unpack_fp4 into the mlir_op submodule of a scaled gemm (quant_dot with block scales), where
+ * rocMLIR does the unpacking itself; other mlir_ops cannot take fp4 inputs, so there unpack_fp4
+ * stays outside. Slice and reshape instructions should already be fused into the mlir_op.
  */
 struct find_unpack_fp4_mlir_op
 {
     auto matcher() const
     {
         return match::name("gpu::mlir_op")(
-            match::any_of[match::inputs()](match::name("unpack_fp4")));
+            mlir_scaled_gemm(), match::any_of[match::inputs()](match::name("unpack_fp4")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& mr) const
     {
-        auto mlir_op = mr.result;
-        auto* mm     = mlir_op->module_inputs().front();
-        if(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
-               return ins.name() == "quant_dot" and ins.inputs().size() == 4;
-           }))
-            return;
+        auto mlir_op  = mr.result;
+        auto* mm      = mlir_op->module_inputs().front();
         module_ref nm = mpm.create_module("fp4:" + mm->name());
         nm->set_bypass();
         std::vector<instruction_ref> new_mlir_op_args;

@@ -27,6 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace {
 // NVFP4 two-level scales as parsed from ONNX: fp8e4m3fn block scales dequantized by a
@@ -38,9 +39,11 @@ migraphx::instruction_ref add_nvfp4_scale(migraphx::module_ref m,
 {
     using migraphx::make_op;
     // Block scales from 1 to 1.75, which fp8e4m3fn represents exactly
+    const std::vector<float> steps = {1.0f, 1.25f, 1.5f, 1.75f};
     std::vector<float> data(migraphx::shape{migraphx::shape::float_type, lens}.elements());
-    for(std::size_t i = 0; i < data.size(); ++i)
-        data[i] = 1.0f + 0.25f * float(i % 4);
+    auto idx = migraphx::range(data.size());
+    std::transform(
+        idx.begin(), idx.end(), data.begin(), [&](auto i) { return steps[i % steps.size()]; });
     auto scale  = m->add_literal(migraphx::literal{{migraphx::shape::fp8e4m3fn_type, lens}, data});
     auto global = m->add_instruction(make_op("multibroadcast", {{"out_lens", lens}}),
                                      m->add_literal(per_tensor_scale));
@@ -71,7 +74,7 @@ migraphx::instruction_ref add_fp4_qdq(migraphx::module_ref m,
 /**
  * NVFP4 GEMM: FP4 operands with fp8e4m3fn block scales (block size 16 along K) and a float
  * per-tensor scale. Weights are stored {N, K} and transposed, as exported from Linear layers.
- * gfx1250 runs it as a scaled GEMM, other GPUs dequantize.
+ * gfx1250 runs it as a scaled GEMM; other GPUs drop the fake quantization and run a float GEMM.
  */
 struct test_nvfp4_gemm : verify_program<test_nvfp4_gemm>
 {
@@ -99,6 +102,7 @@ struct test_nvfp4_gemm : verify_program<test_nvfp4_gemm>
     }
     std::string section() const { return "gemm"; }
 
-    // Other GPUs remove the fp4 fake quantization of the input
-    std::size_t get_tolerance() const { return 4e5; };
+    // Other GPUs drop both fp4 fake quantizations, so they differ from the ref by fp4 rounding
+    // (4e5 float ulps ~ 0.05 rms)
+    std::size_t get_tolerance() const { return 400000; }
 };

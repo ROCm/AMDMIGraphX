@@ -36,7 +36,16 @@ static void insert_convert_to_supported_type(module& m,
                                              migraphx::shape::type_t target_type,
                                              std::set<migraphx::shape::type_t> unsupported_types)
 {
-    migraphx::shape::type_t orig_type   = ins->get_shape().type();
+    migraphx::shape::type_t orig_type = ins->get_shape().type();
+    auto op                           = ins->get_operator();
+    auto attributes                   = op.attributes();
+    if(attributes.contains("general_data_type"))
+    {
+        op = make_op(attributes["general_data_type"].to<std::string>(), op.to_value());
+        // A quant_dot with block scales has no dot equivalent, so it keeps its types
+        if(try_compute_shape(op, to_shapes(ins->inputs())).empty())
+            return;
+    }
     std::vector<instruction_ref> inputs = ins->inputs();
     std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](const auto& i) {
         if(contains(unsupported_types, i->get_shape().type()))
@@ -54,12 +63,6 @@ static void insert_convert_to_supported_type(module& m,
     // if no change
     if(inputs == ins->inputs())
         return;
-    auto op         = ins->get_operator();
-    auto attributes = op.attributes();
-    if(attributes.contains("general_data_type"))
-    {
-        op = make_op(attributes["general_data_type"].to<std::string>(), op.to_value());
-    }
     auto new_ins = m.insert_instruction(ins, op, inputs);
     if(orig_type == shape::tuple_type)
     {
@@ -125,9 +128,6 @@ void eliminate_data_type::apply(module& m) const
         if(ins->name()[0] == '@')
             continue;
         if(contains(skip_op_names, ins->name()) and not contains(unsupported_ops, ins->name()))
-            continue;
-        // quant_dot with block scales (MX) has no dot equivalent
-        if(ins->name() == "quant_dot" and ins->inputs().size() == 4)
             continue;
         if(contains(unsupported_ops, "all") or contains(unsupported_ops, ins->name()))
             insert_convert_to_supported_type(m, ins, target_type, unsupported_types);

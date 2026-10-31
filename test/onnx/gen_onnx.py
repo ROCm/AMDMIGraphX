@@ -4631,6 +4631,34 @@ def floor_test():
     return ([node], [x], [y])
 
 
+@onnx_test(opset_version=23)
+def fp4_constant_test():
+    # [1.0, -3.0] in each row, packed low nibble first as 0xd2
+    value = helper.make_tensor('value',
+                               TensorProto.FLOAT4E2M1, [2, 2],
+                               bytes([0xd2, 0xd2]),
+                               raw=True)
+    node = helper.make_node('Constant', inputs=[], outputs=['y'], value=value)
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT4E2M1, [2, 2])
+
+    return ([node], [], [y])
+
+
+@onnx_test(opset_version=23)
+def fp4_scalar_initializer_test():
+    w = helper.make_tensor('w',
+                           TensorProto.FLOAT4E2M1, [],
+                           bytes([0x02]),
+                           raw=True)
+    node = helper.make_node('Cast',
+                            inputs=['w'],
+                            outputs=['y'],
+                            to=TensorProto.FLOAT)
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [])
+
+    return ([node], [], [y], [w])
+
+
 @onnx_test()
 def fp8_initializers_test():
     values = np.array([0.5, 1.0, -2.0, 3.0], dtype=np.float32)

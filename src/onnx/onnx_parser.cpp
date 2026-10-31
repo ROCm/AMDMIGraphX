@@ -88,9 +88,10 @@ static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
     return result;
 }
 
+template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
 static literal create_literal(shape::type_t shape_type,
                               const std::vector<size_t>& dims,
-                              const char* data,
+                              const T* data,
                               std::size_t size)
 {
     // empty input
@@ -816,7 +817,8 @@ static shape parse_tensor_shape(const onnx::TensorProto& t)
     std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
     if(is_type_packed_int4(t) or is_type_packed_fp4(t))
     {
-        auto dim_n = dims.back();
+        // A scalar has no dimension to pack along
+        auto dim_n = dims.empty() ? 0 : dims.back();
         if(dim_n > 0 and (dim_n % 2 == 0))
             dims.back() = dim_n / 2; // 4-bit packed dimension converted to 8-bit units
         else
@@ -964,8 +966,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     case onnx::TensorProto::FLOAT8E5M2FNUZ:
     case onnx::TensorProto::FLOAT4E2M1: {
         std::vector<uint8_t> data_bits(t.int32_data().begin(), t.int32_data().end());
-        return create_literal(
-            type, dims, reinterpret_cast<const char*>(data_bits.data()), data_bits.size());
+        return create_literal(type, dims, data_bits.data(), data_bits.size());
     }
 
     case onnx::TensorProto::UNDEFINED:

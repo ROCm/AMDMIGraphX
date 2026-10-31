@@ -29,7 +29,7 @@ TEST_CASE(nvfp4_dq_matmul_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    // fp4 initializers are packed along the last dimension
+    // fp4 initializers are packed along the last dimension; 0xd2 is [1.0, -3.0], low nibble first
     std::vector<uint8_t> w_bits(32, 0xd2);
     auto w = mm->add_literal(migraphx::literal::from_raw_buffer(
         migraphx::shape{migraphx::shape::fp4x2_type, {32, 1}}, w_bits.data()));

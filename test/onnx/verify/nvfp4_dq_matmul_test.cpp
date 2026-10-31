@@ -38,10 +38,7 @@ static std::vector<float> run_nvfp4_dq_matmul(const std::string& model)
     migraphx::parameter_map pm;
     pm["x"] = migraphx::argument{{migraphx::shape::float_type, {1, 32}}, x.data()};
 
-    auto result = p.eval(pm).back();
-    std::vector<float> rv;
-    result.visit([&](auto output) { rv.assign(output.begin(), output.end()); });
-    return rv;
+    return p.eval(pm).back().to_vector<float>();
 }
 
 TEST_CASE(nvfp4_dq_matmul_test)

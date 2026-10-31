@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -77,7 +78,11 @@ struct parse_constant : op_parser<parse_constant>
             return info.add_literal(migraphx::literal::from_raw_buffer(scalar_shape, v.data()));
         }
 
-        return info.add_literal(v);
+        auto lit = info.add_literal(v);
+        // fp4 values are stored as packed pairs, which are unpacked as for initializers
+        if(lit->get_shape().type() == shape::fp4x2_type)
+            return info.add_instruction(make_op("unpack_fp4"), lit);
+        return lit;
     }
 };
 

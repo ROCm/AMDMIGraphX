@@ -4937,9 +4937,9 @@ TEST_CASE(kv_flash_decoding_query_broadcast)
         auto* mm = p1.get_main_module();
         auto ninf =
             mm->add_literal(migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
-        auto scale = mm->add_literal(migraphx::literal{s_half, {0.5}});
-        auto cos   = mm->add_parameter("cos", s_cos);
-        auto range = mm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
+        auto scale  = mm->add_literal(migraphx::literal{s_half, {0.5}});
+        auto cos    = mm->add_parameter("cos", s_cos);
+        auto range  = mm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
         auto sl     = mm->add_parameter("sl", s_sl);
         auto q      = mm->add_parameter("q", s_q);
         auto cur_k  = mm->add_parameter("cur_k", s_cur);
@@ -4952,10 +4952,10 @@ TEST_CASE(kv_flash_decoding_query_broadcast)
             migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cur_v, sl, past_v);
         auto tsp_k = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), cpp_k);
-        auto bc_q  = mm->add_instruction(
+        auto bc_q = mm->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 3}, {"out_lens", {1, 2, 1, 4}}}), cos);
-        auto rot_q = mm->add_instruction(migraphx::make_op("mul"), q, bc_q);
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), rot_q, tsp_k);
+        auto rot_q   = mm->add_instruction(migraphx::make_op("mul"), q, bc_q);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), rot_q, tsp_k);
         auto bc_ninf = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 1, 8}}}), ninf);
         auto bc_scale = mm->add_instruction(
@@ -5023,10 +5023,10 @@ TEST_CASE(kv_flash_decoding_query_broadcast)
                 auto bc_q  = gm->add_instruction(
                     migraphx::make_op("broadcast", {{"axis", 3}, {"out_lens", {1, 2, 1, 4}}}),
                     inputs.at(1));
-                auto rot_q  = gm->add_instruction(migraphx::make_op("mul"), inputs.at(2), bc_q);
-                auto q_unsq = gm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}),
-                                                  rot_q);
-                auto q_bc   = gm->add_instruction(
+                auto rot_q = gm->add_instruction(migraphx::make_op("mul"), inputs.at(2), bc_q);
+                auto q_unsq =
+                    gm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), rot_q);
+                auto q_bc = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 1, 4}}}), q_unsq);
                 auto k_split = gm->add_instruction(
                     migraphx::make_op("reshape", {{"dims", {1, 2, 2, 4, 4}}}), inputs.at(0));

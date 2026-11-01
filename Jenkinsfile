@@ -74,9 +74,20 @@ def cmake_build = { bconf ->
     def flags = bconf.get("flags", "")
     def gpu_debug = bconf.get("gpu_debug", "0")
     def skip_package = bconf.get("skip_package", false)
+    def check_standalone_driver = bconf.get("check_standalone_driver", false)
     def targets =  "all package check"
     if(skip_package)
         targets = "all check"
+    def standalone_driver_check = ""
+    if(check_standalone_driver)
+        standalone_driver_check = """
+        # The driver must only need the ROCm and system shared libraries: nothing
+        # installed by rbuild and nothing from the build tree.
+        ldd ./bin/migraphx-driver
+        if ldd ./bin/migraphx-driver | grep -E "=> (/usr/local/lib/[^/]+|\$(pwd)/[^ ]+) "; then
+            echo "migraphx-driver depends on shared libraries from rbuild or the build tree." && exit 1
+        fi
+        """
     def cmd = """
         ulimit -c unlimited
         echo "leak:dnnl::impl::malloc" > suppressions.txt
@@ -103,6 +114,10 @@ def cmake_build = { bconf ->
         git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
         make -j\$(nproc) ${targets} VERBOSE=1
         if [ -n "\$(ls ./*.deb 2>/dev/null)" ]; then md5sum ./*.deb; fi
+        ${standalone_driver_check}
+        # The driver exits 0 even when verification fails, so check its log.
+        ./bin/migraphx-driver verify --test 2>&1 | tee driver.log
+        grep -q "verification passed successfully" driver.log
     """
     echo cmd
     sh cmd
@@ -424,7 +439,7 @@ pipeline {
                     steps {
                         script {
                             rocmtest([:]) {
-                                cmake_build(skip_package: true, flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                                cmake_build(skip_package: true, check_standalone_driver: true, flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
                     }

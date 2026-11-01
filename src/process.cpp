@@ -1146,7 +1146,9 @@ std::vector<std::string> path_directories(const std::string& path)
     {
         if(c == ':')
         {
-            dirs.push_back(std::move(dir));
+            // Copy, then clear. Moving and then clearing is a use of a moved-from string, which
+            // cppcheck reports as accessMoved.
+            dirs.push_back(dir);
             dir.clear();
         }
         else
@@ -1183,6 +1185,8 @@ bool is_executable_file(const fs::path& path)
 }
 
 // posix_spawnp searches the parent's PATH and ignores both the envp PATH and the child's cwd.
+// The path is returned as written: collapsing ".." through a symlink would name a different file
+// than the one is_executable_file just accepted.
 std::string
 search_path(const std::string& cmd, const std::vector<std::string>& child_env, const fs::path& cwd)
 {
@@ -1191,13 +1195,14 @@ search_path(const std::string& cmd, const std::vector<std::string>& child_env, c
     {
         auto candidate = command_in_directory(base, dir, cmd);
         if(is_executable_file(candidate))
-            return candidate.lexically_normal().string();
+            return candidate.string();
     }
     return {};
 }
 
 // Absolute paths are used as given. A relative path is against the child's cwd. A bare name is
-// the first executable on the child's PATH. argv[0] is left as the caller wrote it.
+// the first executable on the child's PATH. argv[0] is left as the caller wrote it. Same as
+// search_path, the relative path is not lexically normalized.
 std::string executable_path(const std::string& cmd,
                             const std::vector<std::string>& child_env,
                             const fs::path& cwd)
@@ -1206,7 +1211,7 @@ std::string executable_path(const std::string& cmd,
     if(path.is_absolute())
         return cmd;
     if(cmd.find('/') != std::string::npos)
-        return (working_directory(cwd) / path).lexically_normal().string();
+        return (working_directory(cwd) / path).string();
 
     auto resolved = search_path(cmd, child_env, cwd);
     if(resolved.empty())

@@ -73,7 +73,9 @@ struct flag_splitter
     {
         if(not in_token)
             return;
-        result.push_back(std::move(token));
+        // Copy, then clear. Moving and then clearing is a use of a moved-from string, which
+        // cppcheck reports as accessMoved.
+        result.push_back(token);
         token.clear();
         in_token = false;
     }

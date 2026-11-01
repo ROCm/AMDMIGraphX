@@ -26,10 +26,9 @@
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
-# HIP offload compiles one invocation for the host and the device. A host-only
-# flag such as -fcf-protection is an error on amdgcn. Clang accepts -Xarch_host
-# so the flag stays on the host pass; GCC does not, and host GCC builds use the
-# bare flag instead.
+# HIP offload compiles one invocation for the host and the device. Prefer
+# -Xarch_host when clang accepts it so the flag stays on the host pass. GCC
+# does not accept that form, and those builds use the bare flag.
 function(migraphx_add_hardening_option flag)
     string(MAKE_C_IDENTIFIER "${flag}" flag_id)
     set(host_flag "-Xarch_host ${flag}")
@@ -79,5 +78,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND MIGRAPHX_ENABLE_HARDENING)
         string(APPEND CMAKE_EXE_LINKER_FLAGS " -pie")
     endif()
 
-    migraphx_add_hardening_option("-fcf-protection=full")
+    # -fcf-protection is Intel CET. The probe only compiles for the host, so it
+    # accepts the bare flag, and that flag is then an error on amdgcn.
 endif()

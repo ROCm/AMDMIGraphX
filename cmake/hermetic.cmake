@@ -24,8 +24,8 @@
 #
 # Toolchain file for hermetic builds: CMake never reaches the network on its
 # own. FetchContent does not download or update anything (its source dirs must
-# already exist) and ExternalProject does not re-fetch (update) content it has
-# already downloaded.
+# already exist), ExternalProject does not re-fetch (update) downloaded content,
+# and an ExternalProject_Add() that would download fails at configure time.
 #
 # Usage:
 #   cmake -DCMAKE_TOOLCHAIN_FILE=cmake/hermetic.cmake ...
@@ -34,6 +34,10 @@
 #
 # rbuild/cget include this file from the cget.cmake toolchain they write, so
 # every dependency build and the MIGraphX build itself pick up these settings.
+#
+# Requires CMake 3.20. Not covered: a custom DOWNLOAD_COMMAND, file(DOWNLOAD),
+# and nested configures (ExternalProject or FetchContent sub-builds) unless the
+# project forwards CMAKE_TOOLCHAIN_FILE to them.
 
 # Cache entries so option() in FetchContent.cmake keeps them under every CMP0077
 # setting. An explicit -D on the command line still wins.
@@ -45,3 +49,53 @@ set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL
 # ExternalProject reads EP_UPDATE_DISCONNECTED as an inherited directory
 # property, which chains up to the global scope from every directory.
 set_property(GLOBAL PROPERTY EP_UPDATE_DISCONNECTED ON)
+
+# Refuse ExternalProject downloads at configure time by wrapping
+# ExternalProject_Add. ExternalProject.cmake carries include_guard(GLOBAL) since
+# CMake 3.20, so including it here first makes the project's own
+# include(ExternalProject) a no-op and the wrapper below survives.
+if(CMAKE_VERSION VERSION_LESS 3.20)
+    message(FATAL_ERROR "hermetic.cmake requires CMake 3.20 or newer, found ${CMAKE_VERSION}")
+endif()
+
+# This file is read several times per configure. Wrap only once, or the wrapper
+# would call itself. A global property rather than include_guard() so the same
+# file reached through two paths still counts once.
+get_property(hermetic_externalproject_guarded GLOBAL PROPERTY HERMETIC_EXTERNALPROJECT_GUARDED)
+if(hermetic_externalproject_guarded)
+    unset(hermetic_externalproject_guarded)
+    return()
+endif()
+unset(hermetic_externalproject_guarded)
+set_property(GLOBAL PROPERTY HERMETIC_EXTERNALPROJECT_GUARDED ON)
+
+include(ExternalProject)
+
+# ExternalProject_Add reads CMP0097, CMP0114, CMP0135 and CMP0150 from its
+# caller's policy scope, which is now this wrapper, so record it with every
+# policy set to NEW instead of whatever this file was included under.
+cmake_policy(PUSH)
+cmake_policy(VERSION 3.20...${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}.${CMAKE_PATCH_VERSION})
+function(ExternalProject_Add name)
+    if(NOT "DOWNLOAD_COMMAND" IN_LIST ARGN)
+        foreach(keyword URL GIT_REPOSITORY SVN_REPOSITORY HG_REPOSITORY CVS_REPOSITORY)
+            if("${keyword}" IN_LIST ARGN)
+                message(FATAL_ERROR
+                    "Hermetic build: ExternalProject_Add(${name}) would download via ${keyword}. "
+                    "Provide the sources locally with SOURCE_DIR and DOWNLOAD_COMMAND \"\", "
+                    "or disable the dependency.")
+            endif()
+        endforeach()
+    endif()
+    # Forward every argument verbatim as a bracket argument; a plain ${ARGN}
+    # would drop the empty strings in DOWNLOAD_COMMAND "" or INSTALL_COMMAND "".
+    set(call "_ExternalProject_Add([==[${name}]==]")
+    if(ARGC GREATER 1)
+        math(EXPR last "${ARGC} - 1")
+        foreach(i RANGE 1 ${last})
+            string(APPEND call " [==[${ARGV${i}}]==]")
+        endforeach()
+    endif()
+    cmake_language(EVAL CODE "${call})")
+endfunction()
+cmake_policy(POP)

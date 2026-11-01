@@ -518,9 +518,10 @@ def template_eval(template, **kwargs):
         for node in ast.walk(tree):
             if type(node) not in allowed_nodes:
                 raise ValueError(
-                    f"Disallowed expression in template: {type(node).__name__}")
-        value = eval(compile(tree, '<template>', 'eval'),
-                     {"__builtins__": {}}, namespace)
+                    f"Disallowed expression in template: {type(node).__name__}"
+                )
+        value = eval(compile(tree, '<template>', 'eval'), {"__builtins__": {}},
+                     namespace)
         template = template.replace(start + item + end, str(value))
     return template
 

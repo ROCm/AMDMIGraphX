@@ -286,10 +286,11 @@ def main():
                 'https://github.com/ROCmSoftwarePlatform/rocmProfileData.git',
                 rpd_path
             ],
-                         check=True)
+                           check=True)
         os.chdir(rpd_path + "rocpd_python/")
-        subprocess.run([python_bin, '-m', 'pip', 'install', '--upgrade', 'pip'],
-                       check=True)
+        subprocess.run(
+            [python_bin, '-m', 'pip', 'install', '--upgrade', 'pip'],
+            check=True)
         subprocess.run([python_bin, 'setup.py', 'install'], check=True)
         os.chdir(curr)
         run()

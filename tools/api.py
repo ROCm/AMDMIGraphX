@@ -193,7 +193,8 @@ class CFunction:
 
 
 class BadParam:
-    def __init__(self, cond: str, msg: str, name: Optional[str] = None) -> None:
+    def __init__(self, cond: str, msg: str,
+                 name: Optional[str] = None) -> None:
         self.cond = cond
         self.msg = msg
         self.name = name
@@ -270,7 +271,8 @@ class Parameter:
         else:
             self.add_param('size_t', self.size_name)
 
-    def bad_param(self, cond: str, msg: str, name: Optional[str] = None) -> None:
+    def bad_param(self, cond: str, msg: str,
+                  name: Optional[str] = None) -> None:
         self.bad_param_checks.append(BadParam(cond, msg, name))
 
     def remove_size_param(self, name):
@@ -399,9 +401,9 @@ class Parameter:
             else:
                 cfunction.add_param(self.substitute(t), self.substitute(name))
         for bad_param_check in self.bad_param_checks:
-            msg = 'Bad parameter {name}: {msg}'.format(
-                name=self.substitute(bad_param_check.name or self.name),
-                msg=bad_param_check.msg)
+            msg = 'Bad parameter {name}: {msg}'.format(name=self.substitute(
+                bad_param_check.name or self.name),
+                                                       msg=bad_param_check.msg)
             cfunction.add_statement('if ({cond}) {body}'.format(
                 cond=self.substitute(bad_param_check.cond),
                 body=bad_param_error(msg)))
@@ -1334,9 +1336,10 @@ def template_eval(template, **kwargs):
         for node in ast.walk(tree):
             if type(node) not in allowed_nodes:
                 raise ValueError(
-                    f"Disallowed expression in template: {type(node).__name__}")
-        e = eval(compile(tree, '<template>', 'eval'),
-                 {"__builtins__": {}}, namespace)
+                    f"Disallowed expression in template: {type(node).__name__}"
+                )
+        e = eval(compile(tree, '<template>', 'eval'), {"__builtins__": {}},
+                 namespace)
         template = template.replace(start + item + end, str(e))
     return template
 

@@ -303,6 +303,12 @@ TEST_CASE(has_flags)
         {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}));
 }
 
+TEST_CASE(can_compile)
+{
+    EXPECT(migraphx::gpu::hip_can_compile(write_2s, {}));
+    EXPECT(not migraphx::gpu::hip_can_compile(incorrect_program, {}));
+}
+
 TEST_CASE(code_object_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(

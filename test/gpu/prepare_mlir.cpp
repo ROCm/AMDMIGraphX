@@ -60,6 +60,29 @@ TEST_CASE(nonstandard_literal_normalized)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Reducing an axis that is already length 1 changes nothing. The collapse records
+// no axis in that case, and a reduce with an empty axes list is the two-input form.
+TEST_CASE(reduce_unit_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 32, 128, 1, 1}};
+
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto r = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), x);
+        m1.add_return({r});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        m2.add_return({x});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // An already-standard literal is left untouched.
 TEST_CASE(standard_literal_unchanged)
 {

@@ -994,8 +994,8 @@ struct read : command<read>
     void run()
     {
         // Open files compiled for another GPU without loading their kernels
-        l.finalize = false;
-        auto p     = l.load();
+        l.finalize        = false;
+        auto p            = l.load();
         auto compiled_for = p.get_compiled_for();
         if(not compiled_for.is_null())
             log::info() << "compiled_for: " << to_json_string(compiled_for);

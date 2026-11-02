@@ -994,8 +994,7 @@ struct compile_manager
             if(dump_mxr and cp.results.size() > 1)
                 dumped_mxr_files += cp.save_binaries(mxr_dir);
             else
-                cp.replace(
-                    *cp.mod, keep_recipes, exhaustive or cp.ctx->get_exhaustive_tune_flag());
+                cp.replace(*cp.mod, keep_recipes, exhaustive or cp.ctx->get_exhaustive_tune_flag());
         }
 
         // Remove compile_plan already executed
@@ -1176,8 +1175,7 @@ optional<double> compiled_fill_value(instruction_ref ins)
 }
 
 template <class F>
-kernel_signature
-make_signature(instruction_ref ins, const code_object_op& co, F get_fill_value)
+kernel_signature make_signature(instruction_ref ins, const code_object_op& co, F get_fill_value)
 {
     kernel_signature sig;
     sig.inputs     = co.expected_inputs;
@@ -1193,10 +1191,8 @@ make_signature(instruction_ref ins, const code_object_op& co, F get_fill_value)
 
 // Insert a compiled candidate into its own module and return its kernel, or nothing when the
 // replacement is not a single kernel
-optional<std::pair<code_object_op, kernel_signature>>
-candidate_kernel(const compiler_replace& cr,
-                 instruction_ref pre_ins,
-                 const std::vector<shape>& source_inputs)
+optional<std::pair<code_object_op, kernel_signature>> candidate_kernel(
+    const compiler_replace& cr, instruction_ref pre_ins, const std::vector<shape>& source_inputs)
 {
     module m{"retune_candidate"};
     std::vector<instruction_ref> params;
@@ -1284,8 +1280,8 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
 
         for(auto b : range(batch.size()))
         {
-            auto i   = batch[b];
-            auto& cp = plans[i];
+            auto i     = batch[b];
+            auto& cp   = plans[i];
             cp.results = cm.cps[b].results;
             std::vector<optional<code_object_op>> kernels(cp.results.size());
             std::size_t excluded = 0;
@@ -1316,11 +1312,11 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
                 MIGRAPHX_THROW("retune: no candidate for kernel " + olds[i].symbol_name +
                                " keeps its signature; recompile from the model");
             const auto& best = cp.benchmark();
-            auto j           = static_cast<std::size_t>(
-                std::distance(cp.results.begin(),
-                              std::find_if(cp.results.begin(), cp.results.end(), [&](const auto& c) {
-                                  return has_result(c) and &*c->result == &best;
-                              })));
+            auto j           = static_cast<std::size_t>(std::distance(
+                cp.results.begin(),
+                std::find_if(cp.results.begin(), cp.results.end(), [&](const auto& c) {
+                    return has_result(c) and &*c->result == &best;
+                })));
             auto co          = *kernels.at(j);
             co.source        = olds[i].source;
             co.source_inputs = olds[i].source_inputs;

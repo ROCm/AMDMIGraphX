@@ -289,14 +289,14 @@ void program::retune(const target& t, compile_options options)
     value retune_opts = value::object{};
     if(contains(options.backend_options, "retune"))
         retune_opts = options.backend_options.at("retune");
-    retune_opts["from"]                = from_ctx;
+    retune_opts["from"]               = from_ctx;
     options.backend_options["retune"] = retune_opts;
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
 
     // Retune a copy so the program is unchanged when retuning fails
-    program p = *this;
+    program p                     = *this;
     std::vector<context> contexts = {t.get_context()};
     auto passes                   = t.get_passes(contexts.front(), options);
     run_passes(p, passes, options.trace);

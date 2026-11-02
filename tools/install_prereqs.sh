@@ -33,7 +33,7 @@
 #
 # Usage:
 #   install_prereqs.sh [--rocm-version <ver>] [--gpu <arch>] [--whl] [--index-url <url>]
-#                      [--rocm-only]
+#                      [--rocm-only] [--toolchain <file>]
 #
 #   --rocm-version <ver>  ROCm release version used in versioned package names,
 #                         e.g. 7.13 -> amdrocm-developer-tools7.13
@@ -51,6 +51,11 @@
 #                         https://rocm.nightlies.amd.com/whl-multi-arch/
 #   --rocm-only           Install only the ROCm components and skip everything
 #                         else (pipx, rbuild, and the MIGraphX dependencies).
+#   --toolchain <file>    CMake toolchain file passed to "rbuild prepare", e.g.
+#                         cmake/hermetic.cmake to keep CMake off the network.
+#                         The cget.cmake toolchain written under the prefix
+#                         includes it by absolute path, so the file must stay
+#                         in place for later builds against the prefix.
 
 set -eo pipefail
 
@@ -61,6 +66,7 @@ ROCM_VERSION=""
 GPU_ARCH=""
 USE_WHL=0
 ROCM_ONLY=0
+TOOLCHAIN=""
 INDEX_URL="https://repo.amd.com/rocm/whl-multi-arch/"
 PREFIX=/usr/local
 REQ_FILE_DIR="$(dirname -- "$0")"
@@ -118,6 +124,15 @@ while [[ $# -gt 0 ]]; do
             INDEX_URL="${1#*=}"
             shift
             ;;
+        --toolchain)
+            require_value "$@"
+            TOOLCHAIN="$2"
+            shift 2
+            ;;
+        --toolchain=*)
+            TOOLCHAIN="${1#*=}"
+            shift
+            ;;
         -h | --help)
             usage
             exit 0
@@ -129,6 +144,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ -n "$TOOLCHAIN" && ! -f "$TOOLCHAIN" ]]; then
+    echo "Toolchain file not found: $TOOLCHAIN" >&2
+    exit 1
+fi
 
 # Detect the available package manager.
 PKG_MGR=""
@@ -248,7 +268,11 @@ pipx install ${PIPX_GLOBAL_FLAG} https://github.com/RadeonOpenCompute/rbuild/arc
 echo "Dependencies are installed at $PREFIX"
 
 # Install deps with rbuild
-rbuild prepare -d $PREFIX -s develop
+RBUILD_ARGS=()
+if [[ -n "$TOOLCHAIN" ]]; then
+    RBUILD_ARGS+=(-t "$TOOLCHAIN")
+fi
+rbuild prepare -d $PREFIX -s develop "${RBUILD_ARGS[@]}"
 
 if [[ ("${ID}" != "sles") ]]; then
     export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"

@@ -1801,7 +1801,7 @@ TEST_CASE(flash_decoding_3d)
             mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {g_axis}}}), lse);
         auto k2_broad1 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 256, 1}}}), k2_rmax);
-        auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
+        auto k2_sub    = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
         auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
@@ -1923,7 +1923,7 @@ TEST_CASE(flash_decoding_3d_rectangular)
             mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {g_axis}}}), lse);
         auto k2_broad1 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 240, 1}}}), k2_rmax);
-        auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
+        auto k2_sub    = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
         auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
@@ -2054,7 +2054,7 @@ TEST_CASE_SKIP(flash_decoding_3d_padding,
             mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {g_axis}}}), lse);
         auto k2_broad1 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 242, 1}}}), k2_rmax);
-        auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
+        auto k2_sub    = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
         auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);

@@ -53,39 +53,45 @@ struct channelwise_gpu_target : migraphx::gpu::target
     }
 };
 
-// Conv attributes shared by the reference conv and the kernel; an empty stride or
+// Conv attributes shared by the reference conv and the kernel; an omitted stride or
 // dilation means ones
 struct conv_attrs
 {
     std::vector<std::size_t> padding;
-    std::vector<std::size_t> stride   = {};
-    std::vector<std::size_t> dilation = {};
+    std::vector<std::size_t> stride;
+    std::vector<std::size_t> dilation;
 
-    std::size_t num_spatial() const { return padding.size() / 2; }
-    std::vector<std::size_t> get_stride() const { return or_ones(stride); }
-    std::vector<std::size_t> get_dilation() const { return or_ones(dilation); }
+    conv_attrs(std::vector<std::size_t> p,
+               const std::vector<std::size_t>& s = {},
+               const std::vector<std::size_t>& d = {})
+        : padding(std::move(p)), stride(or_ones(s)), dilation(or_ones(d))
+    {
+    }
+
+    migraphx::value to_value() const
+    {
+        return {{"padding", padding}, {"stride", stride}, {"dilation", dilation}};
+    }
+
+    // The reference convolution these attributes describe
+    migraphx::operation conv_op(std::size_t group) const
+    {
+        auto v     = to_value();
+        v["group"] = group;
+        return migraphx::make_op("convolution", v);
+    }
 
     private:
     std::vector<std::size_t> or_ones(const std::vector<std::size_t>& attr) const
     {
-        return attr.empty() ? std::vector<std::size_t>(num_spatial(), 1) : attr;
+        return attr.empty() ? std::vector<std::size_t>(padding.size() / 2, 1) : attr;
     }
 };
 
 static migraphx::shape
 conv_output(const migraphx::shape& x_shape, const migraphx::shape& w_shape, const conv_attrs& attrs)
 {
-    auto lens     = x_shape.lens();
-    auto stride   = attrs.get_stride();
-    auto dilation = attrs.get_dilation();
-    lens[1]       = w_shape.lens()[0];
-    for(std::size_t i = 2; i < lens.size(); i++)
-    {
-        auto padded = lens[i] + attrs.padding[i - 2] + attrs.padding[i - 2 + lens.size() - 2];
-        auto reach  = (w_shape.lens()[i] - 1) * dilation[i - 2] + 1;
-        lens[i]     = (padded - reach) / stride[i - 2] + 1;
-    }
-    return x_shape.with_lens(lens);
+    return attrs.conv_op(x_shape.lens()[1]).compute_shape({x_shape, w_shape});
 }
 
 static migraphx::instruction_ref add_ref_conv(migraphx::module& mm,
@@ -93,13 +99,7 @@ static migraphx::instruction_ref add_ref_conv(migraphx::module& mm,
                                               migraphx::instruction_ref w,
                                               const conv_attrs& attrs)
 {
-    return mm.add_instruction(migraphx::make_op("convolution",
-                                                {{"group", x->get_shape().lens()[1]},
-                                                 {"padding", attrs.padding},
-                                                 {"stride", attrs.get_stride()},
-                                                 {"dilation", attrs.get_dilation()}}),
-                              x,
-                              w);
+    return mm.add_instruction(attrs.conv_op(x->get_shape().lens()[1]), x, w);
 }
 
 static migraphx::argument run_ref(const migraphx::shape& x_shape,
@@ -151,11 +151,7 @@ static migraphx::argument run_gpu_fused(const std::vector<migraphx::shape>& para
                    });
     pm->add_return({build_post(*pm, params)});
 
-    auto cw_op = migraphx::make_op("gpu::channelwise_conv",
-                                   {{"num_spatial", x_shape.ndim() - 2},
-                                    {"padding", attrs.padding},
-                                    {"stride", attrs.get_stride()},
-                                    {"dilation", attrs.get_dilation()}});
+    auto cw_op = migraphx::make_op("gpu::channelwise_conv", attrs.to_value());
     auto pre   = migraphx::make_op(
         "gpu::precompile_op",
         {{"op", migraphx::to_value(cw_op)}, {"output_shape", migraphx::to_value(out_shape)}});
@@ -183,11 +179,9 @@ static migraphx::argument run_gpu(const migraphx::shape& x_shape,
                                   const migraphx::parameter_map& inputs,
                                   migraphx::value solution)
 {
-    auto out_shape          = conv_output(x_shape, w_shape, attrs);
-    solution["num_spatial"] = x_shape.ndim() - 2;
-    solution["padding"]     = attrs.padding;
-    solution["stride"]      = attrs.get_stride();
-    solution["dilation"]    = attrs.get_dilation();
+    auto out_shape = conv_output(x_shape, w_shape, attrs);
+    for(const auto& attr : attrs.to_value())
+        solution.insert(attr);
 
     migraphx::gpu::context ctx;
     auto op =
@@ -374,7 +368,7 @@ TEST_CASE(channelwise_conv_dilation_channels_last)
                            solution));
 }
 
-// Stride 3 with dilation 2: the runs' rows and taps leave halo rows no tap reads
+// Stride 3 with dilation 2 leave halo rows that no output row's taps read
 TEST_CASE(channelwise_conv_stride_dilation)
 {
     migraphx::shape x_shape{migraphx::shape::float_type, {1, 4, 15, 16}};
@@ -570,8 +564,9 @@ TEST_CASE(channelwise_conv_1d_tile_h_throws)
                              {"noutputs", 1},
                              {"tile_c", 1},
                              {"nrows", 1},
-                             {"num_spatial", 1},
-                             {"padding", {1, 1}}};
+                             {"padding", {1, 1}},
+                             {"stride", {1}},
+                             {"dilation", {1}}};
     migraphx::gpu::context ctx;
     EXPECT(test::throws([&] {
         migraphx::gpu::compile_op("channelwise_conv", ctx, {x_shape, w_shape, out_shape}, solution);
@@ -603,7 +598,7 @@ static bool unique_solutions(const std::vector<migraphx::value>& solutions)
 TEST_CASE(channelwise_conv_1d_tuning)
 {
     migraphx::program p;
-    auto op = migraphx::make_op("gpu::channelwise_conv", {{"num_spatial", 1}, {"padding", {1, 1}}});
+    auto op  = migraphx::make_op("gpu::channelwise_conv", conv_attrs{{1, 1}}.to_value());
     auto ins = add_channelwise_conv_1d(p, op);
     migraphx::gpu::context ctx;
     auto wave = ctx.get_current_device().get_wavefront_size();
@@ -636,9 +631,7 @@ TEST_CASE(channelwise_conv_stride_tuning)
         migraphx::shape::from_permutation(migraphx::shape::half_type, {96, 1, 3, 3}, perm);
     conv_attrs attrs{{1, 1, 1, 1}, {2, 2}};
     auto out_shape = conv_output(x_shape, w_shape, attrs);
-    auto op        = migraphx::make_op(
-        "gpu::channelwise_conv",
-        {{"num_spatial", 2}, {"padding", attrs.padding}, {"stride", attrs.stride}});
+    auto op        = migraphx::make_op("gpu::channelwise_conv", attrs.to_value());
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto x     = mm->add_parameter("x", x_shape);

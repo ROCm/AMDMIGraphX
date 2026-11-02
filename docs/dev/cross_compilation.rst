@@ -75,7 +75,7 @@ usual:
 The recognized fields (with defaults) are ``gpu_arch`` (empty), ``gpu_num_cu``
 (``120``), ``gpu_num_chiplets`` (``1``), ``gpu_max_threads_per_cu`` (``2048``),
 ``gpu_max_threads_per_block`` (``1024``), ``gpu_wavefront_size`` (``0``), and
-``gpu_max_shared_memory_per_block`` (``65536``, the shared memory one workgroup can use).
+``gpu_max_shared_memory_per_block`` (``65536``, bytes of shared memory per workgroup).
 A value of ``0`` for ``gpu_wavefront_size`` infers wavefront size from the
 architecture; set ``32`` or ``64`` explicitly to override.
 A non-empty ``gpu_arch`` is what puts the target into cross-compile mode.

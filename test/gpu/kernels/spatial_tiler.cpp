@@ -38,6 +38,18 @@ static constexpr auto make_4d_shape()
     return migraphx::make_shape(lens);
 }
 
+// A tiler with the halo parameters spelled out
+template <class TileLens,
+          class Output,
+          class Padding                   = migraphx::index_ints<0>,
+          class Stride                    = migraphx::index_ints<1>,
+          class Reach                     = migraphx::index_ints<1>,
+          migraphx::index_int ChannelTile = 1,
+          migraphx::index_int NTiles      = 1,
+          migraphx::index_int NRows       = 1>
+using halo_tiler = migraphx::
+    spatial_tiler<NTiles, TileLens, Output, Padding, ChannelTile, NRows, 1, Stride, Reach>;
+
 // ======== output_lens ========
 
 // Tile {4, 4} with NTiles=1 → output_lens = {1, 1, 4, 4}
@@ -277,38 +289,46 @@ TEST_CASE(has_nonzero_all_nonzero)
 
 // ======== halo_lens_for ========
 
-// No padding: halo = output_lens + (input_spatial - out_spatial)
+// Halo = output tile stepped by the stride plus the reach of its last output: a 4x4 tile
+// with a 3x3 filter reads 6x6
 TEST_CASE(halo_lens_no_padding)
 {
-    // Output 8x8, input 10x10 (e.g. 3x3 conv), tile 4x4
-    // out_spatial = {1,1,8,8}, input_spatial = {1,1,10,10}
-    // halo_extra = {1,1,10,10} - {1,1,8,8} + {0,0,0,0} = {0,0,2,2}
-    // halo_lens = output_lens + halo_extra = {1,1,4,4} + {0,0,2,2} = {1,1,6,6}
     using output_shape = decltype(make_4d_shape<1, 1, 8, 8>());
     using input_shape  = decltype(make_4d_shape<1, 1, 10, 10>());
-    using tiler        = migraphx::spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>>;
 
     constexpr auto hl = tiler::template halo_lens_for<input_shape>();
     EXPECT(hl[2] == 6);
     EXPECT(hl[3] == 6);
 }
 
-// With padding: halo = output_lens + (input_spatial - out_spatial + total_padding)
+// Padding moves the halo's origin but not its size
 TEST_CASE(halo_lens_with_padding)
 {
-    // Output 8x8, input 8x8 (same-padding conv), pad {1,1,1,1} → total_pad={0,0,2,2}
-    // halo_extra = {1,1,8,8} - {1,1,8,8} + {0,0,2,2} = {0,0,2,2}
-    // halo_lens = {1,1,4,4} + {0,0,2,2} = {1,1,6,6}
     using output_shape = decltype(make_4d_shape<1, 1, 8, 8>());
     using input_shape  = decltype(make_4d_shape<1, 1, 8, 8>());
-    using tiler        = migraphx::spatial_tiler<1,
-                                                 migraphx::index_ints<4, 4>,
-                                                 output_shape,
-                                                 migraphx::index_ints<1, 1, 1, 1>>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<1, 1, 1, 1>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>>;
 
     constexpr auto hl = tiler::template halo_lens_for<input_shape>();
     EXPECT(hl[2] == 6);
     EXPECT(hl[3] == 6);
+}
+
+// No Reach arg → each output reads one input element, so the halo is the tile
+TEST_CASE(reach_default)
+{
+    using output_shape = decltype(make_4d_shape<1, 1, 8, 8>());
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>, output_shape>;
+    EXPECT(tiler::get_reach() == migraphx::index_ints<1, 1, 1, 1>{});
+    EXPECT(tiler::template halo_lens_for<output_shape>() == migraphx::index_ints<1, 1, 4, 4>{});
 }
 
 // ======== ndim ========
@@ -392,9 +412,13 @@ TEST_CASE(halo_lens_channel_tile)
 {
     using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
     using input_shape  = decltype(make_4d_shape<1, 8, 10, 10>());
-    using tiler        = migraphx::
-        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 2>;
-    constexpr auto hl = tiler::template halo_lens_for<input_shape>();
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    2>;
+    constexpr auto hl  = tiler::template halo_lens_for<input_shape>();
     EXPECT(hl == migraphx::index_ints<1, 2, 6, 6>{});
     EXPECT(tiler::template input_channel_tile<input_shape>() == 2);
 }
@@ -412,14 +436,10 @@ TEST_CASE(stride_default)
 // Spatial strides {2, 3} → (1, 1, 2, 3)
 TEST_CASE(stride_spatial)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>()),
-                                          migraphx::index_ints<0>,
-                                          1,
-                                          1,
-                                          1,
-                                          migraphx::index_ints<2, 3>>;
+    using tiler = halo_tiler<migraphx::index_ints<4, 4>,
+                             decltype(make_4d_shape<1, 1, 8, 8>()),
+                             migraphx::index_ints<0>,
+                             migraphx::index_ints<2, 3>>;
     EXPECT(tiler::get_stride() == migraphx::index_ints<1, 1, 2, 3>{});
 }
 
@@ -429,54 +449,57 @@ TEST_CASE(halo_lens_stride)
 {
     using output_shape = decltype(make_4d_shape<1, 1, 5, 5>());
     using input_shape  = decltype(make_4d_shape<1, 1, 11, 11>());
-    using tiler        = migraphx::spatial_tiler<1,
-                                                 migraphx::index_ints<4, 4>,
-                                                 output_shape,
-                                                 migraphx::index_ints<0>,
-                                                 1,
-                                                 1,
-                                                 1,
-                                                 migraphx::index_ints<2, 2>>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<2, 2>,
+                                    migraphx::index_ints<3, 3>>;
     constexpr auto hl  = tiler::template halo_lens_for<input_shape>();
     EXPECT(hl == migraphx::index_ints<1, 1, 9, 9>{});
     EXPECT(tiler::is_padded());
 }
 
-// A leftover input row grows the reach so the last tile still ends at the input's edge:
-// input 12 → output 5, and a 5-wide tile reads (5-1)*2 + 4 = 12 rows with no padding
-TEST_CASE(halo_lens_stride_remainder)
+// An input row past the last tap is never read: input 12 → output 5, and a 5-wide tile
+// reads (5-1)*2 + 3 = 11 of the 12 rows with no padding
+TEST_CASE(halo_lens_stride_leftover)
 {
     using output_shape = decltype(make_4d_shape<1, 1, 5, 5>());
     using input_shape  = decltype(make_4d_shape<1, 1, 12, 12>());
-    using tiler        = migraphx::spatial_tiler<1,
-                                                 migraphx::index_ints<5, 5>,
-                                                 output_shape,
-                                                 migraphx::index_ints<0>,
-                                                 1,
-                                                 1,
-                                                 1,
-                                                 migraphx::index_ints<2, 2>>;
+    using tiler        = halo_tiler<migraphx::index_ints<5, 5>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<2, 2>,
+                                    migraphx::index_ints<3, 3>>;
     constexpr auto hl  = tiler::template halo_lens_for<input_shape>();
-    EXPECT(hl == migraphx::index_ints<1, 1, 12, 12>{});
+    EXPECT(hl == migraphx::index_ints<1, 1, 11, 11>{});
     EXPECT(not tiler::is_padded());
 }
 
-// Stride 2 with padding 1: input 8 → output 4, and a 4-wide tile reads the whole padded
-// input, (4-1)*2 + (10 - 6) = 10 rows
+// Stride 2 with padding 1: input 8 → output 4, and a 4-wide tile reads (4-1)*2 + 3 = 9
+// of the 10 padded rows
 TEST_CASE(halo_lens_stride_padding)
 {
     using output_shape = decltype(make_4d_shape<1, 1, 4, 4>());
     using input_shape  = decltype(make_4d_shape<1, 1, 8, 8>());
-    using tiler        = migraphx::spatial_tiler<1,
-                                                 migraphx::index_ints<4, 4>,
-                                                 output_shape,
-                                                 migraphx::index_ints<1, 1, 1, 1>,
-                                                 1,
-                                                 1,
-                                                 1,
-                                                 migraphx::index_ints<2, 2>>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<1, 1, 1, 1>,
+                                    migraphx::index_ints<2, 2>,
+                                    migraphx::index_ints<3, 3>>;
     constexpr auto hl  = tiler::template halo_lens_for<input_shape>();
-    EXPECT(hl == migraphx::index_ints<1, 1, 10, 10>{});
+    EXPECT(hl == migraphx::index_ints<1, 1, 9, 9>{});
+}
+
+// A dilated 3x3 filter reaches 5 input rows: a 4-wide tile reads 8
+TEST_CASE(halo_lens_reach)
+{
+    using output_shape = decltype(make_4d_shape<1, 1, 8, 8>());
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<5, 5>>;
+    EXPECT(tiler::template halo_lens_for<output_shape>() == migraphx::index_ints<1, 1, 8, 8>{});
 }
 
 // One input channel feeds every output channel of the tile: halo has a single channel
@@ -484,8 +507,12 @@ TEST_CASE(halo_lens_channel_multiplier)
 {
     using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
     using input_shape  = decltype(make_4d_shape<1, 1, 10, 10>());
-    using tiler        = migraphx::
-        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 4>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    4>;
     EXPECT(tiler::template channel_multiplier<input_shape>() == 8);
     EXPECT(tiler::template input_channel_tile<input_shape>() == 1);
     constexpr auto hl = tiler::template halo_lens_for<input_shape>();
@@ -501,8 +528,12 @@ TEST_CASE(halo_shape_nchw)
 {
     using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
     using input_shape  = decltype(make_4d_shape<1, 8, 10, 10>());
-    using tiler        = migraphx::
-        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 2>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    2>;
     constexpr auto hs = tiler::template halo_shape_for<input_shape>();
     EXPECT(hs.lens == migraphx::index_ints<1, 2, 6, 6>{});
     EXPECT(hs.strides == migraphx::index_ints<72, 36, 6, 1>{});
@@ -513,8 +544,12 @@ TEST_CASE(halo_shape_nhwc)
 {
     using output_shape = decltype(make_nhwc_shape<1, 8, 8, 8>());
     using input_shape  = decltype(make_nhwc_shape<1, 8, 10, 10>());
-    using tiler        = migraphx::
-        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 2>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    2>;
     constexpr auto hs = tiler::template halo_shape_for<input_shape>();
     EXPECT(hs.lens == migraphx::index_ints<1, 2, 6, 6>{});
     EXPECT(hs.strides == migraphx::index_ints<72, 1, 12, 2>{});
@@ -578,7 +613,11 @@ TEST_CASE(halo_span_nchw_rows)
 {
     using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
     using input_shape  = decltype(make_4d_shape<1, 8, 10, 10>());
-    using tiler        = migraphx::spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>>;
     EXPECT(tiler::template halo_span_for<input_shape>() == 6);
     EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 6, 1>{});
     EXPECT(tiler::template halo_span_dim_for<input_shape>() == 3);
@@ -589,7 +628,13 @@ TEST_CASE(halo_span_nchw_full_width)
 {
     using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
     using input_shape  = decltype(make_4d_shape<1, 8, 10, 10>());
-    using tiler        = migraphx::spatial_tiler<2, migraphx::index_ints<4, 4>, output_shape>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    1,
+                                    2>;
     EXPECT(tiler::template halo_span_for<input_shape>() == 60);
     EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 1, 1>{});
     EXPECT(tiler::template halo_span_dim_for<input_shape>() == 2);
@@ -600,8 +645,12 @@ TEST_CASE(halo_span_nhwc)
 {
     using output_shape = decltype(make_nhwc_shape<1, 3, 8, 8>());
     using input_shape  = decltype(make_nhwc_shape<1, 3, 10, 10>());
-    using tiler        = migraphx::
-        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 3>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    3>;
     EXPECT(tiler::template halo_span_for<input_shape>() == 18);
     EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 6, 1>{});
     EXPECT(tiler::template halo_span_dim_for<input_shape>() == 3);
@@ -612,8 +661,12 @@ TEST_CASE(halo_span_nhwc_partial_channels)
 {
     using output_shape = decltype(make_nhwc_shape<1, 8, 8, 8>());
     using input_shape  = decltype(make_nhwc_shape<1, 8, 10, 10>());
-    using tiler        = migraphx::
-        spatial_tiler<1, migraphx::index_ints<4, 4>, output_shape, migraphx::index_ints<0>, 4>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    4>;
     EXPECT(tiler::template halo_span_for<input_shape>() == 4);
     EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 6, 6>{});
     EXPECT(tiler::template halo_span_dim_for<input_shape>() == 1);
@@ -624,10 +677,13 @@ TEST_CASE(halo_span_padded)
 {
     using output_shape = decltype(make_4d_shape<1, 8, 8, 8>());
     using input_shape  = decltype(make_4d_shape<1, 8, 8, 8>());
-    using tiler        = migraphx::spatial_tiler<2,
-                                                 migraphx::index_ints<4, 4>,
-                                                 output_shape,
-                                                 migraphx::index_ints<1, 1, 1, 1>>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<1, 1, 1, 1>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    1,
+                                    2>;
     EXPECT(tiler::template halo_span_for<input_shape>() == 10);
     EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 6, 1>{});
     EXPECT(tiler::template halo_span_dim_for<input_shape>() == 3);
@@ -639,10 +695,11 @@ TEST_CASE(halo_span_ncdhw_singleton)
 {
     using output_shape = decltype(migraphx::make_shape(migraphx::index_ints<1, 4, 8, 1, 32>{}));
     using input_shape  = decltype(migraphx::make_shape(migraphx::index_ints<1, 4, 8, 1, 32>{}));
-    using tiler        = migraphx::spatial_tiler<1,
-                                                 migraphx::index_ints<8, 1, 32>,
-                                                 output_shape,
-                                                 migraphx::index_ints<1, 0, 0, 1, 0, 0>>;
+    using tiler        = halo_tiler<migraphx::index_ints<8, 1, 32>,
+                                    output_shape,
+                                    migraphx::index_ints<1, 0, 0, 1, 0, 0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 1, 1>>;
     EXPECT(tiler::template halo_span_for<input_shape>() == 320);
     EXPECT(tiler::template halo_row_lens_for<input_shape>() ==
            migraphx::index_ints<1, 1, 1, 1, 1>{});
@@ -654,10 +711,11 @@ TEST_CASE(halo_span_singleton_last)
 {
     using output_shape = decltype(migraphx::make_shape(migraphx::index_ints<1, 8, 8, 1>{}));
     using input_shape  = decltype(migraphx::make_shape(migraphx::index_ints<1, 8, 8, 1>{}));
-    using tiler        = migraphx::spatial_tiler<1,
-                                                 migraphx::index_ints<4, 1>,
-                                                 output_shape,
-                                                 migraphx::index_ints<1, 0, 1, 0>>;
+    using tiler        = halo_tiler<migraphx::index_ints<4, 1>,
+                                    output_shape,
+                                    migraphx::index_ints<1, 0, 1, 0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 1>>;
     EXPECT(tiler::template halo_span_for<input_shape>() == 6);
     EXPECT(tiler::template halo_row_lens_for<input_shape>() == migraphx::index_ints<1, 1, 1, 1>{});
     EXPECT(tiler::template halo_span_dim_for<input_shape>() == 2);
@@ -669,10 +727,11 @@ TEST_CASE(halo_span_strided)
     using output_shape = decltype(make_4d_shape<1, 8, 10, 10>());
     using input_shape  = decltype(migraphx::make_shape(migraphx::index_ints<1, 8, 10, 10>{},
                                                        migraphx::index_ints<1600, 200, 20, 2>{}));
-    using tiler        = migraphx::spatial_tiler<1,
-                                                 migraphx::index_ints<8, 32>,
-                                                 output_shape,
-                                                 migraphx::index_ints<1, 1, 1, 1>>;
+    using tiler        = halo_tiler<migraphx::index_ints<8, 32>,
+                                    output_shape,
+                                    migraphx::index_ints<1, 1, 1, 1>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>>;
     EXPECT(tiler::template halo_span_for<input_shape>() == 1);
     EXPECT(tiler::template halo_row_lens_for<input_shape>() ==
            migraphx::index_ints<1, 1, 10, 34>{});
@@ -701,8 +760,14 @@ TEST_CASE(halo_lens_nrows)
 {
     using output_shape = decltype(make_4d_shape<1, 1, 8, 8>());
     using input_shape  = decltype(make_4d_shape<1, 1, 10, 10>());
-    using tiler        = migraphx::
-        spatial_tiler<1, migraphx::index_ints<2, 8>, output_shape, migraphx::index_ints<0>, 1, 4>;
+    using tiler        = halo_tiler<migraphx::index_ints<2, 8>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    1,
+                                    1,
+                                    4>;
     EXPECT(tiler::template halo_lens_for<input_shape>() == migraphx::index_ints<1, 1, 10, 10>{});
     EXPECT(tiler::tiles_total() == 1);
 }

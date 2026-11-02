@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// Dilation 2 with matching padding on a depthwise conv
+// Dilation 2 with same-size padding on a depthwise conv
 template <migraphx::shape::type_t DType>
 struct test_channelwise_conv_dilation : verify_program<test_channelwise_conv_dilation<DType>>
 {

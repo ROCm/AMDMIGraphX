@@ -46,25 +46,26 @@ constexpr bool halo_row_used(index_int i)
 
 // Accumulate ChannelVec channels of NRows consecutive output rows starting at out_multi.
 // Channels move as vectors, and a filter column's taps reuse the overlapping halo rows from
-// registers instead of re-reading them from LDS. Outputs step by the stride and taps by
-// the dilation. Values stay in the input type so half inputs use mixed-precision FMAs with
-// fp32 accumulation.
+// registers instead of re-reading them from LDS. Outputs step by the per-dim stride and
+// taps by the per-dim dilation. Values stay in the input type so half inputs use
+// mixed-precision FMAs with fp32 accumulation.
 template <index_int NRows,
           index_int ChannelVec,
-          class Stride,
-          class Dilation,
           class Halo,
           class Weights,
-          class Pos>
-__device__ auto channelwise_conv_accumulate(Halo x_ch, Weights wregs, Pos out_multi)
+          class Pos,
+          class Stride,
+          class Dilation>
+__device__ auto
+channelwise_conv_accumulate(Halo x_ch, Weights wregs, Pos out_multi, Stride, Dilation)
 {
     using type                    = typename Halo::type;
     constexpr auto k_shape        = get_shape_c<Weights>{};
-    constexpr index_int ndim      = k_shape.lens.size();
     constexpr index_int kh        = k_shape.lens[2];
-    constexpr auto stride         = spatial_steps<ndim>(Stride{});
-    constexpr auto dilation       = spatial_steps<ndim>(Dilation{});
+    constexpr auto stride         = Stride{};
+    constexpr auto dilation       = Dilation{};
     constexpr index_int halo_rows = (NRows - 1) * stride[2] + (kh - 1) * dilation[2] + 1;
+    static_assert(halo_rows <= get_shape_c<Halo>{}.lens[2], "Row run reads past the halo");
     constexpr auto col_shape      = make_shape(return_array_c([] {
         auto result = get_shape_c<Weights>{}.lens;
         result[0]   = 1;
@@ -97,6 +98,8 @@ __device__ auto channelwise_conv_accumulate(Halo x_ch, Weights wregs, Pos out_mu
                 auto wt      = static_cast<float>(wregs[k_multi]);
                 repeat(_c<NRows>, [&](auto r) {
                     constexpr index_int row = r * stride[2] + t * dilation[2];
+                    static_assert(halo_row_used<NRows, kh, stride[2], dilation[2]>(row),
+                                  "Tap reads an unloaded halo row");
                     acc[acc_shape.index(array<index_int, 2>{r, v})] +=
                         static_cast<float>(col[col_rows.index(array<index_int, 2>{row, v})]) * wt;
                 });
@@ -151,9 +154,17 @@ template <class TileLens,
 __device__ void channelwise_conv(
     TileLens, Padding, Stride, Dilation, F f, Output output, Input x, Weights w, Inputs... inputs)
 {
+    constexpr index_int ndim = get_shape_c<Output>{}.lens.size();
+    constexpr auto dilation  = spatial_steps<ndim>(Dilation{});
+    // Input extent one output reads per spatial dim: the dilated filter
+    constexpr auto reach = generate_const_array<index_int>(TileLens{}.size(), [&](auto i) {
+        constexpr auto k = get_shape_c<Weights>{}.lens;
+        return index_c<(k[i + 2] - 1) * dilation[i + 2] + 1>;
+    });
     auto idx   = make_index();
-    auto tiler = make_spatial_tiler<NTiles, ChannelTile, NRows, ChannelVec>(
-        idx, TileLens{}, get_shape_c<Output>{}, Padding{}, Stride{});
+    auto tiler           = make_spatial_tiler<NTiles, ChannelTile, NRows, ChannelVec>(
+        idx, TileLens{}, get_shape_c<Output>{}, Padding{}, Stride{}, reach);
+    constexpr auto stride = decltype(tiler)::get_stride();
 
     __shared__ decltype(tiler.template shared_allocate<Input>()) smem;
 
@@ -171,8 +182,8 @@ __device__ void channelwise_conv(
     __syncthreads();
 
     tiler.for_each_run([&](auto out_pos, auto out_multi) {
-        auto acc = channelwise_conv_accumulate<NRows, ChannelVec, Stride, Dilation>(
-            x_ch, wregs, out_multi);
+        auto acc = channelwise_conv_accumulate<NRows, ChannelVec>(
+            x_ch, wregs, out_multi, stride, dilation);
         repeat(_c<NRows>, [&](auto r) {
             auto pos = out_pos;
             pos[2] += r;

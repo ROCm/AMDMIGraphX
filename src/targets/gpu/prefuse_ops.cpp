@@ -28,6 +28,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
 #include <migraphx/match/layernorm.hpp>
 #include <migraphx/register_op.hpp>
@@ -251,45 +252,29 @@ struct find_gemm_softmax_gemm
 
 struct channelwise_conv
 {
-    std::size_t num_spatial = 2;
-    std::vector<std::size_t> padding;
-    // Per spatial dim; shorter vectors mean ones for the missing dims
-    std::vector<std::size_t> stride;
-    std::vector<std::size_t> dilation;
+    std::vector<std::size_t> padding  = {0, 0};
+    std::vector<std::size_t> stride   = {1, 1};
+    std::vector<std::size_t> dilation = {1, 1};
 
     std::string name() const { return "gpu::channelwise_conv"; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.num_spatial, "num_spatial"),
-                    f(self.padding, "padding"),
-                    f(self.stride, "stride"),
-                    f(self.dilation, "dilation"));
+        return pack(
+            f(self.padding, "padding"), f(self.stride, "stride"), f(self.dilation, "dilation"));
     }
 
-    static std::size_t
-    attr_at(const std::vector<std::size_t>& attr, std::size_t i, std::size_t fallback)
-    {
-        return i < attr.size() ? attr[i] : fallback;
-    }
-
+    // The depthwise convolution this op replaces computes the output shape
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_ndims();
-        auto x_lens = inputs[0].lens();
-        auto w_lens = inputs[1].lens();
-        std::vector<std::size_t> out_lens;
-        out_lens.push_back(x_lens[0]);
-        out_lens.push_back(w_lens[0]);
-        for(std::size_t i = 0; i < num_spatial; i++)
-        {
-            auto padded =
-                x_lens[i + 2] + attr_at(padding, i, 0) + attr_at(padding, i + num_spatial, 0);
-            auto reach = (w_lens[i + 2] - 1) * attr_at(dilation, i, 1) + 1;
-            out_lens.push_back(padded < reach ? 0 : (padded - reach) / attr_at(stride, i, 1) + 1);
-        }
-        return inputs[0].with_lens(out_lens);
+        check_shapes{inputs, *this}.has(2);
+        return make_op("convolution",
+                       {{"padding", padding},
+                        {"stride", stride},
+                        {"dilation", dilation},
+                        {"group", inputs.front().lens()[1]}})
+            .compute_shape(inputs);
     }
 };
 MIGRAPHX_REGISTER_OP(channelwise_conv);
@@ -317,10 +302,9 @@ struct find_channelwise_convolution
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins         = r.result;
-        auto input       = ins->inputs().front();
-        auto weights     = ins->inputs().back();
-        auto num_spatial = ins->get_shape().ndim() - 2;
+        auto ins     = r.result;
+        auto input   = ins->inputs().front();
+        auto weights = ins->inputs().back();
 
         const auto type = input->get_shape().type();
         if(type != shape::float_type and type != shape::half_type)
@@ -337,8 +321,7 @@ struct find_channelwise_convolution
 
         auto v = ins->get_operator().to_value();
         m.replace_instruction(ins,
-                              channelwise_conv{num_spatial,
-                                               v.at("padding").to_vector<std::size_t>(),
+                              channelwise_conv{v.at("padding").to_vector<std::size_t>(),
                                                v.at("stride").to_vector<std::size_t>(),
                                                v.at("dilation").to_vector<std::size_t>()},
                               input,

@@ -31,34 +31,63 @@
 
 namespace migraphx {
 
+// Whether halo row i of a run feeds some output row r and filter tap t: i = r*S + t*D
+template <index_int NRows, index_int Taps, index_int S, index_int D>
+constexpr bool halo_row_used(index_int i)
+{
+    for(index_int r = 0; r < NRows and r * S <= i; r++)
+    {
+        auto offset = i - r * S;
+        if(offset % D == 0 and offset / D < Taps)
+            return true;
+    }
+    return false;
+}
+
 // Accumulate ChannelVec channels of NRows consecutive output rows starting at out_multi.
 // Channels move as vectors, and a filter column's taps reuse the overlapping halo rows from
-// registers instead of re-reading them from LDS. Values stay in the input type so half
-// inputs use mixed-precision FMAs with fp32 accumulation.
-template <index_int NRows, index_int ChannelVec, class Halo, class Weights, class Pos>
+// registers instead of re-reading them from LDS. Outputs step by the stride and taps by
+// the dilation. Values stay in the input type so half inputs use mixed-precision FMAs with
+// fp32 accumulation.
+template <index_int NRows,
+          index_int ChannelVec,
+          class Stride,
+          class Dilation,
+          class Halo,
+          class Weights,
+          class Pos>
 __device__ auto channelwise_conv_accumulate(Halo x_ch, Weights wregs, Pos out_multi)
 {
-    using type               = typename Halo::type;
-    constexpr auto k_shape   = get_shape_c<Weights>{};
-    constexpr index_int kh   = k_shape.lens[2];
-    constexpr auto col_shape = make_shape(return_array_c([] {
+    using type                    = typename Halo::type;
+    constexpr auto k_shape        = get_shape_c<Weights>{};
+    constexpr index_int ndim      = k_shape.lens.size();
+    constexpr index_int kh        = k_shape.lens[2];
+    constexpr auto stride         = spatial_steps<ndim>(Stride{});
+    constexpr auto dilation       = spatial_steps<ndim>(Dilation{});
+    constexpr index_int halo_rows = (NRows - 1) * stride[2] + (kh - 1) * dilation[2] + 1;
+    constexpr auto col_shape      = make_shape(return_array_c([] {
         auto result = get_shape_c<Weights>{}.lens;
         result[0]   = 1;
         result[2]   = 1;
         return result;
     }));
-    constexpr auto acc_shape = make_shape(index_ints<NRows, ChannelVec>{});
-    constexpr auto col_rows  = make_shape(index_ints<NRows + kh - 1, ChannelVec>{});
+    constexpr auto acc_shape      = make_shape(index_ints<NRows, ChannelVec>{});
+    constexpr auto col_rows       = make_shape(index_ints<halo_rows, ChannelVec>{});
     array<float, acc_shape.elements()> acc{};
+    auto in_multi = out_multi * stride;
     repeat(col_shape.elements(), [&](auto j) {
         auto col_multi = col_shape.multi(j);
+        auto origin    = in_multi + col_multi * dilation;
         array<type, col_rows.elements()> col;
-        repeat(_c<NRows + kh - 1>, [&](auto i) {
-            auto pos = out_multi + col_multi;
-            pos[2] += i;
-            auto values = load_channels<ChannelVec>(x_ch, pos);
-            repeat(_c<ChannelVec>,
-                   [&](auto v) { col[col_rows.index(array<index_int, 2>{i, v})] = values[v]; });
+        repeat(_c<halo_rows>, [&](auto i) {
+            if constexpr(halo_row_used<NRows, kh, stride[2], dilation[2]>(decltype(i){}))
+            {
+                auto pos = origin;
+                pos[2] += i;
+                auto values = load_channels<ChannelVec>(x_ch, pos);
+                repeat(_c<ChannelVec>,
+                       [&](auto v) { col[col_rows.index(array<index_int, 2>{i, v})] = values[v]; });
+            }
         });
         repeat(_c<kh>, [&](auto t) {
             repeat(_c<ChannelVec>, [&](auto v) {
@@ -67,8 +96,9 @@ __device__ auto channelwise_conv_accumulate(Halo x_ch, Weights wregs, Pos out_mu
                 k_multi[2]   = t;
                 auto wt      = static_cast<float>(wregs[k_multi]);
                 repeat(_c<NRows>, [&](auto r) {
+                    constexpr index_int row = r * stride[2] + t * dilation[2];
                     acc[acc_shape.index(array<index_int, 2>{r, v})] +=
-                        static_cast<float>(col[col_rows.index(array<index_int, 2>{r + t, v})]) * wt;
+                        static_cast<float>(col[col_rows.index(array<index_int, 2>{row, v})]) * wt;
                 });
             });
         });
@@ -111,17 +141,19 @@ template <class TileLens,
           index_int NRows       = 1,
           index_int ChannelVec  = 1,
           class Padding,
+          class Stride,
+          class Dilation,
           class F,
           class Output,
           class Input,
           class Weights,
           class... Inputs>
-__device__ void
-channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inputs... inputs)
+__device__ void channelwise_conv(
+    TileLens, Padding, Stride, Dilation, F f, Output output, Input x, Weights w, Inputs... inputs)
 {
     auto idx   = make_index();
     auto tiler = make_spatial_tiler<NTiles, ChannelTile, NRows, ChannelVec>(
-        idx, TileLens{}, get_shape_c<Output>{}, Padding{});
+        idx, TileLens{}, get_shape_c<Output>{}, Padding{}, Stride{});
 
     __shared__ decltype(tiler.template shared_allocate<Input>()) smem;
 
@@ -139,7 +171,8 @@ channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inpu
     __syncthreads();
 
     tiler.for_each_run([&](auto out_pos, auto out_multi) {
-        auto acc = channelwise_conv_accumulate<NRows, ChannelVec>(x_ch, wregs, out_multi);
+        auto acc = channelwise_conv_accumulate<NRows, ChannelVec, Stride, Dilation>(
+            x_ch, wregs, out_multi);
         repeat(_c<NRows>, [&](auto r) {
             auto pos = out_pos;
             pos[2] += r;

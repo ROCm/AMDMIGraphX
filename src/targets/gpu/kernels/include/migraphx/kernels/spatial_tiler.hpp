@@ -41,6 +41,20 @@ constexpr bool has_nonzero(index_ints<Ps...>)
     return ((Ps != 0) or ...);
 }
 
+// Per-dim steps (1, 1, spatial...) of a spatial-only parameter such as a conv stride; a
+// parameter shorter than the spatial dims means unit steps
+template <index_int NDim, class Spatial>
+constexpr auto spatial_steps(Spatial)
+{
+    constexpr auto s = Spatial{};
+    return generate_const_array<index_int>(_c<NDim>, [&](auto i) {
+        if constexpr(i < 2 or s.size() < NDim - 2)
+            return index_c<1>;
+        else
+            return index_c<s[i - 2]>;
+    });
+}
+
 // Whether V consecutive channels form one naturally aligned vector: the channel dim is
 // contiguous and every other stride keeps vector alignment
 template <index_int V, class Shape>
@@ -114,14 +128,15 @@ __device__ void store_channels(View view, Pos pos, const array<T, V>& values)
 // covers ChannelTile channels of one batch; lanes and the shared-memory halo follow the
 // memory order of the tensors, so channels-last layouts get contiguous accesses. A lane
 // owns ChannelVec consecutive channels, NRows consecutive rows (first spatial dim) and
-// NTiles strided columns (last dim).
+// NTiles strided columns (last dim). Consecutive outputs are Stride apart in the input.
 template <index_int NTiles,
           class TileLens,
           class OutputShape,
           class Padding         = index_ints<0>,
           index_int ChannelTile = 1,
           index_int NRows       = 1,
-          index_int ChannelVec  = 1>
+          index_int ChannelVec  = 1,
+          class Stride          = index_ints<1>>
 struct spatial_tiler
 {
     static_assert(OutputShape{}.lens[1] % ChannelTile == 0,
@@ -227,6 +242,13 @@ struct spatial_tiler
         return (region_lens() != (tiles_per_dim() * output_lens() + total_padding()));
     }
 
+    // Input step between consecutive outputs per dim: (1, 1, stride...)
+    static constexpr auto get_stride()
+    {
+        constexpr index_int ns = TileLens{}.size();
+        return spatial_steps<ns + 2>(Stride{});
+    }
+
     // Output channels per input channel (channel multiplier)
     template <class InputShape>
     static constexpr index_int channel_multiplier()
@@ -245,14 +267,16 @@ struct spatial_tiler
         return multiplier == 1 ? ChannelTile : 1;
     }
 
-    // Halo lens for a given input shape: output_lens + (input_spatial - output_spatial)
-    // With padding, the output is larger so the raw difference is too small; add total padding.
+    // Halo lens for a given input shape: the output tile stepped by the stride plus the
+    // filter's reach, taken as the padded input left past the last output step so the
+    // final tile ends at the padded input's edge.
     template <class InputShape>
     static constexpr auto halo_lens_for()
     {
         return return_array_c([] {
             auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
-            auto result = output_lens() + (input_spatial - out_spatial_lens() + total_padding());
+            auto reach  = input_spatial + total_padding() - (out_spatial_lens() - 1) * get_stride();
+            auto result = (output_lens() - 1) * get_stride() + reach;
             result[1]   = input_channel_tile<InputShape>();
             return result;
         });
@@ -362,6 +386,9 @@ struct spatial_tiler
     array<index_int, ndim()> tile_origin; // (0, 0, spatial origin...) of the block's tile
     array<index_int, ndim()> lane;        // this lane's position within the tile
 
+    // Where the block's tile starts in the unpadded input: spatial dims step by the stride
+    __device__ auto input_origin() const { return tile_origin * get_stride(); }
+
     // Type for shared memory allocation
     template <class Input>
     __device__ auto shared_allocate() const
@@ -447,16 +474,17 @@ struct spatial_tiler
         constexpr auto row_mask   = transform(row_lens, hl, [](auto r, auto h) { return r == h; });
 
         auto in_ch       = slice_channels<input_channel_tile<input_shape>()>(input);
-        auto halo_origin = tile_origin - left_padding();
+        auto in_origin   = input_origin();
+        auto halo_origin = in_origin - left_padding();
         // Only the outer span dim can leave the input; clamp it to a column range. When
         // nothing is spanned, every dim is a row dim and the per-dim check covers it all.
         index_int pad       = left_padding()[outer];
-        index_int col_begin = pad > tile_origin[outer] ? (pad - tile_origin[outer]) * inner : 0;
+        index_int col_begin = pad > in_origin[outer] ? (pad - in_origin[outer]) * inner : 0;
         index_int limit     = in_ch.get_shape().lens[outer] + pad;
         index_int col_end   = 0;
-        if(tile_origin[outer] < limit)
+        if(in_origin[outer] < limit)
         {
-            index_int avail = limit - tile_origin[outer];
+            index_int avail = limit - in_origin[outer];
             col_end         = (avail < hl[outer] ? avail : hl[outer]) * inner;
         }
 
@@ -540,11 +568,18 @@ template <index_int NTiles,
           index_int ChannelVec  = 1,
           class TileLens,
           class OutputShape,
-          class Padding = index_ints<0>>
-__device__ auto make_spatial_tiler(index idx, TileLens, OutputShape, Padding = {})
+          class Padding = index_ints<0>,
+          class Stride  = index_ints<1>>
+__device__ auto make_spatial_tiler(index idx, TileLens, OutputShape, Padding = {}, Stride = {})
 {
-    using tiler_type =
-        spatial_tiler<NTiles, TileLens, OutputShape, Padding, ChannelTile, NRows, ChannelVec>;
+    using tiler_type = spatial_tiler<NTiles,
+                                     TileLens,
+                                     OutputShape,
+                                     Padding,
+                                     ChannelTile,
+                                     NRows,
+                                     ChannelVec,
+                                     Stride>;
 
     // Blocks: (N, C / ChannelTile, tiles...)
     constexpr auto block_shape = make_shape(return_array_c([] {

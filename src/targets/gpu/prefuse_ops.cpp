@@ -253,13 +253,25 @@ struct channelwise_conv
 {
     std::size_t num_spatial = 2;
     std::vector<std::size_t> padding;
+    // Per spatial dim; shorter vectors mean ones for the missing dims
+    std::vector<std::size_t> stride;
+    std::vector<std::size_t> dilation;
 
     std::string name() const { return "gpu::channelwise_conv"; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.num_spatial, "num_spatial"), f(self.padding, "padding"));
+        return pack(f(self.num_spatial, "num_spatial"),
+                    f(self.padding, "padding"),
+                    f(self.stride, "stride"),
+                    f(self.dilation, "dilation"));
+    }
+
+    static std::size_t
+    attr_at(const std::vector<std::size_t>& attr, std::size_t i, std::size_t fallback)
+    {
+        return i < attr.size() ? attr[i] : fallback;
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -272,12 +284,10 @@ struct channelwise_conv
         out_lens.push_back(w_lens[0]);
         for(std::size_t i = 0; i < num_spatial; i++)
         {
-            std::size_t total_pad = 0;
-            if(i < padding.size())
-                total_pad += padding[i];
-            if(i + num_spatial < padding.size())
-                total_pad += padding[i + num_spatial];
-            out_lens.push_back(x_lens[i + 2] + total_pad - w_lens[i + 2] + 1);
+            auto padded =
+                x_lens[i + 2] + attr_at(padding, i, 0) + attr_at(padding, i + num_spatial, 0);
+            auto reach = (w_lens[i + 2] - 1) * attr_at(dilation, i, 1) + 1;
+            out_lens.push_back(padded < reach ? 0 : (padded - reach) / attr_at(stride, i, 1) + 1);
         }
         return inputs[0].with_lens(out_lens);
     }
@@ -288,11 +298,7 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
 {
     if(ins->name() != "convolution")
         return false;
-    auto v = ins->get_operator().to_value();
-    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
-        return false;
-    if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
-        return false;
+    auto v      = ins->get_operator().to_value();
     auto w_lens = ins->inputs().back()->get_shape().lens();
     if(w_lens[1] != 1)
         return false;
@@ -329,16 +335,14 @@ struct find_channelwise_convolution
                 return;
         }
 
-        auto v        = ins->get_operator().to_value();
-        auto pad_vals = v.at("padding");
-        std::vector<std::size_t> padding;
-        std::transform(pad_vals.begin(),
-                       pad_vals.end(),
-                       std::back_inserter(padding),
-                       [](const value& x) { return x.to<std::size_t>(); });
-
-        m.replace_instruction(
-            ins, channelwise_conv{num_spatial, std::move(padding)}, input, weights);
+        auto v = ins->get_operator().to_value();
+        m.replace_instruction(ins,
+                              channelwise_conv{num_spatial,
+                                               v.at("padding").to_vector<std::size_t>(),
+                                               v.at("stride").to_vector<std::size_t>(),
+                                               v.at("dilation").to_vector<std::size_t>()},
+                              input,
+                              weights);
     }
 };
 

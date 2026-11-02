@@ -399,6 +399,86 @@ TEST_CASE(halo_lens_channel_tile)
     EXPECT(tiler::template input_channel_tile<input_shape>() == 2);
 }
 
+// ======== stride ========
+
+// No Stride arg → unit steps on every dim
+TEST_CASE(stride_default)
+{
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 8>())>;
+    EXPECT(tiler::get_stride() == migraphx::index_ints<1, 1, 1, 1>{});
+}
+
+// Spatial strides {2, 3} → (1, 1, 2, 3)
+TEST_CASE(stride_spatial)
+{
+    using tiler = migraphx::spatial_tiler<1,
+                                          migraphx::index_ints<4, 4>,
+                                          decltype(make_4d_shape<1, 1, 8, 8>()),
+                                          migraphx::index_ints<0>,
+                                          1,
+                                          1,
+                                          1,
+                                          migraphx::index_ints<2, 3>>;
+    EXPECT(tiler::get_stride() == migraphx::index_ints<1, 1, 2, 3>{});
+}
+
+// Stride 2, 3x3 filter, no padding: input 11 → output 5, and a 4-wide tile reads
+// (4-1)*2 + 3 = 9 rows
+TEST_CASE(halo_lens_stride)
+{
+    using output_shape = decltype(make_4d_shape<1, 1, 5, 5>());
+    using input_shape  = decltype(make_4d_shape<1, 1, 11, 11>());
+    using tiler        = migraphx::spatial_tiler<1,
+                                                 migraphx::index_ints<4, 4>,
+                                                 output_shape,
+                                                 migraphx::index_ints<0>,
+                                                 1,
+                                                 1,
+                                                 1,
+                                                 migraphx::index_ints<2, 2>>;
+    constexpr auto hl  = tiler::template halo_lens_for<input_shape>();
+    EXPECT(hl == migraphx::index_ints<1, 1, 9, 9>{});
+    EXPECT(tiler::is_padded());
+}
+
+// A leftover input row grows the reach so the last tile still ends at the input's edge:
+// input 12 → output 5, and a 5-wide tile reads (5-1)*2 + 4 = 12 rows with no padding
+TEST_CASE(halo_lens_stride_remainder)
+{
+    using output_shape = decltype(make_4d_shape<1, 1, 5, 5>());
+    using input_shape  = decltype(make_4d_shape<1, 1, 12, 12>());
+    using tiler        = migraphx::spatial_tiler<1,
+                                                 migraphx::index_ints<5, 5>,
+                                                 output_shape,
+                                                 migraphx::index_ints<0>,
+                                                 1,
+                                                 1,
+                                                 1,
+                                                 migraphx::index_ints<2, 2>>;
+    constexpr auto hl  = tiler::template halo_lens_for<input_shape>();
+    EXPECT(hl == migraphx::index_ints<1, 1, 12, 12>{});
+    EXPECT(not tiler::is_padded());
+}
+
+// Stride 2 with padding 1: input 8 → output 4, and a 4-wide tile reads the whole padded
+// input, (4-1)*2 + (10 - 6) = 10 rows
+TEST_CASE(halo_lens_stride_padding)
+{
+    using output_shape = decltype(make_4d_shape<1, 1, 4, 4>());
+    using input_shape  = decltype(make_4d_shape<1, 1, 8, 8>());
+    using tiler        = migraphx::spatial_tiler<1,
+                                                 migraphx::index_ints<4, 4>,
+                                                 output_shape,
+                                                 migraphx::index_ints<1, 1, 1, 1>,
+                                                 1,
+                                                 1,
+                                                 1,
+                                                 migraphx::index_ints<2, 2>>;
+    constexpr auto hl  = tiler::template halo_lens_for<input_shape>();
+    EXPECT(hl == migraphx::index_ints<1, 1, 10, 10>{});
+}
+
 // One input channel feeds every output channel of the tile: halo has a single channel
 TEST_CASE(halo_lens_channel_multiplier)
 {

@@ -186,7 +186,7 @@ static std::uint64_t& deep_increment_ref(std::uint64_t& x)
 TEST_CASE(fix_deep_reference_result)
 {
     // The returned reference must survive crossing the stack segments
-    std::uint64_t x = 0;
+    std::uint64_t x    = 0;
     const auto& result = deep_increment_ref(x);
     EXPECT(&result == &x);
     EXPECT(x == deep_n);

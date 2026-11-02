@@ -41,10 +41,8 @@
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/match/dq_helpers.hpp>
 #include <algorithm>
-#include <array>
 #include <numeric>
 #include <optional>
-#include <string_view>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -686,43 +684,36 @@ bool is_any_input_int4(instruction_ref a)
  *  that match the name with one input recursively.
  *  Use this after selected quantizations have been made into real quantized instructions.
  */
-constexpr std::array<std::string_view, 7> qdq_skip_ops = {
-    "pack_fp4", "unpack_fp4", "broadcast", "slice", "reshape", "reshape_lazy", "pad"};
-
-constexpr std::array<std::string_view, 4> qdq_replay_ops = {
-    "broadcast", "slice", "reshape", "reshape_lazy"};
-
-constexpr std::array<std::string_view, 2> qdq_pack_unpack_ops = {"pack_fp4", "unpack_fp4"};
-
-bool is_pack_unpack_op(instruction_ref ins) { return contains(qdq_pack_unpack_ops, ins->name()); }
-
-bool is_replay_op(instruction_ref ins) { return contains(qdq_replay_ops, ins->name()); }
-
-template <class Iterator>
-bool has_pack_unpack_op(Iterator first, Iterator last)
-{
-    return std::any_of(first, last, is_pack_unpack_op);
-}
-
-bool is_supported_qdq_path_op(instruction_ref ins, bool has_pack_unpack)
-{
-    return is_pack_unpack_op(ins) or is_replay_op(ins) or
-           (has_pack_unpack and contains(qdq_skip_ops, ins->name()));
-}
-
-MIGRAPHX_PRED_MATCHER(qdq_skip_op, instruction_ref ins)
-{
-    return contains(qdq_skip_ops, ins->name());
-}
-
-struct qdq_replacement
-{
-    instruction_ref input;
-    std::vector<operation> ops;
-};
-
 struct remove_qdq_pairs
 {
+    struct qdq_replacement
+    {
+        instruction_ref input;
+        std::vector<operation> ops;
+    };
+
+    static bool is_pack_unpack_op(instruction_ref ins)
+    {
+        return contains({"pack_fp4", "unpack_fp4"}, ins->name());
+    }
+
+    static bool is_replay_op(instruction_ref ins)
+    {
+        return contains({"broadcast", "slice", "reshape", "reshape_lazy"}, ins->name());
+    }
+
+    static bool is_skip_op(instruction_ref ins)
+    {
+        return is_pack_unpack_op(ins) or is_replay_op(ins) or ins->name() == "pad";
+    }
+
+    // pad is only skipped as part of an MXFP4 pack/unpack path.
+    static bool is_supported_qdq_path_op(instruction_ref ins, bool has_pack_unpack)
+    {
+        return is_pack_unpack_op(ins) or is_replay_op(ins) or
+               (has_pack_unpack and ins->name() == "pad");
+    }
+
     static std::optional<qdq_replacement> find_replacement(instruction_ref dq_ins,
                                                            instruction_ref q_ins)
     {
@@ -733,7 +724,7 @@ struct remove_qdq_pairs
             return std::nullopt;
 
         auto path_to_q           = range(input_path.begin(), q_pos);
-        const bool pack_fp4_path = has_pack_unpack_op(input_path.begin(), q_pos);
+        const bool pack_fp4_path = std::any_of(input_path.begin(), q_pos, &is_pack_unpack_op);
         if(not std::all_of(path_to_q.begin(), path_to_q.end(), [&](auto x) {
                return is_supported_qdq_path_op(x, pack_fp4_path);
            }))
@@ -765,7 +756,8 @@ struct remove_qdq_pairs
 
     auto matcher() const
     {
-        auto q_ins = match::skip(qdq_skip_op())(match::name("quantizelinear").bind("q_ins"));
+        auto q_ins = match::skip(match::make_basic_pred_matcher(&is_skip_op))(
+            match::name("quantizelinear").bind("q_ins"));
         return match::name("dequantizelinear")(match::arg(0)(q_ins));
     }
 

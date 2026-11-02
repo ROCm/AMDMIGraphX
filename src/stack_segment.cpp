@@ -26,12 +26,15 @@
 #include <cstddef>
 #include <utility>
 
+// cppcheck's preprocessor cannot expand __has_feature
+#ifndef CPPCHECK
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
 #define MIGRAPHX_HAS_ASAN 1
 #endif
 #elif defined(__SANITIZE_ADDRESS__)
 #define MIGRAPHX_HAS_ASAN 1
+#endif
 #endif
 
 #ifdef MIGRAPHX_HAS_ASAN
@@ -60,7 +63,10 @@
 #endif
 
 #if MIGRAPHX_HAS_FIBERS
+#ifndef WIN32_LEAN_AND_MEAN
+// cppcheck-suppress definePrefix
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 #elif MIGRAPHX_HAS_UCONTEXT
 #include <sys/mman.h>
@@ -166,7 +172,7 @@ void segment_entry()
 
 void run_on_new_stack(std::function<void()> f)
 {
-    auto page = static_cast<std::size_t>(sysconf(_SC_PAGESIZE));
+    std::size_t page = sysconf(_SC_PAGESIZE);
     // Extra page at the low end becomes a guard page so a segment overflow
     // faults instead of corrupting the heap
     mapped_stack stack{segment_size + page};

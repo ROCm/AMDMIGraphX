@@ -103,7 +103,9 @@ TEST_CASE(fix_reference_result)
         if(i == 0)
             return data[0];
         auto& prev = self(i - 1);
-        return data[i] > prev ? data[i] : prev;
+        if(data[i] > prev)
+            return data[i];
+        return prev;
     })(data.size() - 1);
     EXPECT(&result == &data[1]);
     result = 42;
@@ -173,13 +175,14 @@ TEST_CASE(fix_deep_reference_result)
 {
     // The returned reference must survive crossing the stack segments
     std::uint64_t x = 0;
-    auto& result = migraphx::fix<std::uint64_t&>([&](auto self, std::uint64_t i) -> std::uint64_t& {
-        if(i == 0)
-            return x;
-        auto& r = self(i - 1);
-        r += 1;
-        return r;
-    })(deep_n);
+    const auto& result =
+        migraphx::fix<std::uint64_t&>([&](auto self, std::uint64_t i) -> std::uint64_t& {
+            if(i == 0)
+                return x;
+            auto& r = self(i - 1);
+            r += 1;
+            return r;
+        })(deep_n);
     EXPECT(&result == &x);
     EXPECT(x == deep_n);
 }

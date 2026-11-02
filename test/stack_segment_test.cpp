@@ -104,6 +104,7 @@ TEST_CASE(run_on_new_stack_recursive_mutex)
     // A recursive_mutex held by the caller can be reacquired inside the
     // segment since the native implementations stay on the same thread
     std::recursive_mutex m;
+    // cppcheck-suppress localMutex
     std::lock_guard<std::recursive_mutex> outer{m};
     int x = 0;
     migraphx::run_on_new_stack([&] {

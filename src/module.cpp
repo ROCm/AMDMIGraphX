@@ -2010,10 +2010,9 @@ void module::calc_implicit_deps(const module& smod,
         const auto& ii_inputs = ii->inputs();
         for(auto iii : ii_inputs)
         {
-            if(pmod.has_instruction(iii))
+            if(pmod.has_instruction(iii) and not contains(ins_inputs, iii))
             {
-                if(not contains(ins_inputs, iii))
-                    deps[ins].push_back(iii);
+                deps[ins].push_back(iii);
             }
         }
 

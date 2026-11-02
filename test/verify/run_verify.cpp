@@ -91,14 +91,12 @@ inline static void compile_check(migraphx::program& p,
         // for static output shapes check that the intial parsed shapes are
         // the same as the ones after compiling
         // no check for dynamic shapes because the shapes can change after compiling
-        if(not output_shape.dynamic() and not shapes[i].dynamic())
+        if(not output_shape.dynamic() and not shapes[i].dynamic() and
+           output_shape.lens() != shapes[i].lens())
         {
-            if(output_shape.lens() != shapes[i].lens())
-            {
-                std::cout << ss.str() << std::endl;
-                throw std::runtime_error("Compiling program with " + name +
-                                         " alters its static output dimensions");
-            }
+            std::cout << ss.str() << std::endl;
+            throw std::runtime_error("Compiling program with " + name +
+                                     " alters its static output dimensions");
         }
     }
     if(t.name() != "ref")

@@ -1315,6 +1315,33 @@ TEST_CASE(simplify_concat_mul_broadcast_diff_size)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_concat_multibroadcast_diff_rank)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {4, 2, 2, 1}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto lit1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::int32_type, {4, 1, 1, 1}}, 1));
+        auto lit2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {2, 1, 1}}, 2));
+        auto lit3 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {2, 1}}, 3));
+        auto lit1b =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), lit1);
+        auto lit2b =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), lit2);
+        auto lit3b =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), lit3);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), lit1b, lit2b, lit3b, x);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_concat_clip)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {1}};

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,8 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,7 +51,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, ${concat_params}, auto... xs) {
-        concat<${axis}>(${concat_args})(${post}, y, xs...);
+        concat::run<concat::${algo}, ${axis}>(${concat_args})(${post}, y, xs...);
     });
 }
 
@@ -65,38 +65,32 @@ struct concat_compiler : compiler<concat_compiler>
 {
     std::vector<std::string> names() const { return {"fused_concat", "concat"}; }
 
-    static std::vector<shape> normalize(std::vector<shape> inputs, std::size_t& axis)
+    static std::size_t
+    max_size(const std::vector<shape>& inputs, std::size_t ninputs, std::size_t axis)
     {
-        auto s = inputs.back();
-        std::vector<std::size_t> strides(s.lens().size());
-        strides[axis] = 1;
-
-        inputs.push_back(shape{s.type(), s.lens(), strides});
-
-        auto result   = reduce_dims(normalize_permutation(inputs));
-        auto rstrides = result.back().strides();
-        auto it = std::find_if(rstrides.begin(), rstrides.end(), [](auto x) { return x == 1; });
-        axis    = it - rstrides.begin();
-        result.pop_back();
-        return result;
+        // the first ninputs virtual inputs are the concat inputs; the output is last
+        assert(ninputs > 0 and ninputs < inputs.size());
+        return std::max_element(inputs.begin(),
+                                inputs.begin() + ninputs,
+                                by(std::less<>{}, [&](const shape& s) { return s.lens()[axis]; }))
+            ->lens()[axis];
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs      = inputs;
-        options.output      = inputs.back();
+        options.inputs         = inputs;
+        options.output         = inputs.back();
         auto concat_axis       = v.at("axis").to<std::size_t>();
-        options.virtual_inputs = normalize(inputs, concat_axis);
-        options.kernel_name = v.get("kernel", "concat_kernel");
+        options.virtual_inputs = reduce_dims_axis(inputs, concat_axis);
+        options.kernel_name    = v.get("kernel", "concat_kernel");
         auto axis              = find_fast_axis(options.virtual_inputs);
-        auto op_names       = v.at("ops").to_vector<std::string>();
-        auto args           = v.at("args");
+        auto op_names          = v.at("ops").to_vector<std::string>();
+        auto args              = v.at("args");
         vectorize vec{};
         if(axis != concat_axis)
             vec = vectorize::elements(ctx, axis, options.virtual_inputs);
-        auto nelements_per_op = options.virtual_inputs.back().elements() / op_names.size();
-        options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
+        const auto& output = options.virtual_inputs.back();
         options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;
         std::vector<std::string> concat_args;
@@ -114,6 +108,32 @@ struct concat_compiler : compiler<concat_compiler>
             });
             concat_args.push_back("pack(" + join_strings(pack_args, ", ") + ")");
         }
+        auto ninputs             = concat_params.size();
+        auto max_elements_per_op = max_size(options.virtual_inputs, ninputs, concat_axis);
+        auto avg_elements_per_op = output.lens()[concat_axis] / op_names.size();
+        std::size_t group        = 1;
+        if(concat_axis > 0)
+            group = tile::compute_factor(output.lens()[concat_axis - 1], 16);
+        // block_tile stores a group * nops * max_size tile of the output in LDS
+        auto tile_bytes = group * op_names.size() * max_elements_per_op * output.type_size();
+        std::string algo;
+        if(concat_axis == axis and max_elements_per_op < 64 and
+           max_elements_per_op == avg_elements_per_op and tile_bytes <= 65536)
+        {
+            auto nslices = output.elements() / output.lens()[concat_axis];
+            // compute_factor returns a divisor of lens()[concat_axis - 1], so group divides nslices
+            assert(nslices % group == 0);
+            auto block_size = compute_block_size(ctx, max_elements_per_op * group, 256);
+            algo            = "block_tile<" + std::to_string(group) + ">";
+            options.set_launch_params(v, (nslices / group) * block_size, block_size);
+        }
+        else
+        {
+            algo                  = "simple";
+            auto nelements_per_op = output.elements() / op_names.size();
+            options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
+        }
+
         auto src = interpolate_string(concat_kernel,
                                       {{"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
@@ -123,6 +143,7 @@ struct concat_compiler : compiler<concat_compiler>
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})},
+                                       {"algo", algo},
                                        {"axis", std::to_string(concat_axis)}});
         return compile_hip_code_object(ctx, src, options);
     }

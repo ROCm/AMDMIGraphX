@@ -141,6 +141,10 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Verifies each instruction
    *  - --reduce | -r
       - Reduces program and verifies
+   *  - --bisect | -b
+      - Uses binary search to locate the first failing verification step
+   *  - --layerwise | -l
+      - Compares corresponding reference and target layers in one execution
    *  - --iterations | -n
       - Sets the number of iterations to run for perf report
    *  - --buffers | -b

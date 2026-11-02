@@ -92,6 +92,9 @@ MIGRAPHX_EXPORT
 std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1);
 
 MIGRAPHX_EXPORT
+shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2);
+
+MIGRAPHX_EXPORT
 shape common_shape(const std::vector<shape>& shapes);
 
 /**

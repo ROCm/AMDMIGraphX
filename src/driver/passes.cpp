@@ -36,6 +36,7 @@
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/fuse_reduce.hpp>
+#include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/normalize_ops.hpp>
@@ -76,6 +77,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         fuse_attention{},
         fuse_pointwise{},
         fuse_reduce{},
+        fuse_topk{},
         inline_module{},
         insert_pad{},
         normalize_ops{},

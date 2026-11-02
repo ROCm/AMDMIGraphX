@@ -107,12 +107,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         {
             scale = parser.parse_value(info.attributes.at("scale")).at<float>();
         }
-        if(contains(info.attributes, "softcap"))
+        if(contains(info.attributes, "softcap") and
+           not float_equal(parser.parse_value(info.attributes.at("softcap")).at<float>(), 0.0))
         {
-            if(not float_equal(parser.parse_value(info.attributes.at("softcap")).at<float>(), 0.0))
-            {
-                MIGRAPHX_THROW("GroupQueryAttention: non-zero softcap is not yet supported.");
-            }
+            MIGRAPHX_THROW("GroupQueryAttention: non-zero softcap is not yet supported.");
         }
         return attrs;
     }

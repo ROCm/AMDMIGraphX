@@ -230,10 +230,10 @@ struct gemm_impl
             output_type = rocblas_datatype_i32_r;
         }
         compute_type = rb_compute_type{output_type};
-        if(compute_fp32)
+        if(compute_fp32 and
+           (arg_type == rocblas_datatype_f16_r or arg_type == rocblas_datatype_bf16_r))
         {
-            if(arg_type == rocblas_datatype_f16_r or arg_type == rocblas_datatype_bf16_r)
-                compute_type = rocblas_datatype_f32_r;
+            compute_type = rocblas_datatype_f32_r;
         }
 
         auto a_lens = input_shapes[0].lens();

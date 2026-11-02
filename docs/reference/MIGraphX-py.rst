@@ -385,6 +385,18 @@ program
     :param str name : name of the new module.
     :rtype module
 
+.. py:method:: verify(target, mode=program_verify_mode.outputs, params={}, **options)
+
+    Compares a program with the ``ref`` target using the selected verification mode.
+
+    :param target target: Target implementation to verify.
+    :param program_verify_mode mode: Verification mode.
+    :param dict[str, argument] params: Concrete input arguments. Dynamic parameters require
+        explicit arguments.
+    :param options: Verification options such as ``rms_tol``, ``atol``, ``rtol``, ``precision``,
+        ``ref_use_double``, and ``compiled_model``.
+    :rtype: program_verify_result
+
 .. py:method:: run(params)
 
     Runs the program.

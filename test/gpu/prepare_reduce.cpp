@@ -170,6 +170,26 @@ TEST_CASE(no_parallel_reduce_different_ops)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Reductions over inputs of different lens read a different number of
+// elements per output, so they are not run in parallel
+TEST_CASE(no_parallel_reduce_different_lens)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape ys{migraphx::shape::float_type, {2, 3, 1}};
+
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", xs);
+        auto y  = m1.add_parameter("y", ys);
+        auto r1 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x);
+        auto r2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), y);
+        m1.add_return({r1, r2});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(no_parallel_reduce_dependent)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};

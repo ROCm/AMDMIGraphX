@@ -309,6 +309,28 @@ TEST_CASE(propagate_no_crossover_fp8_boundary_output)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(propagate_no_crossover_mixed_category_quantizelinear_input)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s1);
+        auto scale = m1.add_literal(migraphx::literal{{migraphx::shape::float_type}, {0.05f}});
+        auto zp    = m1.add_literal(migraphx::literal{{migraphx::shape::uint8_type}, {10}});
+        auto scale_b =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}), scale);
+        auto zp_b =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}), zp);
+        auto q   = m1.add_instruction(migraphx::make_op("quantizelinear"), x, scale_b, zp_b);
+        auto out = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), q);
+        m1.add_return({out});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(propagate_no_crossover_mixed_category_quantizelinear_output)
 {
     migraphx::shape s1{migraphx::shape::int32_type, {4}};

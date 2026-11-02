@@ -91,7 +91,9 @@ add_library(migraphx
     graphviz.cpp
     inline_module.cpp
     insert_pad.cpp
+    insert_select_module.cpp
     instruction.cpp
+    instruction_traversal.cpp
     json.cpp
     layout_convolution.cpp
     lexing.cpp
@@ -148,7 +150,9 @@ add_library(migraphx
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
+    simplify_symbolic_dimensions.cpp
     split_single_dyn_dim.cpp
+    split_sym_dim.cpp
     sym.cpp
     sym_argument.cpp
     target.cpp
@@ -162,6 +166,10 @@ enable_static_init(migraphx)
 
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp op/builder/torch/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
+
+file(GLOB SPLIT_SYM_SRCS CONFIGURE_DEPENDS split_sym/*.cpp)
+target_sources(migraphx PRIVATE ${SPLIT_SYM_SRCS})
+target_include_directories(migraphx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/split_sym/include)
 
 if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
@@ -314,6 +322,7 @@ register_migraphx_ops(
     scatternd_max
     scatternd_min
     select_module
+    select_module_index
     sigmoid
     sign
     sinh

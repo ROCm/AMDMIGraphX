@@ -348,6 +348,8 @@ struct problem_cache_backend
             return private_detail_te_value.has(dk, key);
         }
 
+        // A reference when type-erasing a std::reference_wrapper for reference semantics.
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
         PrivateDetailTypeErasedT private_detail_te_value;
     };
 

@@ -1,0 +1,45 @@
+
+)causal_conv_with_state_channels_last_test:ü
+Š
+input
+weight
+bias
+
+past_stateoutputpresent_state"CausalConvWithState*
+
+activation"swish *
+channels_last :com.microsoft)causal_conv_with_state_channels_last_testZ
+input
+
+
+
+
+Z
+weight
+
+
+
+Z
+bias
+
+
+Z$
+
+past_state
+
+
+
+
+b 
+output
+
+
+
+
+b'
+present_state
+
+
+
+
+B

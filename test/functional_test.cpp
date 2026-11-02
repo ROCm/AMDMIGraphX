@@ -171,18 +171,23 @@ TEST_CASE(fix_deep_void)
     EXPECT(count == deep_n);
 }
 
+// In a function so gcc wont flag the fix_f temporary with -Wdangling-reference
+static std::uint64_t& deep_increment_ref(std::uint64_t& x)
+{
+    return migraphx::fix<std::uint64_t&>([&](auto self, std::uint64_t i) -> std::uint64_t& {
+        if(i == 0)
+            return x;
+        auto& r = self(i - 1);
+        r += 1;
+        return r;
+    })(deep_n);
+}
+
 TEST_CASE(fix_deep_reference_result)
 {
     // The returned reference must survive crossing the stack segments
     std::uint64_t x = 0;
-    const auto& result =
-        migraphx::fix<std::uint64_t&>([&](auto self, std::uint64_t i) -> std::uint64_t& {
-            if(i == 0)
-                return x;
-            auto& r = self(i - 1);
-            r += 1;
-            return r;
-        })(deep_n);
+    const auto& result = deep_increment_ref(x);
     EXPECT(&result == &x);
     EXPECT(x == deep_n);
 }

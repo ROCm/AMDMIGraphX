@@ -1024,23 +1024,18 @@ static bool provable_less_equal(const expr& a, const expr& b)
     return not scalar_less(difference.min, scalar{int64_t{0}});
 }
 
-static std::optional<expr> simplify_min_max(const op_def* op, const std::vector<expr>& args)
+static expr normalize_min_max(const op_def* op, std::vector<expr> args)
 {
-    if(not contains({"min", "max"}, op->name))
-        return std::nullopt;
     assert(args.size() == 2);
-    if(std::none_of(args.begin(), args.end(), [](const expr& e) {
-           return fixed_value(e).has_value();
-       }))
-        return std::nullopt;
-
     const auto& a = args[0];
     const auto& b = args[1];
+    if(same_symbol(a, b))
+        return combine_symbols(args);
     if(provable_less_equal(a, b))
         return op->name == "min" ? a : b;
     if(provable_less_equal(b, a))
         return op->name == "min" ? b : a;
-    return std::nullopt;
+    return expr(op_node{op}, std::move(args));
 }
 
 static expr normalize_impl(const op_def* op, std::vector<expr> args)
@@ -1056,8 +1051,8 @@ static expr normalize_impl(const op_def* op, std::vector<expr> args)
     }
     if(contains({"/", "%"}, op->name) and args.at(1) == lit(0))
         MIGRAPHX_THROW("Division by zero");
-    if(auto result = simplify_min_max(op, args))
-        return *result;
+    if(contains({"min", "max"}, op->name))
+        return normalize_min_max(op, std::move(args));
     if(op->name == "+")
         return normalize_add(op, std::move(args));
     if(op->name == "*")

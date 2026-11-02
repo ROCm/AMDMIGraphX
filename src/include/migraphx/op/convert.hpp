@@ -26,8 +26,12 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/unary.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <array>
 #include <cmath>
+#include <limits>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,6 +42,16 @@ struct convert : unary<convert>
     static constexpr bool enable_symbolic_compute = true;
 
     shape::type_t target_type = shape::half_type;
+
+    using symbolic_conversion = std::pair<shape::type_t, shape::type_t>;
+    static constexpr std::array<symbolic_conversion, 6> symbolic_conversions = {{
+        {shape::int32_type, shape::bool_type},
+        {shape::int32_type, shape::int32_type},
+        {shape::int32_type, shape::int64_type},
+        {shape::int64_type, shape::bool_type},
+        {shape::int64_type, shape::int32_type},
+        {shape::int64_type, shape::int64_type},
+    }};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -69,17 +83,24 @@ struct convert : unary<convert>
         if(args.size() != 1 or output_shape.type() != target_type)
             return false;
         auto input_type = args.front().get_shape().type();
-        return (shape::is_integral(input_type) and
-                (shape::is_integral(target_type) or target_type == shape::float_type)) or
-               (input_type == shape::float_type and shape::is_integral(target_type));
+        return contains(symbolic_conversions, symbolic_conversion{input_type, target_type});
     }
 
     auto apply() const
     {
         return [target = target_type](const sym::expr& x) {
-            if((shape::is_integral(target) and target != shape::bool_type) or
-               target == shape::float_type)
+            if(target == shape::int64_type)
                 return x;
+            if(target == shape::int32_type)
+            {
+                const auto interval = x.eval_interval_default();
+                const sym::interval target_interval{std::numeric_limits<int32_t>::lowest(),
+                                                    std::numeric_limits<int32_t>::max()};
+                if(interval.valid() and target_interval.contains(interval.min) and
+                   target_interval.contains(interval.max))
+                    return x;
+                return sym::expr{};
+            }
             if(target != shape::bool_type)
                 return sym::expr{};
             const auto value = sym::fixed_value(x);

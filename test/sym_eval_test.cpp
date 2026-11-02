@@ -322,4 +322,39 @@ TEST_CASE(sym_eval_rejects_wrong_element_count)
     EXPECT(result->sym_eval().empty());
 }
 
+TEST_CASE(sym_eval_symbolic_reduce_min_with_integral_converts)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    const auto s = var("S", {1, 1210400});
+    auto data = mm->add_parameter("data", shape{shape::float_type, {shape::dynamic_dimension{s}}});
+    auto count =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), data);
+    auto cap = mm->add_literal(
+        migraphx::literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{200}});
+    auto values = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), cap, count);
+    values = mm->add_instruction(migraphx::make_op("convert", {{"target_type", shape::int32_type}}),
+                                 values);
+    auto result = mm->add_instruction(migraphx::make_op("reduce_min", {{"axes", {0}}}), values);
+    result = mm->add_instruction(migraphx::make_op("convert", {{"target_type", shape::int64_type}}),
+                                 result);
+
+    auto expected = migraphx::sym::min(lit(200), s);
+    EXPECT(sym_values(result) == symbolic_tensor_value{expected});
+    EXPECT(expected.eval_interval_default().max == migraphx::sym::scalar{int64_t{200}});
+}
+
+TEST_CASE(sym_eval_rejects_unsafe_integral_narrowing)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    const auto s = var("S", {0, int64_t{1} + std::numeric_limits<int32_t>::max()});
+    auto data = mm->add_parameter("data", shape{shape::float_type, {shape::dynamic_dimension{s}}});
+    auto count =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), data);
+    auto narrowed = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", shape::int32_type}}), count);
+    EXPECT(narrowed->sym_eval().empty());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

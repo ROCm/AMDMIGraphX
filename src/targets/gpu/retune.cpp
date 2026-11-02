@@ -169,8 +169,7 @@ void retune_ops::apply(program& p) const
 {
     assert(ctx != nullptr);
     const auto from_ctx = options.contains("from") ? options.at("from").without_key() : value{};
-    const bool force =
-        options.contains("force") and options.at("force").without_key().to<bool>();
+    const bool force = options.contains("force") and options.at("force").without_key().to<bool>();
     if(not from_ctx.is_object() or not from_ctx.contains("compiled_for"))
         MIGRAPHX_THROW("retune: the program does not record the device it was compiled for; "
                        "recompile from the model");

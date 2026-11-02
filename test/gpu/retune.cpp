@@ -48,11 +48,11 @@ static migraphx::program make_program(migraphx::shape::type_t type = migraphx::s
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{type, {4, 256}};
-    auto x   = mm->add_parameter("x", s);
-    auto y   = mm->add_parameter("y", s);
-    auto add = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), x, y);
     auto relu = mm->add_instruction(migraphx::make_op("relu"), add);
-    auto sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
+    auto sum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
     mm->add_return({relu, sum});
     return p;
 }
@@ -145,12 +145,11 @@ static migraphx::program make_nms_program()
     migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
     migraphx::shape scalar_s{migraphx::shape::float_type, {1}};
     migraphx::shape int_scalar_s{migraphx::shape::int64_type, {1}};
-    auto boxes  = mm->add_parameter("boxes", boxes_s);
-    auto scores = mm->add_parameter("scores", scores_s);
-    auto max_out =
-        mm->add_literal(migraphx::literal{int_scalar_s, std::vector<std::int64_t>{4}});
-    auto iou   = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.5f}});
-    auto score = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.0f}});
+    auto boxes   = mm->add_parameter("boxes", boxes_s);
+    auto scores  = mm->add_parameter("scores", scores_s);
+    auto max_out = mm->add_literal(migraphx::literal{int_scalar_s, std::vector<std::int64_t>{4}});
+    auto iou     = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.5f}});
+    auto score   = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.0f}});
     auto nms =
         mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                             boxes,
@@ -171,9 +170,9 @@ static void expect_nms_result(const migraphx::program& p)
     std::vector<float> boxes  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
                                  0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     std::vector<float> scores = {0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
-    auto results              = run_program(p,
-                                            {{"boxes", migraphx::argument(boxes_s, boxes.data())},
-                                             {"scores", migraphx::argument(scores_s, scores.data())}});
+    auto results = run_program(p,
+                               {{"boxes", migraphx::argument(boxes_s, boxes.data())},
+                                {"scores", migraphx::argument(scores_s, scores.data())}});
     EXPECT(results.size() == 2);
     std::vector<std::int64_t> indices;
     results[0].visit([&](auto v) { indices.assign(v.begin(), v.end()); });
@@ -187,9 +186,8 @@ static void expect_nms_result(const migraphx::program& p)
 static bool has_kernel(const migraphx::program& p, const std::string& symbol)
 {
     auto kernels = get_kernels(p);
-    return std::any_of(kernels.begin(), kernels.end(), [&](const auto& co) {
-        return co.symbol_name == symbol;
-    });
+    return std::any_of(
+        kernels.begin(), kernels.end(), [&](const auto& co) { return co.symbol_name == symbol; });
 }
 
 TEST_CASE(gfx_generation)
@@ -211,9 +209,9 @@ TEST_CASE(code_object_recipe_round_trip)
     co.problem       = migraphx::value{{"m", 1}};
     co.solution      = "perf_config";
     co.tuning_level  = "quick";
-    auto op   = migraphx::make_op("gpu::code_object", migraphx::to_value(co));
-    auto op2  = migraphx::make_op("gpu::code_object", op.to_value());
-    auto co2  = migraphx::any_cast<migraphx::gpu::code_object_op>(op2);
+    auto op          = migraphx::make_op("gpu::code_object", migraphx::to_value(co));
+    auto op2         = migraphx::make_op("gpu::code_object", op.to_value());
+    auto co2         = migraphx::any_cast<migraphx::gpu::code_object_op>(op2);
     EXPECT(co2.has_recipe());
     EXPECT(co2.source.without_key() == co.source);
     EXPECT(co2.source_inputs == co.source_inputs);
@@ -350,14 +348,14 @@ TEST_CASE(retarget_fp8_fnuz_refused)
 {
     auto p = compile_program(
         cross_target("gfx942"), recipe_options(), make_program(migraphx::shape::fp8e4m3fnuz_type));
-    EXPECT(test::throws<migraphx::exception>([&] { p.retune(cross_target("gfx1151")); },
-                                             "fp8 fnuz"));
+    EXPECT(
+        test::throws<migraphx::exception>([&] { p.retune(cross_target("gfx1151")); }, "fp8 fnuz"));
 }
 
 TEST_CASE(load_version_8_program)
 {
-    auto p = compile_program(migraphx::make_target("gpu"));
-    auto v = p.to_value();
+    auto p       = compile_program(migraphx::make_target("gpu"));
+    auto v       = p.to_value();
     v["version"] = 8;
     migraphx::program q;
     q.from_value(v);

@@ -169,6 +169,57 @@ TEST_CASE(remove_qdq_preserve_shape_ops)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(remove_qdq_pad_without_pack_not_removed)
+{
+    // pad is only skipped as part of an MXFP4 pack/unpack path, so q -> pad -> dq stays.
+    migraphx::shape input_shape{migraphx::shape::float_type, {4, 4}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {4, 5}};
+
+    migraphx::module m1;
+    {
+        auto a     = m1.add_parameter("a", input_shape);
+        auto b     = m1.add_parameter("b", output_shape);
+        auto scale = m1.add_literal(0.5f);
+        auto zero  = m1.add_literal(std::int8_t{0});
+
+        auto q   = add_quantize_op(m1, "quantizelinear", a, scale, zero);
+        auto pad = m1.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 1}}}), q);
+        auto dq  = add_quantize_op(m1, "dequantizelinear", pad, scale, zero);
+        auto add = m1.add_instruction(migraphx::make_op("add"), dq, b);
+        m1.add_return({add});
+    }
+    migraphx::module m2 = m1;
+
+    migraphx::run_passes(m1, {migraphx::simplify_qdq{.remove_qdq_only = true}});
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(remove_qdq_pack_shape_mismatch_not_removed)
+{
+    // The pad is not sliced off after unpack_fp4, so bypassing the pair would change the shape.
+    migraphx::shape input_shape{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {4, 4}};
+
+    migraphx::module m1;
+    {
+        auto a     = m1.add_parameter("a", input_shape);
+        auto b     = m1.add_parameter("b", output_shape);
+        auto scale = m1.add_literal(0.5f);
+
+        auto q      = add_quantize_op(m1, "quantizelinear", a, scale);
+        auto pad    = m1.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 1}}}), q);
+        auto pack   = m1.add_instruction(migraphx::make_op("pack_fp4"), pad);
+        auto unpack = m1.add_instruction(migraphx::make_op("unpack_fp4"), pack);
+        auto dq     = add_quantize_op(m1, "dequantizelinear", unpack, scale);
+        auto add    = m1.add_instruction(migraphx::make_op("add"), dq, b);
+        m1.add_return({add});
+    }
+    migraphx::module m2 = m1;
+
+    migraphx::run_passes(m1, {migraphx::simplify_qdq{.remove_qdq_only = true}});
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(qdq_different_scales)
 {
     migraphx::shape sh1{migraphx::shape::float_type, {100, 100}};

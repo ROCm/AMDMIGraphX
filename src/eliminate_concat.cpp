@@ -26,7 +26,9 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/op/pad.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
@@ -150,15 +152,24 @@ struct concat_optimizer
         shape view_shape                = {};
     };
 
-    // Decide if the producer of this concat input can write directly into a
+    bool supports_non_packed_output(instruction_ref producer,
+                                    const std::vector<std::size_t>& axes) const
+    {
+        return std::all_of(axes.begin(), axes.end(), [&](auto axis) {
+            return opt->supports_non_packed_output(producer, axis);
+        });
+    }
+
+    // Decide if the producer of this input can write directly into a
     // view of the super buffer shaped like slice_shape
-    std::optional<plan>
-    plan_copy_elision(instruction_ref input, const shape& slice_shape, std::size_t axis) const
+    std::optional<plan> plan_copy_elision(instruction_ref input,
+                                          const shape& slice_shape,
+                                          const std::vector<std::size_t>& axes) const
     {
         auto [producer, chain] = get_view_chain(input);
         if(not can_write_inplace(producer))
             return std::nullopt;
-        if(not slice_shape.packed() and not opt->supports_non_packed_output(producer, axis))
+        if(not slice_shape.packed() and not supports_non_packed_output(producer, axes))
             return std::nullopt;
         // other users just read the strided view; the caller checks that
         // they support non-packed inputs
@@ -188,22 +199,31 @@ struct concat_optimizer
         return opt->supports_output_shape(producer, view_shape);
     }
 
+    // Replace the producer's allocation with the slice so it writes there directly
+    void write_into(const plan& p, instruction_ref slice) const
+    {
+        // Pin the layout before the allocation is replaced so the
+        // producer never reports a shape out of sync with its buffer
+        if(p.producer->get_shape() != p.view_shape)
+            opt->set_output_shape(p.producer, p.view_shape);
+        auto view = std::accumulate(p.view_ops.begin(),
+                                    p.view_ops.end(),
+                                    slice,
+                                    [&](instruction_ref v, const operation& vop) {
+                                        return m->insert_instruction(std::next(v), vop, v);
+                                    });
+        m->replace_instruction(get_output_alias(p.producer), view);
+    }
+
     instruction_ref insert_copy(const operation& op,
                                 instruction_ref input,
                                 instruction_ref super,
                                 std::size_t axis) const
     {
         auto slice = m->insert_instruction(std::next(super), op, super);
-        if(auto p = plan_copy_elision(input, slice->get_shape(), axis))
+        if(auto p = plan_copy_elision(input, slice->get_shape(), {axis}))
         {
-            // Pin the layout before the allocation is replaced so the
-            // producer never reports a shape out of sync with its buffer
-            if(p->producer->get_shape() != p->view_shape)
-                opt->set_output_shape(p->producer, p->view_shape);
-            auto view = slice;
-            for(const auto& vop : p->view_ops)
-                view = m->insert_instruction(std::next(view), vop, view);
-            m->replace_instruction(get_output_alias(p->producer), view);
+            write_into(*p, slice);
             return input;
         }
         auto copy = m->insert_instruction(std::next(input), make_op(am.copy()), input, slice);
@@ -258,6 +278,79 @@ struct concat_optimizer
                        });
         m->replace_instruction(ins, migraphx::make_op("identity"), args);
     }
+
+    // Axes with a non-zero pad
+    static std::vector<std::size_t> padded_axes(const op::pad& pad_op)
+    {
+        auto ndim = pad_op.pad_ndims();
+        auto r    = range(ndim);
+        std::vector<std::size_t> axes;
+        transform_if(
+            r.begin(),
+            r.end(),
+            std::back_inserter(axes),
+            [&](auto axis) { return pad_op.pads[axis] != 0 or pad_op.pads[axis + ndim] != 0; },
+            [](auto axis) { return axis; });
+        return axes;
+    }
+
+    // The interior of the padded buffer, shaped like the pad input
+    static operation make_interior_slice(const op::pad& pad_op,
+                                         const shape& input_shape,
+                                         const std::vector<std::size_t>& axes)
+    {
+        std::vector<int64_t> starts;
+        std::vector<int64_t> ends;
+        std::transform(axes.begin(), axes.end(), std::back_inserter(starts), [&](auto axis) {
+            return pad_op.pads[axis];
+        });
+        std::transform(axes.begin(), axes.end(), std::back_inserter(ends), [&](auto axis) {
+            return pad_op.pads[axis] + input_shape.lens()[axis];
+        });
+        return make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}});
+    }
+
+    // Every other reader of the pad input will see the strided interior view
+    bool readers_support_non_packed(instruction_ref input,
+                                    instruction_ref ins,
+                                    const std::vector<std::size_t>& axes) const
+    {
+        return std::all_of(
+            input->outputs().begin(), input->outputs().end(), [&](instruction_ref output) {
+                if(output == ins)
+                    return true;
+                return std::all_of(axes.begin(), axes.end(), [&](auto axis) {
+                    return opt->supports_non_packed_input(output, axis);
+                });
+            });
+    }
+
+    void replace_pad(instruction_ref ins, const op::pad& pad_op) const
+    {
+        // Last input should be an allocation
+        auto last = ins->inputs().back();
+        if(not is_allocation(last) or ins->get_shape().dynamic())
+            return;
+        // Negative pads crop, so there is no interior to write into
+        if(std::any_of(pad_op.pads.begin(), pad_op.pads.end(), [](auto p) { return p < 0; }))
+            return;
+        auto axes = padded_axes(pad_op);
+        if(axes.empty())
+            return;
+        auto input       = ins->inputs().front();
+        auto slice_shape = slice_shape_for(ins->get_shape(), input->get_shape());
+        if(not slice_shape.packed() and not readers_support_non_packed(input, ins, axes))
+            return;
+        auto p = plan_copy_elision(input, slice_shape, axes);
+        if(not p.has_value())
+            return;
+        // The super buffer must be allocated before the producer writes into it
+        auto super = m->move_instruction(last, get_output_alias(p->producer));
+        auto slice = m->insert_instruction(
+            std::next(super), make_interior_slice(pad_op, input->get_shape(), axes), super);
+        write_into(*p, slice);
+        m->replace_instruction(ins, opt->make_pad_border(pad_op), ins->inputs());
+    }
 };
 
 bool is_packed(const shape& s, std::size_t axis)
@@ -274,6 +367,12 @@ void eliminate_concat::apply(module& m) const
     concat_optimizer co{&m, concat_opt.allocation(), &concat_opt};
     for(auto ins : iterator_for(m))
     {
+        auto pad_op = concat_opt.get_pad(ins->get_operator());
+        if(pad_op.has_value())
+        {
+            co.replace_pad(ins, *pad_op);
+            continue;
+        }
         auto concat_op = concat_opt.get_concat(ins->get_operator());
         // Look for the concat operator
         if(not concat_op.has_value())
@@ -284,7 +383,7 @@ void eliminate_concat::apply(module& m) const
             ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
                 auto slice_shape =
                     concat_optimizer::slice_shape_for(ins->get_shape(), input->get_shape());
-                return not co.plan_copy_elision(input, slice_shape, axis).has_value();
+                return not co.plan_copy_elision(input, slice_shape, {axis}).has_value();
             });
         if(ncopies > 1)
             continue;

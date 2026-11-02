@@ -30,6 +30,7 @@
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/op/pad.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_op.hpp>
@@ -61,6 +62,34 @@ struct test_concat : migraphx::auto_register_op<test_concat>
         auto out = inputs.back();
         inputs.pop_back();
         auto result = op.normalize_compute_shape(std::move(inputs));
+        if(result != out)
+            MIGRAPHX_THROW("Allocation doesn't match");
+        return result;
+    }
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape& output_shape,
+                               const std::vector<migraphx::argument>&) const
+    {
+        return migraphx::argument{output_shape};
+    }
+};
+
+struct test_pad : migraphx::auto_register_op<test_pad>
+{
+    migraphx::op::pad op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const { return "test::pad"; }
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        auto out = inputs.back();
+        inputs.pop_back();
+        auto result = op.compute_shape(std::move(inputs));
         if(result != out)
             MIGRAPHX_THROW("Allocation doesn't match");
         return result;
@@ -158,6 +187,18 @@ struct concat_test_optimization
         if(op.name() != "test::concat")
             return std::nullopt;
         return migraphx::any_cast<test_concat>(op).op;
+    }
+
+    /// Return the lowered pad operator
+    std::optional<migraphx::op::pad> get_pad(const migraphx::operation& op) const
+    {
+        if(op.name() != "test::pad")
+            return std::nullopt;
+        return migraphx::any_cast<test_pad>(op).op;
+    }
+    migraphx::operation make_pad_border(const migraphx::op::pad& pad) const
+    {
+        return migraphx::make_op("pad_border", migraphx::to_value(pad));
     }
 
     bool supports_non_packed_output(migraphx::instruction_ref ins, std::size_t) const
@@ -880,6 +921,221 @@ TEST_CASE(invert_view_chain_broadcast)
                    {migraphx::shape::float_type, {2, 1}},
                    view)
                    .has_value());
+}
+
+TEST_CASE(pad_interior_written)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 6, 6));
+        auto p1 = m1.add_instruction(
+            migraphx::make_op("test::pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), s1, a2);
+        m1.add_return({p1});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a2    = m2.add_instruction(make_allocate(2, 3, 6, 6));
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {5, 5}}}),
+            a2);
+        auto s1 = m2.add_instruction(simple_op{}, slice);
+        auto p1 = m2.add_instruction(
+            migraphx::make_op("pad_border", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), s1, a2);
+        m2.add_return({p1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pad_asymmetric_reflect_interior_written)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 7, 5));
+        auto p1 = m1.add_instruction(migraphx::make_op("test::pad",
+                                                       {{"pads", {0, 0, 2, 0, 0, 0, 1, 1}},
+                                                        {"mode", migraphx::op::pad::reflect_pad}}),
+                                     s1,
+                                     a2);
+        m1.add_return({p1});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a2    = m2.add_instruction(make_allocate(2, 3, 7, 5));
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {2, 0}}, {"ends", {6, 4}}}),
+            a2);
+        auto s1 = m2.add_instruction(simple_op{}, slice);
+        auto p1 = m2.add_instruction(migraphx::make_op("pad_border",
+                                                       {{"pads", {0, 0, 2, 0, 0, 0, 1, 1}},
+                                                        {"mode", migraphx::op::pad::reflect_pad}}),
+                                     s1,
+                                     a2);
+        m2.add_return({p1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pad_non_packed_output_unsupported)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 6, 6));
+        auto p1 = m1.add_instruction(
+            migraphx::make_op("test::pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), s1, a2);
+        m1.add_return({p1});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A pad on the outermost axis leaves the interior packed, so any producer can write it
+TEST_CASE(pad_outer_axis_packed)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(4, 3, 4, 4));
+        auto p1 = m1.add_instruction(
+            migraphx::make_op("test::pad", {{"pads", {1, 0, 0, 0, 1, 0, 0, 0}}}), s1, a2);
+        m1.add_return({p1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a2    = m2.add_instruction(make_allocate(4, 3, 4, 4));
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}}), a2);
+        auto s1 = m2.add_instruction(simple_op{}, slice);
+        auto p1 = m2.add_instruction(
+            migraphx::make_op("pad_border", {{"pads", {1, 0, 0, 0, 1, 0, 0, 0}}}), s1, a2);
+        m2.add_return({p1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pad_input_read_non_packed_supported)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto r1 = m1.add_instruction(simple_op{}, s1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 6, 6));
+        auto p1 = m1.add_instruction(
+            migraphx::make_op("test::pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), s1, a2);
+        m1.add_return({p1, r1});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a2    = m2.add_instruction(make_allocate(2, 3, 6, 6));
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {5, 5}}}),
+            a2);
+        auto s1 = m2.add_instruction(simple_op{}, slice);
+        auto r1 = m2.add_instruction(simple_op{}, s1);
+        auto p1 = m2.add_instruction(
+            migraphx::make_op("pad_border", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), s1, a2);
+        m2.add_return({p1, r1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pad_input_read_non_packed_unsupported)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto r1 = m1.add_instruction(pass_standard_op{}, s1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 6, 6));
+        auto p1 = m1.add_instruction(
+            migraphx::make_op("test::pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), s1, a2);
+        m1.add_return({p1, r1});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pad_negative_unchanged)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 4, 6));
+        auto p1 = m1.add_instruction(
+            migraphx::make_op("test::pad", {{"pads", {0, 0, -1, 1, 0, 0, 1, 1}}}), s1, a2);
+        m1.add_return({p1});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pad_parameter_input_unchanged)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", create_shape(2, 3, 4, 4));
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 6, 6));
+        auto p1 = m1.add_instruction(
+            migraphx::make_op("test::pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), x, a2);
+        m1.add_return({p1});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.op_non_packed_output = {"*"}});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pad_through_reshape_chain)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 48));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto r1 =
+            m1.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 3, 4, 4}}}), s1);
+        auto a2 = m1.add_instruction(make_allocate(4, 3, 4, 4));
+        auto p1 = m1.add_instruction(
+            migraphx::make_op("test::pad", {{"pads", {1, 0, 0, 0, 1, 0, 0, 0}}}), r1, a2);
+        m1.add_return({p1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a2    = m2.add_instruction(make_allocate(4, 3, 4, 4));
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}}), a2);
+        auto v1 = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 48}}}), slice);
+        auto s1 = m2.add_instruction(simple_op{}, v1);
+        auto r1 =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 3, 4, 4}}}), s1);
+        auto p1 = m2.add_instruction(
+            migraphx::make_op("pad_border", {{"pads", {1, 0, 0, 0, 1, 0, 0, 0}}}), r1, a2);
+        m2.add_return({p1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

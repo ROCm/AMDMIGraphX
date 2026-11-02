@@ -27,7 +27,9 @@
 #include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/ranges.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/math.hpp>
 
@@ -60,6 +62,32 @@ struct pad_edge
     }
 };
 
+// Write one element of the padded output
+template <class OutIdx,
+          class Offsets,
+          class Bounds,
+          class Input,
+          class Output,
+          class PadVal,
+          class PadMode>
+__device__ void pad_element(const OutIdx& out_idx,
+                            const Offsets& offsets,
+                            const Bounds& input_bounds,
+                            const Input& input,
+                            Output& output,
+                            const PadVal& pad_val,
+                            PadMode pad_mode)
+{
+    auto input_idx = array_transform(out_idx - offsets, input_bounds)(pad_mode);
+    bool in_bounds = array_transform(input_idx, input_bounds)([&](auto i, auto bound) {
+                         return i < bound and i >= 0;
+                     }).all();
+    if(in_bounds)
+        output[out_idx] = implicit_conversion(input[input_idx]);
+    else
+        output[out_idx] = implicit_conversion(pad_val);
+}
+
 template <class Offsets, class Input, class Output, class PadVal, class PadMode>
 __device__ void pad(const index& idx,
                     const Offsets& offsets,
@@ -72,15 +100,69 @@ __device__ void pad(const index& idx,
     auto input_bounds = input.get_shape().lens.template to<diff_int>();
 
     idx.global_stride(output_shape.elements(), [&](auto gid) {
-        auto out_idx   = output_shape.multi(gid).template to<diff_int>();
-        auto input_idx = array_transform(out_idx - offsets, input_bounds)(pad_mode);
-        bool in_bounds = array_transform(input_idx, input_bounds)([&](auto i, auto bound) {
-                             return i < bound and i >= 0;
-                         }).all();
-        if(in_bounds)
-            output[out_idx] = implicit_conversion(input[input_idx]);
+        auto out_idx = output_shape.multi(gid).template to<diff_int>();
+        pad_element(out_idx, offsets, input_bounds, input, output, pad_val, pad_mode);
+    });
+}
+
+// The output elements whose first padded axis is K: axes before K are in the interior,
+// axis K is in the padding and later axes are unrestricted, so the partitions over all
+// axes cover the padding region exactly once
+template <class Output, class Input, class K>
+constexpr auto pad_border_partition()
+{
+    constexpr auto out_lens = get_shape_c<Output>{}.lens;
+    return make_shape(transform_i(out_lens, [](index_int len, index_int j) -> index_int {
+        constexpr auto in_lens = get_shape_c<Input>{}.lens;
+        if(j < K{})
+            return in_lens[j];
+        if(j == K{})
+            return len - in_lens[j];
+        return len;
+    }));
+}
+
+// Map an index within partition K back into the padded output
+template <class K, class Index, class Offsets, class Bounds>
+constexpr auto
+pad_border_index(K, const Index& pidx, const Offsets& offsets, const Bounds& input_bounds)
+{
+    return generate_array<diff_int>(pidx.size(), [&](auto j) -> diff_int {
+        if constexpr(decltype(j){} < K{})
+            return pidx[j] + offsets[j];
+        else if constexpr(decltype(j){} == K{})
+            return pidx[j] < offsets[j] ? pidx[j] : pidx[j] + input_bounds[j];
         else
-            output[out_idx] = implicit_conversion(pad_val);
+            return pidx[j];
+    });
+}
+
+// Fill only the padding region of the output, whose interior is already written
+template <class Offsets, class Input, class Output, class PadVal, class PadMode>
+__device__ void pad_border(const index& idx,
+                           const Offsets& offsets,
+                           const Input& input,
+                           Output& output,
+                           const PadVal& pad_val,
+                           PadMode pad_mode)
+{
+    constexpr auto ndim = get_shape_c<Output>{}.lens.size();
+    auto input_bounds   = input.get_shape().lens.template to<diff_int>();
+    sequence(ndim, [&](auto... ks) {
+        each_args(
+            [&](auto k) {
+                constexpr auto part = pad_border_partition<Output, Input, decltype(k)>();
+                if constexpr(decltype(part.elements()){} > _c<0>)
+                {
+                    idx.global_stride(part.elements(), [&](auto i) {
+                        auto pidx    = part.multi(i).template to<diff_int>();
+                        auto out_idx = pad_border_index(k, pidx, offsets, input_bounds);
+                        pad_element(
+                            out_idx, offsets, input_bounds, input, output, pad_val, pad_mode);
+                    });
+                }
+            },
+            ks...);
     });
 }
 

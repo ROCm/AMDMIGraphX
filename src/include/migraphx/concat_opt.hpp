@@ -35,6 +35,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/op/concat.hpp>
+#include <migraphx/op/pad.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/instruction_ref.hpp>
 
@@ -43,13 +44,18 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
-/// An interface for target-dependent optimization for the concat instruction
+/// An interface for target-dependent elision of concat and pad copies
 struct concat_optimization
 {
     /// A name of the target-dependent allocate operator
     std::string allocate() const;
     /// Return the target-independent concat operator
     optional<op::concat> get_concat(const operation& op) const;
+    /// Return the target-independent pad operator
+    optional<op::pad> get_pad(const operation& op) const;
+    /// Return the target's pad_border operator, which only writes the padding region of a
+    /// buffer whose interior was written by the producer of the pad input
+    operation make_pad_border(const op::pad& pad) const;
     allocation_model allocation() const;
     bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const;
     bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const;
@@ -71,6 +77,10 @@ struct MIGRAPHX_EXPORT concat_optimization
     std::string allocate() const;
     //
     optional<op::concat> get_concat(const operation& op) const;
+    //
+    optional<op::pad> get_pad(const operation& op) const;
+    //
+    operation make_pad_border(const op::pad& pad) const;
     //
     bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const;
     //
@@ -107,6 +117,9 @@ struct concat_optimization
         decltype(std::declval<PrivateDetailTypeErasedT>().allocate(),
                  std::declval<PrivateDetailTypeErasedT>().get_concat(
                      std::declval<const operation&>()),
+                 std::declval<PrivateDetailTypeErasedT>().get_pad(std::declval<const operation&>()),
+                 std::declval<PrivateDetailTypeErasedT>().make_pad_border(
+                     std::declval<const op::pad&>()),
                  std::declval<PrivateDetailTypeErasedT>().supports_non_packed_output(
                      std::declval<instruction_ref>(), std::declval<std::size_t>()),
                  std::declval<PrivateDetailTypeErasedT>().supports_non_packed_input(
@@ -204,6 +217,18 @@ struct concat_optimization
         return (*this).private_detail_te_get_handle().get_concat(op);
     }
 
+    optional<op::pad> get_pad(const operation& op) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().get_pad(op);
+    }
+
+    operation make_pad_border(const op::pad& pad) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().make_pad_border(pad);
+    }
+
     bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -250,6 +275,8 @@ struct concat_optimization
 
         virtual std::string allocate() const                                                 = 0;
         virtual optional<op::concat> get_concat(const operation& op) const                   = 0;
+        virtual optional<op::pad> get_pad(const operation& op) const                         = 0;
+        virtual operation make_pad_border(const op::pad& pad) const                          = 0;
         virtual bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const = 0;
         virtual bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const  = 0;
         virtual bool supports_output_shape(instruction_ref ins, const shape& s) const        = 0;
@@ -290,6 +317,18 @@ struct concat_optimization
         {
 
             return private_detail_te_value.get_concat(op);
+        }
+
+        optional<op::pad> get_pad(const operation& op) const override
+        {
+
+            return private_detail_te_value.get_pad(op);
+        }
+
+        operation make_pad_border(const op::pad& pad) const override
+        {
+
+            return private_detail_te_value.make_pad_border(pad);
         }
 
         bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const override

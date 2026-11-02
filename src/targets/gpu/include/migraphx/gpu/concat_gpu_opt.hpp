@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CONCAT_GPU_OPT_HPP
 
 #include <migraphx/op/concat.hpp>
+#include <migraphx/op/pad.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/instruction.hpp>
@@ -37,14 +38,33 @@ namespace gpu {
 struct concat_gpu_optimization
 {
     std::string allocate() const { return "hip::allocate"; }
-    optional<migraphx::op::concat> get_concat(const migraphx::operation& op) const
+    // The target-independent op wrapped by a precompile op
+    static optional<migraphx::operation> get_precompiled(const migraphx::operation& op)
     {
         if(op.name() != "gpu::precompile_op")
             return nullopt;
-        auto r = from_value<operation>(op.to_value().at("op"));
-        if(r.name() == "concat")
-            return any_cast<migraphx::op::concat>(r);
+        return from_value<operation>(op.to_value().at("op"));
+    }
+    optional<migraphx::op::concat> get_concat(const migraphx::operation& op) const
+    {
+        auto r = get_precompiled(op);
+        if(r.has_value() and r->name() == "concat")
+            return any_cast<migraphx::op::concat>(*r);
         return nullopt;
+    }
+    optional<migraphx::op::pad> get_pad(const migraphx::operation& op) const
+    {
+        auto r = get_precompiled(op);
+        if(r.has_value() and r->name() == "pad")
+            return any_cast<migraphx::op::pad>(*r);
+        return nullopt;
+    }
+    // The buffer is a real input of pad_border, so no output allocation is appended
+    migraphx::operation make_pad_border(const migraphx::op::pad& pad) const
+    {
+        return make_op(
+            "gpu::precompile_op",
+            {{"op", to_value(make_op("pad_border", to_value(pad)))}, {"additional_args", 0}});
     }
     bool supports_non_packed_output(instruction_ref ins, std::size_t) const
     {

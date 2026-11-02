@@ -3771,6 +3771,34 @@ TEST_CASE(pad_dyn_shape0)
     expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input);
 }
 
+TEST_CASE(pad_border_shape)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}};
+    migraphx::shape buffer{migraphx::shape::float_type, {2, 3, 5, 5}};
+    expect_shape(buffer,
+                 migraphx::make_op("pad_border", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}),
+                 input,
+                 buffer);
+}
+
+TEST_CASE(pad_border_shape_strided_interior)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}, {75, 25, 5, 1}};
+    migraphx::shape buffer{migraphx::shape::float_type, {2, 3, 5, 5}};
+    expect_shape(buffer,
+                 migraphx::make_op("pad_border", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}),
+                 input,
+                 buffer);
+}
+
+TEST_CASE(pad_border_shape_mismatch)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}};
+    migraphx::shape buffer{migraphx::shape::float_type, {2, 3, 4, 4}};
+    throws_shape(
+        migraphx::make_op("pad_border", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input, buffer);
+}
+
 TEST_CASE(pad_dyn_shape1)
 {
     migraphx::shape input{migraphx::shape::float_type,

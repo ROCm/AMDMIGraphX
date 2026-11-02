@@ -35,6 +35,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/op/concat.hpp>
+#include <migraphx/op/pad.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/instruction_ref.hpp>
 
@@ -43,13 +44,18 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
-/// An interface for target-dependent optimization for the concat instruction
+/// An interface for target-dependent elision of concat and pad copies
 struct concat_optimization
 {
     /// A name of the target-dependent allocate operator
     std::string allocate() const;
     /// Return the target-independent concat operator
     optional<op::concat> get_concat(const operation& op) const;
+    /// Return the target-independent pad operator
+    optional<op::pad> get_pad(const operation& op) const;
+    /// Return the target's pad_border operator, which only writes the padding region of a
+    /// buffer whose interior was written by the producer of the pad input
+    operation make_pad_border(const op::pad& pad) const;
     allocation_model allocation() const;
     bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const;
     bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const;
@@ -68,6 +74,8 @@ struct concat_optimization
         virtual('allocate', returns = 'std::string', const = True),
         virtual(
             'get_concat', returns = 'optional<op::concat>', op = 'const operation&', const = True),
+        virtual('get_pad', returns = 'optional<op::pad>', op = 'const operation&', const = True),
+        virtual('make_pad_border', returns = 'operation', pad = 'const op::pad&', const = True),
         virtual('supports_non_packed_output',
                 ins     = 'instruction_ref',
                 axis    = 'std::size_t',

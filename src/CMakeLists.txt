@@ -275,6 +275,7 @@ register_migraphx_ops(
     pack_fp4
     pack_int4
     pad
+    pad_border
     pointwise
     pooling
     pow

@@ -48,6 +48,8 @@ MIGRAPHX_EXPORT optional<std::pair<std::vector<operation>, shape>> invert_view_c
 
 /**
  * Remove concat operators by having each operator write to different chunk of memory.
+ * Pads are handled the same way: the producer writes into the interior of the padded
+ * buffer and only the padding region is filled afterwards.
  */
 struct MIGRAPHX_EXPORT eliminate_concat
 {

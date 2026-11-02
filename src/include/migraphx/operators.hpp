@@ -94,6 +94,7 @@
 #include <migraphx/op/nonzero.hpp>
 #include <migraphx/op/outline.hpp>
 #include <migraphx/op/pad.hpp>
+#include <migraphx/op/pad_border.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/pow.hpp>
 #include <migraphx/op/prefix_scan_sum.hpp>

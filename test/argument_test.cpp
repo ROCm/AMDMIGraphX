@@ -254,4 +254,26 @@ TEST_CASE(argument_share)
     EXPECT(a4.data() == a3.data());
 }
 
+TEST_CASE(argument_copy)
+{
+    migraphx::shape s{migraphx::shape::int64_type, {3}};
+    std::vector<std::int64_t> buffer{1, 2, 3};
+    migraphx::argument a1(s, buffer.data());
+    auto a2 = a1.copy();
+    EXPECT(a1.data() != a2.data());
+    EXPECT(a1 == a2);
+    buffer[0] = 4;
+    EXPECT(a1 != a2);
+    EXPECT(a2.to_vector<std::int64_t>() == std::vector<std::int64_t>{1, 2, 3});
+}
+
+TEST_CASE(argument_copy_tuple)
+{
+    auto a1 = make_tuple(3, 3.0);
+    auto a2 = a1.copy();
+    EXPECT(a1 == a2);
+    EXPECT(a1.get_sub_objects()[0].data() != a2.get_sub_objects()[0].data());
+    EXPECT(a1.get_sub_objects()[1].data() != a2.get_sub_objects()[1].data());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

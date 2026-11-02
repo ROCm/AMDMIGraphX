@@ -37,7 +37,8 @@ std::vector<instruction_ref> insert_select_module(module_pass_manager& mpm,
                                                   module& m,
                                                   const std::vector<instruction_ref>& inputs,
                                                   std::vector<module> clones,
-                                                  const std::vector<shape>& output_shapes)
+                                                  const std::vector<shape>& output_shapes,
+                                                  const std::vector<shape>& logical_output_shapes)
 {
     std::vector<module_ref> submodules;
     submodules.reserve(clones.size());
@@ -47,10 +48,15 @@ std::vector<instruction_ref> insert_select_module(module_pass_manager& mpm,
             return mpm.create_module(name, std::move(clone));
         });
 
-    auto selection = m.add_instruction(
-        make_op("select_module", {{"output_dyn_shapes", to_value(shape{output_shapes})}}),
-        inputs,
-        submodules);
+    value attributes{{"output_dyn_shapes", to_value(shape{output_shapes})}};
+    if(not logical_output_shapes.empty())
+    {
+        if(logical_output_shapes.size() != output_shapes.size())
+            MIGRAPHX_THROW("INSERT_SELECT_MODULE: logical output count does not match outputs");
+        attributes["logical_output_dyn_shapes"] = to_value(shape{logical_output_shapes});
+        attributes["num_inputs"]                = inputs.size();
+    }
+    auto selection = m.add_instruction(make_op("select_module", attributes), inputs, submodules);
     std::vector<instruction_ref> outputs;
     outputs.reserve(output_shapes.size());
     auto output_indices = range(output_shapes.size());

@@ -153,6 +153,7 @@ add_library(migraphx
     simplify_symbolic_dimensions.cpp
     split_single_dyn_dim.cpp
     split_sym_dim.cpp
+    symbolic_shape_helpers.cpp
     sym.cpp
     sym_argument.cpp
     target.cpp
@@ -225,6 +226,7 @@ register_migraphx_ops(
     dimensions_of
     div
     dot
+    dyn_concat
     dyn_slice
     elu
     equal

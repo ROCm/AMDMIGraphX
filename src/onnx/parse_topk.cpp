@@ -31,6 +31,7 @@
 #include <migraphx/sym.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/value.hpp>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -93,22 +94,62 @@ struct parse_topk : op_parser<parse_topk>
         // Variable (data-dependent) `k`: run topk over the whole axis dimension, then slice the
         // outputs down to the runtime `k` using a symbolic dimension.
         auto input_shape = args.at(0)->get_shape();
-        if(input_shape.dynamic() and not input_shape.symbolic())
-        {
-            MIGRAPHX_THROW("PARSE_TOPK: a runtime `k` needs a static or symbolic data shape; "
-                           "parse with symbolic shapes enabled");
-        }
         // Normalize axis because we need the interval maximum on that dimension.
         int64_t norm_axis = tune_axis(input_shape.ndim(), axis, "TopK");
-        int64_t max_k     = input_shape.max_lens().at(norm_axis);
-        auto outs         = add_topk_and_gets(info, args, max_k, norm_axis, largest);
+        auto axis_max     = input_shape.max_lens().at(norm_axis);
+        int64_t max_k     = axis_max > std::numeric_limits<int64_t>::max()
+                                ? std::numeric_limits<int64_t>::max()
+                                : static_cast<int64_t>(axis_max);
 
-        // `k` is only known at run time, so it becomes a symbol bounded by the axis it slices.
-        auto k_var      = sym::var(info.name, {0, max_k});
+        auto symbolic_k = k_ins->sym_eval();
+        sym::expr k_end;
+        if(not symbolic_k.empty() and symbolic_k.get_shape().elements() == 1 and
+           shape::is_integral(symbolic_k.get_shape().type()))
+        {
+            const auto& expression = symbolic_k.get()[0];
+            auto interval          = expression.eval_interval_default();
+            if(interval.valid())
+            {
+                auto min_k          = sym::to<int64_t>(interval.min);
+                auto max_symbolic_k = sym::to<int64_t>(interval.max);
+                if(min_k >= 0 and max_symbolic_k > 0)
+                {
+                    max_k = std::min(max_k, max_symbolic_k);
+                    k_end = max_symbolic_k > max_k ? sym::resolve_min(expression, sym::lit(max_k))
+                                                   : expression;
+                }
+            }
+        }
+        if(input_shape.dynamic() and not input_shape.symbolic() and k_end.empty())
+        {
+            MIGRAPHX_THROW("PARSE_TOPK: a runtime `k` needs a bounded symbolic value when the data "
+                           "shape is range-based");
+        }
+        auto outs = add_topk_and_gets(info, args, max_k, norm_axis, largest);
+        if(input_shape.dynamic() and not input_shape.symbolic())
+        {
+            auto dims = input_shape.dyn_dims();
+            auto axes = range(dims.size());
+            if(any_of(axes, [&](auto current_axis) {
+                   return current_axis != static_cast<std::size_t>(norm_axis) and
+                          not dims.at(current_axis).is_fixed();
+               }))
+                MIGRAPHX_THROW("PARSE_TOPK: a range-based data shape must have fixed dimensions "
+                               "outside the TopK axis");
+            dims.at(static_cast<std::size_t>(norm_axis)) = shape::dynamic_dimension{k_end};
+            std::for_each(outs.begin(), outs.end(), [&](auto out) {
+                instruction::replace(
+                    out, out->get_operator(), shape{out->get_shape().type(), dims}, out->inputs());
+            });
+        }
+
+        // Preserve a symbolic runtime `k`; otherwise introduce a bounded symbol for the slice.
+        if(k_end.empty())
+            k_end = sym::var(info.name, {0, max_k});
         auto starts_lit = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
         auto dyn_slice  = make_op(
             "dyn_slice",
-            {{"axes", {norm_axis}}, {"starts", {0}}, {"ends", value::array{to_value(k_var)}}});
+            {{"axes", {norm_axis}}, {"starts", {0}}, {"ends", value::array{to_value(k_end)}}});
         std::transform(outs.begin(), outs.end(), outs.begin(), [&](auto out) {
             return info.add_instruction(dyn_slice, out, starts_lit, k_ins);
         });

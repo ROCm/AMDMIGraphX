@@ -155,19 +155,7 @@ struct reshape
         auto result = reshape_dims(sym_in, target, {.lazy = false})
                           .value_or(shape{s0.type(), output_dyn_dims});
 
-        // An inferred -1 over a symbolic input is a floor division, so its element
-        // count is only resolvable at runtime; otherwise throw on a provably
-        // mismatched count (strict_less either way), letting indeterminate ones pass.
-        if(not(s0.symbolic() and has_inferred_dim))
-        {
-            auto out_elems = result.sym_elements();
-            auto in_elems  = s0.sym_elements();
-            if(sym::strict_less(out_elems, in_elems).value_or(false) or
-               sym::strict_less(in_elems, out_elems).value_or(false))
-                MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
-                               to_string(out_elems) + " elements whereas the input has " +
-                               to_string(in_elems));
-        }
+        validate_reshape_element_count(name(), s0, result, has_inferred_dim);
 
         // Only a static input with integer dims is fully literal; evaluate it back to
         // the concrete layout. Anything symbolic stays symbolic.

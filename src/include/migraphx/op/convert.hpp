@@ -66,15 +66,19 @@ struct convert : unary<convert>
     bool supports_symbolic_compute(const shape& output_shape,
                                    const std::vector<sym_argument>& args) const
     {
-        return args.size() == 1 and args[0].get_shape().type() == shape::int64_type and
-               output_shape.type() == target_type and
-               (target_type == shape::int64_type or target_type == shape::bool_type);
+        if(args.size() != 1 or output_shape.type() != target_type)
+            return false;
+        auto input_type = args.front().get_shape().type();
+        return (shape::is_integral(input_type) and
+                (shape::is_integral(target_type) or target_type == shape::float_type)) or
+               (input_type == shape::float_type and shape::is_integral(target_type));
     }
 
     auto apply() const
     {
         return [target = target_type](const sym::expr& x) {
-            if(target == shape::int64_type)
+            if((shape::is_integral(target) and target != shape::bool_type) or
+               target == shape::float_type)
                 return x;
             if(target != shape::bool_type)
                 return sym::expr{};

@@ -155,7 +155,9 @@ struct reshape_lazy
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1);
+        check_shapes{inputs, *this, true}.has(1, 2).same_type();
+        if(inputs.size() == 2)
+            return inputs.back();
 
         validate_reshape_dims(name(), dims);
 
@@ -173,6 +175,16 @@ struct reshape_lazy
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
+        if(args.size() == 2)
+        {
+            if(args[0].get_shape().elements() != args[1].get_shape().elements())
+            {
+                MIGRAPHX_THROW("reshape_lazy: Number of elements must match at runtime. Input: " +
+                               std::to_string(args[0].get_shape().elements()) +
+                               " Output buffer: " + std::to_string(args[1].get_shape().elements()));
+            }
+            return args[0].reshape(args[1].get_shape());
+        }
         return args[0].reshape(dyn_out.computed_shape);
     }
 

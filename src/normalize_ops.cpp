@@ -39,6 +39,8 @@ void normalize_ops::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
+        if(ins->is_normalized())
+            continue;
         auto inputs = ins->inputs();
         if(inputs.empty())
             continue;

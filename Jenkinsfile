@@ -69,6 +69,18 @@ def setupdocker(Map conf) {
     return docker_opts
 }
 
+// The driver exits 0 even when verification fails, so check its log as well as
+// its exit status: a crash or sanitizer error after the success message must fail.
+def driver_test(String driver) {
+    return """
+        status=0
+        ${driver} verify --test > driver.log 2>&1 || status=\$?
+        cat driver.log
+        test \$status -eq 0
+        grep -q "verification passed successfully" driver.log
+    """
+}
+
 def cmake_build = { bconf ->
     def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
     def flags = bconf.get("flags", "")
@@ -103,9 +115,7 @@ def cmake_build = { bconf ->
         git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
         make -j\$(nproc) ${targets} VERBOSE=1
         if [ -n "\$(ls ./*.deb 2>/dev/null)" ]; then md5sum ./*.deb; fi
-        # The driver exits 0 even when verification fails, so check its log.
-        ./bin/migraphx-driver verify --test 2>&1 | tee driver.log
-        grep -q "verification passed successfully" driver.log
+        ${driver_test('./bin/migraphx-driver')}
     """
     echo cmd
     sh cmd
@@ -584,10 +594,7 @@ pipeline {
                             rocmtest(setup: setupstaticdriver, image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
                                 // The ORT image only has ROCm installed, so the static
                                 // driver must run without anything from rbuild or the build tree.
-                                sh '''
-                                    ./build/bin/migraphx-driver verify --test 2>&1 | tee driver.log
-                                    grep -q "verification passed successfully" driver.log
-                                '''
+                                sh driver_test('./build/bin/migraphx-driver')
                             }
                         }
                     }

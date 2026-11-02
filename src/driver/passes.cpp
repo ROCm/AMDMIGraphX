@@ -52,6 +52,7 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_symbolic_dimensions.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/split_sym_dim.hpp>
 
@@ -95,6 +96,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         simplify_dyn_ops{},
         simplify_qdq{},
         simplify_reshapes{},
+        simplify_symbolic_dimensions{},
         split_single_dyn_dim{},
         split_sym_dim{},
     };

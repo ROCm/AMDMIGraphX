@@ -477,6 +477,8 @@ TEST_CASE(dot_multi_use_trans_add_pooling_sub)
 }
 
 TEST_CASE(dot_dot_pointwise)
+// add(dot1, dot2(dot1)): dot1 is also a dot but fusing it would make the fused op depend on
+// itself, so dot2 is fused instead
 {
     migraphx::shape s1{migraphx::shape::float_type, {1, 4, 5}};
     migraphx::shape s2{migraphx::shape::float_type, {1, 5, 5}};
@@ -508,18 +510,18 @@ TEST_CASE(dot_dot_pointwise)
                 return std::make_tuple(dot->get_operator(), dot);
             },
             "standalone_dot");
-        auto dot2 = add_mlir(
+        auto fused = add_mlir(
             p2,
-            "mlir_dot1",
+            "mlir_main:pointwise0",
             {dot1, c},
-            {"y0", "y1"},
+            {"x0", "x1"},
             [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                return std::make_tuple(dot->get_operator(), dot);
+                auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], dot);
+                return std::make_tuple(dot->get_operator(), add);
             },
-            "standalone_dot");
-        auto add = add_pointwise(p2, "main:pointwise0", {dot1, dot2}, single_pointwise("add"));
-        mm->add_return({add});
+            "dot_pointwise");
+        mm->add_return({fused});
     }
     EXPECT(p1 == p2);
 }
@@ -2305,6 +2307,59 @@ TEST_CASE(conv_add)
                 auto c =
                     pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
                 auto add = pm->add_instruction(migraphx::make_op("add"), c, inputs[2]);
+                return std::make_tuple(c->get_operator(), add);
+            },
+            "conv_pointwise");
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(conv_skip_conv_add)
+// residual block: add(conv1, conv2(conv1)); the skip input conv1 is also a conv but
+// fusing it would make the fused op depend on itself, so conv2 is fused instead
+{
+    migraphx::shape is{migraphx::shape::float_type, {4, 14, 122, 122}};
+    migraphx::shape w1s{migraphx::shape::float_type, {56, 14, 1, 1}};
+    migraphx::shape w2s{migraphx::shape::float_type, {56, 56, 1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", is);
+        auto w1    = mm->add_parameter("w1", w1s);
+        auto w2    = mm->add_parameter("w2", w2s);
+        auto conv1 = mm->add_instruction(migraphx::make_op("convolution"), x, w1);
+        auto conv2 = mm->add_instruction(migraphx::make_op("convolution"), conv1, w2);
+        auto add   = add_pointwise(p1, "main:pointwise0", {conv1, conv2}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", is);
+        auto w1    = mm->add_parameter("w1", w1s);
+        auto w2    = mm->add_parameter("w2", w2s);
+        auto conv1 = add_mlir(
+            p2,
+            "mlir_convolution0",
+            {x, w1},
+            {"y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto c =
+                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                return std::make_tuple(c->get_operator(), c);
+            },
+            "standalone_convolution");
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0",
+            {conv1, w2},
+            {"x0", "x1"},
+            [=](auto* pm, const auto& inputs) {
+                auto c =
+                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], c);
                 return std::make_tuple(c->get_operator(), add);
             },
             "conv_pointwise");

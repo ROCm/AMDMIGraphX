@@ -416,7 +416,7 @@ bool is_geg_second_gemm(instruction_ref ins)
         return false;
     const auto& a_lens = ins->inputs().front()->get_shape().lens();
     std::int64_t m     = a_lens[a_lens.size() - 2];
-    std::int64_t g = ins->inputs().back()->get_shape().lens().back();
+    std::int64_t g     = ins->inputs().back()->get_shape().lens().back();
     if(g > geg_attn_g_max or m < geg_attn_mn_min)
         return false;
     auto prev = strip_layout_ops(ins->inputs().front());

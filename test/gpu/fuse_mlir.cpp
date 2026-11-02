@@ -2149,7 +2149,7 @@ TEST_CASE(dot_causal_mask_dot)
         return;
     migraphx::program p1;
     {
-        auto* mm = p1.get_main_module();
+        auto* mm  = p1.get_main_module();
         auto q    = mm->add_parameter("q", {migraphx::shape::half_type, {4, 64, 32}});
         auto k    = mm->add_parameter("k", {migraphx::shape::half_type, {4, 32, 64}});
         auto v    = mm->add_parameter("v", {migraphx::shape::half_type, {4, 64, 32}});
@@ -2220,10 +2220,10 @@ TEST_CASE(dot_mul_mask_dot)
     migraphx::shape vs{migraphx::shape::half_type, {4, 64, 32}};
     migraphx::program p1;
     {
-        auto* mm = p1.get_main_module();
-        auto q   = mm->add_parameter("q", qs);
-        auto k   = mm->add_parameter("k", ks);
-        auto v   = mm->add_parameter("v", vs);
+        auto* mm  = p1.get_main_module();
+        auto q    = mm->add_parameter("q", qs);
+        auto k    = mm->add_parameter("k", ks);
+        auto v    = mm->add_parameter("v", vs);
         auto mask = mm->add_literal(
             make_triangle_literal({migraphx::shape::half_type, {64, 64}}, 0.0f, 1.0f));
         auto mask_b = mm->add_instruction(
@@ -2268,7 +2268,7 @@ TEST_CASE(dot_causal_mask_dot_long_seq)
         return;
     migraphx::program p1;
     {
-        auto* mm = p1.get_main_module();
+        auto* mm  = p1.get_main_module();
         auto q    = mm->add_parameter("q", {migraphx::shape::half_type, {4, 1024, 64}});
         auto k    = mm->add_parameter("k", {migraphx::shape::half_type, {4, 64, 1024}});
         auto v    = mm->add_parameter("v", {migraphx::shape::half_type, {4, 1024, 64}});

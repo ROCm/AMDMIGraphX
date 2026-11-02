@@ -407,8 +407,8 @@ if(MIGRAPHX_ENABLE_MLIR)
     target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
 
     # rocMLIR Triton codegen is loaded at runtime, so it is not discoverable as a regular
-    # link dependency. Install it next to MIGraphX runtime libraries so the installed
-    # driver can dlopen it without requiring an external LD_LIBRARY_PATH.
+    # link dependency. Copy it into the build tree for local runs; installation is owned
+    # by the rocMLIR/Triton package.
     set(MIGRAPHX_TRITON_AMD_CODEGEN_LIB "")
     set(MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME
         "${CMAKE_SHARED_LIBRARY_PREFIX}triton_amd_codegen${CMAKE_SHARED_LIBRARY_SUFFIX}")
@@ -432,10 +432,13 @@ if(MIGRAPHX_ENABLE_MLIR)
         endif()
     endforeach()
     if(MIGRAPHX_TRITON_AMD_CODEGEN_LIB)
-        if(WIN32)
-            install(FILES "${MIGRAPHX_TRITON_AMD_CODEGEN_LIB}" DESTINATION bin)
-        else()
-            install(FILES "${MIGRAPHX_TRITON_AMD_CODEGEN_LIB}" DESTINATION lib)
+        if(NOT WIN32)
+            add_custom_command(TARGET migraphx_gpu POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${MIGRAPHX_TRITON_AMD_CODEGEN_LIB}"
+                        "$<TARGET_FILE_DIR:migraphx_gpu>"
+                COMMENT "Copying ${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME} to $<TARGET_FILE_DIR:migraphx_gpu>"
+                VERBATIM)
         endif()
     else()
         message(FATAL_ERROR "Could not find ${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME} near rocMLIR libraries")

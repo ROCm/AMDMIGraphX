@@ -90,8 +90,6 @@ spatial_attr(const value& v, const std::string& name, std::size_t num_spatial)
     return result;
 }
 
-static constexpr std::size_t max_lds_bytes = 64 * 1024;
-
 // Per-lane spatial tile: tile_h on the first spatial dim, tile_w on the last
 static std::vector<std::size_t>
 spatial_tile(std::size_t num_spatial, std::size_t tile_h, std::size_t tile_w)
@@ -110,13 +108,20 @@ struct channelwise_conv_problem
     std::vector<std::size_t> stride;
     // Begin padding per spatial dim followed by end padding
     std::vector<std::size_t> padding;
+    // Shared memory one block may use for the halo
+    std::size_t max_lds_bytes = 0;
 
-    static channelwise_conv_problem from_value(const std::vector<shape>& inputs, const value& v)
+    static channelwise_conv_problem
+    from_value(const std::vector<shape>& inputs, const value& v, const hip_device& device)
     {
         auto num_spatial = v.at("num_spatial").to<std::size_t>();
         auto padding     = v.get("padding", std::vector<std::size_t>{});
         padding.resize(2 * num_spatial, 0);
-        return {inputs, num_spatial, spatial_attr(v, "stride", num_spatial), padding};
+        return {inputs,
+                num_spatial,
+                spatial_attr(v, "stride", num_spatial),
+                padding,
+                device.get_max_shared_memory_per_block()};
     }
 
     std::size_t channels() const { return inputs.back().lens()[1]; }
@@ -251,7 +256,7 @@ struct channelwise_conv_solutions
         auto block_size = tile_h * tile_w * (tile_c / cvec);
         if(block_size < wave or block_size > max_block or (block_size % wave) != 0)
             return;
-        if(problem.halo_bytes(tile_h, tile_w, noutputs, tile_c, nrows) > max_lds_bytes)
+        if(problem.halo_bytes(tile_h, tile_w, noutputs, tile_c, nrows) > problem.max_lds_bytes)
             return;
         // Clamping can collapse distinct candidates into the same solution
         if(not seen.insert({tile_h, tile_w, noutputs, tile_c, nrows, cvec}).second)
@@ -395,7 +400,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         options.virtual_inputs = inputs;
 
         const auto& out_lens = out_s.lens();
-        auto problem         = channelwise_conv_problem::from_value(inputs, v);
+        auto problem = channelwise_conv_problem::from_value(inputs, v, ctx.get_current_device());
 
         // Thread block tile dimensions; 1-D convolutions have no row dim to tile
         auto tile_h = v.get("tile_h", num_spatial == 1 ? std::size_t{1} : std::size_t{8});
@@ -480,7 +485,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         auto shapes = to_shapes(ins->inputs());
         tc.problem  = to_value(shapes);
         channelwise_conv_solutions solutions{
-            channelwise_conv_problem::from_value(shapes, op.to_value()),
+            channelwise_conv_problem::from_value(shapes, op.to_value(), ctx.get_current_device()),
             ctx.get_current_device().get_wavefront_size()};
         if(exhaustive)
             solutions.add_exhaustive();

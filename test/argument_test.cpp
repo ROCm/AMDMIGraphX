@@ -262,6 +262,8 @@ TEST_CASE(argument_copy)
     auto a2 = a1.copy();
     EXPECT(a1.data() != a2.data());
     EXPECT(a1 == a2);
+    // The write is read back through a1, which aliases the buffer
+    // cppcheck-suppress unreadVariable
     buffer[0] = 4;
     EXPECT(a1 != a2);
     EXPECT(a2.to_vector<std::int64_t>() == std::vector<std::int64_t>{1, 2, 3});

@@ -272,25 +272,17 @@ value program::get_compiled_for() const
     return ctx_val.at("compiled_for").without_key();
 }
 
-void program::retune(const target& t, compile_options options)
+void program::retune(const target& t, compile_options options, retune_options retune_opts)
 {
     if(not this->is_compiled())
         MIGRAPHX_THROW("retune: the program is not compiled");
     if(impl->targets.size() != 1 or impl->targets.front().name() != t.name())
         MIGRAPHX_THROW("retune: the program was not compiled for the " + t.name() + " target");
 
-    value from_ctx;
     if(not impl->pending_contexts.is_null())
-        from_ctx = impl->pending_contexts[0].without_key();
+        retune_opts.from = impl->pending_contexts[0].without_key();
     else
-        from_ctx = impl->contexts.front().to_value();
-
-    // Targets that support retuning return the retune pipeline when this option is set
-    value retune_opts = value::object{};
-    if(contains(options.backend_options, "retune"))
-        retune_opts = options.backend_options.at("retune");
-    retune_opts["from"]               = from_ctx;
-    options.backend_options["retune"] = retune_opts;
+        retune_opts.from = impl->contexts.front().to_value();
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
@@ -298,7 +290,7 @@ void program::retune(const target& t, compile_options options)
     // Retune a copy so the program is unchanged when retuning fails
     program p                     = *this;
     std::vector<context> contexts = {t.get_context()};
-    auto passes                   = t.get_passes(contexts.front(), options);
+    auto passes                   = t.get_retune_passes(contexts.front(), options, retune_opts);
     run_passes(p, passes, options.trace);
     for(const auto& mod : p.get_modules())
     {
@@ -945,7 +937,9 @@ value program::to_value() const
                 nodes.push_back(node);
             },
             names);
-        mod_val["nodes"]         = nodes;
+        mod_val["nodes"] = nodes;
+        if(mod->bypass())
+            mod_val["bypass"] = true;
         module_vals[mod->name()] = mod_val;
     }
 
@@ -1072,6 +1066,12 @@ void program::from_value(const value& v, bool finalize)
                    impl->modules.end(),
                    std::inserter(map_mods, map_mods.end()),
                    [&](auto&& pp) { return std::make_pair(pp.first, &pp.second); });
+    // Set before any instruction is added, since some ops check it in compute_shape
+    for(const auto& vv : module_vals)
+    {
+        if(vv.contains("bypass") and vv.at("bypass").to<bool>())
+            map_mods.at(vv.get_key())->set_bypass();
+    }
 
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto* mm = get_main_module();
@@ -1302,6 +1302,10 @@ void program::print(
 {
     for(const auto& pp : this->impl->modules)
     {
+        // Bypassed modules (fused pointwise/reduce/mlir bodies, retune recipe submodules, etc.)
+        // are never evaluated directly, so they have no timing to report and just add noise.
+        if(pp.second.bypass())
+            continue;
         names = pp.second.print(print_func, names);
     }
 }

@@ -119,9 +119,12 @@ struct MIGRAPHX_EXPORT program
      * Recompile the kernels of a compiled program for the target `t` from the recipes kept with
      * compile_options::keep_recipes. Only kernels change: the graph, literals, memory plan and
      * schedule are kept. The tuning level recorded with each kernel is kept unless
-     * `options.exhaustive_tune` is set. The program is unchanged if retuning fails.
+     * `options.exhaustive_tune` is set. The program is unchanged if retuning fails. Throws if
+     * `t` does not support retuning.
      */
-    void retune(const target& t, compile_options options = compile_options{});
+    void retune(const target& t,
+                compile_options options    = compile_options{},
+                retune_options retune_opts = retune_options{});
 
     /// The device the program was compiled for, as recorded by its target, or a null value.
     value get_compiled_for() const;

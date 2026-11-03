@@ -74,14 +74,9 @@ bool is_out_of_scope(const std::string& name)
     return contains(names, name);
 }
 
-std::string source_op_name(const code_object_op& co)
+bool is_ck_kernel(instruction_ref recipe)
 {
-    return co.source.without_key().at("operator").at("op").at("name").to<std::string>();
-}
-
-bool is_ck_kernel(const code_object_op& co)
-{
-    return co.has_recipe() and starts_with(source_op_name(co), "gpu::ck_");
+    return starts_with(recipe_op_name(recipe), "gpu::ck_");
 }
 
 std::string describe(instruction_ref ins)
@@ -168,8 +163,6 @@ void check_data_types(const program& p, const context& ctx, const std::string& a
 void retune_ops::apply(program& p) const
 {
     assert(ctx != nullptr);
-    const auto from_ctx = options.contains("from") ? options.at("from").without_key() : value{};
-    const bool force = options.contains("force") and options.at("force").without_key().to<bool>();
     if(not from_ctx.is_object() or not from_ctx.contains("compiled_for"))
         MIGRAPHX_THROW("retune: the program does not record the device it was compiled for; "
                        "recompile from the model");
@@ -208,10 +201,10 @@ void retune_ops::apply(program& p) const
             }
             if(ins->name() != "gpu::code_object")
                 continue;
-            const auto& co = any_cast<code_object_op>(ins->get_operator());
-            if(co.has_recipe())
+            auto recipe = find_recipe(ins);
+            if(recipe.has_value())
                 with_recipe++;
-            if(not co.has_recipe() or is_ck_kernel(co))
+            if(not recipe.has_value() or is_ck_kernel(*recipe))
             {
                 unsupported.push_back(describe(ins));
                 continue;
@@ -248,7 +241,7 @@ void retune_ops::apply(program& p) const
     for(const auto& k : kernels)
     {
         const auto& co      = any_cast<code_object_op>(k.ins->get_operator());
-        const bool tunable  = not co.problem.is_null();
+        const bool tunable  = co.tuning_level != "none";
         const bool was_exh  = co.tuning_level == "exhaustive";
         const bool exh      = exhaustive_tune or was_exh;
         const bool at_level = was_exh == exh;
@@ -269,14 +262,13 @@ void retune_ops::apply(program& p) const
     for(auto i : range(selected.size()))
     {
         const auto& k   = selected[i];
-        auto old        = any_cast<code_object_op>(k.ins->get_operator());
         const auto& nop = recompiled[i].code_object;
         const auto& nco = any_cast<code_object_op>(nop);
         k.mod->replace_instruction(k.ins, nop, k.ins->inputs(), k.ins->module_inputs());
 
         // Only tuned kernels are timed: time_op feeds random inputs, which can drive kernels
         // that take indices (gather, scatter) out of bounds and fault the whole device.
-        const bool tunable = not nco.problem.is_null();
+        const bool tunable = nco.tuning_level != "none";
         std::string time   = tunable ? "not benchmarked" : "not timed";
         if(recompiled[i].benchmarked and tunable)
         {
@@ -293,7 +285,7 @@ void retune_ops::apply(program& p) const
             }
         }
         report << "  " << nco.symbol_name << "  " << from_gfx << " -> " << to_gfx << "  "
-               << solution_string(old.solution) << " -> " << solution_string(nco.solution) << "  "
+               << solution_string(recompiled[i].solution) << "  "
                << (tunable ? nco.tuning_level : "-") << "  " << time;
         if(recompiled[i].excluded > 0)
             report << "  (" << recompiled[i].excluded << " signature-changing candidates excluded)";

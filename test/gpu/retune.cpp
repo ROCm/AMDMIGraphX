@@ -32,6 +32,7 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
+#include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_description.hpp>
 #include <migraphx/gpu/device_name.hpp>
@@ -93,15 +94,37 @@ static std::vector<migraphx::gpu::code_object_op> get_kernels(const migraphx::pr
     return result;
 }
 
+static std::vector<migraphx::instruction_ref> kernel_instructions(migraphx::program& p)
+{
+    std::vector<migraphx::instruction_ref> result;
+    for(auto* mod : p.get_modules())
+    {
+        for(auto ins : migraphx::iterator_for(*mod))
+        {
+            if(ins->name() == "gpu::code_object")
+                result.push_back(ins);
+        }
+    }
+    return result;
+}
+
+static bool all_have_recipes(migraphx::program& p)
+{
+    auto kernels = kernel_instructions(p);
+    return not kernels.empty() and std::all_of(kernels.begin(), kernels.end(), [](auto ins) {
+        return migraphx::gpu::find_recipe(ins).has_value();
+    });
+}
+
 static std::string compiled_arch(const migraphx::program& p)
 {
     return p.get_compiled_for().at("arch").to<std::string>();
 }
 
-static migraphx::compile_options force_options()
+static migraphx::retune_options force_options()
 {
-    migraphx::compile_options options;
-    options.backend_options["retune"] = migraphx::value{{"force", true}};
+    migraphx::retune_options options;
+    options.force = true;
     return options;
 }
 
@@ -200,38 +223,42 @@ TEST_CASE(gfx_generation)
     EXPECT(migraphx::gpu::get_gfx_generation("sm_80") == 0);
 }
 
-TEST_CASE(code_object_recipe_round_trip)
+TEST_CASE(code_object_tuning_level_round_trip)
 {
     migraphx::gpu::code_object_op co;
-    co.symbol_name   = "kernel";
-    co.source        = migraphx::value{{"name", "gpu::precompile_op"}};
-    co.source_inputs = {migraphx::shape{migraphx::shape::float_type, {2, 3}}};
-    co.problem       = migraphx::value{{"m", 1}};
-    co.solution      = "perf_config";
-    co.tuning_level  = "quick";
-    auto op          = migraphx::make_op("gpu::code_object", migraphx::to_value(co));
-    auto op2         = migraphx::make_op("gpu::code_object", op.to_value());
-    auto co2         = migraphx::any_cast<migraphx::gpu::code_object_op>(op2);
-    EXPECT(co2.has_recipe());
-    EXPECT(co2.source.without_key() == co.source);
-    EXPECT(co2.source_inputs == co.source_inputs);
-    EXPECT(co2.problem.without_key() == co.problem);
-    EXPECT(co2.solution.without_key() == co.solution);
+    co.symbol_name  = "kernel";
+    co.tuning_level = "quick";
+    auto op         = migraphx::make_op("gpu::code_object", migraphx::to_value(co));
+    auto op2        = migraphx::make_op("gpu::code_object", op.to_value());
+    auto co2        = migraphx::any_cast<migraphx::gpu::code_object_op>(op2);
     EXPECT(co2.tuning_level == "quick");
 }
 
 TEST_CASE(recipes_kept)
 {
-    auto p       = compile_program(migraphx::make_target("gpu"));
-    auto kernels = get_kernels(p);
-    EXPECT(not kernels.empty());
-    for(const auto& co : kernels)
+    auto p = compile_program(migraphx::make_target("gpu"));
+    EXPECT(all_have_recipes(p));
+    for(auto ins : kernel_instructions(p))
     {
-        EXPECT(co.has_recipe());
-        EXPECT(co.tuning_level == "quick");
-        EXPECT(not co.source_inputs.empty());
+        const auto& co = migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator());
+        EXPECT(co.tuning_level == "quick" or co.tuning_level == "none");
+        // The recipe takes the same arguments as the kernel and is skipped by passes
+        auto recipe = *migraphx::gpu::find_recipe(ins);
+        EXPECT(recipe->inputs().size() == ins->inputs().size());
+        EXPECT(not migraphx::gpu::recipe_op_name(recipe).empty());
+        EXPECT(ins->module_inputs().front()->bypass());
     }
     expect_matches_ref(p);
+}
+
+TEST_CASE(recipes_survive_save_and_load)
+{
+    auto p = compile_program(migraphx::make_target("gpu"));
+    migraphx::file_options fo;
+    fo.finalize = false;
+    auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
+    EXPECT(all_have_recipes(q));
+    EXPECT(kernel_instructions(q).size() == kernel_instructions(p).size());
 }
 
 TEST_CASE(no_recipes_by_default)
@@ -239,8 +266,13 @@ TEST_CASE(no_recipes_by_default)
     migraphx::compile_options options;
     options.offload_copy = true;
     auto p               = compile_program(migraphx::make_target("gpu"), options);
-    for(const auto& co : get_kernels(p))
-        EXPECT(not co.has_recipe());
+    for(auto ins : kernel_instructions(p))
+    {
+        EXPECT(not migraphx::gpu::find_recipe(ins).has_value());
+        EXPECT(ins->module_inputs().empty());
+        EXPECT(migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator())
+                   .tuning_level.empty());
+    }
 }
 
 TEST_CASE(load_without_finalize)
@@ -279,9 +311,8 @@ TEST_CASE(retune_same_target_force)
     migraphx::file_options fo;
     fo.finalize = false;
     auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
-    q.retune(migraphx::make_target("gpu"), force_options());
-    for(const auto& co : get_kernels(q))
-        EXPECT(co.has_recipe());
+    q.retune(migraphx::make_target("gpu"), {}, force_options());
+    EXPECT(all_have_recipes(q));
     expect_matches_ref(q);
 }
 
@@ -293,7 +324,7 @@ TEST_CASE(retune_exhaustive_level)
     p.retune(migraphx::make_target("gpu"), options);
     // Only tunable kernels are recompiled at the higher level
     for(const auto& co : get_kernels(p))
-        EXPECT(co.tuning_level == (co.problem.is_null() ? "quick" : "exhaustive"));
+        EXPECT(co.tuning_level == "none" or co.tuning_level == "exhaustive");
     expect_matches_ref(p);
 }
 
@@ -306,9 +337,9 @@ TEST_CASE(retarget_cross_compile_newer_generation)
     EXPECT(compiled_arch(p) == "gfx1201");
     auto after = get_kernels(p);
     EXPECT(before.size() == after.size());
+    EXPECT(all_have_recipes(p));
     for(std::size_t i = 0; i < before.size(); i++)
     {
-        EXPECT(after[i].has_recipe());
         EXPECT(before[i].code_object != after[i].code_object);
         EXPECT(before[i].expected_inputs == after[i].expected_inputs);
     }
@@ -370,7 +401,7 @@ TEST_CASE(retune_kernel_with_lowering_fill)
     migraphx::file_options fo;
     fo.finalize = false;
     auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
-    q.retune(migraphx::make_target("gpu"), force_options());
+    q.retune(migraphx::make_target("gpu"), {}, force_options());
     EXPECT(has_kernel(q, "nms_compact_kernel"));
     expect_nms_result(q);
 }
@@ -388,6 +419,14 @@ TEST_CASE(retune_requires_compiled_program)
     auto p = make_program();
     EXPECT(test::throws<migraphx::exception>([&] { p.retune(migraphx::make_target("gpu")); },
                                              "not compiled"));
+}
+
+TEST_CASE(retune_unsupported_target_refused)
+{
+    auto p = make_program();
+    p.compile(migraphx::make_target("ref"));
+    EXPECT(test::throws<migraphx::exception>([&] { p.retune(migraphx::make_target("ref")); },
+                                             "does not support retune"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

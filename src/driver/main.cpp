@@ -1049,11 +1049,11 @@ struct retune_cmd : command<retune_cmd>
                 MIGRAPHX_THROW("--backend-options must be a JSON object");
             migraphx::set_backend_options(co, v);
         }
-        if(force)
-            co.backend_options["retune"] = value{{"force", true}};
+        retune_options ro;
+        ro.force = force;
         log::info() << "Retuning ...";
         timer t{};
-        p.retune(ct.get_target(), co);
+        p.retune(ct.get_target(), co, ro);
         log::info() << "Retune time: " << t.record<std::chrono::milliseconds>() << "ms";
         l.save(p);
     }

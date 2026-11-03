@@ -45,9 +45,9 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
     /**
-     * Keep on each compiled kernel what is needed to recompile it (source op, submodule,
-     * tuning problem, solution and tuning level), so the program can be retuned or
-     * retargeted with program::retune without the original model.
+     * Keep with each compiled kernel what is needed to recompile it (its precompile op in a
+     * recipe submodule, and its tuning level), so the program can be retuned or retargeted with
+     * program::retune without the original model.
      */
     bool keep_recipes = false;
 
@@ -59,6 +59,15 @@ struct compile_options
     std::unordered_map<std::string, value> backend_options;
 
     tracer trace{};
+};
+
+/// Options for program::retune
+struct retune_options
+{
+    /// Recompile kernels that are already at the requested tuning level on the same device
+    bool force = false;
+    /// The serialized context of the program being retuned. Set by program::retune.
+    value from = value{};
 };
 
 /**

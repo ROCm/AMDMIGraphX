@@ -41,13 +41,14 @@ struct context;
  * Recompile the gpu::code_object kernels of a compiled program from their recipes for the
  * device of ctx, in place. The graph, literals, memory plan and schedule are not changed.
  *
- * options holds "from", the serialized context of the program being retuned, and optionally
- * "force" to recompile kernels that are already at the requested tuning level.
+ * from_ctx is the serialized context of the program being retuned. force recompiles kernels
+ * that are already at the requested tuning level.
  */
 struct MIGRAPHX_GPU_EXPORT retune_ops
 {
     context* ctx         = nullptr;
-    value options        = value::object{};
+    value from_ctx       = value{};
+    bool force           = false;
     bool exhaustive_tune = false;
     std::string name() const { return "gpu::retune_ops"; }
     void apply(program& p) const;

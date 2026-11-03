@@ -425,9 +425,18 @@ struct dynamic_code_object_op
 MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 
 // forward declared since it requires compile_manager
-static void replace_inserted_device_ops(context& ctx,
-                                        const std::vector<module_ref>& mods,
-                                        bool keep_recipes = false);
+static void
+replace_inserted_device_ops(context& ctx,
+                            const std::vector<module_ref>& mods,
+                            const std::function<module_ref()>& make_recipe_module = nullptr);
+
+// Mark a recipe module and the modules it uses as bypass, so passes leave them alone
+static void set_bypass(module_ref recipe)
+{
+    recipe->set_bypass();
+    for(auto* smod : recipe->get_sub_modules())
+        smod->set_bypass();
+}
 
 /// One compilation and its result, shared by every result slot whose key matches. Each cell is
 /// written by exactly one worker during the parallel compile; sharers read it after the join.
@@ -751,18 +760,23 @@ struct compile_plan
         return value{};
     }
 
-    void replace(module& m, bool keep_recipe = false, bool exhaustive = false) const
+    /// Replace the precompile op with its compiled kernel. When make_recipe_module is set, the
+    /// precompile op is also kept in a new recipe submodule of the kernel, so retune can
+    /// recompile it.
+    void replace(module& m,
+                 const std::function<module_ref()>& make_recipe_module = nullptr,
+                 bool exhaustive                                       = false) const
     {
         const auto& cr = benchmark();
-        if(not keep_recipe or ins == m.begin())
+        if(not make_recipe_module or ins == m.begin())
         {
             cr.replace(m, ins);
             return;
         }
-        auto start         = std::prev(ins);
-        auto source        = to_value(ins->get_operator());
-        auto source_inputs = to_shapes(ins->inputs());
-        auto mods          = ins->module_inputs();
+        auto start  = std::prev(ins);
+        auto pre_op = ins->get_operator();
+        auto inputs = to_shapes(ins->inputs());
+        auto mods   = ins->module_inputs();
         cr.replace(m, ins);
 
         // The replacement inserts its instructions before ins, or rewrites it in place
@@ -779,21 +793,26 @@ struct compile_plan
                          << cos.size() << " kernels";
             return;
         }
-        auto co_ins      = cos.front();
-        auto co          = any_cast<code_object_op>(co_ins->get_operator());
-        co.source        = source;
-        co.source_inputs = source_inputs;
-        co.problem       = config.has_value() ? config->problem : value{};
-        co.solution      = solution_of(cr);
-        co.tuning_level  = exhaustive ? "exhaustive" : "quick";
+        auto co_ins     = cos.front();
+        auto co         = any_cast<code_object_op>(co_ins->get_operator());
+        co.tuning_level = tuning_level(exhaustive);
+
+        auto* recipe = make_recipe_module();
+        std::vector<instruction_ref> params;
+        for(auto i : range(inputs.size()))
+            params.push_back(recipe->add_parameter("x" + std::to_string(i), inputs[i]));
+        recipe->add_return({recipe->add_instruction(pre_op, params, mods)});
         // Later passes such as write_literals must not rewrite the recipe
-        for(auto* rmod : mods)
-        {
-            rmod->set_bypass();
-            for(auto* smod : rmod->get_sub_modules())
-                smod->set_bypass();
-        }
-        m.replace_instruction(co_ins, co, co_ins->inputs(), mods);
+        set_bypass(recipe);
+        m.replace_instruction(co_ins, co, co_ins->inputs(), {recipe});
+    }
+
+    /// The tuning level recorded with a kernel compiled from this plan
+    std::string tuning_level(bool exhaustive) const
+    {
+        if(not config.has_value())
+            return "none";
+        return exhaustive ? "exhaustive" : "quick";
     }
 
     std::size_t save_binaries(const fs::path& mxr_dir) const
@@ -847,7 +866,8 @@ struct compile_manager
     std::vector<compile_plan> cps;
     bool exhaustive     = false;
     bool skip_benchmark = false;
-    bool keep_recipes   = false;
+    /// Creates a recipe submodule for each compiled kernel. Empty unless keep_recipes is set.
+    std::function<module_ref()> make_recipe_module = nullptr;
     /// When set, plans with several candidates are saved here as benchmark MXR files instead of
     /// being replaced. Left empty by the nested batch in replace_inserted_device_ops.
     fs::path mxr_dir             = {};
@@ -994,7 +1014,8 @@ struct compile_manager
             if(dump_mxr and cp.results.size() > 1)
                 dumped_mxr_files += cp.save_binaries(mxr_dir);
             else
-                cp.replace(*cp.mod, keep_recipes, exhaustive or cp.ctx->get_exhaustive_tune_flag());
+                cp.replace(
+                    *cp.mod, make_recipe_module, exhaustive or cp.ctx->get_exhaustive_tune_flag());
         }
 
         // Remove compile_plan already executed
@@ -1023,11 +1044,12 @@ struct compile_manager
     }
 };
 
-static void
-replace_inserted_device_ops(context& ctx, const std::vector<module_ref>& mods, bool keep_recipes)
+static void replace_inserted_device_ops(context& ctx,
+                                        const std::vector<module_ref>& mods,
+                                        const std::function<module_ref()>& make_recipe_module)
 {
     compile_manager cm;
-    cm.keep_recipes = keep_recipes;
+    cm.make_recipe_module = make_recipe_module;
     for(auto* m : mods)
     {
         run_passes(*m, {dead_code_elimination{}});
@@ -1115,7 +1137,15 @@ void compile_ops::apply(module_pass_manager& mpm) const
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
     cm.mxr_dir        = dump_mxr_dir;
-    cm.keep_recipes   = keep_recipes;
+    // One counter for every batch, since each recipe module needs a unique name
+    std::size_t recipes = 0;
+    if(keep_recipes)
+    {
+        cm.make_recipe_module = [&] {
+            return mpm.create_module(mpm.get_root_module()->name() + ":recipe" +
+                                     std::to_string(recipes++));
+        };
+    }
     for(auto* m : mods)
         cm.add_plans(*ctx, m);
     cm.update_configs();
@@ -1127,8 +1157,29 @@ void compile_ops::apply(module_pass_manager& mpm) const
     cm.compile();
     assert(cm.cps.empty());
 
-    replace_inserted_device_ops(*ctx, mods, keep_recipes);
+    replace_inserted_device_ops(*ctx, mods, cm.make_recipe_module);
     assign_module_ids(mods);
+}
+
+optional<instruction_ref> find_recipe(instruction_ref ins)
+{
+    if(ins->name() != "gpu::code_object" or ins->module_inputs().size() != 1)
+        return nullopt;
+    auto* recipe = ins->module_inputs().front();
+    if(recipe->begin() == recipe->end())
+        return nullopt;
+    auto last = std::prev(recipe->end());
+    if(last->name() != "@return" or last->inputs().size() != 1)
+        return nullopt;
+    auto pre = last->inputs().front();
+    if(pre->name() != "gpu::precompile_op")
+        return nullopt;
+    return pre;
+}
+
+std::string recipe_op_name(instruction_ref recipe)
+{
+    return any_cast<precompile_op>(recipe->get_operator()).op.name();
 }
 
 namespace {
@@ -1155,20 +1206,13 @@ bool fits_in_place(const kernel_signature& kernel, const kernel_signature& candi
            });
 }
 
-operation recipe_source(const code_object_op& co)
-{
-    return from_value<operation>(co.source.without_key());
-}
-
 // The fill value of a kernel compiled from hip::fill, read from its recipe
 optional<double> compiled_fill_value(instruction_ref ins)
 {
-    if(ins->name() != "gpu::code_object")
+    auto recipe = find_recipe(ins);
+    if(not recipe.has_value())
         return nullopt;
-    const auto& co = any_cast<code_object_op>(ins->get_operator());
-    if(not co.has_recipe())
-        return nullopt;
-    auto op = any_cast<precompile_op>(recipe_source(co)).op;
+    auto op = any_cast<precompile_op>((*recipe)->get_operator()).op;
     if(op.name() != "hip::fill")
         return nullopt;
     return op.to_value().at("value").to<double>();
@@ -1191,13 +1235,14 @@ kernel_signature make_signature(instruction_ref ins, const code_object_op& co, F
 
 // Insert a compiled candidate into its own module and return its kernel, or nothing when the
 // replacement is not a single kernel
-optional<std::pair<code_object_op, kernel_signature>> candidate_kernel(
-    const compiler_replace& cr, instruction_ref pre_ins, const std::vector<shape>& source_inputs)
+optional<std::pair<code_object_op, kernel_signature>> candidate_kernel(const compiler_replace& cr,
+                                                                       instruction_ref pre_ins)
 {
     module m{"retune_candidate"};
     std::vector<instruction_ref> params;
-    for(auto i : range(source_inputs.size()))
-        params.push_back(m.add_parameter("x" + std::to_string(i), source_inputs[i]));
+    for(auto i : range(pre_ins->inputs().size()))
+        params.push_back(
+            m.add_parameter("x" + std::to_string(i), pre_ins->inputs()[i]->get_shape()));
     auto ins = m.add_instruction(pre_ins->get_operator(), params, pre_ins->module_inputs());
     m.add_return({ins});
     cr.replace(m, ins);
@@ -1226,35 +1271,24 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
                                                  const std::vector<recompile_request>& requests)
 {
     const auto n = requests.size();
-    std::vector<std::unique_ptr<module>> scratch;
     std::vector<compile_plan> plans;
     std::vector<code_object_op> olds;
     std::vector<kernel_signature> sigs;
-    scratch.reserve(n);
     plans.reserve(n);
     for(const auto& req : requests)
     {
-        auto old = any_cast<code_object_op>(req.ins->get_operator());
-        if(not old.has_recipe())
+        auto old    = any_cast<code_object_op>(req.ins->get_operator());
+        auto recipe = find_recipe(req.ins);
+        if(not recipe.has_value())
             MIGRAPHX_THROW("retune: no recipe for kernel " + old.symbol_name);
-        auto pre = recipe_source(old);
-        // The bypass flag of fused submodules is not serialized
-        for(auto* rmod : req.ins->module_inputs())
-        {
-            rmod->set_bypass();
-            for(auto* smod : rmod->get_sub_modules())
-                smod->set_bypass();
-        }
-        auto m = std::make_unique<module>("retune:" + old.symbol_name);
-        std::vector<instruction_ref> params;
-        for(auto i : range(old.source_inputs.size()))
-            params.push_back(m->add_parameter("x" + std::to_string(i), old.source_inputs[i]));
-        auto ins = m->add_instruction(pre, params, req.ins->module_inputs());
-        m->add_return({ins});
-        plans.push_back({&ctx, any_cast<precompile_op>(pre).op, ins, m.get()});
+        // Compile from the precompile op in the recipe module, which the plan does not change
+        auto pre = *recipe;
+        plans.push_back({&ctx,
+                         any_cast<precompile_op>(pre->get_operator()).op,
+                         pre,
+                         req.ins->module_inputs().front()});
         sigs.push_back(make_signature(req.ins, old, &compiled_fill_value));
         olds.push_back(std::move(old));
-        scratch.push_back(std::move(m));
     }
     par_compile(n, [&](auto i) { plans[i].update_config(requests[i].exhaustive); });
 
@@ -1293,7 +1327,7 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
             {
                 if(not has_result(cp.results[j]))
                     continue;
-                auto k = candidate_kernel(*cp.results[j]->result, cp.ins, olds[i].source_inputs);
+                auto k = candidate_kernel(*cp.results[j]->result, cp.ins);
                 if(k.has_value() and fits_in_place(sigs[i], k->second))
                 {
                     kernels[j] = k->first;
@@ -1318,13 +1352,10 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
                     return has_result(c) and &*c->result == &best;
                 })));
             auto co          = *kernels.at(j);
-            co.source        = olds[i].source;
-            co.source_inputs = olds[i].source_inputs;
-            co.problem       = cp.config.has_value() ? cp.config->problem : value{};
-            co.solution      = cp.solution_of(best);
             co.tuning_level =
-                requests[i].exhaustive or ctx.get_exhaustive_tune_flag() ? "exhaustive" : "quick";
+                cp.tuning_level(requests[i].exhaustive or ctx.get_exhaustive_tune_flag());
             result[i].code_object = co;
+            result[i].solution    = cp.solution_of(best);
             result[i].excluded    = excluded;
             result[i].benchmarked = not ctx.is_cross_compile();
             done[i]               = true;

@@ -57,13 +57,9 @@ struct code_object_op
     // share one loaded module through the context; -1 loads a private module.
     std::int64_t module_id = -1;
 
-    // Recipe used by retune to recompile the kernel for another target. The precompile op's
-    // submodule, if any, is kept as the instruction's module input. Empty when the program was
-    // compiled without keep_recipes.
-    value source{};
-    std::vector<shape> source_inputs{};
-    value problem{};
-    value solution{};
+    // Tuning level of the kernel when it was compiled with keep_recipes: "quick", "exhaustive",
+    // or "none" when the kernel has nothing to tune. Empty without keep_recipes. The recipe
+    // itself, the precompile op, is in the instruction's recipe submodule.
     std::string tuning_level = "";
 
     // Pre-packed kernarg buffer built in finalize(); not reflected.
@@ -86,14 +82,8 @@ struct code_object_op
                     f(self.annotations, "annotations"),
                     f(self.kernel_args, "kernel_args"),
                     f(self.module_id, "module_id"),
-                    f(self.source, "source"),
-                    f(self.source_inputs, "source_inputs"),
-                    f(self.problem, "problem"),
-                    f(self.solution, "solution"),
                     f(self.tuning_level, "tuning_level"));
     }
-
-    bool has_recipe() const { return not source.is_null(); }
 
     value attributes() const
     {
@@ -136,7 +126,7 @@ struct code_object_op
             os << "annotations=" << op.annotations << ",";
         if(op.module_id != -1)
             os << "module_id=" << op.module_id << ",";
-        if(op.has_recipe())
+        if(not op.tuning_level.empty())
             os << "tuning_level=" << op.tuning_level << ",";
         os << "]";
         return os;

@@ -28,6 +28,8 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/value.hpp>
 #include <string>
 #include <vector>
 
@@ -62,8 +64,10 @@ struct recompile_request
 
 struct recompiled_kernel
 {
-    // The new gpu::code_object, with the recipe of the old one and the new solution
+    // The new gpu::code_object. The instruction keeps its recipe module.
     operation code_object;
+    // The tuning solution the new kernel was compiled with, or null if it has nothing to tune
+    value solution;
     // Candidates dropped because they take different arguments or need a fill the program does
     // not have (for example split-K)
     std::size_t excluded = 0;
@@ -75,6 +79,13 @@ struct recompiled_kernel
 /// and whose fills are already in the program, are kept. Throws if a kernel has no such candidate.
 MIGRAPHX_GPU_EXPORT std::vector<recompiled_kernel>
 recompile_kernels(context& ctx, const std::vector<recompile_request>& requests);
+
+/// The gpu::precompile_op instruction in the recipe module of a gpu::code_object instruction, or
+/// nothing when the kernel was compiled without keep_recipes
+MIGRAPHX_GPU_EXPORT optional<instruction_ref> find_recipe(instruction_ref ins);
+
+/// The name of the op a recipe compiles, for example "gpu::mlir_op"
+MIGRAPHX_GPU_EXPORT std::string recipe_op_name(instruction_ref recipe);
 
 } // namespace gpu
 

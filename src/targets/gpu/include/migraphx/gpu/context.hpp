@@ -338,7 +338,8 @@ struct context
 
     void set_exhaustive_tune_flag(bool t) { exhaustive_tune = t; }
 
-    // When true, compile_hip_src skips spawning migraphx-hiprtc-driver and compiles in-process.
+    // When true, kernels compile in-process instead of spawning migraphx-hiprtc-driver; the
+    // binary cache's compiler-version probe still spawns it.
     // Set via compile_options::backend_options["hiprtc_disable_processes"].
     bool get_disable_processes() const { return disable_processes; }
 

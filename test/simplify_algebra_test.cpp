@@ -5059,8 +5059,9 @@ TEST_CASE(mul_dot_a)
             migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {1, 1}}}),
             litb);
         auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), slc);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 2}}}), sq);
         auto litk = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", bs.lens()}}), sq);
+            migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), unsq);
 
         auto b   = m2.add_literal(migraphx::generate_literal(bs));
         auto mul = m2.add_instruction(migraphx::make_op("mul"), b, litk);
@@ -5106,8 +5107,9 @@ TEST_CASE(mul_dot_b)
             migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 0}}, {"ends", {1, 1}}}),
             litb);
         auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), slc);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), sq);
         auto litk = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", as.lens()}}), sq);
+            migraphx::make_op("multibroadcast", {{"out_lens", as.lens()}}), unsq);
 
         auto a   = m2.add_literal(migraphx::generate_literal(as));
         auto mul = m2.add_instruction(migraphx::make_op("mul"), a, litk);
@@ -7300,9 +7302,10 @@ TEST_CASE(simplify_dot_axis_linear_mul_through_transpose)
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", ys.lens()}}), s);
         auto slc = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), sb);
-        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), slc);
-        auto sk = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", cs.lens()}}), sq);
+        auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), slc);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), sq);
+        auto sk = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", cs.lens()}}),
+                                     unsq);
         auto cm = m2.add_instruction(migraphx::make_op("mul"), c, sk);
         auto tr =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
@@ -7351,9 +7354,10 @@ TEST_CASE(simplify_dot_axis_linear_scaled_concat)
         auto rev = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2}}}), neg);
         auto slc = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), sb);
-        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), slc);
-        auto sk = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {1, 2, 2}}}), sq);
+        auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), slc);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), sq);
+        auto sk = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2}}}),
+                                     unsq);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), rev, sk);
         auto pad =
             m2.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 1, 0, 0, 0}}}), mul);
@@ -7361,6 +7365,275 @@ TEST_CASE(simplify_dot_axis_linear_scaled_concat)
         auto dot = m2.add_instruction(migraphx::make_op("dot"), sum, y);
         m2.add_instruction(pass_op{}, dot);
     }
+    EXPECT(m1 == m2);
+}
+
+// A zero pad on the contracted axis becomes a slice of the constant
+TEST_CASE(simplify_dot_axis_linear_pad)
+{
+    migraphx::shape ys{migraphx::shape::float_type, {1, 3, 2}};
+    migraphx::shape cs{migraphx::shape::float_type, {1, 2, 5}};
+    migraphx::module m1;
+    {
+        auto y   = m1.add_parameter("y", ys);
+        auto c   = m1.add_literal(migraphx::generate_literal(cs, 1));
+        auto pad = m1.add_instruction(migraphx::make_op("pad", {{"pads", {0, 1, 0, 0, 1, 0}}}), y);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, pad);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y   = m2.add_parameter("y", ys);
+        auto c   = m2.add_literal(migraphx::generate_literal(cs, 1));
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {4}}}), c);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), slc, y);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+// dot(c, dot(w, y)) folds to dot(dot(c, w), y)
+TEST_CASE(simplify_dot_axis_linear_dot_left)
+{
+    migraphx::shape ys{migraphx::shape::float_type, {1, 3, 2}};
+    migraphx::shape ws{migraphx::shape::float_type, {1, 4, 3}};
+    migraphx::shape cs{migraphx::shape::float_type, {1, 2, 4}};
+    migraphx::module m1;
+    {
+        auto y     = m1.add_parameter("y", ys);
+        auto w     = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto c     = m1.add_literal(migraphx::generate_literal(cs, 2));
+        auto inner = m1.add_instruction(migraphx::make_op("dot"), w, y);
+        auto dot   = m1.add_instruction(migraphx::make_op("dot"), c, inner);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y   = m2.add_parameter("y", ys);
+        auto w   = m2.add_literal(migraphx::generate_literal(ws, 1));
+        auto c   = m2.add_literal(migraphx::generate_literal(cs, 2));
+        auto cw  = m2.add_instruction(migraphx::make_op("dot"), c, w);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), cw, y);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+// dot(dot(y, w), c) folds to dot(y, dot(w, c))
+TEST_CASE(simplify_dot_axis_linear_dot_right)
+{
+    migraphx::shape ys{migraphx::shape::float_type, {1, 2, 3}};
+    migraphx::shape ws{migraphx::shape::float_type, {1, 3, 4}};
+    migraphx::shape cs{migraphx::shape::float_type, {1, 4, 5}};
+    migraphx::module m1;
+    {
+        auto y     = m1.add_parameter("y", ys);
+        auto w     = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto c     = m1.add_literal(migraphx::generate_literal(cs, 2));
+        auto inner = m1.add_instruction(migraphx::make_op("dot"), y, w);
+        auto dot   = m1.add_instruction(migraphx::make_op("dot"), inner, c);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y   = m2.add_parameter("y", ys);
+        auto w   = m2.add_literal(migraphx::generate_literal(ws, 1));
+        auto c   = m2.add_literal(migraphx::generate_literal(cs, 2));
+        auto wc  = m2.add_instruction(migraphx::make_op("dot"), w, c);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), y, wc);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+// A transpose between the dots flips which side w acts on, so it is
+// transposed into the constant
+TEST_CASE(simplify_dot_axis_linear_dot_transposed)
+{
+    migraphx::shape ys{migraphx::shape::float_type, {1, 2, 3}};
+    migraphx::shape ws{migraphx::shape::float_type, {1, 3, 4}};
+    migraphx::shape cs{migraphx::shape::float_type, {1, 5, 4}};
+    migraphx::module m1;
+    {
+        auto y     = m1.add_parameter("y", ys);
+        auto w     = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto c     = m1.add_literal(migraphx::generate_literal(cs, 2));
+        auto inner = m1.add_instruction(migraphx::make_op("dot"), y, w);
+        auto tr =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), inner);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, tr);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y = m2.add_parameter("y", ys);
+        auto w = m2.add_literal(migraphx::generate_literal(ws, 1));
+        auto c = m2.add_literal(migraphx::generate_literal(cs, 2));
+        auto wt =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), w);
+        auto cw = m2.add_instruction(migraphx::make_op("dot"), c, wt);
+        auto tr =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), cw, tr);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+// An inner dot with a shorter contraction is a bottleneck, so it stays
+TEST_CASE(simplify_dot_axis_linear_dot_bottleneck)
+{
+    migraphx::module m1;
+    {
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {1, 3, 2}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 2, 3}}, 1));
+        auto c =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 2, 2}}, 2));
+        auto inner = m1.add_instruction(migraphx::make_op("dot"), w, y);
+        auto dot   = m1.add_instruction(migraphx::make_op("dot"), c, inner);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// The sum of two chains of y folds as the sum of their mirrors
+TEST_CASE(simplify_dot_axis_linear_add_chains)
+{
+    migraphx::shape ys{migraphx::shape::float_type, {1, 3, 2}};
+    migraphx::shape cs{migraphx::shape::float_type, {1, 2, 3}};
+    migraphx::module m1;
+    {
+        auto y   = m1.add_parameter("y", ys);
+        auto c   = m1.add_literal(migraphx::generate_literal(cs, 1));
+        auto rev = m1.add_instruction(migraphx::make_op("reverse", {{"axes", {1}}}), y);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), y, rev);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, sum);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y   = m2.add_parameter("y", ys);
+        auto c   = m2.add_literal(migraphx::generate_literal(cs, 1));
+        auto rev = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2}}}), c);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), c, rev);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), sum, y);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+// A scale along a batch axis moves onto the same batch axis of the constant
+TEST_CASE(simplify_dot_axis_linear_batch_scale)
+{
+    migraphx::shape ys{migraphx::shape::float_type, {2, 3, 2}};
+    migraphx::shape cs{migraphx::shape::float_type, {2, 4, 3}};
+    migraphx::shape ss{migraphx::shape::float_type, {2, 1, 1}};
+    migraphx::module m1;
+    {
+        auto y = m1.add_parameter("y", ys);
+        auto c = m1.add_literal(migraphx::generate_literal(cs, 1));
+        auto s = m1.add_literal(migraphx::generate_literal(ss, 2));
+        auto sb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", ys.lens()}}), s);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), y, sb);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, mul);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y = m2.add_parameter("y", ys);
+        auto c = m2.add_literal(migraphx::generate_literal(cs, 1));
+        auto s = m2.add_literal(migraphx::generate_literal(ss, 2));
+        auto sb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", ys.lens()}}), s);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 0}}, {"ends", {1, 1}}}),
+            sb);
+        auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2}}}), slc);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), sq);
+        auto sk = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}),
+                                     unsq);
+        auto cm = m2.add_instruction(migraphx::make_op("mul"), c, sk);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), cm, y);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+// A transpose inside both branches hoists above the recombination
+TEST_CASE(simplify_dot_axis_linear_inner_transpose)
+{
+    migraphx::shape ys{migraphx::shape::float_type, {1, 2, 3}};
+    migraphx::shape cs{migraphx::shape::float_type, {1, 2, 5}};
+    migraphx::module m1;
+    {
+        auto y = m1.add_parameter("y", ys);
+        auto c = m1.add_literal(migraphx::generate_literal(cs, 1));
+        auto tr =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
+        auto slc = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), tr);
+        auto rev = m1.add_instruction(migraphx::make_op("reverse", {{"axes", {1}}}), slc);
+        auto neg = m1.add_instruction(migraphx::make_op("neg"), rev);
+        auto cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), tr, neg);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, cat);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y  = m2.add_parameter("y", ys);
+        auto c  = m2.add_literal(migraphx::generate_literal(cs, 1));
+        auto c0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {3}}}), c);
+        auto c1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {3}}, {"ends", {5}}}), c);
+        auto neg = m2.add_instruction(migraphx::make_op("neg"), c1);
+        auto rev = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2}}}), neg);
+        auto pad =
+            m2.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 1, 0, 0, 0}}}), rev);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), c0, pad);
+        auto tr =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), sum, tr);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+// Branches that reach y through different transforms cannot share one
+TEST_CASE(simplify_dot_axis_linear_mismatched_transforms)
+{
+    migraphx::module m1;
+    {
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {1, 2, 2}});
+        auto c =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 2, 4}}, 1));
+        auto tr =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
+        auto cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), y, tr);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, cat);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
     EXPECT(m1 == m2);
 }
 

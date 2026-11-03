@@ -933,6 +933,68 @@ module {
     // Don't verify here. Tests with a verify test instead.
 }
 
+TEST_CASE(mxfp4_gemm_packed_axis_of_length_1)
+{
+    // x2 is packed along its last axis, which ties on stride with the axis before it
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unpack_fp4_unpack_fp4_quant_dot(%arg0: !migraphx.shaped<1x64xf4E2M1FN, 64x1>, %arg1: !migraphx.shaped<64x2xf4E2M1FN, 2x1>, %arg2: !migraphx.shaped<1x64xf32, 64x1>, %arg3: !migraphx.shaped<64x2xf32, 2x1>) -> !migraphx.shaped<1x2xf32, 2x1> attributes ${attrs} {
+    %0 = migraphx.quant_dot %arg0 scaled by %arg2, %arg1 scaled by %arg3 : <1x64xf4E2M1FN, 64x1> scaled by !migraphx.shaped<1x64xf32, 64x1>, <64x2xf4E2M1FN, 2x1> scaled by !migraphx.shaped<64x2xf32, 2x1> -> <1x2xf32, 2x1>
+    return %0 : !migraphx.shaped<1x2xf32, 2x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x4      = m.add_parameter("x4", {migraphx::shape::float_type, {64, 2}});
+    auto x3      = m.add_parameter("x3", {migraphx::shape::float_type, {1, 64}});
+    auto x2      = m.add_parameter("x2", {migraphx::shape::fp4x2_type, {64, 1}});
+    auto x1      = m.add_parameter("x1", {migraphx::shape::fp4x2_type, {1, 32}});
+    auto unpack1 = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x1);
+    auto unpack2 = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x2);
+    auto qdot    = m.add_instruction(migraphx::make_op("quant_dot"), unpack1, unpack2, x3, x4);
+    m.add_return({qdot});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // Don't verify here. Tests with a verify test instead.
+}
+
+TEST_CASE(mxfp4_gemm_packed_axis_0)
+{
+    // x2 is packed along its first axis, which ties on stride with the trailing axis of length 1
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unpack_fp4_unpack_fp4_quant_dot(%arg0: !migraphx.shaped<1x64xf4E2M1FN, 64x1>, %arg1: !migraphx.shaped<64x1xf4E2M1FN, 1x2>, %arg2: !migraphx.shaped<1x64xf32, 64x1>, %arg3: !migraphx.shaped<64x1xf32, 1x1>) -> !migraphx.shaped<1x1xf32, 1x1> attributes ${attrs} {
+    %0 = migraphx.quant_dot %arg0 scaled by %arg2, %arg1 scaled by %arg3 : <1x64xf4E2M1FN, 64x1> scaled by !migraphx.shaped<1x64xf32, 64x1>, <64x1xf4E2M1FN, 1x2> scaled by !migraphx.shaped<64x1xf32, 1x1> -> <1x1xf32, 1x1>
+    return %0 : !migraphx.shaped<1x1xf32, 1x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x4      = m.add_parameter("x4", {migraphx::shape::float_type, {64, 1}});
+    auto x3      = m.add_parameter("x3", {migraphx::shape::float_type, {1, 64}});
+    auto x2      = m.add_parameter("x2", {migraphx::shape::fp4x2_type, {32, 1}});
+    auto x1      = m.add_parameter("x1", {migraphx::shape::fp4x2_type, {1, 32}});
+    auto unpack1 = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x1);
+    auto unpack2 = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 0}}), x2);
+    auto qdot    = m.add_instruction(migraphx::make_op("quant_dot"), unpack1, unpack2, x3, x4);
+    m.add_return({qdot});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // Don't verify here. Tests with a verify test instead.
+}
+
 TEST_CASE(mlir_lds_usage_fits_arch)
 {
     const auto device_name = migraphx::gpu::get_device_name();

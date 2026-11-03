@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/simplify_qdq.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/instruction.hpp>
@@ -36,6 +37,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
+#include <migraphx/op/builder/insert.hpp>
+#include <migraphx/ranges.hpp>
 #include <numeric>
 
 namespace match = migraphx::match;
@@ -2163,6 +2166,353 @@ TEST_CASE(fp4x2_odd_remove_qdq)
 
     run_pass(m1);
     EXPECT(m1 == m2);
+}
+
+static void run_pass_e4m3(migraphx::module& m)
+{
+    run_passes(m,
+               {migraphx::simplify_qdq{.use_mx_quant = true, .use_mx_e4m3_scales = true},
+                migraphx::dead_code_elimination{}});
+}
+
+// Expands block scales along axis as done by the block dequantizelinear builder
+static migraphx::instruction_ref add_block_expand(migraphx::module& m,
+                                                  migraphx::instruction_ref scale,
+                                                  std::size_t axis,
+                                                  std::size_t block_size)
+{
+    auto unsqueeze =
+        m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {axis + 1}}}), scale);
+    auto bc_lens      = unsqueeze->get_shape().lens();
+    bc_lens[axis + 1] = block_size;
+    auto mbcast =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bc_lens}}), unsqueeze);
+    auto lens = scale->get_shape().lens();
+    lens[axis] *= block_size;
+    return m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), mbcast);
+}
+
+// NVFP4 dequantization as parsed from ONNX: fp8e4m3fn block scales dequantized by a per-tensor
+// scale, then a block dequantizelinear of the unpacked fp4 data
+static migraphx::instruction_ref add_nvfp4_dq(migraphx::module& m,
+                                              migraphx::instruction_ref unpack,
+                                              migraphx::instruction_ref scale,
+                                              migraphx::instruction_ref per_tensor_scale,
+                                              std::size_t axis,
+                                              std::size_t block_size)
+{
+    auto dq_scale =
+        migraphx::op::builder::add("dequantizelinear", m, {scale, per_tensor_scale}).front();
+    return migraphx::op::builder::add("dequantizelinear",
+                                      m,
+                                      {unpack, dq_scale},
+                                      {{"axis", axis}, {"block_size", block_size}})
+        .front();
+}
+
+// fp8e4m3fn block scales cycling through exactly representable values
+static migraphx::argument make_nvfp4_scales(const std::vector<std::size_t>& lens)
+{
+    const std::vector<float> steps = {0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f};
+    migraphx::shape s{migraphx::shape::fp8e4m3fn_type, lens};
+    std::vector<float> values(s.elements());
+    auto idx = migraphx::range(values.size());
+    std::transform(
+        idx.begin(), idx.end(), values.begin(), [&](auto i) { return steps[i % steps.size()]; });
+    return migraphx::literal{s, values}.get_argument();
+}
+
+TEST_CASE(nvfp4_quant_dot)
+{
+    migraphx::module m1;
+    {
+        auto packed_a = m1.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b = m1.add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+        auto scale_a  = m1.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 4}});
+        auto scale_b  = m1.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 4}});
+        auto global_a = m1.add_literal(0.5f);
+        auto global_b = m1.add_literal(0.25f);
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto dq_a     = add_nvfp4_dq(m1, unpack_a, scale_a, global_a, 1, 16);
+        auto dq_b     = add_nvfp4_dq(m1, unpack_b, scale_b, global_b, 1, 16);
+        dq_b = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dq_b);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
+        m1.add_return({dot});
+    }
+    run_pass_e4m3(m1);
+
+    migraphx::module m2;
+    {
+        auto packed_a = m2.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b = m2.add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+        auto scale_a  = m2.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 4}});
+        auto scale_b  = m2.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 4}});
+        auto global_a = m2.add_literal(0.5f);
+        auto global_b = m2.add_literal(0.25f);
+        auto unpack_a = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto bscale_a = add_block_expand(m2, scale_a, 1, 16);
+        auto bscale_b = add_block_expand(m2, scale_b, 1, 16);
+        auto trans_b =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), unpack_b);
+        auto trans_bscale_b =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), bscale_b);
+        auto quant_dot = m2.add_instruction(
+            migraphx::make_op("quant_dot"), unpack_a, trans_b, bscale_a, trans_bscale_b);
+        auto global = migraphx::add_common_op(m2, migraphx::make_op("mul"), {global_a, global_b});
+        auto mul    = migraphx::add_common_op(m2, migraphx::make_op("mul"), {quant_dot, global});
+        m2.add_return({mul});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_quant_dot_block_32)
+{
+    migraphx::module m1;
+    {
+        auto packed_a = m1.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b = m1.add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+        auto scale_a  = m1.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 2}});
+        auto scale_b  = m1.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 2}});
+        auto global_a = m1.add_literal(0.5f);
+        auto global_b = m1.add_literal(0.25f);
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto dq_a     = add_nvfp4_dq(m1, unpack_a, scale_a, global_a, 1, 32);
+        auto dq_b     = add_nvfp4_dq(m1, unpack_b, scale_b, global_b, 1, 32);
+        dq_b = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dq_b);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
+        m1.add_return({dot});
+    }
+    run_pass_e4m3(m1);
+
+    migraphx::module m2;
+    {
+        auto packed_a = m2.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b = m2.add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+        auto scale_a  = m2.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 2}});
+        auto scale_b  = m2.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 2}});
+        auto global_a = m2.add_literal(0.5f);
+        auto global_b = m2.add_literal(0.25f);
+        auto unpack_a = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto bscale_a = add_block_expand(m2, scale_a, 1, 32);
+        auto bscale_b = add_block_expand(m2, scale_b, 1, 32);
+        auto trans_b =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), unpack_b);
+        auto trans_bscale_b =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), bscale_b);
+        auto quant_dot = m2.add_instruction(
+            migraphx::make_op("quant_dot"), unpack_a, trans_b, bscale_a, trans_bscale_b);
+        auto global = migraphx::add_common_op(m2, migraphx::make_op("mul"), {global_a, global_b});
+        auto mul    = migraphx::add_common_op(m2, migraphx::make_op("mul"), {quant_dot, global});
+        m2.add_return({mul});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_quant_dot_block_8)
+{
+    // blocks of 16 along K would mix two different scales
+    migraphx::module m1;
+    {
+        auto packed_a = m1.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b = m1.add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+        auto scale_a  = m1.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 8}});
+        auto scale_b  = m1.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 8}});
+        auto global_a = m1.add_literal(0.5f);
+        auto global_b = m1.add_literal(0.25f);
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto dq_a     = add_nvfp4_dq(m1, unpack_a, scale_a, global_a, 1, 8);
+        auto dq_b     = add_nvfp4_dq(m1, unpack_b, scale_b, global_b, 1, 8);
+        dq_b = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dq_b);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass_e4m3(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_quant_dot_packed_along_n)
+{
+    // fp4 operands of the scaled gemm must be packed along K
+    migraphx::module m1;
+    {
+        auto packed_a = m1.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b = m1.add_parameter("b", {migraphx::shape::fp4x2_type, {64, 4}});
+        auto scale_a  = m1.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 4}});
+        auto scale_b  = m1.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {4, 8}});
+        auto global_a = m1.add_literal(0.5f);
+        auto global_b = m1.add_literal(0.25f);
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto dq_a     = add_nvfp4_dq(m1, unpack_a, scale_a, global_a, 1, 16);
+        auto dq_b     = add_nvfp4_dq(m1, unpack_b, scale_b, global_b, 0, 16);
+        auto dot      = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass_e4m3(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_no_mx_e8m0_quant_dot)
+{
+    // MX (e8m0) scaled gemms cannot represent fp8e4m3fn block scales
+    migraphx::module m1;
+    {
+        auto packed_a = m1.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b = m1.add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+        auto scale_a  = m1.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 4}});
+        auto scale_b  = m1.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 4}});
+        auto global_a = m1.add_literal(0.5f);
+        auto global_b = m1.add_literal(0.25f);
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto dq_a     = add_nvfp4_dq(m1, unpack_a, scale_a, global_a, 1, 16);
+        auto dq_b     = add_nvfp4_dq(m1, unpack_b, scale_b, global_b, 1, 16);
+        dq_b = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dq_b);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_quant_dot_unaligned_slice)
+{
+    // Slicing the expanded scales from an offset shifts the blocks off the data
+    migraphx::module m1;
+    {
+        auto packed_a = m1.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b = m1.add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+        auto scale_a  = m1.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 5}});
+        auto scale_b  = m1.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 4}});
+        auto global_a = m1.add_literal(0.5f);
+        auto global_b = m1.add_literal(0.25f);
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto dq_scale_a =
+            migraphx::op::builder::add("dequantizelinear", m1, {scale_a, global_a}).front();
+        auto bscale_a = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {8}}, {"ends", {72}}}),
+            add_block_expand(m1, dq_scale_a, 1, 16));
+        auto dq_a = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_a, bscale_a);
+        auto dq_b = add_nvfp4_dq(m1, unpack_b, scale_b, global_b, 1, 16);
+        dq_b = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dq_b);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass_e4m3(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_int_convert_no_quant_dot)
+{
+    // The quantized operands cannot reproduce the rounding of the converts to int32
+    migraphx::module m1;
+    {
+        auto packed_a = m1.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b = m1.add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+        auto scale_a  = m1.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 4}});
+        auto scale_b  = m1.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 4}});
+        auto global_a = m1.add_literal(0.5f);
+        auto global_b = m1.add_literal(0.25f);
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto dq_a     = add_nvfp4_dq(m1, unpack_a, scale_a, global_a, 1, 16);
+        auto dq_b     = add_nvfp4_dq(m1, unpack_b, scale_b, global_b, 1, 16);
+        auto to_int = migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}});
+        auto int_a  = m1.add_instruction(to_int, dq_a);
+        auto trans_b =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dq_b);
+        auto int_b = m1.add_instruction(to_int, trans_b);
+        auto dot   = m1.add_instruction(migraphx::make_op("dot"), int_a, int_b);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass_e4m3(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_converted_scales_no_mx_e8m0_quant_dot)
+{
+    // Converting the dequantized fp8e4m3fn block scales to half keeps them from e8m0 scaled gemms
+    migraphx::module m1;
+    {
+        auto packed_a   = m1.add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b   = m1.add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+        auto scale_a    = m1.add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 4}});
+        auto scale_b    = m1.add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 4}});
+        auto global_a   = m1.add_literal(0.5f);
+        auto global_b   = m1.add_literal(0.25f);
+        auto half_scale = [&](migraphx::instruction_ref scale, migraphx::instruction_ref global) {
+            auto dq = migraphx::op::builder::add("dequantizelinear", m1, {scale, global}).front();
+            auto converted = m1.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), dq);
+            return add_block_expand(m1, converted, 1, 16);
+        };
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto dq_a     = m1.add_instruction(
+            migraphx::make_op("dequantizelinear"), unpack_a, half_scale(scale_a, global_a));
+        auto dq_b = m1.add_instruction(
+            migraphx::make_op("dequantizelinear"), unpack_b, half_scale(scale_b, global_b));
+        dq_b = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dq_b);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nvfp4_quant_dot_correctness)
+{
+    migraphx::program p1;
+    {
+        auto* mm      = p1.get_main_module();
+        auto packed_a = mm->add_parameter("a", {migraphx::shape::fp4x2_type, {4, 32}});
+        auto packed_b = mm->add_parameter("b", {migraphx::shape::fp4x2_type, {8, 32}});
+        auto scale_a  = mm->add_parameter("scale_a", {migraphx::shape::fp8e4m3fn_type, {4, 4}});
+        auto scale_b  = mm->add_parameter("scale_b", {migraphx::shape::fp8e4m3fn_type, {8, 4}});
+        auto global_a = mm->add_literal(0.5f);
+        auto global_b = mm->add_literal(0.25f);
+        auto unpack_a = mm->add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = mm->add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
+        auto dq_a     = add_nvfp4_dq(*mm, unpack_a, scale_a, global_a, 1, 16);
+        auto dq_b     = add_nvfp4_dq(*mm, unpack_b, scale_b, global_b, 1, 16);
+        dq_b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dq_b);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
+        mm->add_return({dot});
+    }
+    migraphx::program p2 = p1;
+    run_pass_e4m3(*p2.get_main_module());
+    EXPECT(std::any_of(p2.get_main_module()->begin(),
+                       p2.get_main_module()->end(),
+                       [](const auto& ins) { return ins.name() == "quant_dot"; }));
+
+    p1.compile(migraphx::target(migraphx::make_target("ref")));
+    p2.compile(migraphx::target(migraphx::make_target("ref")));
+
+    std::vector<uint8_t> a_bits(4 * 32);
+    std::vector<uint8_t> b_bits(8 * 32);
+    std::iota(a_bits.begin(), a_bits.end(), 0);
+    std::iota(b_bits.begin(), b_bits.end(), 37);
+    migraphx::parameter_map params;
+    params["a"]       = migraphx::argument{{migraphx::shape::fp4x2_type, {4, 32}}, a_bits.data()};
+    params["b"]       = migraphx::argument{{migraphx::shape::fp4x2_type, {8, 32}}, b_bits.data()};
+    params["scale_a"] = make_nvfp4_scales({4, 4});
+    params["scale_b"] = make_nvfp4_scales({8, 4});
+
+    auto rv1 = p1.eval(params).back().to_vector<float>();
+    auto rv2 = p2.eval(params).back().to_vector<float>();
+    EXPECT(migraphx::verify::verify_rms_range(rv1, rv2));
 }
 
 TEST_CASE(qdq_computed_scale)

@@ -53,6 +53,9 @@ MIGRAPHX_GPU_EXPORT bool gfx_has_bf16_intrinsics(const context& ctx);
 MIGRAPHX_GPU_EXPORT bool gfx_has_mx_intrinsics();
 MIGRAPHX_GPU_EXPORT bool gfx_has_mx_intrinsics(const context& ctx);
 
+// Scaled GEMMs on FP4 with fp8e4m3fn block scales (block size 16)
+MIGRAPHX_GPU_EXPORT bool gfx_has_mx_e4m3_scales(const context& ctx);
+
 MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
 
 #if MIGRAPHX_USE_HIPBLASLT

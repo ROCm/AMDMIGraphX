@@ -22,8 +22,10 @@
  * THE SOFTWARE.
  */
 #include <migraphx/simplify_qdq.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
@@ -39,6 +41,8 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/match/dq_helpers.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -427,6 +431,208 @@ inline auto block_dq(const std::string& scale)
     // clang-format on
 }
 
+// Single-input ops that only re-index their input, with the slice that trims a runt block
+bool is_block_scale_view(instruction_ref ins)
+{
+    return contains({"broadcast",
+                     "multibroadcast",
+                     "unsqueeze",
+                     "squeeze",
+                     "reshape",
+                     "reshape_lazy",
+                     "flatten",
+                     "transpose",
+                     "contiguous",
+                     "slice"},
+                    ins->name());
+}
+
+// Checks if the block scales of a dequantizelinear come from fp8 (dequantized or converted), as
+// in the two-level scales of NVFP4: DQ(x, expand(DQ(scale_fp8, per_tensor_scale)))
+bool has_fp8_block_scale(instruction_ref dq)
+{
+    static const auto fp8 = fp8_types{}.get();
+    auto from_fp8         = [&](instruction_ref ins) {
+        return contains(fp8, ins->inputs().front()->get_shape().type());
+    };
+    // A convert of the dequantized scales, such as to half, hides that they come from fp8
+    auto scale =
+        get_input_ops_if(dq->inputs().at(1), [&](instruction_ref ins) {
+            return is_block_scale_view(ins) or (ins->name() == "convert" and not from_fp8(ins));
+        }).first;
+    return contains({"dequantizelinear", "convert"}, scale->name()) and from_fp8(scale);
+}
+
+// The ops the block dequantizelinear builder uses to repeat each scale block_size times along axis
+std::vector<operation>
+block_expand_ops(std::vector<std::size_t> lens, std::size_t axis, std::size_t block_size)
+{
+    auto bc_lens = lens;
+    bc_lens.insert(bc_lens.begin() + axis + 1, block_size);
+    lens[axis] *= block_size;
+    return {make_op("unsqueeze", {{"axes", {axis + 1}}}),
+            make_op("multibroadcast", {{"out_lens", bc_lens}}),
+            make_op("reshape", {{"dims", lens}})};
+}
+
+// Two-level block scales of NVFP4: DQ(scale, per_tensor_scale) with fp8e4m3fn block scales,
+// expanded to the shape of the quantized data
+struct e4m3_block_scale
+{
+    instruction_ref scale;
+    instruction_ref per_tensor_scale;
+    // in application order, for insert_ops
+    std::vector<operation> expand_ops;
+    std::size_t axis       = 0;
+    std::size_t block_size = 0;
+};
+
+std::optional<e4m3_block_scale> find_e4m3_block_scale(instruction_ref dq)
+{
+    e4m3_block_scale result;
+    auto [scale_dq, ops] = get_input_ops_if(dq->inputs().at(1), &is_block_scale_view);
+    if(scale_dq->name() != "dequantizelinear" or scale_dq->inputs().size() != 2)
+        return std::nullopt;
+    result.scale = scale_dq->inputs().front();
+    if(result.scale->get_shape().type() != shape::fp8e4m3fn_type)
+        return std::nullopt;
+    result.per_tensor_scale = get_input_ops_if(scale_dq->inputs().at(1), [](instruction_ref ins) {
+                                  return contains({"broadcast", "multibroadcast"}, ins->name());
+                              }).first;
+    if(result.per_tensor_scale->get_shape().elements() != 1)
+        return std::nullopt;
+    // A runt block is trimmed by a trailing slice from 0, which the descriptor cannot track
+    auto expand_end = ops.end();
+    if(not ops.empty() and ops.back().name() == "slice")
+    {
+        if(ops.back().to_value().at("starts").to_vector<int64_t>() != std::vector<int64_t>{0})
+            return std::nullopt;
+        --expand_end;
+    }
+    const auto& lens = result.scale->get_shape().lens();
+    auto desc =
+        shape_transform_descriptor::create(lens, std::vector<operation>(ops.begin(), expand_end));
+    if(desc.empty() or desc.lens().size() != lens.size())
+        return std::nullopt;
+    // The block axis is the only one that grows, by repeating each scale block_size times
+    auto elens      = desc.lens();
+    auto [sit, eit] = std::mismatch(lens.begin(), lens.end(), elens.begin());
+    if(sit == lens.end())
+        return std::nullopt;
+    result.axis       = std::distance(lens.begin(), sit);
+    result.block_size = *eit / *sit;
+    if(desc != shape_transform_descriptor::create(
+                   lens, block_expand_ops(lens, result.axis, result.block_size)))
+        return std::nullopt;
+    result.expand_ops = std::move(ops);
+    return result;
+}
+
+// The view ops between the dequantizelinear and the dot operand, without the float converts
+// that the quantized operands do not need
+std::optional<std::vector<operation>> ops_to_dot(instruction_ref dq, instruction_ref dot_arg)
+{
+    auto between = get_between_ins(dq, dot_arg);
+    // Other converts change the values, which the quantized operands cannot reproduce
+    if(std::any_of(between.begin(), between.end(), [](instruction_ref ins) {
+           return ins->name() == "convert" and
+                  not contains(
+                      {shape::half_type, shape::bf16_type, shape::float_type, shape::double_type},
+                      ins->get_shape().type());
+       }))
+        return std::nullopt;
+    std::vector<operation> ops;
+    transform_if(
+        between.rbegin(),
+        between.rend(),
+        std::back_inserter(ops),
+        [](instruction_ref ins) { return ins->name() != "convert"; },
+        [](instruction_ref ins) { return ins->get_operator(); });
+    return ops;
+}
+
+// The dot operand axis that the block axis of the dequantizelinear output lands on, if it stays a
+// whole axis
+std::optional<std::size_t>
+follow_axis(std::size_t axis, instruction_ref dq, const std::vector<operation>& ops)
+{
+    auto dst =
+        shape_transform_descriptor::create(dq->get_shape().lens(), ops).get_dst_axes_from_src(axis);
+    if(dst.size() != 1)
+        return std::nullopt;
+    return dst.front();
+}
+
+// The axis the fp4 pairs of the dequantizelinear input are unpacked along
+std::size_t unpack_axis(instruction_ref dq)
+{
+    return dq->inputs().front()->normalized_operator().to_value().at("axis").to<std::size_t>();
+}
+
+/**
+ * Handles NVFP4: fp4 operands with fp8e4m3fn block scales (block size a multiple of 16) and
+ * per-tensor scales. The block scales go to quant_dot and the per-tensor scales are applied to
+ * its output:
+ * dot(DQ(a, expand(DQ(sa, ga))), DQ(b, expand(DQ(sb, gb)))) ->
+ * quant_dot(a, b, expand(sa), expand(sb)) * ga * gb
+ */
+struct match_find_mx_e4m3_quantizable_ops
+{
+    // The scaled gemm consumes blocks of 16 along K
+    static constexpr std::size_t gemm_block_size = 16;
+
+    auto matcher() const
+    {
+        auto unpack = match::arg(0)(match::name("unpack_fp4"));
+        auto dq1    = match::arg(0)(skip_post_dq_ops(block_dq("scale1")(unpack).bind("dq1")));
+        auto dq2    = match::arg(1)(skip_post_dq_ops(block_dq("scale2")(unpack).bind("dq2")));
+        return match::name("dot")(dq1, dq2);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto dot             = r.result;
+        auto dq1             = r.instructions["dq1"];
+        auto dq2             = r.instructions["dq2"];
+        const auto& dot_args = dot->inputs();
+        auto ndim            = dot_args.front()->get_shape().ndim();
+        if(dot_args.front()->get_shape().lens().back() % gemm_block_size != 0)
+            return;
+        auto scale1 = find_e4m3_block_scale(dq1);
+        auto scale2 = find_e4m3_block_scale(dq2);
+        if(not scale1 or not scale2)
+            return;
+        if(scale1->block_size % gemm_block_size != 0 or scale2->block_size % gemm_block_size != 0)
+            return;
+        // The fp4 pairs must be packed along the block axis, which follow_axis checks is K
+        if(unpack_axis(dq1) != scale1->axis or unpack_axis(dq2) != scale2->axis)
+            return;
+        auto ops1 = ops_to_dot(dq1, dot_args[0]);
+        auto ops2 = ops_to_dot(dq2, dot_args[1]);
+        if(not ops1 or not ops2)
+            return;
+        if(follow_axis(scale1->axis, dq1, *ops1) != ndim - 1 or
+           follow_axis(scale2->axis, dq2, *ops2) != ndim - 2)
+            return;
+
+        auto expanded_scale1 = insert_ops(m, dq1, scale1->expand_ops, scale1->scale);
+        auto expanded_scale2 = insert_ops(m, dq2, scale2->expand_ops, scale2->scale);
+        std::vector<instruction_ref> qdot_args = {insert_ops(m, dq1, *ops1, dq1->inputs().front()),
+                                                  insert_ops(m, dq2, *ops2, dq2->inputs().front()),
+                                                  insert_ops(m, dq1, *ops1, expanded_scale1),
+                                                  insert_ops(m, dq2, *ops2, expanded_scale2)};
+        auto qdot = m.insert_instruction(dot, make_op("quant_dot"), qdot_args);
+
+        auto per_tensor_scale = insert_common_op(
+            m, dot, make_op("mul"), {scale1->per_tensor_scale, scale2->per_tensor_scale});
+        auto result = insert_common_op(m, dot, make_op("mul"), {qdot, per_tensor_scale});
+        if(result->get_shape().type() != dot->get_shape().type())
+            result = m.insert_instruction(
+                dot, make_op("convert", {{"target_type", dot->get_shape().type()}}), result);
+        m.replace_instruction(dot, result);
+    }
+};
+
 /**
  * Handles block quantization for MX types.
  * Matcher checks that dequantizelinear has no zero point and that
@@ -449,6 +655,9 @@ struct match_find_mx_quantizable_ops
         auto dq2    = r.instructions["dq2"];
         auto scale1 = r.instructions["scale1"];
         auto scale2 = r.instructions["scale2"];
+        // MX scaled gemms read e8m0 scales, so fp8e4m3fn block scales (NVFP4) would be misread
+        if(has_fp8_block_scale(dq1) or has_fp8_block_scale(dq2))
+            return;
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         // Construct 4 arguments for block quantized op
@@ -788,6 +997,11 @@ void simplify_qdq::apply(module& m) const
         migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
         match::find_matches(m, match_find_quantizable_add{});
         migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        if(use_mx_e4m3_scales)
+        {
+            match::find_matches(m, match_find_mx_e4m3_quantizable_ops{});
+            migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        }
         if(use_mx_quant)
         {
             match::find_matches(m, match_find_mx_quantizable_ops{});

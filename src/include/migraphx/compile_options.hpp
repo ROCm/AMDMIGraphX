@@ -66,8 +66,6 @@ struct retune_options
 {
     /// Recompile kernels that are already at the requested tuning level on the same device
     bool force = false;
-    /// The serialized context of the program being retuned. Set by program::retune.
-    value from = value{};
 };
 
 /**

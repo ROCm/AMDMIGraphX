@@ -123,8 +123,8 @@ struct MIGRAPHX_EXPORT program
      * `t` does not support retuning.
      */
     void retune(const target& t,
-                compile_options options    = compile_options{},
-                retune_options retune_opts = retune_options{});
+                compile_options options           = compile_options{},
+                const retune_options& retune_opts = retune_options{});
 
     /// The device the program was compiled for, as recorded by its target, or a null value.
     value get_compiled_for() const;

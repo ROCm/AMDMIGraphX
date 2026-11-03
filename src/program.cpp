@@ -272,17 +272,15 @@ value program::get_compiled_for() const
     return ctx_val.at("compiled_for").without_key();
 }
 
-void program::retune(const target& t, compile_options options, retune_options retune_opts)
+void program::retune(const target& t, compile_options options, const retune_options& retune_opts)
 {
     if(not this->is_compiled())
         MIGRAPHX_THROW("retune: the program is not compiled");
     if(impl->targets.size() != 1 or impl->targets.front().name() != t.name())
         MIGRAPHX_THROW("retune: the program was not compiled for the " + t.name() + " target");
 
-    if(not impl->pending_contexts.is_null())
-        retune_opts.from = impl->pending_contexts[0].without_key();
-    else
-        retune_opts.from = impl->contexts.front().to_value();
+    value from = impl->pending_contexts.is_null() ? impl->contexts.front().to_value()
+                                                  : impl->pending_contexts[0].without_key();
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
@@ -290,7 +288,7 @@ void program::retune(const target& t, compile_options options, retune_options re
     // Retune a copy so the program is unchanged when retuning fails
     program p                     = *this;
     std::vector<context> contexts = {t.get_context()};
-    auto passes                   = t.get_retune_passes(contexts.front(), options, retune_opts);
+    auto passes = t.get_retune_passes(contexts.front(), from, options, retune_opts);
     run_passes(p, passes, options.trace);
     for(const auto& mod : p.get_modules())
     {
@@ -687,7 +685,7 @@ static std::vector<argument> generic_eval(const module* mod,
                 });
             const auto& mod_args = ins->module_inputs();
             auto module_eval     = [&](module_ref smod,
-                                   const std::unordered_map<std::string, argument>& inputs) {
+                                       const std::unordered_map<std::string, argument>& inputs) {
                 return generic_eval(smod, ctx, inputs, results, trace);
             };
 
@@ -894,7 +892,7 @@ value program::to_value() const
         result["contexts"] = this->impl->pending_contexts;
     else
         result["contexts"] = migraphx::to_value(this->impl->contexts);
-    value module_vals          = value::object{};
+    value module_vals = value::object{};
     std::unordered_map<instruction_ref, std::string> names;
     for(auto& mod : this->get_modules())
     {

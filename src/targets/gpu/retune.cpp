@@ -158,6 +158,88 @@ void check_data_types(const program& p, const context& ctx, const std::string& a
         MIGRAPHX_THROW("retune: cannot retarget to " + arch + ": " + join_strings(errors, "; "));
 }
 
+struct kernel_scan
+{
+    std::vector<kernel_ref> kernels;
+    std::vector<std::string> unsupported;
+    std::size_t with_recipe = 0;
+};
+
+// The kernels that can be recompiled from their recipe, and the instructions that cannot
+kernel_scan scan_kernels(program& p)
+{
+    kernel_scan result;
+    for(auto* mod : p.get_modules())
+    {
+        for(auto ins : iterator_for(*mod))
+        {
+            if(is_out_of_scope(ins->name()))
+            {
+                result.unsupported.push_back(describe(ins));
+                continue;
+            }
+            if(ins->name() != "gpu::code_object")
+                continue;
+            auto recipe = find_recipe(ins);
+            if(recipe.has_value())
+                result.with_recipe++;
+            if(not recipe.has_value() or is_ck_kernel(*recipe))
+            {
+                result.unsupported.push_back(describe(ins));
+                continue;
+            }
+            result.kernels.push_back({mod, ins});
+        }
+    }
+    return result;
+}
+
+void check_retarget(const program& p,
+                    const context& ctx,
+                    const kernel_scan& scan,
+                    const device_description& from,
+                    const device_description& to)
+{
+    const auto from_gfx = get_gfx_name(from.arch);
+    const auto to_gfx   = get_gfx_name(to.arch);
+    if(scan.with_recipe == 0)
+        MIGRAPHX_THROW("retune: the program was compiled without re-tune information; "
+                       "recompile from the model with keep_recipes (--keep-recipes)");
+    auto from_gen = get_gfx_generation(from.arch);
+    auto to_gen   = get_gfx_generation(to.arch);
+    if(to_gen < from_gen)
+        MIGRAPHX_THROW("retune: MXR compiled for gfx" + std::to_string(from_gen) + " (" + from_gfx +
+                       "); " + to_gfx + " is gfx" + std::to_string(to_gen) +
+                       "; retargeting to an older generation is not supported");
+    check_data_types(p, ctx, to_gfx);
+    if(not scan.unsupported.empty())
+        MIGRAPHX_THROW("retune: cannot retarget to " + to_gfx +
+                       ": these instructions are compiled for " + from_gfx +
+                       " and cannot be regenerated (CK, hipBLASLt / rocBLAS, MIOpen, or "
+                       "kernels without a recipe): " +
+                       join_names(scan.unsupported));
+}
+
+// Only tuned kernels are timed: time_op feeds random inputs, which can drive kernels that take
+// indices (gather, scatter) out of bounds and fault the whole device.
+std::string kernel_time(context& ctx, const operation& op, bool benchmarked, bool tunable)
+{
+    if(not tunable)
+        return "not timed";
+    if(not benchmarked)
+        return "not benchmarked";
+    try
+    {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(1) << time_op(ctx, op, 1, 20) * 1000.0 << " us";
+        return ss.str();
+    }
+    catch(const std::exception& e)
+    {
+        return std::string{"time unavailable: "} + e.what();
+    }
+}
+
 } // namespace
 
 void retune_ops::apply(program& p) const
@@ -186,59 +268,17 @@ void retune_ops::apply(program& p) const
         return;
     }
 
-    std::vector<kernel_ref> kernels;
-    std::vector<std::string> untouched;
-    std::vector<std::string> unsupported;
-    std::size_t with_recipe = 0;
-    for(auto* mod : p.get_modules())
-    {
-        for(auto ins : iterator_for(*mod))
-        {
-            if(is_out_of_scope(ins->name()))
-            {
-                unsupported.push_back(describe(ins));
-                continue;
-            }
-            if(ins->name() != "gpu::code_object")
-                continue;
-            auto recipe = find_recipe(ins);
-            if(recipe.has_value())
-                with_recipe++;
-            if(not recipe.has_value() or is_ck_kernel(*recipe))
-            {
-                unsupported.push_back(describe(ins));
-                continue;
-            }
-            kernels.push_back({mod, ins});
-        }
-    }
-
+    auto scan = scan_kernels(p);
+    if(not same_target)
+        check_retarget(p, *ctx, scan, from, to);
     const auto from_gfx = get_gfx_name(from.arch);
     const auto to_gfx   = get_gfx_name(to.arch);
-    if(not same_target)
-    {
-        if(with_recipe == 0)
-            MIGRAPHX_THROW("retune: the program was compiled without re-tune information; "
-                           "recompile from the model with keep_recipes (--keep-recipes)");
-        auto from_gen = get_gfx_generation(from.arch);
-        auto to_gen   = get_gfx_generation(to.arch);
-        if(to_gen < from_gen)
-            MIGRAPHX_THROW("retune: MXR compiled for gfx" + std::to_string(from_gen) + " (" +
-                           from_gfx + "); " + to_gfx + " is gfx" + std::to_string(to_gen) +
-                           "; retargeting to an older generation is not supported");
-        check_data_types(p, *ctx, to_gfx);
-        if(not unsupported.empty())
-            MIGRAPHX_THROW("retune: cannot retarget to " + to_gfx +
-                           ": these instructions are compiled for " + from_gfx +
-                           " and cannot be regenerated (CK, hipBLASLt / rocBLAS, MIOpen, or "
-                           "kernels without a recipe): " +
-                           join_names(unsupported));
-    }
 
     // Select the kernels to recompile and the tuning level for each
     std::vector<kernel_ref> selected;
     std::vector<recompile_request> requests;
-    for(const auto& k : kernels)
+    std::vector<std::string> untouched;
+    for(const auto& k : scan.kernels)
     {
         const auto& co      = any_cast<code_object_op>(k.ins->get_operator());
         const bool tunable  = co.tuning_level != "none";
@@ -253,7 +293,7 @@ void retune_ops::apply(program& p) const
         selected.push_back(k);
         requests.push_back({k.ins, exh});
     }
-    untouched.insert(untouched.end(), unsupported.begin(), unsupported.end());
+    untouched.insert(untouched.end(), scan.unsupported.begin(), scan.unsupported.end());
 
     // Compile everything before changing the program, so a failure leaves it unchanged
     auto recompiled = recompile_kernels(*ctx, requests);
@@ -266,24 +306,8 @@ void retune_ops::apply(program& p) const
         const auto& nco = any_cast<code_object_op>(nop);
         k.mod->replace_instruction(k.ins, nop, k.ins->inputs(), k.ins->module_inputs());
 
-        // Only tuned kernels are timed: time_op feeds random inputs, which can drive kernels
-        // that take indices (gather, scatter) out of bounds and fault the whole device.
         const bool tunable = nco.tuning_level != "none";
-        std::string time   = tunable ? "not benchmarked" : "not timed";
-        if(recompiled[i].benchmarked and tunable)
-        {
-            try
-            {
-                std::stringstream ss;
-                ss << std::fixed << std::setprecision(1) << time_op(*ctx, nop, 1, 20) * 1000.0
-                   << " us";
-                time = ss.str();
-            }
-            catch(const std::exception& e)
-            {
-                time = std::string{"time unavailable: "} + e.what();
-            }
-        }
+        auto time          = kernel_time(*ctx, nop, recompiled[i].benchmarked, tunable);
         report << "  " << nco.symbol_name << "  " << from_gfx << " -> " << to_gfx << "  "
                << solution_string(recompiled[i].solution) << "  "
                << (tunable ? nco.tuning_level : "-") << "  " << time;

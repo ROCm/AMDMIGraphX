@@ -42,7 +42,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/json.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/code_object_op.hpp>

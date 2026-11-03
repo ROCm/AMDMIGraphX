@@ -75,7 +75,7 @@ static migraphx::program compile_program(const migraphx::target& t,
                                          migraphx::compile_options options = recipe_options(),
                                          migraphx::program p               = make_program())
 {
-    p.compile(t, options);
+    p.compile(t, std::move(options));
     return p;
 }
 

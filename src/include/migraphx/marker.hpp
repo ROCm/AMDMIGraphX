@@ -242,6 +242,8 @@ struct marker
 
         void mark_stop(const program& prog) override { private_detail_te_value.mark_stop(prog); }
 
+        // A reference when type-erasing a std::reference_wrapper for reference semantics.
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
         PrivateDetailTypeErasedT private_detail_te_value;
     };
 

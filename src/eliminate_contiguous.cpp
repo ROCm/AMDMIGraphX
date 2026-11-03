@@ -178,7 +178,8 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
     // Replace static contiguous operations with a literal
     for(size_t i = 0; i < const_instructions.size(); i++)
     {
-        auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
+        auto l =
+            m.add_literal(literal::from_raw_buffer(literals[i].get_shape(), literals[i].data()));
         m.replace_instruction(const_instructions[i], l);
     }
 }

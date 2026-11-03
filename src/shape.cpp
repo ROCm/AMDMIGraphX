@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/shape.hpp>
+#include <migraphx/checked_ops.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -206,6 +207,10 @@ struct shape_impl
     {
         if(dims.empty())
             return make_identity<T>(0);
+        if constexpr(std::is_same<T, std::size_t>{})
+            return std::accumulate(dims.begin(), dims.end(), std::size_t{1}, [](auto a, auto b) {
+                return checked_mul(a, b);
+            });
         return std::accumulate(dims.begin(), dims.end(), make_identity<T>(1), std::multiplies<>{});
     }
 
@@ -531,6 +536,13 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
     return compatible(actual.lens(), expected.lens(), actual.strides(), expected.strides());
 }
 
+bool shape::is_compatible_type_and_lens(const shape& actual, const shape& expected)
+{
+    if(expected.dynamic())
+        return actual.type() == expected.type() and is_compatible_lens(actual, expected);
+    return actual == expected;
+}
+
 bool shape::is_compatible_lens(const shape& actual, const shape& expected)
 {
     if(actual.symbolic() and expected.symbolic())
@@ -541,12 +553,19 @@ bool shape::is_compatible_lens(const shape& actual, const shape& expected)
     {
         if(actual.ndim() != expected.ndim())
             return false;
+        std::unordered_map<sym::expr, std::size_t> symbol_values;
         return std::equal(actual.lens().begin(),
                           actual.lens().end(),
                           expected.dyn_dims().begin(),
                           [&](auto a, const auto& e) {
                               auto expected_interval = e.get_interval();
-                              return a >= expected_interval.min and a <= expected_interval.max;
+                              if(a < expected_interval.min or a > expected_interval.max)
+                                  return false;
+                              if(e.sym_expr.name() != "variable")
+                                  return true;
+                              auto [iter, inserted] =
+                                  symbol_values.emplace(sym::as_symbol(e.sym_expr), a);
+                              return inserted or iter->second == a;
                           });
     }
     return actual.lens() == expected.lens();
@@ -686,14 +705,14 @@ std::size_t shape::bytes() const
         {
             this->visit_type([&](auto as) { n = as.size(); });
         }
-        return n * this->element_space();
+        return checked_mul(n, this->element_space());
     }
     else
     {
         return std::accumulate(this->sub_shapes().begin(),
                                this->sub_shapes().end(),
                                std::size_t{0},
-                               [&](auto x, auto y) { return x + y.bytes(); });
+                               [&](auto x, auto y) { return checked_add(x, y.bytes()); });
     }
 }
 
@@ -1136,6 +1155,18 @@ const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
 bool shape::symbolic() const { return impl->all_dims_symbolic(); }
 
 const std::vector<sym::expr>& shape::dyn_strides() const { return impl->m_dyn_strides; }
+
+bool shape::has_fixed_strides() const
+{
+    if(not sub_shapes().empty())
+        return all_of(sub_shapes(), [](const auto& s) { return s.has_fixed_strides(); });
+    if(not dynamic())
+        return true;
+    if(not symbolic())
+        return false;
+    return all_of(dyn_strides(),
+                  [](const auto& stride) { return sym::fixed_value(stride).has_value(); });
+}
 
 std::vector<std::size_t> shape::min_lens() const
 {

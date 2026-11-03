@@ -21,10 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/cpu/target.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/program_verify.hpp>
+#include <test.hpp>
 
-#include <onnx_test.hpp>
-
-TEST_CASE(float_data_too_few_test)
+// The cpu outputs are views into memory owned by the compiled program, so they
+// must stay valid until they are compared with the ref outputs.
+TEST_CASE(verify_program_outputs)
 {
-    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("float_data_too_few_test.onnx"); }));
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto a   = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}});
+    auto b   = mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("dot"), a, b)});
+
+    auto result = migraphx::verify::verify_program(
+        p, migraphx::cpu::target{}, migraphx::verify::program_mode::outputs);
+    EXPECT(result.passed());
 }
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

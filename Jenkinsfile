@@ -95,7 +95,7 @@ def cmake_build = { bconf ->
         # Pin the package's per-GPU dependency to the arch of the GPU in this node
         # so the generated .deb is installable here (empty on nogpu -> device-all deps).
         THEROCK_GPU_ARCH=\$(/opt/rocm/bin/rocminfo 2>/dev/null | grep -o -m1 'gfx[0-9a-z]*' || true)
-        cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON -DMIGRAPHX_THEROCK_GPU_ARCH="\${THEROCK_GPU_ARCH}" ${flags} ..
+        cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/hermetic.cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON -DMIGRAPHX_THEROCK_GPU_ARCH="\${THEROCK_GPU_ARCH}" ${flags} ..
         git diff
         git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
         make -j\$(nproc) generate VERBOSE=1
@@ -320,7 +320,7 @@ pipeline {
                             checkout scm
                             def calculateImageTagScript = """
                                 shopt -s globstar
-                                sha256sum Dockerfile **/*requirements.txt tools/requirements-py.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
+                                sha256sum Dockerfile cmake/hermetic.cmake **/*requirements.txt tools/requirements-py.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
                             """
                             env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
                             env.IMAGE_EXISTS = sh(script: "docker manifest inspect ${DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'

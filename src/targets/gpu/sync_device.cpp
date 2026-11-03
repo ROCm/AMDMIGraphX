@@ -45,7 +45,8 @@ struct find_copy_from_gpu : match::supports_dynamic_shapes
             pos = m.add_return({r.result});
         if(pos != m.end() and pos->name() == "hip::sync_stream")
             return;
-        m.insert_instruction(pos, make_op("hip::sync_stream"));
+        auto sync = m.insert_instruction(pos, make_op("hip::sync_stream"), r.result);
+        m.replace_instruction(r.result, sync);
     }
 };
 

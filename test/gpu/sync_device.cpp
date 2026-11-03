@@ -40,8 +40,8 @@ TEST_CASE(inserts_sync_after_copy_from_gpu)
     auto expected_input = m2.add_parameter("input", s);
     auto expected_output =
         m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_input);
-    m2.add_instruction(migraphx::make_op("hip::sync_stream"));
-    m2.add_return({expected_output});
+    auto expected_sync = m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_output);
+    m2.add_return({expected_sync});
     EXPECT(m1 == m2);
 }
 
@@ -62,11 +62,13 @@ TEST_CASE(inserts_independent_syncs_after_multiple_copies)
     auto expected_x      = m2.add_parameter("x", s);
     auto expected_y      = m2.add_parameter("y", s);
     auto expected_copy_x = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_x);
-    m2.add_instruction(migraphx::make_op("hip::sync_stream"));
+    auto expected_sync_x =
+        m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_copy_x);
     auto expected_copy_y = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_y);
-    m2.add_instruction(migraphx::make_op("hip::sync_stream"));
+    auto expected_sync_y =
+        m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_copy_y);
     auto expected_sum =
-        m2.add_instruction(migraphx::make_op("add"), expected_copy_x, expected_copy_y);
+        m2.add_instruction(migraphx::make_op("add"), expected_sync_x, expected_sync_y);
     m2.add_return({expected_sum});
     EXPECT(m1 == m2);
 }
@@ -84,8 +86,8 @@ TEST_CASE(preserves_implicit_copy_return)
     auto expected_input = m2.add_parameter("input", s);
     auto expected_output =
         m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_input);
-    m2.add_instruction(migraphx::make_op("hip::sync_stream"));
-    m2.add_return({expected_output});
+    auto expected_sync = m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_output);
+    m2.add_return({expected_sync});
     EXPECT(m1 == m2);
 }
 

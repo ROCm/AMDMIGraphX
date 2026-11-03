@@ -303,6 +303,12 @@ TEST_CASE(has_flags)
         {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}));
 }
 
+TEST_CASE(can_compile)
+{
+    EXPECT(migraphx::gpu::hip_can_compile(write_2s, {}));
+    EXPECT(not migraphx::gpu::hip_can_compile(incorrect_program, {}));
+}
+
 TEST_CASE(code_object_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
@@ -384,6 +390,18 @@ TEST_CASE(compile_pointwise)
         migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
 
     EXPECT(result == output_literal.get_argument());
+}
+
+TEST_CASE(compile_gather_indexed_inputs)
+{
+    migraphx::shape data{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape idx{migraphx::shape::int32_type, {2}};
+    migraphx::shape out{migraphx::shape::float_type, {2, 3}};
+    migraphx::gpu::context ctx;
+    auto co = migraphx::gpu::compile_op("gather", ctx, {data, idx, out}, {{"axis", 0}});
+    // Only the data input is read at index-selected positions
+    EXPECT(co.attributes().get("indexed_inputs", std::vector<std::size_t>{}) ==
+           std::vector<std::size_t>{0});
 }
 
 TEST_CASE(compile_math)

@@ -21,10 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_SIMPLIFY_SYMBOLIC_DIMENSIONS_HPP
+#define MIGRAPHX_GUARD_SIMPLIFY_SYMBOLIC_DIMENSIONS_HPP
 
-#include <onnx_test.hpp>
+#include <migraphx/config.hpp>
+#include <string>
 
-TEST_CASE(raw_data_long_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+
+struct MIGRAPHX_EXPORT simplify_symbolic_dimensions
 {
-    EXPECT(test::throws<migraphx::exception>([&] { read_onnx("raw_data_long_test.onnx"); }));
-}
+    std::string name() const { return "simplify_symbolic_dimensions"; }
+    void apply(module& m) const;
+};
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

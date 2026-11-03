@@ -2061,7 +2061,8 @@ TEST_CASE(fp4x2_quant_dot_const_b)
     {
         auto packed_a = m1.add_parameter("input", shape_packed_a);
         // avoiding visit fp4x2_type
-        auto packed_b = m1.add_literal(shape_packed_b, b_lit.data());
+        auto packed_b =
+            m1.add_literal(migraphx::literal::from_raw_buffer(shape_packed_b, b_lit.data()));
         auto scale_a  = m1.add_parameter("scale_a", shape_scales_a);
         auto scale_b  = m1.add_literal(scale_b_lit);
 
@@ -2076,7 +2077,8 @@ TEST_CASE(fp4x2_quant_dot_const_b)
     migraphx::module m2;
     {
         auto packed_a = m2.add_parameter("input", shape_packed_a);
-        auto packed_b = m2.add_literal(shape_packed_b, b_lit.data());
+        auto packed_b =
+            m2.add_literal(migraphx::literal::from_raw_buffer(shape_packed_b, b_lit.data()));
         auto scale_a  = m2.add_parameter("scale_a", shape_scales_a);
         auto scale_b  = m2.add_literal(scale_b_lit);
 

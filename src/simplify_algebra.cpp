@@ -38,9 +38,11 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/unfold.hpp>
+#include <migraphx/optional.hpp>
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
+#include <numeric>
 #include <unordered_set>
 
 namespace migraphx {
@@ -589,6 +591,243 @@ struct find_add_dot_common
         auto dot = shared_arg == 0 ? m.insert_instruction(ins, op, a, sum)
                                    : m.insert_instruction(ins, op, sum, a);
         m.replace_instruction(ins, dot);
+    }
+};
+
+struct find_dot_axis_linear_ops
+{
+    // dot(c, x) with c constant and x a linear recombination of one tensor y
+    // along the contracted axis: concat, slice, reverse and neg of y on that
+    // axis, optionally followed by shape transforms that keep the axis whole.
+    // Mirroring the recombination onto the contracted axis of c folds it into
+    // a constant, so the dot reads y directly with a contraction no longer
+    // than before.
+    struct linear_fold
+    {
+        struct shape_transform
+        {
+            instruction_ref ins;
+            // Contracted axis of the output of ins
+            std::size_t axis;
+        };
+        instruction_ref dot;
+        instruction_ref c;
+        instruction_ref root;
+        instruction_ref y;
+        std::size_t c_axis = 0;
+        std::size_t axis   = 0;
+        std::vector<shape_transform> transforms;
+
+        // Ops that only move or negate rows along `axis`, so along that axis
+        // the output is a signed selection of the input rows
+        static bool is_axis_linear_op(instruction_ref ins, std::size_t axis)
+        {
+            if(ins->name() == "neg")
+                return true;
+            if(not contains({"concat", "slice", "reverse"}, ins->name()))
+                return false;
+            auto v = ins->normalized_operator().to_value();
+            if(ins->name() == "concat")
+                return v.at("axis").to<std::size_t>() == axis;
+            return v.at("axes").to_vector<std::size_t>() == std::vector<std::size_t>{axis};
+        }
+
+        // The one tensor every leaf of a chain of axis-linear ops reads, if
+        // they all read the same tensor
+        static optional<instruction_ref> find_axis_linear_leaf(instruction_ref ins,
+                                                               std::size_t axis)
+        {
+            if(not is_axis_linear_op(ins, axis))
+                return ins;
+            const auto& inputs = ins->inputs();
+            auto leaf          = find_axis_linear_leaf(inputs.front(), axis);
+            if(not all_of(inputs, [&](instruction_ref input) {
+                   return find_axis_linear_leaf(input, axis) == leaf;
+               }))
+                return nullopt;
+            return leaf;
+        }
+
+        // The input axis of shape transform `ins` that becomes output axis
+        // `axis` whole, if there is one
+        static optional<std::size_t> shape_transform_source_axis(instruction_ref ins,
+                                                                 std::size_t axis)
+        {
+            if(ins->name() == "contiguous")
+                return axis;
+            const auto& in_lens  = ins->inputs().front()->get_shape().lens();
+            const auto& out_lens = ins->get_shape().lens();
+            auto desc = shape_transform_descriptor::create(in_lens, {ins->get_operator()});
+            if(desc.empty())
+                return nullopt;
+            auto axes_map = desc.axes_map_from_src();
+            // A unit output dim split off an axis holds none of its elements
+            std::transform(axes_map.begin(), axes_map.end(), axes_map.begin(), [&](auto dst_axes) {
+                dst_axes.erase(std::remove_if(dst_axes.begin(),
+                                              dst_axes.end(),
+                                              [&](auto dst) { return out_lens[dst] == 1; }),
+                               dst_axes.end());
+                return dst_axes;
+            });
+            auto it = std::find(axes_map.begin(), axes_map.end(), std::vector<std::size_t>{axis});
+            if(it == axes_map.end())
+                return nullopt;
+            auto src = std::distance(axes_map.begin(), it);
+            if(in_lens[src] != out_lens[axis])
+                return nullopt;
+            return src;
+        }
+
+        static optional<linear_fold> find(instruction_ref dot)
+        {
+            if(dot->name() != "dot" or dot->get_shape().dynamic())
+                return nullopt;
+            auto a    = dot->inputs().front();
+            auto b    = dot->inputs().back();
+            auto ndim = a->get_shape().ndim();
+            linear_fold result{};
+            result.dot = dot;
+            if(a->can_eval() and not b->can_eval())
+            {
+                result.c      = a;
+                result.c_axis = ndim - 1;
+                result.root   = b;
+                result.axis   = ndim - 2;
+            }
+            else if(b->can_eval() and not a->can_eval())
+            {
+                result.c      = b;
+                result.c_axis = ndim - 2;
+                result.root   = a;
+                result.axis   = ndim - 1;
+            }
+            else
+            {
+                return nullopt;
+            }
+            // Walk back through the shape transforms tracking the contracted axis
+            while(contains({"reshape", "squeeze", "unsqueeze", "transpose", "contiguous"},
+                           result.root->name()))
+            {
+                auto src = shape_transform_source_axis(result.root, result.axis);
+                if(not src.has_value())
+                    return nullopt;
+                result.transforms.push_back({result.root, result.axis});
+                result.axis = *src;
+                result.root = result.root->inputs().front();
+            }
+            std::reverse(result.transforms.begin(), result.transforms.end());
+            if(not is_axis_linear_op(result.root, result.axis))
+                return nullopt;
+            auto leaf = find_axis_linear_leaf(result.root, result.axis);
+            if(not leaf.has_value())
+                return nullopt;
+            result.y = *leaf;
+            auto k   = result.y->get_shape().lens()[result.axis];
+            if(k < 2 or k > result.root->get_shape().lens()[result.axis])
+                return nullopt;
+            return result;
+        }
+
+        // Mirror op `ins` of the recombination onto the contracted axis of
+        // `cin` and continue into its inputs
+        instruction_ref fold(module& m, instruction_ref ins, instruction_ref cin) const
+        {
+            if(ins == y)
+                return cin;
+            auto input = ins->inputs().front();
+            if(ins->name() == "neg")
+                return fold(m, input, m.insert_instruction(dot, make_op("neg"), cin));
+            if(ins->name() == "reverse")
+                return fold(
+                    m,
+                    input,
+                    m.insert_instruction(dot, make_op("reverse", {{"axes", {c_axis}}}), cin));
+            if(ins->name() == "slice")
+            {
+                auto op   = any_cast<op::slice>(ins->normalized_operator());
+                auto len  = input->get_shape().lens()[axis];
+                auto ndim = cin->get_shape().ndim();
+                std::vector<int64_t> pads(2 * ndim, 0);
+                pads[c_axis]        = op.starts.front();
+                pads[c_axis + ndim] = len - op.ends.front();
+                return fold(
+                    m, input, m.insert_instruction(dot, make_op("pad", {{"pads", pads}}), cin));
+            }
+            assert(ins->name() == "concat");
+            const auto& inputs = ins->inputs();
+            std::vector<std::size_t> starts(inputs.size());
+            std::transform_exclusive_scan(
+                inputs.begin(),
+                inputs.end(),
+                starts.begin(),
+                std::size_t{0},
+                std::plus<>{},
+                [&](instruction_ref x) { return x->get_shape().lens()[axis]; });
+            std::vector<instruction_ref> parts;
+            std::transform(
+                inputs.begin(),
+                inputs.end(),
+                starts.begin(),
+                std::back_inserter(parts),
+                [&](instruction_ref x, std::size_t start) {
+                    auto end  = start + x->get_shape().lens()[axis];
+                    auto part = m.insert_instruction(
+                        dot,
+                        make_op("slice",
+                                {{"axes", {c_axis}}, {"starts", {start}}, {"ends", {end}}}),
+                        cin);
+                    return fold(m, x, part);
+                });
+            return std::accumulate(std::next(parts.begin()),
+                                   parts.end(),
+                                   parts.front(),
+                                   [&](instruction_ref sum, instruction_ref part) {
+                                       return m.insert_instruction(dot, make_op("add"), sum, part);
+                                   });
+        }
+
+        // Reapply a shape transform to `input`, which has the new contracted length
+        instruction_ref reapply(module& m, const shape_transform& t, instruction_ref input) const
+        {
+            auto op = t.ins->get_operator();
+            if(op.name() == "reshape")
+            {
+                auto dims    = t.ins->get_shape().lens();
+                dims[t.axis] = y->get_shape().lens()[axis];
+                op           = make_op("reshape", {{"dims", dims}});
+            }
+            return m.insert_instruction(dot, op, input);
+        }
+
+        void apply(module& m) const
+        {
+            auto folded = fold(m, root, c);
+            auto input  = std::accumulate(
+                transforms.begin(),
+                transforms.end(),
+                y,
+                [&](instruction_ref x, const shape_transform& t) { return reapply(m, t, x); });
+            if(c == dot->inputs().front())
+                m.replace_instruction(dot, make_op("dot"), folded, input);
+            else
+                m.replace_instruction(dot, make_op("dot"), input, folded);
+        }
+    };
+
+    auto matcher() const
+    {
+        auto foldable = match::make_basic_pred_matcher(
+            [](instruction_ref ins) { return linear_fold::find(ins).has_value(); });
+        return match::name("dot")(
+            match::any_of[match::inputs()](match::is_constant(not_from_int4())), foldable);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto fold = linear_fold::find(r.result);
+        assert(fold.has_value());
+        fold->apply(m);
     }
 };
 
@@ -3224,6 +3463,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_dot{},
                             find_dot_slice{},
                             find_dot_mul{},
+                            find_dot_axis_linear_ops{},
                             find_mul_add{},
                             find_unit_ops{},
                             find_neg_unit_ops{},

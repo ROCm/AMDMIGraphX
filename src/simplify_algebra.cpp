@@ -987,6 +987,9 @@ struct find_inner_broadcast
     {
         if(input.elements() == 1)
             return false;
+        // Leading axes beyond the output rank are dropped, not unsqueezed
+        if(input.ndim() > output.ndim())
+            return false;
         auto shift = output.ndim() - input.ndim();
         if(shift == 0)
             return false;

@@ -2945,9 +2945,17 @@ TEST_CASE(multibroadcast_scalar_lower_rank)
                  input);
 }
 
-TEST_CASE(multibroadcast_lower_rank_error)
+TEST_CASE(multibroadcast_unit_leading_axes)
 {
     migraphx::shape input{migraphx::shape::float_type, {1, 1, 1, 2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 3, 2}, {2, 0, 1}},
+                 migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 2}}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_lower_rank_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 1, 1, 2}};
     throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 2}}}), input);
 }
 

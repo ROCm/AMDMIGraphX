@@ -129,7 +129,10 @@ std::vector<argument> run_target(program p,
     std::vector<argument> output(gpu_out.size());
     log::info() << p;
     std::transform(gpu_out.begin(), gpu_out.end(), output.begin(), [&](const auto& argu) {
-        return options.compile.offload_copy ? argu : t.copy_from(argu);
+        auto host = options.compile.offload_copy ? argu : t.copy_from(argu);
+        // The outputs can be views into memory owned by the program (eg the cpu
+        // target), so copy them to outlive it.
+        return host.copy();
     });
     return output;
 }

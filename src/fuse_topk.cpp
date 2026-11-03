@@ -253,6 +253,10 @@ void fuse_topk::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_reduce_topk{max_size});
     match::find_matches(mpm, find_topk_reduce{max_size});
     mpm.run_pass(dead_code_elimination{});
+    // A reshape between the reductions keeps the topk from fusing with the
+    // first one. Now that the topk is in the second, the reduce fusion can
+    // rewrite the reshape and merge them.
+    fuse_adjacent_reduces(mpm);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

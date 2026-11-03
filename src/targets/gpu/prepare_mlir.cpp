@@ -424,6 +424,38 @@ struct find_broadcast_of_compare
     }
 };
 
+// rocMLIR miscomputes a reshape that splits the unpacked axis of an int4
+// weight (the per-group form find_entry_shape_transform_op produces), so the
+// kernel reads the wrong nibbles. Unpacking along the last axis interleaves
+// the two nibbles of each byte, so any reshape of the unpacked tensor whose
+// last dim is even can instead reshape the packed bytes and unpack the result.
+struct find_unpack_int4_reshape
+{
+    auto matcher() const
+    {
+        return match::name("reshape", "reshape_lazy", "squeeze", "unsqueeze", "flatten")(
+            match::arg(0)(match::name("unpack_int4").bind("unpack")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto unpack = r.instructions["unpack"];
+        auto packed = unpack->inputs().front();
+        if(not packed->get_shape().standard())
+            return;
+        auto axis = unpack->normalized_operator().to_value()["axis"].to<std::size_t>();
+        if(axis + 1 != packed->get_shape().ndim())
+            return;
+        auto dims = ins->get_shape().lens();
+        if(dims.back() % 2 != 0)
+            return;
+        dims.back() /= 2;
+        auto rsp = m.insert_instruction(ins, make_op("reshape", {{"dims", dims}}), packed);
+        m.replace_instruction(ins, make_op("unpack_int4", {{"axis", -1}}), rsp);
+    }
+};
+
 // mlir has issues sometime when the condition to `where` is not a bool. So this will convert the
 // condition to a bool.
 struct find_where
@@ -482,7 +514,11 @@ void prepare_mlir::apply(module& m) const
     // mul fold in the same pass; both run before the broadcast sink so the
     // compares they create are canonicalized by the next pass
     match::find_matches(m, find_causal_mask_literal{}, find_masked_mul{});
-    match::find_matches(m, find_broadcast_of_compare{}, find_where{}, find_nonstandard_literal{});
+    match::find_matches(m,
+                        find_broadcast_of_compare{},
+                        find_where{},
+                        find_nonstandard_literal{},
+                        find_unpack_int4_reshape{});
     run_passes(m, {dead_code_elimination{}});
 }
 

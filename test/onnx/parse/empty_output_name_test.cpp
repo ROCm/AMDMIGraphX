@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-
 #include <onnx_test.hpp>
 
 #include <limits>
@@ -39,9 +38,9 @@ TEST_CASE(empty_output_name_test)
     mm->add_literal(migraphx::literal{{migraphx::shape::bool_type, {2, 3}}, {1, 1, 1, 1, 1, 1}});
     auto y = mm->add_instruction(migraphx::make_op("identity"), x);
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto min_val = mm->add_literal(migraphx::literal{
-        migraphx::shape{migraphx::shape::float_type, {1}, {0}},
-        {std::numeric_limits<float>::lowest()}});
+    auto min_val =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}},
+                                          {std::numeric_limits<float>::lowest()}});
     auto min_mb =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), min_val);
     auto max_mb =

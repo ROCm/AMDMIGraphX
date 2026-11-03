@@ -248,8 +248,8 @@ TEST_CASE(simplify_symbolic_dimensions_converging_producers)
             migraphx::make_op(
                 "dynamic_range",
                 {{"max_output", 8},
-                  {"output_dim",
-                   migraphx::to_value(migraphx::shape::dynamic_dimension{alternate_count})}}),
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{alternate_count})}}),
             start,
             limit,
             delta);
@@ -299,8 +299,8 @@ TEST_CASE(simplify_symbolic_dimensions_converging_producers)
             migraphx::make_op(
                 "dynamic_range",
                 {{"max_output", 8},
-                  {"output_dim",
-                   migraphx::to_value(migraphx::shape::dynamic_dimension{canonical_count})}}),
+                 {"output_dim",
+                  migraphx::to_value(migraphx::shape::dynamic_dimension{canonical_count})}}),
             start,
             limit,
             delta);

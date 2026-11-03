@@ -1489,7 +1489,7 @@ struct runtime_cache
         auto valid = m.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
                                        m.add_instruction(make_op("less"), index, extent));
         auto fill  = m.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}),
-                                      get_or_add_fill_literal(m, s.type(), mask.fill));
+                                       get_or_add_fill_literal(m, s.type(), mask.fill));
         return m.add_instruction(make_op("where"), valid, input, fill);
     }
 };
@@ -2213,11 +2213,11 @@ struct block_frame
             const auto& output   = outputs.at(output_index);
             auto selected_output = selected_outputs.at(logical_output_indices.at(output_index));
             auto sliced          = add_output_slice(m,
-                                           output,
-                                           selected_output,
-                                           plans.at(output.source).info,
-                                           root_sources,
-                                           replacements);
+                                                    output,
+                                                    selected_output,
+                                                    plans.at(output.source).info,
+                                                    root_sources,
+                                                    replacements);
             output_values.emplace_back(output, sliced);
             if(output == plans.full_output_for(output.source))
                 replacements.insert(output.source, sliced);

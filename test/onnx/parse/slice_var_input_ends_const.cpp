@@ -36,12 +36,12 @@ TEST_CASE(slice_var_input_ends_const)
     auto op     = migraphx::make_op(
         "dyn_slice",
         {{"axes", {0, 1}},
-             {"starts",
-              migraphx::value::array{
+         {"starts",
+          migraphx::value::array{
               migraphx::to_value(migraphx::sym::var("main_Slice_3_start_0", {0, 3})),
               migraphx::to_value(migraphx::sym::var("main_Slice_3_start_1", {0, 2}))}},
-             {"ends",
-              migraphx::value::array{migraphx::to_value(migraphx::sym::lit(3)),
+         {"ends",
+          migraphx::value::array{migraphx::to_value(migraphx::sym::lit(3)),
                                  migraphx::to_value(migraphx::sym::lit(2))}}});
     mm->add_instruction(op, data, starts, ends);
     auto prog = optimize_onnx("slice_var_input_ends_const.onnx");

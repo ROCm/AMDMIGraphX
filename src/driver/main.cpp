@@ -676,62 +676,17 @@ struct program_params
         return map_load_args;
     }
 
-    // A value for a name the program has no input for would otherwise be
-    // dropped, or abort in the shape lookup
-    static std::string unknown_param_error(const std::string& flag, const std::string& name)
-    {
-        return flag + ": '" + name +
-               "' is not an input of this program. Use the `params` command to list the inputs.";
-    }
-
-    // Every parameter a flag supplies a value for, paired with that flag
-    std::vector<std::pair<std::string, std::string>> named_values() const
-    {
-        std::vector<std::pair<std::string, std::string>> result;
-        std::transform(
-            fill0.begin(), fill0.end(), std::back_inserter(result), [](const auto& name) {
-                return std::make_pair(std::string{"--fill0"}, name);
-            });
-        std::transform(
-            fill1.begin(), fill1.end(), std::back_inserter(result), [](const auto& name) {
-                return std::make_pair(std::string{"--fill1"}, name);
-            });
-        transform_if(
-            load_args_info.begin(),
-            load_args_info.end(),
-            std::back_inserter(result),
-            [](const std::string& x) { return starts_with(x, "@"); },
-            [](const std::string& x) {
-                return std::make_pair(std::string{"--load-arg"}, remove_prefix(x, "@"));
-            });
-        return result;
-    }
-
-    // The first flag value naming something the program has no input for
-    std::optional<std::pair<std::string, std::string>>
-    find_unknown_param(const std::unordered_map<std::string, shape>& param_shapes) const
-    {
-        auto named = named_values();
-        auto it    = std::find_if(named.begin(), named.end(), [&](const auto& nv) {
-            return not contains(param_shapes, nv.second);
-        });
-        if(it == named.end())
-            return std::nullopt;
-        return *it;
-    }
-
     void warn_unset_inputs(const std::unordered_map<std::string, shape>& param_shapes) const
     {
-        auto named = named_values();
-        std::set<std::string> supplied;
-        std::transform(named.begin(),
-                       named.end(),
-                       std::inserter(supplied, supplied.end()),
-                       [](const auto& nv) { return nv.second; });
+        std::set<std::string> load_arg_names;
+        for(auto&& x : load_args_info)
+            if(not x.empty() and x[0] == '@')
+                load_arg_names.insert(x.substr(1));
         std::set<std::string> unset;
         for(const auto& param : param_shapes)
             if(shape::is_integral(param.second.type()) and not contains(param.first, "#output_") and
-               not contains(supplied, param.first))
+               not contains(fill0, param.first) and not contains(fill1, param.first) and
+               not contains(load_arg_names, param.first))
                 unset.insert(param.first);
         if(unset.empty())
             return;
@@ -758,9 +713,6 @@ struct program_params
             else
                 static_param_shapes[param.first] = param.second.to_static(batch);
         }
-
-        if(auto unknown = find_unknown_param(static_param_shapes))
-            MIGRAPHX_THROW(unknown_param_error(unknown->first, unknown->second));
 
         for(auto&& s : fill0)
             m[s] = fill_argument(static_param_shapes.at(s), 0);
@@ -957,9 +909,6 @@ struct compiler
     program compile()
     {
         auto p = l.load();
-        // Catch a misspelled input name before compiling rather than after
-        if(auto unknown = parameters.find_unknown_param(p.get_parameter_shapes()))
-            MIGRAPHX_THROW(program_params::unknown_param_error(unknown->first, unknown->second));
         // Dont compile if its already been compiled
 
         if(p.is_compiled())

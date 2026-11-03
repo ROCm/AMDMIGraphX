@@ -393,12 +393,13 @@ setup_context(context& ctx, const compile_options& options, const backend_option
 }
 
 std::vector<pass> target::get_retune_passes(migraphx::context& gctx,
+                                            const value& from_ctx,
                                             const compile_options& options,
                                             const retune_options& retune) const
 {
     auto& ctx = any_cast<context>(gctx);
     setup_context(ctx, options, get_backend_options(options));
-    return {retune_ops{&ctx, retune.from, retune.force, options.exhaustive_tune}};
+    return {retune_ops{&ctx, from_ctx, retune.force, options.exhaustive_tune}};
 }
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const

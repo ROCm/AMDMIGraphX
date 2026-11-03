@@ -67,11 +67,13 @@ struct target
      * program::retune. Targets that cannot retune throw.
      *
      * @param ctx The context of the device to retune for
+     * @param from_ctx The serialized context the program was compiled with
      * @param options Compiling options passed in by the user
-     * @param retune Retune options, including the context the program was compiled with
+     * @param retune Retune options passed in by the user
      * @return The passes to be ran
      */
     std::vector<pass> get_retune_passes(context& ctx,
+                                        const value& from_ctx,
                                         const compile_options& options,
                                         const retune_options& retune) const;
     /**
@@ -119,8 +121,8 @@ argument target_allocate(T& x, const shape&)
 }
 
 template <class T>
-std::vector<pass>
-target_get_retune_passes(T& x, context&, const compile_options&, const retune_options&)
+std::vector<pass> target_get_retune_passes(
+    T& x, context&, const value&, const compile_options&, const retune_options&)
 {
     std::string name = x.name();
     MIGRAPHX_THROW("retune: the " + name + " target does not support retune");
@@ -169,6 +171,7 @@ struct MIGRAPHX_EXPORT target
     std::vector<pass> get_passes(context& ctx, const compile_options& options) const;
     // (optional)
     std::vector<pass> get_retune_passes(context& ctx,
+                                        const value& from_ctx,
                                         const compile_options& options,
                                         const retune_options& retune) const;
     //
@@ -196,11 +199,12 @@ struct target
     static auto private_detail_te_default_get_retune_passes(char,
                                                             T&& private_detail_te_self,
                                                             context& ctx,
+                                                            const value& from_ctx,
                                                             const compile_options& options,
                                                             const retune_options& retune)
-        -> decltype(private_detail_te_self.get_retune_passes(ctx, options, retune))
+        -> decltype(private_detail_te_self.get_retune_passes(ctx, from_ctx, options, retune))
     {
-        return private_detail_te_self.get_retune_passes(ctx, options, retune);
+        return private_detail_te_self.get_retune_passes(ctx, from_ctx, options, retune);
     }
 
     template <class T>
@@ -208,10 +212,11 @@ struct target
     private_detail_te_default_get_retune_passes(float,
                                                 T&& private_detail_te_self,
                                                 context& ctx,
+                                                const value& from_ctx,
                                                 const compile_options& options,
                                                 const retune_options& retune)
     {
-        return target_get_retune_passes(private_detail_te_self, ctx, options, retune);
+        return target_get_retune_passes(private_detail_te_self, ctx, from_ctx, options, retune);
     }
 
     template <class T>
@@ -328,6 +333,7 @@ struct target
                      char(0),
                      std::declval<PrivateDetailTypeErasedT>(),
                      std::declval<context&>(),
+                     std::declval<const value&>(),
                      std::declval<const compile_options&>(),
                      std::declval<const retune_options&>()),
                  std::declval<PrivateDetailTypeErasedT>().get_context(),
@@ -436,11 +442,13 @@ struct target
     }
 
     std::vector<pass> get_retune_passes(context& ctx,
+                                        const value& from_ctx,
                                         const compile_options& options,
                                         const retune_options& retune) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_retune_passes(ctx, options, retune);
+        return (*this).private_detail_te_get_handle().get_retune_passes(
+            ctx, from_ctx, options, retune);
     }
 
     context get_context() const
@@ -502,6 +510,7 @@ struct target
         virtual std::vector<pass> get_passes(context& ctx,
                                              const compile_options& options) const              = 0;
         virtual std::vector<pass> get_retune_passes(context& ctx,
+                                                    const value& from_ctx,
                                                     const compile_options& options,
                                                     const retune_options& retune) const         = 0;
         virtual context get_context() const                                                     = 0;
@@ -549,12 +558,13 @@ struct target
         }
 
         std::vector<pass> get_retune_passes(context& ctx,
+                                            const value& from_ctx,
                                             const compile_options& options,
                                             const retune_options& retune) const override
         {
 
             return private_detail_te_default_get_retune_passes(
-                char(0), private_detail_te_value, ctx, options, retune);
+                char(0), private_detail_te_value, ctx, from_ctx, options, retune);
         }
 
         context get_context() const override { return private_detail_te_value.get_context(); }

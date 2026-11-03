@@ -900,10 +900,10 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
         else if(op.name() == "multibroadcast")
         {
             // Leading unit axes beyond the output rank are dropped first
-            auto out_lens = v.at("out_lens").to_vector<std::size_t>();
-            if(out_lens.size() < dims.size())
+            auto out_ndim = v.at("out_lens").size();
+            if(out_ndim < dims.size())
             {
-                auto extra = dims.size() - out_lens.size();
+                auto extra = dims.size() - out_ndim;
                 if(not std::all_of(
                        dims.begin(), dims.begin() + extra, [](auto d) { return d == 1; }))
                     return false;

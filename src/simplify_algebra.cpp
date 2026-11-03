@@ -42,6 +42,7 @@
 #include <migraphx/optional.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/permutation.hpp>
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
@@ -539,11 +540,11 @@ struct find_dot_axis_linear_ops
 {
     // dot(c, x) with c constant and x a linear recombination of one tensor y
     // along the contracted axis: concat, slice, pad, reverse, neg, add, sub,
-    // a constant dot on the same side as c and mul by a constant that varies
-    // only along that axis or the batch axes, with shape transforms anywhere
-    // between that keep the axis whole. Mirroring the recombination onto the
-    // contracted axis of c folds it into a constant, so the dot reads y
-    // directly with a contraction no longer than before.
+    // a dot whose constant owns the contracted axis and mul by a constant that
+    // varies only along that axis or the batch axes, with shape transforms
+    // anywhere between that keep the axis whole. Mirroring the recombination
+    // onto the contracted axis of c folds it into a constant, so the dot reads
+    // y directly with a contraction no longer than before.
     struct linear_fold
     {
         static const std::unordered_set<std::string>& layout_ops()
@@ -564,8 +565,9 @@ struct find_dot_axis_linear_ops
 
             std::size_t tracked() const
             {
-                return std::distance(to_x.begin(),
-                                     std::find(to_x.begin(), to_x.end(), optional<std::size_t>{k}));
+                auto it = std::find(to_x.begin(), to_x.end(), k);
+                assert(it != to_x.end());
+                return std::distance(to_x.begin(), it);
             }
 
             bool is_batch(std::size_t i) const
@@ -576,48 +578,67 @@ struct find_dot_axis_linear_ops
             // The axes of the input of layout op `ins`
             optional<axes> through(instruction_ref ins) const
             {
+                if(contains({"contiguous", "layout"}, ins->name()))
+                    return *this;
                 const auto& in_lens  = ins->inputs().front()->get_shape().lens();
                 const auto& out_lens = ins->get_shape().lens();
-                axes result{std::vector<optional<std::size_t>>(in_lens.size()), k, x_ndim};
-                if(contains({"contiguous", "layout"}, ins->name()))
-                {
-                    result.to_x = to_x;
-                    return result;
-                }
                 auto desc = shape_transform_descriptor::create(in_lens, {ins->get_operator()});
                 if(desc.empty())
                     return nullopt;
                 auto src_map = desc.axes_map_from_src();
-                auto idx     = range(in_lens.size());
+                axes result{std::vector<optional<std::size_t>>(in_lens.size()), k, x_ndim};
+                auto idx = range(in_lens.size());
                 std::transform(idx.begin(),
                                idx.end(),
                                result.to_x.begin(),
                                [&](auto i) -> optional<std::size_t> {
-                                   auto dst = src_map[i];
                                    // A unit output dim split off an axis holds none of its elements
-                                   dst.erase(
-                                       std::remove_if(dst.begin(),
-                                                      dst.end(),
-                                                      [&](auto d) { return out_lens[d] == 1; }),
-                                       dst.end());
-                                   if(dst.size() != 1 or in_lens[i] != out_lens[dst.front()])
+                                   const auto& dst = src_map[i];
+                                   auto non_unit   = [&](auto d) { return out_lens[d] != 1; };
+                                   auto it         = std::find_if(dst.begin(), dst.end(), non_unit);
+                                   if(it == dst.end() or
+                                      std::any_of(std::next(it), dst.end(), non_unit) or
+                                      in_lens[i] != out_lens[*it])
                                        return nullopt;
-                                   return to_x[dst.front()];
+                                   return to_x[*it];
                                });
                 // The contracted axis must still land whole on one input axis
-                if(std::count(result.to_x.begin(), result.to_x.end(), optional<std::size_t>{k}) !=
-                   1)
+                if(std::count(result.to_x.begin(), result.to_x.end(), k) != 1)
                     return nullopt;
                 return result;
             }
         };
 
-        // A leaf of the chain with the layout ops from x down to it
+        // The layout ops of a path rebased onto its leaf, and the shape they
+        // then produce
+        struct rebased_layouts
+        {
+            std::vector<operation> ops;
+            std::vector<std::size_t> lens;
+
+            friend bool operator==(const rebased_layouts& lhs, const rebased_layouts& rhs)
+            {
+                return std::tie(lhs.ops, lhs.lens) == std::tie(rhs.ops, rhs.lens);
+            }
+        };
+
+        // A leaf of the chain with the layout ops from x down to it, those
+        // ops rebased onto it, and whether a linear op folds into it
         struct leaf_path
         {
             instruction_ref ins;
             axes a;
             std::vector<instruction_ref> layouts;
+            optional<rebased_layouts> rebased;
+            bool linear = false;
+        };
+
+        // The inputs an op recombines along the tracked axis and the
+        // constant it folds
+        struct linear_op
+        {
+            std::vector<instruction_ref> inputs;
+            optional<instruction_ref> constant;
         };
 
         instruction_ref dot;
@@ -631,11 +652,9 @@ struct find_dot_axis_linear_ops
 
         // The constant operand of a mul that scales only along the tracked or
         // batch axes, if it has one
-        static optional<instruction_ref> axis_scale(instruction_ref ins, const axes& a)
+        static optional<instruction_ref>
+        axis_scale(instruction_ref ins, const axes& a, std::size_t tracked)
         {
-            if(ins->name() != "mul")
-                return nullopt;
-            auto tracked       = a.tracked();
             const auto& inputs = ins->inputs();
             auto it = std::find_if(inputs.begin(), inputs.end(), [&](instruction_ref input) {
                 if(not input->can_eval() or is_from_int4(input))
@@ -652,12 +671,9 @@ struct find_dot_axis_linear_ops
 
         // The constant operand of a dot that recombines the tracked axis: the
         // left one for the rows of its output, the right one for its columns
-        static optional<instruction_ref> axis_matrix(instruction_ref ins, const axes& a)
+        static optional<instruction_ref> axis_matrix(instruction_ref ins, std::size_t tracked)
         {
-            if(ins->name() != "dot")
-                return nullopt;
-            auto ndim    = ins->get_shape().ndim();
-            auto tracked = a.tracked();
+            auto ndim = ins->get_shape().ndim();
             if(tracked + 2 < ndim)
                 return nullopt;
             auto w = ins->inputs()[tracked + 2 - ndim];
@@ -670,118 +686,82 @@ struct find_dot_axis_linear_ops
         // A zero pad that only extends the tracked axis
         static bool is_axis_pad(instruction_ref ins, std::size_t axis)
         {
-            auto op = any_cast<op::pad>(ins->get_operator());
-            if(op.mode != op::pad::constant_pad or not float_equal(op.value, 0.0f))
+            auto v = ins->get_operator().to_value();
+            if(v.at("mode").to<op::pad::pad_op_mode_t>() != op::pad::constant_pad or
+               not float_equal(v.at("value").to<float>(), 0.0f))
                 return false;
-            auto ndim = op.pads.size() / 2;
-            return all_of(range(op.pads.size()), [&](auto i) {
-                return op.pads[i] >= 0 and (op.pads[i] == 0 or i % ndim == axis);
+            auto pads = v.at("pads").to_vector<int64_t>();
+            auto ndim = pads.size() / 2;
+            return all_of(range(pads.size()), [&](auto i) {
+                return pads[i] >= 0 and (pads[i] == 0 or i == axis or i == axis + ndim);
             });
         }
 
-        // Ops that only move, scale or sum rows along the tracked axis, so
-        // along it the output is a weighted selection of the input rows
-        static bool is_axis_linear_op(instruction_ref ins, const axes& a)
+        // Whether a concat, slice or reverse acts on `axis` alone
+        static bool on_axis(instruction_ref ins, std::size_t axis)
         {
-            if(contains({"neg", "add", "sub"}, ins->name()))
-                return true;
-            if(ins->name() == "mul")
-                return axis_scale(ins, a).has_value();
-            if(ins->name() == "dot")
-                return axis_matrix(ins, a).has_value();
-            if(ins->name() == "pad")
-                return is_axis_pad(ins, a.tracked());
-            if(not contains({"concat", "slice", "reverse"}, ins->name()))
-                return false;
             auto v = ins->normalized_operator().to_value();
             if(ins->name() == "concat")
-                return v.at("axis").to<std::size_t>() == a.tracked();
-            return v.at("axes").to_vector<std::size_t>() == std::vector<std::size_t>{a.tracked()};
+                return v.at("axis").to<std::size_t>() == axis;
+            return v.at("axes").to_vector<std::size_t>() == std::vector<std::size_t>{axis};
         }
 
-        // The inputs an axis-linear op recombines, which leaves out its constant
-        static std::vector<instruction_ref> linear_inputs(instruction_ref ins, const axes& a)
+        // The inputs and constant of `ins` when each of its output rows along
+        // the tracked axis is a linear combination of input rows
+        static optional<linear_op> as_linear_op(instruction_ref ins, const axes& a)
         {
-            auto inputs   = ins->inputs();
-            auto constant = axis_scale(ins, a);
-            if(not constant.has_value())
-                constant = axis_matrix(ins, a);
-            if(constant.has_value())
-                inputs.erase(std::find(inputs.begin(), inputs.end(), *constant));
-            return inputs;
-        }
-
-        // The deepest tensor the chain below `ins` is linear in, with the
-        // layout ops above it. That is `ins` itself when its inputs reach
-        // different tensors or the contracted axis cannot pass through it
-        static leaf_path
-        walk(instruction_ref ins, const axes& a, std::vector<instruction_ref> layouts, bool& linear)
-        {
-            if(contains(layout_ops(), ins->name()))
+            const auto& name = ins->name();
+            auto tracked     = a.tracked();
+            linear_op result{ins->inputs(), nullopt};
+            if(name == "mul")
+                result.constant = axis_scale(ins, a, tracked);
+            else if(name == "dot")
+                result.constant = axis_matrix(ins, tracked);
+            if(contains({"mul", "dot"}, name))
             {
-                auto in_axes = a.through(ins);
-                if(not in_axes.has_value())
-                    return {ins, a, std::move(layouts)};
-                auto below = layouts;
-                below.push_back(ins);
-                bool child_linear = false;
-                auto child = walk(ins->inputs().front(), *in_axes, std::move(below), child_linear);
-                if(not rebase_layouts(child, child.ins->get_shape().lens()).has_value())
-                    return {ins, a, std::move(layouts)};
-                linear = linear or child_linear;
-                return child;
+                if(not result.constant.has_value())
+                    return nullopt;
+                auto it = std::find(result.inputs.begin(), result.inputs.end(), *result.constant);
+                assert(it != result.inputs.end());
+                result.inputs.erase(it);
+                return result;
             }
-            if(not is_axis_linear_op(ins, a))
-                return {ins, a, std::move(layouts)};
-            auto inputs       = linear_inputs(ins, a);
-            bool child_linear = false;
-            std::vector<leaf_path> children;
-            std::transform(
-                inputs.begin(),
-                inputs.end(),
-                std::back_inserter(children),
-                [&](instruction_ref input) { return walk(input, a, layouts, child_linear); });
-            const auto& first  = children.front();
-            const auto& y_lens = first.ins->get_shape().lens();
-            auto first_layouts = rebase_layouts(first, y_lens);
-            // The inputs must reach one tensor through the same transforms
-            // for those to hoist above the recombination
-            if(not first_layouts.has_value() or not all_of(children, [&](const leaf_path& path) {
-                   return path.ins == first.ins and path.a.to_x == first.a.to_x and
-                          rebase_layouts(path, y_lens) == first_layouts;
-               }))
-                return {ins, a, std::move(layouts)};
-            linear = true;
-            return first;
+            if(name == "pad" and not is_axis_pad(ins, tracked))
+                return nullopt;
+            if(contains({"concat", "slice", "reverse"}, name) and not on_axis(ins, tracked))
+                return nullopt;
+            if(not contains({"pad", "concat", "slice", "reverse", "neg", "add", "sub"}, name))
+                return nullopt;
+            return result;
         }
 
-        // The layout ops of a path rebased onto `dims`, the shape of y, whose
-        // contracted axis is shorter than where they were applied
-        static optional<std::vector<operation>> rebase_layouts(const leaf_path& path,
-                                                               std::vector<std::size_t> dims)
+        // The layout ops on the path to `leaf` rebased onto its shape, whose
+        // contracted axis may be shorter than where they were applied
+        static optional<rebased_layouts> rebase_layouts(const leaf_path& leaf)
         {
-            std::vector<operation> result;
+            rebased_layouts result{{}, leaf.ins->get_shape().lens()};
             auto ok =
-                std::all_of(path.layouts.rbegin(), path.layouts.rend(), [&](instruction_ref ins) {
+                std::all_of(leaf.layouts.rbegin(), leaf.layouts.rend(), [&](instruction_ref ins) {
                     auto op = ins->get_operator();
                     // Only a reshape or a stepped unsqueeze spells out lengths
                     if(op.name() != "reshape" and
                        (op.name() != "unsqueeze" or op.to_value().at("steps").empty()))
                     {
-                        result.push_back(op);
-                        dims = op.compute_shape({shape{shape::float_type, dims}}).lens();
+                        result.lens =
+                            op.compute_shape({shape{shape::float_type, result.lens}}).lens();
+                        result.ops.push_back(std::move(op));
                         return true;
                     }
                     auto desc = shape_transform_descriptor::create(
-                        ins->inputs().front()->get_shape().lens(), {ins->get_operator()});
+                        ins->inputs().front()->get_shape().lens(), {op});
                     if(desc.empty())
                         return false;
-                    auto rebased = desc.rebase(dims);
+                    auto rebased = desc.rebase(result.lens);
                     if(rebased.empty())
                         return false;
-                    auto ops = rebased.generate(dims);
-                    result.insert(result.end(), ops.begin(), ops.end());
-                    dims = rebased.lens();
+                    auto ops = rebased.generate(result.lens);
+                    result.ops.insert(result.ops.end(), ops.begin(), ops.end());
+                    result.lens = rebased.lens();
                     return true;
                 });
             if(not ok)
@@ -789,65 +769,115 @@ struct find_dot_axis_linear_ops
             return result;
         }
 
+        static leaf_path
+        make_leaf(instruction_ref ins, const axes& a, std::vector<instruction_ref> layouts)
+        {
+            leaf_path leaf{ins, a, std::move(layouts), nullopt, false};
+            leaf.rebased = rebase_layouts(leaf);
+            return leaf;
+        }
+
         static optional<linear_fold> find(instruction_ref dot)
         {
-            if(dot->name() != "dot" or dot->get_shape().dynamic())
+            assert(dot->name() == "dot");
+            if(dot->get_shape().dynamic())
                 return nullopt;
-            auto a    = dot->inputs().front();
-            auto b    = dot->inputs().back();
-            auto ndim = a->get_shape().ndim();
+            auto lhs             = dot->inputs().front();
+            auto rhs             = dot->inputs().back();
+            const bool lhs_const = lhs->can_eval();
+            const bool rhs_const = rhs->can_eval();
+            if(lhs_const == rhs_const)
+                return nullopt;
+            auto ndim = lhs->get_shape().ndim();
+            assert(ndim >= 2);
             linear_fold result{};
-            result.dot = dot;
-            if(a->can_eval() and not b->can_eval())
-            {
-                result.c        = a;
-                result.c_axis   = ndim - 1;
-                result.x        = b;
-                result.x_axes.k = ndim - 2;
-            }
-            else if(b->can_eval() and not a->can_eval())
-            {
-                result.c        = b;
-                result.c_axis   = ndim - 2;
-                result.x        = a;
-                result.x_axes.k = ndim - 1;
-            }
-            else
-            {
-                return nullopt;
-            }
+            result.dot           = dot;
+            result.c             = lhs_const ? lhs : rhs;
+            result.x             = lhs_const ? rhs : lhs;
+            result.c_axis        = lhs_const ? ndim - 1 : ndim - 2;
+            result.x_axes.k      = lhs_const ? ndim - 2 : ndim - 1;
             result.x_axes.x_ndim = ndim;
-            result.x_axes.to_x.resize(ndim);
-            auto idx = range(ndim);
-            std::transform(idx.begin(), idx.end(), result.x_axes.to_x.begin(), [](auto i) {
-                return optional<std::size_t>{i};
-            });
-            bool linear = false;
-            auto leaf   = walk(result.x, result.x_axes, {}, linear);
-            if(not linear)
+            auto idx             = range(ndim);
+            result.x_axes.to_x.assign(idx.begin(), idx.end());
+            // The deepest tensor the chain below a node is linear in. That is
+            // the node itself when its inputs reach different tensors or the
+            // contracted axis cannot pass through it
+            auto leaf = fix<leaf_path>([](auto self,
+                                          instruction_ref ins,
+                                          const axes& a,
+                                          const std::vector<instruction_ref>& layouts) {
+                assert(a.to_x.size() == ins->get_shape().ndim());
+                if(contains(layout_ops(), ins->name()))
+                {
+                    auto in_axes = a.through(ins);
+                    if(not in_axes.has_value())
+                        return make_leaf(ins, a, layouts);
+                    auto below = layouts;
+                    below.push_back(ins);
+                    auto child = self(ins->inputs().front(), *in_axes, below);
+                    if(not child.rebased.has_value())
+                        return make_leaf(ins, a, layouts);
+                    return child;
+                }
+                auto lin = as_linear_op(ins, a);
+                if(not lin.has_value())
+                    return make_leaf(ins, a, layouts);
+                std::vector<leaf_path> children;
+                std::transform(lin->inputs.begin(),
+                               lin->inputs.end(),
+                               std::back_inserter(children),
+                               [&](instruction_ref input) { return self(input, a, layouts); });
+                auto& first = children.front();
+                // The inputs must reach one tensor through the same transforms
+                // for those to hoist above the recombination
+                if(not first.rebased.has_value() or
+                   not std::all_of(
+                       std::next(children.begin()), children.end(), [&](const leaf_path& path) {
+                           return path.ins == first.ins and path.a.to_x == first.a.to_x and
+                                  path.rebased == first.rebased;
+                       }))
+                    return make_leaf(ins, a, layouts);
+                first.linear = true;
+                return std::move(first);
+            })(result.x, result.x_axes, std::vector<instruction_ref>{});
+            if(not leaf.linear or leaf.ins->can_eval())
                 return nullopt;
             result.y = leaf.ins;
-            if(result.y->can_eval())
-                return nullopt;
-            const auto& y_lens = result.y->get_shape().lens();
-            auto k             = y_lens[leaf.a.tracked()];
+            auto k   = result.y->get_shape().lens()[leaf.a.tracked()];
             if(k < 2 or k > result.x->get_shape().lens()[result.x_axes.k])
                 return nullopt;
-            auto layouts = rebase_layouts(leaf, y_lens);
-            if(not layouts.has_value())
-                return nullopt;
-            // They must bring y to the shape of x with its contracted axis shortened
+            // The rebased layouts must bring y to the shape of x up to the
+            // contracted length
+            assert(leaf.rebased.has_value());
             auto expected             = result.x->get_shape().lens();
             expected[result.x_axes.k] = k;
-            auto final_shape          = std::accumulate(
-                layouts->begin(),
-                layouts->end(),
-                result.y->get_shape(),
-                [](const shape& s, const operation& op) { return op.compute_shape({s}); });
-            if(final_shape.lens() != expected)
+            if(leaf.rebased->lens != expected)
                 return nullopt;
-            result.layouts = *layouts;
+            result.layouts = std::move(leaf.rebased->ops);
             return result;
+        }
+
+        // Slice `axes` of `v` down to their first element
+        instruction_ref
+        slice_front(module& m, instruction_ref v, const std::vector<int64_t>& axes) const
+        {
+            if(axes.empty())
+                return v;
+            return m.insert_instruction(dot,
+                                        make_op("slice",
+                                                {{"axes", axes},
+                                                 {"starts", std::vector<int64_t>(axes.size(), 0)},
+                                                 {"ends", std::vector<int64_t>(axes.size(), 1)}}),
+                                        v);
+        }
+
+        // Slice the contracted axis of `cin`
+        instruction_ref slice_c(module& m, instruction_ref cin, int64_t start, int64_t end) const
+        {
+            return m.insert_instruction(
+                dot,
+                make_op("slice", {{"axes", {c_axis}}, {"starts", {start}}, {"ends", {end}}}),
+                cin);
         }
 
         // Lay the scale `s` of a mul along the matching axes of `cin`, which
@@ -860,55 +890,32 @@ struct find_dot_axis_linear_ops
             const auto& out_lens = cin->get_shape().lens();
             auto tracked         = a.tracked();
             auto idx             = range(lens.size());
-            std::vector<std::size_t> varying;
-            std::copy_if(idx.begin(), idx.end(), std::back_inserter(varying), [&](auto i) {
-                return lens[i] > 1 and strides[i] != 0;
-            });
+            auto varying = find_all(idx, [&](auto i) { return lens[i] > 1 and strides[i] != 0; });
             std::vector<std::size_t> targets;
-            std::transform(varying.begin(),
-                           varying.end(),
-                           std::back_inserter(targets),
-                           [&](auto i) { return i == tracked ? c_axis : *a.to_x[i]; });
+            std::transform(
+                varying.begin(), varying.end(), std::back_inserter(targets), [&](auto i) {
+                    if(i == tracked)
+                        return c_axis;
+                    assert(a.is_batch(i));
+                    return *a.to_x[i];
+                });
             // Slice away the other non-unit axes, which are broadcast
-            std::vector<int64_t> others;
-            std::copy_if(idx.begin(), idx.end(), std::back_inserter(others), [&](auto i) {
-                return lens[i] > 1 and not contains(varying, i);
-            });
-            auto v = s;
-            if(not others.empty())
-            {
-                std::vector<int64_t> starts(others.size(), 0);
-                std::vector<int64_t> ends(others.size(), 1);
-                v = m.insert_instruction(
-                    dot,
-                    make_op("slice", {{"axes", others}, {"starts", starts}, {"ends", ends}}),
-                    v);
-            }
+            auto v = slice_front(
+                m, s, find_all(idx, [&](auto i) { return lens[i] > 1 and strides[i] == 0; }));
             if(not varying.empty())
             {
                 // Keep only the varying axes, ordered as in cin, and unsqueeze the rest
-                std::vector<int64_t> unit;
-                std::copy_if(idx.begin(), idx.end(), std::back_inserter(unit), [&](auto i) {
-                    return not contains(varying, i);
-                });
+                auto unit = find_all(idx, [&](auto i) { return lens[i] == 1 or strides[i] == 0; });
                 if(not unit.empty())
                     v = m.insert_instruction(dot, make_op("squeeze", {{"axes", unit}}), v);
                 if(not std::is_sorted(targets.begin(), targets.end()))
                 {
-                    std::vector<int64_t> perm(targets.size());
-                    std::iota(perm.begin(), perm.end(), 0);
-                    std::sort(perm.begin(), perm.end(), by(std::less<>{}, [&](auto i) {
-                                  return targets[i];
-                              }));
+                    auto perm = sort_permutation(targets, std::less<>{});
                     v = m.insert_instruction(dot, make_op("transpose", {{"permutation", perm}}), v);
-                    std::sort(targets.begin(), targets.end());
+                    targets = reorder_dims(targets, perm);
                 }
-                auto positions = range(out_lens.size());
-                std::vector<int64_t> missing;
-                std::copy_if(positions.begin(),
-                             positions.end(),
-                             std::back_inserter(missing),
-                             [&](auto i) { return not contains(targets, i); });
+                auto missing = find_all(range(out_lens.size()),
+                                        [&](auto i) { return not contains(targets, i); });
                 if(not missing.empty())
                     v = m.insert_instruction(dot, make_op("unsqueeze", {{"axes", missing}}), v);
             }
@@ -923,23 +930,13 @@ struct find_dot_axis_linear_ops
         matrix(module& m, instruction_ref cin, instruction_ref w, bool columns) const
         {
             auto ndim = w->get_shape().ndim();
+            assert(ndim >= 2);
             // Broadcast batch axes of w carry one matrix, so keep just that
             const auto& wlens    = w->get_shape().lens();
             const auto& wstrides = w->get_shape().strides();
-            auto batch           = range(ndim - 2);
-            std::vector<int64_t> bcast;
-            std::copy_if(batch.begin(), batch.end(), std::back_inserter(bcast), [&](auto i) {
-                return wlens[i] > 1 and wstrides[i] == 0;
-            });
-            if(not bcast.empty())
-            {
-                std::vector<int64_t> starts(bcast.size(), 0);
-                std::vector<int64_t> ends(bcast.size(), 1);
-                w = m.insert_instruction(
-                    dot,
-                    make_op("slice", {{"axes", bcast}, {"starts", starts}, {"ends", ends}}),
-                    w);
-            }
+            w                    = slice_front(m, w, find_all(range(ndim - 2), [&](auto i) {
+                                return wlens[i] > 1 and wstrides[i] == 0;
+                                               }));
             const bool rows = c_axis == ndim - 2;
             if(columns != rows)
             {
@@ -966,26 +963,32 @@ struct find_dot_axis_linear_ops
         {
             if(ins == y)
                 return cin;
+            assert(a.to_x.size() == ins->get_shape().ndim());
             if(contains(layout_ops(), ins->name()))
-                return fold(m, ins->inputs().front(), cin, *a.through(ins));
+            {
+                auto in_axes = a.through(ins);
+                assert(in_axes.has_value());
+                return fold(m, ins->inputs().front(), cin, *in_axes);
+            }
+            auto lin = as_linear_op(ins, a);
+            assert(lin.has_value());
             auto axis        = a.tracked();
-            auto inputs      = linear_inputs(ins, a);
-            auto input       = inputs.front();
+            auto input       = lin->inputs.front();
             const auto& name = ins->name();
             if(name == "neg")
                 return fold(m, input, m.insert_instruction(dot, make_op("neg"), cin), a);
             if(name == "add" or name == "sub")
             {
-                auto lhs = fold(m, inputs[0], cin, a);
-                auto rhs = fold(m, inputs[1], cin, a);
+                auto lhs = fold(m, lin->inputs[0], cin, a);
+                auto rhs = fold(m, lin->inputs[1], cin, a);
                 return m.insert_instruction(dot, make_op(name), lhs, rhs);
             }
             if(name == "mul")
-                return fold(m, input, scale(m, cin, *axis_scale(ins, a), a), a);
+                return fold(m, input, scale(m, cin, *lin->constant, a), a);
             if(name == "dot")
             {
                 auto columns = axis == ins->get_shape().ndim() - 1;
-                return fold(m, input, matrix(m, cin, *axis_matrix(ins, a), columns), a);
+                return fold(m, input, matrix(m, cin, *lin->constant, columns), a);
             }
             if(name == "reverse")
                 return fold(
@@ -995,53 +998,45 @@ struct find_dot_axis_linear_ops
                     a);
             if(name == "slice")
             {
-                auto op   = any_cast<op::slice>(ins->normalized_operator());
-                auto len  = input->get_shape().lens()[axis];
-                auto ndim = cin->get_shape().ndim();
+                auto v      = ins->normalized_operator().to_value();
+                auto starts = v.at("starts").to_vector<int64_t>();
+                auto ends   = v.at("ends").to_vector<int64_t>();
+                assert(starts.size() == 1 and ends.size() == 1);
+                std::int64_t len = input->get_shape().lens()[axis];
+                auto ndim        = cin->get_shape().ndim();
                 std::vector<int64_t> pads(2 * ndim, 0);
-                pads[c_axis]        = op.starts.front();
-                pads[c_axis + ndim] = len - op.ends.front();
+                pads[c_axis]        = starts.front();
+                pads[c_axis + ndim] = len - ends.front();
                 return fold(
                     m, input, m.insert_instruction(dot, make_op("pad", {{"pads", pads}}), cin), a);
             }
             if(name == "pad")
             {
-                auto op    = any_cast<op::pad>(ins->get_operator());
-                auto start = op.pads[axis];
-                auto end   = start + input->get_shape().lens()[axis];
-                return fold(m,
-                            input,
-                            m.insert_instruction(
-                                dot,
-                                make_op("slice",
-                                        {{"axes", {c_axis}}, {"starts", {start}}, {"ends", {end}}}),
-                                cin),
-                            a);
+                auto pads = ins->get_operator().to_value().at("pads").to_vector<int64_t>();
+                assert(axis < pads.size() / 2);
+                std::int64_t start = pads[axis];
+                std::int64_t len   = input->get_shape().lens()[axis];
+                return fold(m, input, slice_c(m, cin, start, start + len), a);
             }
             assert(name == "concat");
-            std::vector<std::size_t> starts(inputs.size());
+            const auto& inputs = lin->inputs;
+            std::vector<int64_t> starts(inputs.size());
             std::transform_exclusive_scan(
                 inputs.begin(),
                 inputs.end(),
                 starts.begin(),
-                std::size_t{0},
+                std::int64_t{0},
                 std::plus<>{},
                 [&](instruction_ref z) { return z->get_shape().lens()[axis]; });
             std::vector<instruction_ref> parts;
-            std::transform(
-                inputs.begin(),
-                inputs.end(),
-                starts.begin(),
-                std::back_inserter(parts),
-                [&](instruction_ref z, std::size_t start) {
-                    auto end  = start + z->get_shape().lens()[axis];
-                    auto part = m.insert_instruction(
-                        dot,
-                        make_op("slice",
-                                {{"axes", {c_axis}}, {"starts", {start}}, {"ends", {end}}}),
-                        cin);
-                    return fold(m, z, part, a);
-                });
+            std::transform(inputs.begin(),
+                           inputs.end(),
+                           starts.begin(),
+                           std::back_inserter(parts),
+                           [&](instruction_ref z, std::int64_t start) {
+                               std::int64_t len = z->get_shape().lens()[axis];
+                               return fold(m, z, slice_c(m, cin, start, start + len), a);
+                           });
             return std::accumulate(std::next(parts.begin()),
                                    parts.end(),
                                    parts.front(),
@@ -1224,12 +1219,10 @@ struct find_inner_broadcast
     {
         if(input.elements() == 1)
             return false;
-        // Leading axes beyond the output rank are dropped, not unsqueezed
-        if(input.ndim() > output.ndim())
+        // Extra input axes are dropped rather than unsqueezed
+        if(input.ndim() >= output.ndim())
             return false;
         auto shift = output.ndim() - input.ndim();
-        if(shift == 0)
-            return false;
         if(std::equal(input.lens().begin(),
                       input.lens().end(),
                       output.lens().begin() + shift,

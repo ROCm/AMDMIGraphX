@@ -125,9 +125,8 @@ struct multibroadcast
                                    to_string_range(output_lens) + "}");
                 std::vector<std::size_t> lens(s0.lens().begin() + extra, s0.lens().end());
                 std::vector<std::size_t> strides(s0.strides().begin() + extra, s0.strides().end());
-                shape trailing{t, lens, strides};
                 validate(lens, output_lens);
-                return make_bcast_shape(trailing, output_lens);
+                return make_bcast_shape(shape{t, std::move(lens), std::move(strides)}, output_lens);
             }
             validate(s0.lens(), output_lens);
             return make_bcast_shape(s0, output_lens);

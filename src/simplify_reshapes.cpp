@@ -2503,8 +2503,8 @@ struct find_layout_broadcast
         // and drops any leading axes beyond its rank; broadcast places it at
         // the range starting at its axis attribute
         const auto& bcast_op = broadcast->get_operator();
-        std::size_t extra    = in_ndim > permutation.size() ? in_ndim - permutation.size() : 0;
-        auto ndim            = in_ndim - extra;
+        auto ndim            = std::min(in_ndim, permutation.size());
+        auto extra           = in_ndim - ndim;
         auto offset          = permutation.size() - ndim;
         if(bcast_op.name() == "broadcast")
             offset = bcast_op.to_value().at("axis").to<std::size_t>();

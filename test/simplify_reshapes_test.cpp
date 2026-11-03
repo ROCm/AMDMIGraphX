@@ -1416,7 +1416,7 @@ TEST_CASE(concat_multibroadcasts4)
 }
 
 // Scalar broadcasts with more axes than the concat output concatenate
-// beneath the broadcast once their dropped leading axes are squeezed away
+// beneath the broadcast once an extra unit axis is squeezed away
 TEST_CASE(concat_multibroadcasts_scalar_lower_rank)
 {
     migraphx::shape xs{migraphx::shape::float_type, {1, 1, 1, 2}, {0, 0, 0, 0}};

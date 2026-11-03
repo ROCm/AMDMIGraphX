@@ -697,7 +697,7 @@ struct find_dot_axis_linear_ops
             return result;
         }
 
-        // Broadcast the scale `s`, which varies only along `axis`, along the
+        // Lay the scale `s`, which varies only along `axis`, along the
         // contracted axis of `cin`
         instruction_ref scale_along(module& m, instruction_ref s, instruction_ref cin) const
         {
@@ -708,23 +708,29 @@ struct find_dot_axis_linear_ops
                 axes.begin(),
                 axes.end(),
                 std::back_inserter(other_axes),
-                [&](auto i) { return i != axis and lens[i] > 1; },
+                [&](auto i) { return i != axis; },
                 [](auto i) { return i; });
+            std::vector<int64_t> non_unit_axes;
+            std::copy_if(other_axes.begin(),
+                         other_axes.end(),
+                         std::back_inserter(non_unit_axes),
+                         [&](auto i) { return lens[i] > 1; });
             auto v = s;
-            if(not other_axes.empty())
+            if(not non_unit_axes.empty())
             {
-                std::vector<int64_t> starts(other_axes.size(), 0);
-                std::vector<int64_t> ends(other_axes.size(), 1);
+                std::vector<int64_t> starts(non_unit_axes.size(), 0);
+                std::vector<int64_t> ends(non_unit_axes.size(), 1);
                 v = m.insert_instruction(
                     dot,
-                    make_op("slice", {{"axes", other_axes}, {"starts", starts}, {"ends", ends}}),
+                    make_op("slice", {{"axes", non_unit_axes}, {"starts", starts}, {"ends", ends}}),
                     v);
             }
-            std::vector<std::size_t> dims(cin->get_shape().ndim(), 1);
-            dims[c_axis] = lens[axis];
-            v            = m.insert_instruction(dot, make_op("reshape", {{"dims", dims}}), v);
+            if(not other_axes.empty())
+                v = m.insert_instruction(dot, make_op("squeeze", {{"axes", other_axes}}), v);
             return m.insert_instruction(
-                dot, make_op("multibroadcast", {{"out_lens", cin->get_shape().lens()}}), v);
+                dot,
+                make_op("broadcast", {{"axis", c_axis}, {"out_lens", cin->get_shape().lens()}}),
+                v);
         }
 
         // Mirror op `ins` of the recombination onto the contracted axis of

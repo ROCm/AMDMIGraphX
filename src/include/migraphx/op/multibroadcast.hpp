@@ -109,6 +109,10 @@ struct multibroadcast
                 return make_bcast_shape(s0_sym, output_dyn_dims);
             }
 
+            // Every element of a scalar is the same, so it broadcasts to any
+            // shape, even one of lower rank
+            if(s0.scalar())
+                return {t, output_lens, std::vector<std::size_t>(output_lens.size(), 0)};
             validate(s0.lens(), output_lens);
             return make_bcast_shape(s0, output_lens);
         }

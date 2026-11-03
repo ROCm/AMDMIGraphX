@@ -181,6 +181,12 @@ TEST_CASE(dimension_len)
     EXPECT(dim.len() == 20);
 }
 
+TEST_CASE(record_multibroadcast_lower_rank)
+{
+    shape_transform_descriptor desc{std::vector<std::size_t>{1, 1, 1, 2}};
+    EXPECT(not desc.apply({make_op("multibroadcast", {{"out_lens", {1, 3, 2}}})}));
+}
+
 TEST_CASE(record_reshape)
 {
     auto desc = make_descriptor({256, 3, 16, 16}, make_op("reshape", {{"dims", {16, 16, 48, 16}}}));

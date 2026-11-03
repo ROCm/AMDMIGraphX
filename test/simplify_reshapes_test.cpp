@@ -2032,8 +2032,8 @@ TEST_CASE(multibroadcast_unsqueeze_cont_scalar)
     EXPECT(m1 == m2);
 }
 
-// A broadcast scalar can carry more axes than the output, which have to be
-// squeezed away before it is broadcast
+// A broadcast scalar can carry more axes than the output and still
+// broadcasts to it directly
 TEST_CASE(multibroadcast_reshape_broadcast_scalar_axes)
 {
     migraphx::shape xs{migraphx::shape::float_type, {1, 1, 1, 2}, {0, 0, 0, 0}};
@@ -2048,10 +2048,9 @@ TEST_CASE(multibroadcast_reshape_broadcast_scalar_axes)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x  = m2.add_parameter("x", xs);
-        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), x);
+        auto x = m2.add_parameter("x", xs);
         auto mb =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 2}}}), sq);
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 2}}}), x);
         m2.add_return({mb});
     }
     EXPECT(m1 == m2);

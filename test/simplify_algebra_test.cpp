@@ -5058,9 +5058,9 @@ TEST_CASE(mul_dot_a)
         auto slc = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {1, 1}}}),
             litb);
-        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 32, 1}}}), slc);
-        auto litk =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), rsp);
+        auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), slc);
+        auto litk = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", bs.lens()}}), sq);
 
         auto b   = m2.add_literal(migraphx::generate_literal(bs));
         auto mul = m2.add_instruction(migraphx::make_op("mul"), b, litk);
@@ -5105,9 +5105,9 @@ TEST_CASE(mul_dot_b)
         auto slc = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 0}}, {"ends", {1, 1}}}),
             litb);
-        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 32}}}), slc);
-        auto litk =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", as.lens()}}), rsp);
+        auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), slc);
+        auto litk = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", as.lens()}}), sq);
 
         auto a   = m2.add_literal(migraphx::generate_literal(as));
         auto mul = m2.add_instruction(migraphx::make_op("mul"), a, litk);
@@ -7300,9 +7300,9 @@ TEST_CASE(simplify_dot_axis_linear_mul_through_transpose)
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", ys.lens()}}), s);
         auto slc = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), sb);
-        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 3}}}), slc);
-        auto sk =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", cs.lens()}}), rsp);
+        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), slc);
+        auto sk = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", cs.lens()}}), sq);
         auto cm = m2.add_instruction(migraphx::make_op("mul"), c, sk);
         auto tr =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
@@ -7351,9 +7351,9 @@ TEST_CASE(simplify_dot_axis_linear_scaled_concat)
         auto rev = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2}}}), neg);
         auto slc = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), sb);
-        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 2}}}), slc);
-        auto sk =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2}}}), rsp);
+        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), slc);
+        auto sk = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {1, 2, 2}}}), sq);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), rev, sk);
         auto pad =
             m2.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 1, 0, 0, 0}}}), mul);

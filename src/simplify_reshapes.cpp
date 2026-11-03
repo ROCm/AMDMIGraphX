@@ -146,17 +146,6 @@ instruction_ref insert_auto_reshape(module& m,
     return insert_auto_reshape(m, ins, std::vector<T>(dims), input);
 }
 
-// Whether lens can be multibroadcast to out_lens
-bool can_multibroadcast(const std::vector<std::size_t>& lens,
-                        const std::vector<std::size_t>& out_lens)
-{
-    if(lens.size() > out_lens.size())
-        return false;
-    return std::equal(lens.rbegin(), lens.rend(), out_lens.rbegin(), [](auto len, auto out) {
-        return len == 1 or len == out;
-    });
-}
-
 struct find_nested_shape_transforms
 {
     static const auto& shape_transform_ops()
@@ -194,10 +183,7 @@ struct find_nested_shape_transforms
             ops.push_back(x->get_operator());
             x = x->inputs().front();
         }
-        // A broadcast scalar is broadcast directly when its axes line up with
-        // the output, otherwise it carries extra axes to reshape away first
-        if(x->get_shape().scalar() and
-           can_multibroadcast(x->get_shape().lens(), ins->get_shape().lens()))
+        if(x->get_shape().scalar())
         {
             m.replace_instruction(
                 ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);

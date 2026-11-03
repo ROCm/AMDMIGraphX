@@ -899,6 +899,9 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
         }
         else if(op.name() == "multibroadcast")
         {
+            // Only a scalar broadcasts to a lower rank, which has no axis mapping
+            if(v.at("out_lens").to_vector<std::size_t>().size() < dims.size())
+                return false;
             dims = compute_dims(op, dims);
             // cppcheck-suppress knownConditionTrueFalse
             if(not apply_broadcast(dims))

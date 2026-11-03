@@ -67,6 +67,7 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_symbolic_dimensions.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/split_sym_dim.hpp>
@@ -137,7 +138,8 @@ struct backend_options
     bool standardize_outputs = false;
     // Keep range-based dynamic shapes for runtime compilation instead of specializing ranges.
     bool disable_range_based_splitting = false;
-    // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
+    // When true, kernels compile in-process, not in migraphx-hiprtc-driver.
+    // Not honoured by binary_cache's compiler-version probe, which still spawns the driver.
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;
@@ -196,6 +198,9 @@ struct pipeline_factory
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
+            dead_code_elimination{},
+            simplify_symbolic_dimensions{},
+            dead_code_elimination{},
             split_sym_dim{},
             enable_pass(not backend_opts.disable_range_based_splitting and
                             disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),

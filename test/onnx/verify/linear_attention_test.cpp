@@ -508,7 +508,7 @@ TEST_CASE(linear_attention_linear_fp16_test)
                                                          migraphx::verify::expected{gold_state}));
 }
 
-// Inverse GQA (com.microsoft): kv_num_heads > q_num_heads, so two state heads
+// Inverse GQA: kv_num_heads > q_num_heads, so two state heads
 // share the one query head and the output has one head per state head. Gold
 // data from the onnxruntime recurrence (MLAS linear_attention.cpp).
 TEST_CASE(linear_attention_inverse_gated_delta_test)

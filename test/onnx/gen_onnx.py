@@ -9187,8 +9187,8 @@ def linear_attention_inverse_linear_shared_key_test():
     return ([node], [query, key, value], [output, present_state])
 
 
-# Multi-chunk prefill (chunk_size smaller than the sequence), with and
-# without padding to whole chunks
+# Two whole chunks (chunk_size=2, T=4); the chunked tests below also pad the
+# last chunk
 @onnx_test(opset_version=27)
 def linear_attention_chunked_gated_delta_test():
     query = helper.make_tensor_value_info('query', TensorProto.FLOAT,

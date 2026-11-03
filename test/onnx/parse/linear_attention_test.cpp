@@ -124,7 +124,7 @@ TEST_CASE(linear_attention_linear_test)
     mm->add_instruction(migraphx::make_op("dot"), k, v);
 
     auto prog = optimize_onnx("linear_attention_linear_test.onnx");
-    EXPECT(p == prog);
+    EXPECT(p.sort() == prog.sort());
 }
 
 // fp16 GQA with past state: the matmuls run in fp16; the mask stage and the
@@ -195,7 +195,7 @@ TEST_CASE(linear_attention_linear_fp16_test)
                         sum);
 
     auto prog = optimize_onnx("linear_attention_linear_fp16_test.onnx");
-    EXPECT(p == prog);
+    EXPECT(p.sort() == prog.sort());
 }
 
 // Inverse GQA decode step (T=1): two state heads share the single query head,

@@ -26,6 +26,7 @@
 #include <migraphx/fallthrough.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/scope_guard.hpp>
@@ -700,19 +701,15 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
                 args);
         }
         output_num = std::min<std::size_t>(output_num, result.size());
-        std::vector<std::pair<std::string, instruction_ref>> named_outputs(output_num);
-        std::transform(node.output().begin(),
-                       node.output().begin() + output_num,
-                       result.begin(),
-                       named_outputs.begin(),
-                       [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-        // An empty name marks an unused optional output. Registering it would
-        // shadow the undefined instruction that missing optional inputs of
-        // later nodes resolve to, handing them this output instead.
-        std::copy_if(named_outputs.begin(),
-                     named_outputs.end(),
-                     std::inserter(instructions, instructions.end()),
-                     [](const auto& p) { return not p.first.empty(); });
+        // An empty name marks an unused optional output; registering it would make
+        // later nodes' empty optional inputs resolve to it instead of undefined
+        transform_if(
+            node.output().begin(),
+            node.output().begin() + output_num,
+            result.begin(),
+            std::inserter(instructions, instructions.end()),
+            [](auto&& name, auto&&) { return not name.empty(); },
+            [](auto&& x, auto&& y) { return std::make_pair(x, y); });
         std::vector<instruction_ref> added_instructions;
         if(this->use_debug_symbols or enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
         {

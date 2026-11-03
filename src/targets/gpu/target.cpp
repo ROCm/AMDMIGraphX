@@ -67,6 +67,7 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_symbolic_dimensions.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/split_sym_dim.hpp>
@@ -197,6 +198,9 @@ struct pipeline_factory
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
+            dead_code_elimination{},
+            simplify_symbolic_dimensions{},
+            dead_code_elimination{},
             split_sym_dim{},
             enable_pass(not backend_opts.disable_range_based_splitting and
                             disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),

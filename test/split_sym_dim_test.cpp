@@ -5830,7 +5830,7 @@ TEST_CASE(split_sym_dim_dyn_concat_count_root)
             {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{a, b})}}),
         x,
         y);
-    auto concat   = m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+    auto concat   = m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), counts, x, y);
     auto buffer   = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total    = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
     auto starts   = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});

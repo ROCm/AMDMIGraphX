@@ -270,6 +270,7 @@ add_library(migraphx_gpu
     compiler.cpp
     device_description.cpp
     device_name.cpp
+    dyn_concat.cpp
     eliminate_data_type_for_gpu.cpp
     file_binary_cache.cpp
     fixed_pad.cpp
@@ -333,6 +334,7 @@ function(register_migraphx_gpu_ops PREFIX)
 endfunction()
 
 register_migraphx_gpu_ops(hip_
+    dyn_concat
     fixed_pad
     loop
     topk

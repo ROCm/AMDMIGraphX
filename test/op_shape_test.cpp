@@ -7961,13 +7961,14 @@ TEST_CASE(dyn_concat_shape)
     migraphx::shape count{migraphx::shape::int64_type, {2}};
     migraphx::shape output_count{migraphx::shape::int64_type, {1}};
     migraphx::shape expected{{migraphx::shape{migraphx::shape::float_type, {24, 4}}, output_count}};
-    expect_shape(expected, migraphx::make_op("dyn_concat", {{"axis", 0}}), sx, sy, count);
+    expect_shape(expected, migraphx::make_op("dyn_concat", {{"axis", 0}}), count, sx, sy);
 
     migraphx::shape s0{migraphx::shape::float_type, {2, 0, 3}};
     migraphx::shape s1{migraphx::shape::float_type, {2, 5, 3}};
     migraphx::shape middle_expected{
         {migraphx::shape{migraphx::shape::float_type, {2, 5, 3}}, output_count}};
-    expect_shape(middle_expected, migraphx::make_op("dyn_concat", {{"axis", 1}}), s0, s1, count);
+    expect_shape(middle_expected, migraphx::make_op("dyn_concat", {{"axis", 1}}), count, s0, s1);
+    expect_shape(middle_expected, migraphx::make_op("dyn_concat", {{"axis", -2}}), count, s0, s1);
 }
 
 TEST_CASE(dyn_concat_shape_errors)
@@ -7978,11 +7979,11 @@ TEST_CASE(dyn_concat_shape_errors)
     migraphx::shape count{migraphx::shape::int64_type, {2}};
     auto op = migraphx::make_op("dyn_concat", {{"axis", 0}});
 
-    throws_shape(op, sx, sy, count);
+    throws_shape(op, count, sx, sy);
     throws_shape(op, sx, sx);
-    throws_shape(op, sx, sx, migraphx::shape{migraphx::shape::int32_type, {2}});
-    throws_shape(op, sx, sx, migraphx::shape{migraphx::shape::int64_type, {1}});
-    throws_shape(migraphx::make_op("dyn_concat", {{"axis", 2}}), sx, sx, count);
+    throws_shape(op, migraphx::shape{migraphx::shape::int32_type, {2}}, sx, sx);
+    throws_shape(op, migraphx::shape{migraphx::shape::int64_type, {1}}, sx, sx);
+    throws_shape(migraphx::make_op("dyn_concat", {{"axis", 2}}), count, sx, sx);
 }
 
 TEST_CASE(concat_sym)

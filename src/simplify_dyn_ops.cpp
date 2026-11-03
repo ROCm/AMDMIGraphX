@@ -96,14 +96,14 @@ struct find_static_dyn_concat : match::supports_dynamic_shapes
         if(inputs.size() < 2)
             return;
         const auto n = inputs.size() - 1;
-        std::vector<instruction_ref> data(inputs.begin(), inputs.begin() + n);
+        std::vector<instruction_ref> data(inputs.begin() + 1, inputs.end());
         if(any_of(data, [](auto input) { return input->get_shape().dynamic(); }))
             return;
 
         auto axis         = tune_axis(data.front()->get_shape().ndim(),
                               ins->get_operator().to_value().at("axis").to<int64_t>(),
                               ins->name());
-        auto count_values = inputs.back()->sym_eval();
+        auto count_values = inputs.front()->sym_eval();
         if(count_values.empty())
             return;
         auto values = count_values.get();

@@ -44,7 +44,7 @@ TEST_CASE(concat_symbolic_test)
             {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{a, b})}}),
         x,
         y);
-    auto concat = mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+    auto concat = mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), counts, x, y);
     auto buffer = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
     const auto concat_count = var("main_Concat_2", {0, 10});

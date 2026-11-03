@@ -79,8 +79,8 @@ struct parse_concat : op_parser<parse_concat>
 
         auto counts = info.add_instruction(
             make_op("eval_expr_from_shape", {{"expressions", to_value(axis_expressions)}}), args);
-        auto dyn_concat_inputs = args;
-        dyn_concat_inputs.push_back(counts);
+        std::vector<instruction_ref> dyn_concat_inputs = {counts};
+        dyn_concat_inputs.insert(dyn_concat_inputs.end(), args.begin(), args.end());
         auto concat =
             info.add_instruction(make_op("dyn_concat", {{"axis", axis}}), dyn_concat_inputs);
         auto buffer = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), concat);

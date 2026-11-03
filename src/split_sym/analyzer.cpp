@@ -129,7 +129,7 @@ bool has_nonnegative_values(instruction_ref ins)
         if(index == 1)
             return true;
         auto data_inputs = source->inputs();
-        data_inputs.pop_back();
+        data_inputs.erase(data_inputs.begin());
         return index == 0 and all_of(data_inputs, has_nonnegative_values);
     }
     return (source->name() == "topk" and index == 1) or

@@ -28,10 +28,10 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/par.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/tune_axis.hpp>
 #include <migraphx/value.hpp>
 
 #include <algorithm>
@@ -49,7 +49,7 @@ namespace op {
  * Concatenate valid prefixes of maximum-capacity inputs.
  *
  * Inputs are ordered as:
- *   data_0, ..., data_n, num_elements
+ *   num_elements, data_0, ..., data_n
  *
  * num_elements is an int64 tensor with one element per data input and gives each valid extent along
  * axis. The output is a tuple containing a zero-padded static maximum-capacity buffer and the sum
@@ -65,33 +65,24 @@ struct dyn_concat
         return pack(f(self.axis, "axis"));
     }
 
-    value attributes() const
-    {
-        value normalize;
-        normalize["axis"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
-    }
-
     std::string name() const { return "dyn_concat"; }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.size() < 2)
-            MIGRAPHX_THROW("DYN_CONCAT: expected data inputs followed by a count tensor");
+            MIGRAPHX_THROW("DYN_CONCAT: expected a count tensor followed by data inputs");
         const auto n = inputs.size() - 1;
-        check_shapes{inputs.begin(), inputs.begin() + n, *this, true}.same_ndims().same_type();
+        check_shapes{inputs.begin() + 1, inputs.end(), *this, true}.same_ndims().same_type();
 
-        const auto rank = inputs.front().ndim();
-        if(axis < 0 or static_cast<std::size_t>(axis) >= rank)
-            MIGRAPHX_THROW("DYN_CONCAT: axis is out of range");
-        const auto normalized_axis = static_cast<std::size_t>(axis);
+        const auto rank            = inputs.at(1).ndim();
+        const auto normalized_axis = tune_axis(rank, axis, name());
 
         const shape count_shape{shape::int64_type, {n}};
-        if(inputs.back() != count_shape)
+        if(inputs.front() != count_shape)
             MIGRAPHX_THROW("DYN_CONCAT: count input must be an int64 tensor with one value per "
                            "data input");
 
-        const std::vector<shape> data_shapes(inputs.begin(), inputs.begin() + n);
+        const std::vector<shape> data_shapes(inputs.begin() + 1, inputs.end());
         const auto dynamic_inputs = shape::to_dynamic(data_shapes);
         const auto& first_dims    = dynamic_inputs.front().dyn_dims();
         if(not migraphx::all_of(range(rank), [&](std::size_t current_axis) {
@@ -106,22 +97,22 @@ struct dyn_concat
            }))
             MIGRAPHX_THROW("DYN_CONCAT: non-concat dimensions must be fixed and equal");
 
-        auto output_lens                = inputs.front().max_lens();
+        auto output_lens                = inputs.at(1).max_lens();
         output_lens.at(normalized_axis) = std::accumulate(
-            inputs.begin(), inputs.begin() + n, std::size_t{0}, [&](auto total, const shape& s) {
+            inputs.begin() + 1, inputs.end(), std::size_t{0}, [&](auto total, const shape& s) {
                 const auto length = s.max_lens().at(normalized_axis);
                 if(length > std::numeric_limits<std::size_t>::max() - total)
                     MIGRAPHX_THROW("DYN_CONCAT: maximum output dimension overflow");
                 return total + length;
             });
-        return shape{{shape{inputs.front().type(), output_lens}, shape{shape::int64_type, {1}}}};
+        return shape{{shape{inputs.at(1).type(), output_lens}, shape{shape::int64_type, {1}}}};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         const auto n               = args.size() - 1;
-        const auto normalized_axis = static_cast<std::size_t>(axis);
         const auto& output_shapes  = output_shape.sub_shapes();
+        const auto normalized_axis = tune_axis(output_shapes.front().ndim(), axis, name());
         argument output{output_shapes.front()};
         argument total_output{output_shapes.back()};
 
@@ -131,13 +122,13 @@ struct dyn_concat
         });
 
         auto indices            = range(n);
-        const auto num_elements = args.back().to_vector<int64_t>();
+        const auto num_elements = args.front().to_vector<int64_t>();
         std::vector<std::size_t> counts(n);
         std::transform(indices.begin(), indices.end(), counts.begin(), [&](std::size_t i) {
             if(num_elements.at(i) < 0)
                 MIGRAPHX_THROW("DYN_CONCAT: count cannot be negative");
             const auto count = static_cast<std::size_t>(num_elements.at(i));
-            if(count > args.at(i).get_shape().lens().at(normalized_axis))
+            if(count > args.at(i + 1).get_shape().lens().at(normalized_axis))
                 MIGRAPHX_THROW("DYN_CONCAT: count exceeds the input dimension");
             return count;
         });
@@ -152,14 +143,14 @@ struct dyn_concat
             indices.end(),
             offsets.begin(),
             [&](std::size_t i, std::size_t offset) {
-                const auto& input_shape          = args.at(i).get_shape();
+                const auto& input_shape          = args.at(i + 1).get_shape();
                 auto slice_lens                  = input_shape.lens();
                 slice_lens.at(normalized_axis)   = counts.at(i);
                 auto output_start                = std::vector<std::size_t>(slice_lens.size(), 0);
                 output_start.at(normalized_axis) = offset;
                 const auto output_element_offset = output_shapes.front().index(output_start);
 
-                visit_all(output, args.at(i))([&](auto output_view, auto input_view) {
+                visit_all(output, args.at(i + 1))([&](auto output_view, auto input_view) {
                     auto input_slice =
                         make_view(shape{input_shape.type(), slice_lens, input_shape.strides()},
                                   input_view.data());

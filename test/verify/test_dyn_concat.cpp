@@ -37,7 +37,7 @@ struct test_dyn_concat : verify_program<test_dyn_concat>
         auto counts =
             mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {2}}, {2, 1}});
         auto result =
-            mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 1}}), x, y, counts);
+            mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 1}}), counts, x, y);
         auto buffer =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), result);
         auto count =

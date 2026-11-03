@@ -123,7 +123,7 @@ TEST_CASE(static_dyn_concat)
     auto counts = m0.add_literal(
         migraphx::literal{{migraphx::shape::int64_type, {2}}, {int64_t{2}, int64_t{3}}});
     auto dyn_concat =
-        m0.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+        m0.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), counts, x, y);
     auto buffer =
         m0.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), dyn_concat);
     auto total =
@@ -165,7 +165,7 @@ TEST_CASE(static_dyn_concat_shape_counts)
         x,
         y);
     auto dyn_concat =
-        m0.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+        m0.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), counts, x, y);
     auto buffer =
         m0.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), dyn_concat);
     auto total =
@@ -193,7 +193,7 @@ TEST_CASE(partial_count_dyn_concat_is_not_simplified)
     auto counts = m.add_literal(
         migraphx::literal{{migraphx::shape::int64_type, {2}}, {int64_t{1}, int64_t{3}}});
     auto dyn_concat =
-        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), counts, x, y);
     auto buffer =
         m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), dyn_concat);
     m.add_return({buffer});
@@ -210,7 +210,7 @@ TEST_CASE(runtime_count_dyn_concat_is_not_simplified)
     auto y      = m.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
     auto counts = m.add_parameter("counts", {migraphx::shape::int64_type, {2}});
     auto dyn_concat =
-        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), counts, x, y);
     auto buffer =
         m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), dyn_concat);
     m.add_return({buffer});
@@ -227,7 +227,7 @@ TEST_CASE(dynamic_data_dyn_concat_is_not_simplified)
     auto y      = m.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
     auto counts = m.add_parameter("counts", {migraphx::shape::int64_type, {2}});
     auto dyn_concat =
-        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), x, y, counts);
+        m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), counts, x, y);
     auto buffer =
         m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), dyn_concat);
     m.add_return({buffer});

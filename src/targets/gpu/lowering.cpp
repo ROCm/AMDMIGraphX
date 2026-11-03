@@ -37,6 +37,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/sym.hpp>
 
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
@@ -482,7 +483,30 @@ struct miopen_apply
     void add_dyn_concat_op()
     {
         apply_map.emplace("dyn_concat", [=](instruction_ref ins) {
-            auto result = insert_precompile_op(ins);
+            auto inputs = ins->inputs();
+            bool fixed_strides =
+                all_of(range(inputs.begin() + 1, inputs.end()), [](instruction_ref input) {
+                    const auto& s = input->get_shape();
+                    return not s.dynamic() or
+                           (s.symbolic() and all_of(s.dyn_strides(), [](const auto& stride) {
+                               return sym::fixed_value(stride).has_value();
+                           }));
+                });
+            instruction_ref result;
+            if(fixed_strides)
+            {
+                result = insert_precompile_op(ins);
+            }
+            else
+            {
+                auto offsets =
+                    insert_allocation(ins, shape{shape::int64_type, {inputs.size() - 1}});
+                auto output = insert_allocation(ins, ins->get_shape());
+                inputs.push_back(offsets);
+                inputs.push_back(output);
+                result = mod->replace_instruction(
+                    ins, make_op("gpu::dyn_concat", ins->get_operator().to_value()), inputs);
+            }
             insert_fill(result, 0);
             return result;
         });

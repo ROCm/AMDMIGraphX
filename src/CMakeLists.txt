@@ -331,6 +331,7 @@ register_migraphx_ops(
     tan
     topk
     transpose
+    triangular_solve
     unary_not
     undefined
     unique

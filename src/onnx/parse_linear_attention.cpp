@@ -260,13 +260,22 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         return info.add_instruction(make_op("convert", {{"target_type", target_type}}), ins);
     }
 
+    static instruction_ref slice_range(const onnx_parser::node_info& info,
+                                       instruction_ref ins,
+                                       std::int64_t axis,
+                                       std::size_t start,
+                                       std::size_t end)
+    {
+        return info.add_instruction(
+            make_op("slice", {{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}}), ins);
+    }
+
     static instruction_ref slice_step(const onnx_parser::node_info& info,
                                       instruction_ref ins,
                                       std::int64_t axis,
                                       std::size_t i)
     {
-        return info.add_instruction(
-            make_op("slice", {{"axes", {axis}}, {"starts", {i}}, {"ends", {i + 1}}}), ins);
+        return slice_range(info, ins, axis, i, i + 1);
     }
 
     // The sequence axis is the last axis of a column layout and the second to
@@ -332,16 +341,13 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         return info.add_common_op(name, a, b);
     }
 
-    // (t, t) mask set where the key position is ahead of the query position,
-    // or on the diagonal too when strict
-    static instruction_ref
-    causal_mask(const onnx_parser::node_info& info, std::size_t t, bool strict)
+    // (t, t) mask set where the key position is ahead of the query position
+    static instruction_ref causal_mask(const onnx_parser::node_info& info, std::size_t t)
     {
         shape mask_shape{shape::bool_type, {t, t}};
         std::vector<int8_t> upper(mask_shape.elements());
-        shape_for_each(mask_shape, [&](const auto& idx, std::size_t i) {
-            upper[i] = (strict ? idx[1] >= idx[0] : idx[1] > idx[0]) ? 1 : 0;
-        });
+        shape_for_each(mask_shape,
+                       [&](const auto& idx, std::size_t i) { upper[i] = idx[1] > idx[0] ? 1 : 0; });
         return info.add_literal(literal{mask_shape, upper});
     }
 
@@ -361,7 +367,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
     static instruction_ref
     apply_causal_mask(const onnx_parser::node_info& info, instruction_ref scores, std::size_t t)
     {
-        return zero_where(info, causal_mask(info, t, false), scores);
+        return zero_where(info, causal_mask(info, t), scores);
     }
 
     // Zero-pad the sequence axis of a packed (B, T, X) input up to t_pad
@@ -386,32 +392,6 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         if(ins->get_shape().lens().at(axis) > 1)
             ins = slice_step(info, ins, axis, i);
         return info.add_instruction(make_op("squeeze", {{"axes", {axis}}}), ins);
-    }
-
-    // (I + M)^-1 for a strictly lower triangular (c, c) M. M is nilpotent, so
-    // the Neumann series is finite and factors into log2(c) squarings:
-    //   (I + M)^-1 = (I - M)(I + M^2)(I + M^4)...(I + M^(2^(k-1))),  2^k >= c
-    static instruction_ref
-    invert_unit_lower(const onnx_parser::node_info& info, instruction_ref m, std::size_t c)
-    {
-        assert(m->get_shape().ndim() >= 2);
-        shape eye_shape{m->get_shape().type(), {c, c}};
-        std::vector<float> eye_data(eye_shape.elements());
-        shape_for_each(eye_shape, [&](const auto& idx, std::size_t i) {
-            eye_data[i] = idx[0] == idx[1] ? 1.0f : 0.0f;
-        });
-        auto eye = info.add_literal(literal{eye_shape, eye_data});
-        eye = info.add_instruction(make_op("multibroadcast", {{"out_lens", m->get_shape().lens()}}),
-                                   eye);
-        auto result = info.add_instruction(make_op("sub"), eye, m);
-        auto power  = m;
-        for(std::size_t width = 2; width < c; width *= 2)
-        {
-            power       = info.add_instruction(make_op("dot"), power, power);
-            auto factor = info.add_instruction(make_op("add"), eye, power);
-            result      = info.add_instruction(make_op("dot"), result, factor);
-        }
-        return result;
     }
 
     // Emits one node's program. Value members only; the node info is passed to
@@ -538,10 +518,13 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                 ins);
         }
 
-        // Batched dot over the head axes: whichever operand is shared by the
-        // head group carries one axis less and is broadcast over the group first
-        instruction_ref
-        grouped_dot(const onnx_parser::node_info& info, instruction_ref a, instruction_ref b) const
+        // Binary op over matching batch and head axes: whichever operand is
+        // shared by the head group carries one axis less and is broadcast over
+        // the group first
+        instruction_ref grouped_op(const onnx_parser::node_info& info,
+                                   const operation& op,
+                                   instruction_ref a,
+                                   instruction_ref b) const
         {
             auto rank = std::max(a->get_shape().ndim(), b->get_shape().ndim());
             assert(a->get_shape().ndim() + 1 >= rank and b->get_shape().ndim() + 1 >= rank);
@@ -549,7 +532,22 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                 a = broadcast_group(info, a, dims.group_size());
             if(b->get_shape().ndim() < rank)
                 b = broadcast_group(info, b, dims.group_size());
-            return info.add_instruction(make_op("dot"), a, b);
+            return info.add_instruction(op, a, b);
+        }
+
+        instruction_ref
+        grouped_dot(const onnx_parser::node_info& info, instruction_ref a, instruction_ref b) const
+        {
+            return grouped_op(info, make_op("dot"), a, b);
+        }
+
+        // [a | b] along the last axis
+        instruction_ref stack_columns(const onnx_parser::node_info& info,
+                                      instruction_ref a,
+                                      instruction_ref b) const
+        {
+            std::int64_t axis = std::max(a->get_shape().ndim(), b->get_shape().ndim()) - 1;
+            return grouped_op(info, make_op("concat", {{"axis", axis}}), a, b);
         }
 
         // Scale the float output and pack (B, outer, group, T, dv) back to the
@@ -661,8 +659,8 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         // cumulative log decay, the recurrence has the closed form
         //   D[t,s] = exp(gc_t - gc_s)                     (causal)
         //   M      = beta (K K^T) D                       (strictly lower)
-        //   W      = (I + M)^-1 beta exp(gc) K
-        //   U      = (I + M)^-1 beta V - W S_0
+        //   [U_0 | W] = (I + M)^-1 [beta V | beta exp(gc) K]   (one triangular solve)
+        //   U      = U_0 - W S_0
         //   O      = (Q K^T D) U + (Q exp(gc)) S_0
         //   S_1    = exp(gc_c) S_0 + (K exp(gc_c - gc))^T U
         // Everything but the state carry is batched over the chunks, so the
@@ -703,7 +701,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                 // the upper triangle holds the decays' negatives, which exp could
                 // overflow, so it is zeroed before as well as after
                 auto pair = info.add_common_op("sub", gc, transpose_matrix(info, gc));
-                auto mask = causal_mask(info, c, false);
+                auto mask = causal_mask(info, c);
                 pair      = zero_where(info, mask, pair);
                 decay     = zero_where(info, mask, info.add_instruction(make_op("exp"), pair));
                 scores    = group_common_op(info, "mul", scores, decay);
@@ -727,13 +725,19 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                     gram    = group_common_op(info, "mul", gram, decay);
                     k_gated = group_common_op(info, "mul", k, exp_gc);
                 }
+                // the unit lower solve reads only the strict lower triangle of
+                // M, so neither the diagonal nor the upper half needs masking
                 auto m    = group_common_op(info, "mul", beta, gram);
-                m         = zero_where(info, causal_mask(info, c, true), m);
-                auto ninv = invert_unit_lower(info, m, c);
                 auto ubar = group_common_op(info, "mul", beta, v);
                 auto wbar = group_common_op(info, "mul", beta, k_gated);
-                u0        = grouped_dot(info, ninv, ubar);
-                w         = grouped_dot(info, ninv, wbar);
+                auto uw   = grouped_op(info,
+                                       make_op("triangular_solve", {{"unit_diagonal", true}}),
+                                       m,
+                                       stack_columns(info, ubar, wbar));
+                std::int64_t col_axis = uw->get_shape().ndim() - 1;
+                u0                    = slice_range(info, uw, col_axis, 0, dims.head_size_v);
+                w                     = slice_range(
+                    info, uw, col_axis, dims.head_size_v, dims.head_size_v + dims.head_size_k);
             }
 
             // Intra-chunk output and the query that reads the incoming state,

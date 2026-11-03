@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -252,6 +252,30 @@ TEST_CASE(argument_share)
     EXPECT(a1.data() != a3.data());
     auto a4 = a3; // NOLINT
     EXPECT(a4.data() == a3.data());
+}
+
+TEST_CASE(argument_copy)
+{
+    migraphx::shape s{migraphx::shape::int64_type, {3}};
+    std::vector<std::int64_t> buffer{1, 2, 3};
+    migraphx::argument a1(s, buffer.data());
+    auto a2 = a1.copy();
+    EXPECT(a1.data() != a2.data());
+    EXPECT(a1 == a2);
+    // The write is read back through a1, which aliases the buffer
+    // cppcheck-suppress unreadVariable
+    buffer[0] = 4;
+    EXPECT(a1 != a2);
+    EXPECT(a2.to_vector<std::int64_t>() == std::vector<std::int64_t>{1, 2, 3});
+}
+
+TEST_CASE(argument_copy_tuple)
+{
+    auto a1 = make_tuple(3, 3.0);
+    auto a2 = a1.copy();
+    EXPECT(a1 == a2);
+    EXPECT(a1.get_sub_objects()[0].data() != a2.get_sub_objects()[0].data());
+    EXPECT(a1.get_sub_objects()[1].data() != a2.get_sub_objects()[1].data());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

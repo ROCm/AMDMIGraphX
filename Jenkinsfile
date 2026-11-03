@@ -69,6 +69,18 @@ def setupdocker(Map conf) {
     return docker_opts
 }
 
+// The driver exits 0 even when verification fails, so check its log as well as
+// its exit status: a crash or sanitizer error after the success message must fail.
+def driver_test(String driver) {
+    return """
+        status=0
+        ${driver} verify --test > driver.log 2>&1 || status=\$?
+        cat driver.log
+        test \$status -eq 0
+        grep -q "verification passed successfully" driver.log
+    """
+}
+
 def cmake_build = { bconf ->
     def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
     def flags = bconf.get("flags", "")
@@ -103,6 +115,7 @@ def cmake_build = { bconf ->
         git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
         make -j\$(nproc) ${targets} VERBOSE=1
         if [ -n "\$(ls ./*.deb 2>/dev/null)" ]; then md5sum ./*.deb; fi
+        ${driver_test('./bin/migraphx-driver')}
     """
     echo cmd
     sh cmd
@@ -295,6 +308,11 @@ def setuppackage = {
     unstash 'migraphx-package'
 }
 
+def setupstaticdriver = {
+    sh 'rm -rf ./build/bin'
+    unstash 'migraphx-static-driver'
+}
+
 pipeline {
     agent {
         label "(rocmtest || migraphx)"
@@ -423,8 +441,9 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(skip_also_requires: ['Static Driver Tests']) {
                                 cmake_build(skip_package: true, flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                                stash includes: 'build/bin/migraphx-driver', name: 'migraphx-static-driver'
                             }
                         }
                     }
@@ -561,6 +580,21 @@ pipeline {
                                     env
                                     cd /onnxruntime && ./build_and_test_onnxrt.sh
                                 '''
+                            }
+                        }
+                    }
+                }
+
+                stage('Static Driver Tests') {
+                    agent {
+                        label rocmnodename('mi300+')
+                    }
+                    steps {
+                        script {
+                            rocmtest(setup: setupstaticdriver, image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
+                                // The ORT image only has ROCm installed, so the static
+                                // driver must run without anything from rbuild or the build tree.
+                                sh driver_test('./build/bin/migraphx-driver')
                             }
                         }
                     }

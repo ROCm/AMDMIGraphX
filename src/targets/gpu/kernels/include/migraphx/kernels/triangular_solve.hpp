@@ -37,8 +37,8 @@ namespace migraphx {
 template <class Shape>
 constexpr auto solve_lanes(Shape s)
 {
-    auto lens = transform_i(
-        s.lens, [](auto x, auto i) { return i == Shape{}.lens.size() - 2 ? 1 : x; });
+    auto lens =
+        transform_i(s.lens, [](auto x, auto i) { return i == Shape{}.lens.size() - 2 ? 1 : x; });
     return make_shape(lens, s.strides);
 }
 

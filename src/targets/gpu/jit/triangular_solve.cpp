@@ -82,11 +82,11 @@ struct triangular_solve_compiler : compiler<triangular_solve_compiler>
         options.output         = out_s;
         options.virtual_inputs = inputs;
         options.kernel_name    = "triangular_solve_kernel";
-        auto src               = interpolate_string(
-            triangular_solve_kernel,
-            {{"lower", v.get("lower", true) ? "true" : "false"},
-             {"unit_diagonal", v.get("unit_diagonal", false) ? "true" : "false"},
-             {"registers", registers ? "true" : "false"}});
+        auto src =
+            interpolate_string(triangular_solve_kernel,
+                               {{"lower", v.get("lower", true) ? "true" : "false"},
+                                {"unit_diagonal", v.get("unit_diagonal", false) ? "true" : "false"},
+                                {"registers", registers ? "true" : "false"}});
         return compile_hip_code_object(ctx, src, options);
     }
 

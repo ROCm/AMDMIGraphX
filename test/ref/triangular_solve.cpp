@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -87,8 +86,7 @@ TEST_CASE(triangular_solve_broadcast_batch_test)
     migraphx::shape as{migraphx::shape::float_type, {1, 3, 3}};
     migraphx::shape bs{migraphx::shape::float_type, {2, 3, 1}};
     auto a = mm->add_literal(migraphx::literal{as, {7, 9, 9, 2, 7, 9, -1, 3, 7}});
-    a      = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 3}}}),
-                            a);
+    a      = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 3}}}), a);
     auto b = mm->add_literal(migraphx::literal{bs, std::vector<float>{1, 3, 5, 2, -1, 0.5}});
     mm->add_instruction(migraphx::make_op("triangular_solve", {{"unit_diagonal", true}}), a, b);
     p.compile(migraphx::make_target("ref"));

@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
@@ -37,9 +36,10 @@ struct test_triangular_solve_broadcast : verify_program<test_triangular_solve_br
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto a = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 4, 8, 8}});
-        auto b = mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {2, 4, 8, 16}});
-        a      = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 8, 8}}}), a);
+        auto b =
+            mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {2, 4, 8, 16}});
+        a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 8, 8}}}),
+                                a);
         mm->add_instruction(migraphx::make_op("triangular_solve", {{"unit_diagonal", true}}), a, b);
         return p;
     }

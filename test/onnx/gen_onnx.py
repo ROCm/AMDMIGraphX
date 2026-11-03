@@ -4155,6 +4155,23 @@ def equal_bool_test():
     return ([node1, node2], [x1, x2], [y])
 
 
+# A node names an unused optional output "". That name must not be registered
+# as a tensor, or the Clip node's missing optional min input resolves to the
+# dropout mask instead of to undefined
+@onnx_test()
+def empty_output_name_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    max_val = helper.make_tensor_value_info('max_val', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, [2, 3])
+
+    dropout = onnx.helper.make_node('Dropout', inputs=['x'], outputs=['y', ''])
+    clip = onnx.helper.make_node('Clip',
+                                 inputs=['y', '', 'max_val'],
+                                 outputs=['out'])
+
+    return ([dropout, clip], [x, max_val], [out])
+
+
 @onnx_test()
 def erf_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
@@ -9088,6 +9105,233 @@ def linear_attention_decode_test():
     return ([node], [query, key, value, past_state], [output, present_state])
 
 
+# The com.microsoft spec also allows inverse GQA, where the state heads
+# outnumber the query heads and each query head is shared by a group of states
+# (Qwen3.5 gated delta nets). The output then has one head per state head.
+@onnx_test(opset_version=27)
+def linear_attention_inverse_gated_delta_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 2, 2])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 2, 2])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 2, 4])
+    past_state = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                               [1, 2, 2, 2])
+    decay = helper.make_tensor_value_info('decay', TensorProto.FLOAT,
+                                          [1, 2, 2])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [1, 2, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 2, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', 'past_state', 'decay', 'beta'],
+        outputs=['output', 'present_state'],
+        q_num_heads=1,
+        kv_num_heads=2)
+
+    return ([node], [query, key, value, past_state, decay,
+                     beta], [output, present_state])
+
+
+# Inverse GQA with the keys following the state heads instead of the query head
+@onnx_test(opset_version=27)
+def linear_attention_inverse_linear_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 3, 2])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 3, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node('LinearAttention',
+                                 inputs=['query', 'key', 'value'],
+                                 outputs=['output', 'present_state'],
+                                 q_num_heads=1,
+                                 kv_num_heads=2,
+                                 scale=0.5,
+                                 update_rule='linear')
+
+    return ([node], [query, key, value], [output, present_state])
+
+
+# Inverse GQA with the keys shared by the group, like the query
+@onnx_test(opset_version=27)
+def linear_attention_inverse_linear_shared_key_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 3, 2])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 3, 2])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node('LinearAttention',
+                                 inputs=['query', 'key', 'value'],
+                                 outputs=['output', 'present_state'],
+                                 q_num_heads=1,
+                                 kv_num_heads=2,
+                                 scale=0.5,
+                                 update_rule='linear')
+
+    return ([node], [query, key, value], [output, present_state])
+
+
+# Multi-chunk prefill (chunk_size smaller than the sequence), with and
+# without padding to whole chunks
+@onnx_test(opset_version=27)
+def linear_attention_chunked_gated_delta_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 4, 8])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 4, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 4, 4])
+    past_state = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                               [1, 2, 2, 2])
+    decay = helper.make_tensor_value_info('decay', TensorProto.FLOAT,
+                                          [1, 4, 2])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [1, 4, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 4, 8])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', 'past_state', 'decay', 'beta'],
+        outputs=['output', 'present_state'],
+        q_num_heads=4,
+        kv_num_heads=2,
+        chunk_size=2,
+        update_rule='gated_delta')
+
+    return ([node], [query, key, value, past_state, decay,
+                     beta], [output, present_state])
+
+
+@onnx_test(opset_version=27)
+def linear_attention_chunked_inverse_gated_delta_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 3, 2])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 3, 2])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    past_state = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                               [1, 2, 2, 2])
+    decay = helper.make_tensor_value_info('decay', TensorProto.FLOAT,
+                                          [1, 3, 2])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [1, 3, 1])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', 'past_state', 'decay', 'beta'],
+        outputs=['output', 'present_state'],
+        q_num_heads=1,
+        kv_num_heads=2,
+        chunk_size=2,
+        update_rule='gated_delta')
+
+    return ([node], [query, key, value, past_state, decay,
+                     beta], [output, present_state])
+
+
+@onnx_test(opset_version=27)
+def linear_attention_chunked_gated_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 5, 4])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 5, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 5, 6])
+    decay = helper.make_tensor_value_info('decay', TensorProto.FLOAT,
+                                          [1, 5, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 5, 6])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 3])
+
+    node = onnx.helper.make_node('LinearAttention',
+                                 inputs=['query', 'key', 'value', '', 'decay'],
+                                 outputs=['output', 'present_state'],
+                                 q_num_heads=2,
+                                 kv_num_heads=2,
+                                 chunk_size=2,
+                                 update_rule='gated')
+
+    return ([node], [query, key, value, decay], [output, present_state])
+
+
+@onnx_test(opset_version=27)
+def linear_attention_chunked_inverse_delta_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 4, 2])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 4, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 4, 4])
+    past_state = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                               [1, 2, 2, 2])
+    beta = helper.make_tensor_value_info('beta', TensorProto.FLOAT, [1, 4, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 4, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', 'past_state', '', 'beta'],
+        outputs=['output', 'present_state'],
+        q_num_heads=1,
+        kv_num_heads=2,
+        chunk_size=2,
+        update_rule='delta')
+
+    return ([node], [query, key, value, past_state,
+                     beta], [output, present_state])
+
+
+@onnx_test(opset_version=27)
+def linear_attention_inverse_decode_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 1, 2])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 1, 2])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 1, 4])
+    past_state = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                               [1, 2, 2, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 1, 4])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', 'past_state'],
+        outputs=['output', 'present_state'],
+        q_num_heads=1,
+        kv_num_heads=2,
+        update_rule='linear')
+
+    return ([node], [query, key, value, past_state], [output, present_state])
+
+
 def linear_attention_invalid_test(inputs,
                                   input_infos,
                                   update_rule=None,
@@ -9173,6 +9417,30 @@ def linear_attention_bad_decay_test():
         update_rule='gated',
         q_num_heads=2,
         kv_num_heads=2)
+
+
+@onnx_test(opset_version=27)
+def linear_attention_bad_key_heads_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT, [1, 3, 2])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT,
+                                          [1, 3, 4])
+    return linear_attention_invalid_test(['query', 'key', 'value'],
+                                         [query, key, value],
+                                         update_rule='linear',
+                                         q_num_heads=2,
+                                         kv_num_heads=2)
+
+
+@onnx_test(opset_version=27)
+def linear_attention_bad_chunk_size_test():
+    return linear_attention_invalid_test(['query', 'key', 'value'],
+                                         linear_attention_qkv_infos(),
+                                         update_rule='linear',
+                                         q_num_heads=2,
+                                         kv_num_heads=2,
+                                         chunk_size=0)
 
 
 @onnx_test(opset_version=27)

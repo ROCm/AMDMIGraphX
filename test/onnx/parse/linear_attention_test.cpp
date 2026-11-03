@@ -198,6 +198,56 @@ TEST_CASE(linear_attention_linear_fp16_test)
     EXPECT(p == prog);
 }
 
+// Inverse GQA decode step (T=1): two state heads share the single query head,
+// so the state carries the group axis and the query is broadcast over it
+TEST_CASE(linear_attention_inverse_decode_test)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto query = mm->add_parameter("query", {migraphx::shape::float_type, {1, 1, 2}});
+    auto key   = mm->add_parameter("key", {migraphx::shape::float_type, {1, 1, 2}});
+    auto value = mm->add_parameter("value", {migraphx::shape::float_type, {1, 1, 4}});
+    auto past  = mm->add_parameter("past_state", {migraphx::shape::float_type, {1, 2, 2, 2}});
+
+    auto q = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 1, 2}}}), query);
+    q = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), q);
+    auto k = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 1, 2}}}), key);
+    k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), k);
+    auto v = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 1, 2, 2}}}), value);
+    v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), v);
+    auto state =
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 2, 2, 2}}}), past);
+
+    auto k_col = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), k);
+    auto v_t = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), v);
+    auto k5 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), k_col);
+    k5 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 1}}}),
+                             k5);
+    auto outer = mm->add_instruction(migraphx::make_op("dot"), k5, v_t);
+    state      = mm->add_instruction(migraphx::make_op("add"), state, outer);
+    auto q_t   = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), q);
+    auto q5 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), q_t);
+    q5 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 1, 2}}}),
+                             q5);
+    auto o_t = mm->add_instruction(migraphx::make_op("dot"), q5, state);
+
+    auto scale = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f / std::sqrt(2.0f)}});
+    scale      = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 1, 2}}}), scale);
+    auto output = mm->add_instruction(migraphx::make_op("mul"), o_t, scale);
+    output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2, 4}}}),
+                                 output);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4}}}), output);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 2}}}), state);
+
+    auto prog = optimize_onnx("linear_attention_inverse_decode_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(linear_attention_output_shapes_test)
 {
     auto prog   = read_onnx("linear_attention_gated_delta_test.onnx");
@@ -240,4 +290,16 @@ TEST_CASE(linear_attention_bad_decay_test)
 TEST_CASE(linear_attention_bad_past_test)
 {
     EXPECT(test::throws([&] { read_onnx("linear_attention_bad_past_test.onnx"); }));
+}
+
+// A key head count that is neither q_num_heads nor kv_num_heads cannot be
+// mapped onto the state heads with a broadcast
+TEST_CASE(linear_attention_bad_key_heads_test)
+{
+    EXPECT(test::throws([&] { read_onnx("linear_attention_bad_key_heads_test.onnx"); }));
+}
+
+TEST_CASE(linear_attention_bad_chunk_size_test)
+{
+    EXPECT(test::throws([&] { read_onnx("linear_attention_bad_chunk_size_test.onnx"); }));
 }

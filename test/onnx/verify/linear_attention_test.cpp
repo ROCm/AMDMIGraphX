@@ -507,3 +507,491 @@ TEST_CASE(linear_attention_linear_fp16_test)
     EXPECT(migraphx::verify::verify_range_with_tolerance(present,
                                                          migraphx::verify::expected{gold_state}));
 }
+
+// Inverse GQA (com.microsoft): kv_num_heads > q_num_heads, so two state heads
+// share the one query head and the output has one head per state head. Gold
+// data from the onnxruntime recurrence (MLAS linear_attention.cpp).
+TEST_CASE(linear_attention_inverse_gated_delta_test)
+{
+    auto p = read_onnx("linear_attention_inverse_gated_delta_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pp;
+    migraphx::shape query_shape{migraphx::shape::float_type, {1, 2, 2}};
+    std::vector<float> query_data = {-0.75, 0.0, 0.203125, -0.9375};
+    pp["query"]                   = migraphx::literal{query_shape, query_data}.get_argument();
+    migraphx::shape key_shape{migraphx::shape::float_type, {1, 2, 2}};
+    std::vector<float> key_data = {-0.703125, 0.859375, -0.859375, -0.734375};
+    pp["key"]                   = migraphx::literal{key_shape, key_data}.get_argument();
+    migraphx::shape value_shape{migraphx::shape::float_type, {1, 2, 4}};
+    std::vector<float> value_data = {
+        0.890625, 0.25, -0.265625, 0.015625, 0.328125, -0.453125, -0.71875, 0.578125};
+    pp["value"] = migraphx::literal{value_shape, value_data}.get_argument();
+    migraphx::shape state_shape{migraphx::shape::float_type, {1, 2, 2, 2}};
+    std::vector<float> state_data = {
+        0.34375, 0.03125, 0.640625, 0.09375, 0.96875, -0.59375, 0.109375, -0.03125};
+    pp["past_state"] = migraphx::literal{state_shape, state_data}.get_argument();
+    migraphx::shape decay_shape{migraphx::shape::float_type, {1, 2, 2}};
+    std::vector<float> decay_data = {-0.640625, -0.40625, -0.765625, -0.203125};
+    pp["decay"]                   = migraphx::literal{decay_shape, decay_data}.get_argument();
+    migraphx::shape beta_shape{migraphx::shape::float_type, {1, 2, 2}};
+    std::vector<float> beta_data = {0.875, 0.125, 0.46875, 0.28125};
+    pp["beta"]                   = migraphx::literal{beta_shape, beta_data}.get_argument();
+
+    auto outputs = p.eval(pp);
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
+
+    std::vector<float> gold       = {0.14142448,
+                                     0.06276168,
+                                     -0.33638614,
+                                     0.19835716,
+                                     -0.20139877,
+                                     -0.14671347,
+                                     0.0049420809,
+                                     0.011021998};
+    std::vector<float> gold_state = {-0.33500296,
+                                     0.11708568,
+                                     0.23122495,
+                                     0.24668503,
+                                     0.57137918,
+                                     -0.37477338,
+                                     0.11634372,
+                                     -0.097827524};
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result, migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(present,
+                                                         migraphx::verify::expected{gold_state}));
+}
+
+// Inverse GQA with the masked matmul form of the linear rule, and keys that
+// follow the state heads instead of the query head
+TEST_CASE(linear_attention_inverse_linear_test)
+{
+    auto p = read_onnx("linear_attention_inverse_linear_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pp;
+    migraphx::shape query_shape{migraphx::shape::float_type, {1, 3, 2}};
+    std::vector<float> query_data = {-0.828125, 0.796875, -0.140625, -0.703125, 0.34375, -0.59375};
+    pp["query"]                   = migraphx::literal{query_shape, query_data}.get_argument();
+    migraphx::shape key_shape{migraphx::shape::float_type, {1, 3, 4}};
+    std::vector<float> key_data = {0.796875,
+                                   -0.5625,
+                                   -0.9375,
+                                   -0.59375,
+                                   -0.3125,
+                                   -0.0625,
+                                   0.8125,
+                                   0.390625,
+                                   -0.328125,
+                                   -0.96875,
+                                   -0.6875,
+                                   1.0};
+    pp["key"]                   = migraphx::literal{key_shape, key_data}.get_argument();
+    migraphx::shape value_shape{migraphx::shape::float_type, {1, 3, 4}};
+    std::vector<float> value_data = {-0.078125,
+                                     0.375,
+                                     -0.890625,
+                                     -0.9375,
+                                     0.6875,
+                                     0.171875,
+                                     -0.375,
+                                     -0.359375,
+                                     -0.828125,
+                                     -0.65625,
+                                     -0.953125,
+                                     0.671875};
+    pp["value"]                   = migraphx::literal{value_shape, value_data}.get_argument();
+
+    auto outputs = p.eval(pp);
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
+
+    std::vector<float> gold       = {0.043287277,
+                                     -0.20777893,
+                                     -0.13502884,
+                                     -0.14213562,
+                                     0.019140244,
+                                     0.060699463,
+                                     -0.17169571,
+                                     -0.18760872,
+                                     -0.23937988,
+                                     -0.043785095,
+                                     0.37322235,
+                                     -0.30155563};
+    std::vector<float> gold_state = {
+        -0.005371094, 0.46044922, 0.80322266, 0.4140625, 1.1855469, 0.125, -0.5708008, 1.0881348};
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result, migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(present,
+                                                         migraphx::verify::expected{gold_state}));
+}
+
+// Inverse GQA masked matmul with keys shared by the group: the scores are
+// broadcast over the group axis instead of the keys
+TEST_CASE(linear_attention_inverse_linear_shared_key_test)
+{
+    auto p = read_onnx("linear_attention_inverse_linear_shared_key_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pp;
+    migraphx::shape query_shape{migraphx::shape::float_type, {1, 3, 2}};
+    std::vector<float> query_data = {-0.828125, 0.796875, -0.140625, -0.703125, 0.34375, -0.59375};
+    pp["query"]                   = migraphx::literal{query_shape, query_data}.get_argument();
+    migraphx::shape key_shape{migraphx::shape::float_type, {1, 3, 2}};
+    std::vector<float> key_data = {0.796875, -0.5625, -0.3125, -0.0625, -0.328125, -0.96875};
+    pp["key"]                   = migraphx::literal{key_shape, key_data}.get_argument();
+    migraphx::shape value_shape{migraphx::shape::float_type, {1, 3, 4}};
+    std::vector<float> value_data = {-0.078125,
+                                     0.375,
+                                     -0.890625,
+                                     -0.9375,
+                                     0.6875,
+                                     0.171875,
+                                     -0.375,
+                                     -0.359375,
+                                     -0.828125,
+                                     -0.65625,
+                                     -0.953125,
+                                     0.671875};
+    pp["value"]                   = migraphx::literal{value_shape, value_data}.get_argument();
+
+    auto outputs = p.eval(pp);
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
+
+    std::vector<float> gold       = {0.043287277,
+                                     -0.20777893,
+                                     0.49347496,
+                                     0.51944733,
+                                     0.019140244,
+                                     0.060699463,
+                                     -0.1427021,
+                                     -0.14865875,
+                                     -0.23937988,
+                                     -0.043785095,
+                                     -0.47789001,
+                                     -0.11698532};
+    std::vector<float> gold_state = {-0.005371094,
+                                     0.46044922,
+                                     0.80322266,
+                                     0.4140625,
+                                     -0.27978516,
+                                     -0.85522461,
+                                     1.4477539,
+                                     -0.10107422};
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result, migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(present,
+                                                         migraphx::verify::expected{gold_state}));
+}
+
+// Two chunks of two steps (chunk_size=2, T=4): the second chunk starts from
+// the state the first one carried out
+TEST_CASE(linear_attention_chunked_gated_delta_test)
+{
+    auto p = read_onnx("linear_attention_chunked_gated_delta_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pp;
+    migraphx::shape query_shape{migraphx::shape::float_type, {1, 4, 8}};
+    std::vector<float> query_data = {
+        0.5625,    0.21875,  0.421875,  -0.828125, 0.265625,  0.96875,   -0.15625, -0.78125,
+        0.921875,  0.359375, -0.609375, 0.34375,   0.984375,  -0.578125, 0.703125, 0.390625,
+        -0.5625,   -0.625,   0.90625,   -0.3125,   -0.125,    0.3125,    -0.125,   -1,
+        -0.484375, -0.0625,  0.515625,  0.21875,   -0.140625, -0.625,    0.5625,   -0.625};
+    pp["query"] = migraphx::literal{query_shape, query_data}.get_argument();
+    migraphx::shape key_shape{migraphx::shape::float_type, {1, 4, 4}};
+    std::vector<float> key_data = {0.453125,
+                                   -0,
+                                   0.109375,
+                                   -0.234375,
+                                   -0.59375,
+                                   -0.65625,
+                                   0.28125,
+                                   -0.453125,
+                                   -0.96875,
+                                   -0.609375,
+                                   0.84375,
+                                   0.421875,
+                                   0.15625,
+                                   -0.203125,
+                                   0.640625,
+                                   -0.46875};
+    pp["key"]                   = migraphx::literal{key_shape, key_data}.get_argument();
+    migraphx::shape value_shape{migraphx::shape::float_type, {1, 4, 4}};
+    std::vector<float> value_data = {0.265625,
+                                     -0.96875,
+                                     0.296875,
+                                     0.9375,
+                                     0.421875,
+                                     -0.84375,
+                                     0.1875,
+                                     -0.359375,
+                                     0.84375,
+                                     -0.96875,
+                                     -0.96875,
+                                     -0.8125,
+                                     -0.328125,
+                                     0.765625,
+                                     0.125,
+                                     0.328125};
+    pp["value"]                   = migraphx::literal{value_shape, value_data}.get_argument();
+    migraphx::shape past_state_shape{migraphx::shape::float_type, {1, 2, 2, 2}};
+    std::vector<float> past_state_data = {
+        -0.90625, -0.65625, -0.234375, 0.25, 0.5, 0.15625, -0.4375, -0.640625};
+    pp["past_state"] = migraphx::literal{past_state_shape, past_state_data}.get_argument();
+    migraphx::shape decay_shape{migraphx::shape::float_type, {1, 4, 2}};
+    std::vector<float> decay_data = {
+        -0.578125, -0.75, -0.234375, -0.109375, -0.203125, -0.875, -0.21875, -0.984375};
+    pp["decay"] = migraphx::literal{decay_shape, decay_data}.get_argument();
+    migraphx::shape beta_shape{migraphx::shape::float_type, {1, 4, 2}};
+    std::vector<float> beta_data = {
+        0.140625, 0.703125, 0.328125, 0.828125, 0.6875, 0.640625, 0.59375, 0.90625};
+    pp["beta"] = migraphx::literal{beta_shape, beta_data}.get_argument();
+
+    auto outputs = p.eval(pp);
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
+
+    std::vector<float> gold = {-0.20996472,  -0.14505321,  -0.065234773, -0.20717794, -0.11911689,
+                               -0.27794015,  0.106444,     0.22987643,   -0.29584393, -0.012111771,
+                               0.1413288,    0.1392715,    0.25504243,   0.068553604, 0.052940313,
+                               -0.054623146, 0.38523006,   -0.48416415,  -0.34040168, 0.17607437,
+                               -0.041600537, -0.025762634, 0.29988688,   0.23976602,  0.19323055,
+                               -0.18142775,  -0.22781412,  0.23862089,   0.099308528, 0.11232822,
+                               0.064368106,  0.14312467};
+    std::vector<float> gold_state = {-0.53765476,
+                                     0.4751772,
+                                     -0.20548388,
+                                     0.42261785,
+                                     -0.070276573,
+                                     0.061941683,
+                                     -0.20889732,
+                                     -0.26810664};
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result, migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(present,
+                                                         migraphx::verify::expected{gold_state}));
+}
+
+// Inverse GQA over two chunks with a padded last chunk (T=3) and a
+// single-head beta
+TEST_CASE(linear_attention_chunked_inverse_gated_delta_test)
+{
+    auto p = read_onnx("linear_attention_chunked_inverse_gated_delta_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pp;
+    migraphx::shape query_shape{migraphx::shape::float_type, {1, 3, 2}};
+    std::vector<float> query_data = {0.671875, -0.9375, 0.96875, -0.140625, -0.40625, 0.734375};
+    pp["query"]                   = migraphx::literal{query_shape, query_data}.get_argument();
+    migraphx::shape key_shape{migraphx::shape::float_type, {1, 3, 2}};
+    std::vector<float> key_data = {0.84375, 0.546875, 0.4375, -0.984375, -0.453125, 0.625};
+    pp["key"]                   = migraphx::literal{key_shape, key_data}.get_argument();
+    migraphx::shape value_shape{migraphx::shape::float_type, {1, 3, 4}};
+    std::vector<float> value_data = {1,
+                                     -0.4375,
+                                     0.515625,
+                                     -0.78125,
+                                     0.5,
+                                     -0.28125,
+                                     -0.84375,
+                                     -0.640625,
+                                     0.140625,
+                                     -0.0625,
+                                     0.375,
+                                     -0.296875};
+    pp["value"]                   = migraphx::literal{value_shape, value_data}.get_argument();
+    migraphx::shape past_state_shape{migraphx::shape::float_type, {1, 2, 2, 2}};
+    std::vector<float> past_state_data = {
+        0.1875, -0.25, 0.53125, -0.984375, 0.171875, 0.171875, -0.890625, 0.53125};
+    pp["past_state"] = migraphx::literal{past_state_shape, past_state_data}.get_argument();
+    migraphx::shape decay_shape{migraphx::shape::float_type, {1, 3, 2}};
+    std::vector<float> decay_data = {-0.359375, -0.046875, -0.8125, -0.578125, -0.140625, -0.0625};
+    pp["decay"]                   = migraphx::literal{decay_shape, decay_data}.get_argument();
+    migraphx::shape beta_shape{migraphx::shape::float_type, {1, 3, 1}};
+    std::vector<float> beta_data = {0.6875, 0.359375, 0.75};
+    pp["beta"]                   = migraphx::literal{beta_shape, beta_data}.get_argument();
+
+    auto outputs = p.eval(pp);
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
+
+    std::vector<float> gold       = {-0.16557455,
+                                     0.37489513,
+                                     0.66347146,
+                                     -0.2896637,
+                                     0.22914067,
+                                     -0.086661205,
+                                     0.094942458,
+                                     -0.27537858,
+                                     0.019704193,
+                                     -0.031283021,
+                                     0.15376827,
+                                     0.0031560382};
+    std::vector<float> gold_state = {0.21014005,
+                                     -0.100444,
+                                     0.15419279,
+                                     -0.11580766,
+                                     0.033145964,
+                                     -0.1551813,
+                                     0.31445342,
+                                     -0.079767272};
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result, migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(present,
+                                                         migraphx::verify::expected{gold_state}));
+}
+
+// Gated rule only (no delta correction) over three chunks, the last one
+// padded, without a past state
+TEST_CASE(linear_attention_chunked_gated_test)
+{
+    auto p = read_onnx("linear_attention_chunked_gated_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pp;
+    migraphx::shape query_shape{migraphx::shape::float_type, {1, 5, 4}};
+    std::vector<float> query_data = {-0.09375,  0.0625,   0.359375,  0.859375, -0.984375,
+                                     0.40625,   0.828125, -0.25,     -0.53125, 0.140625,
+                                     -0.9375,   0.609375, -0.03125,  0.328125, 0.5625,
+                                     -0.953125, -0.625,   -0.171875, 0.21875,  -0.265625};
+    pp["query"]                   = migraphx::literal{query_shape, query_data}.get_argument();
+    migraphx::shape key_shape{migraphx::shape::float_type, {1, 5, 4}};
+    std::vector<float> key_data = {-0.4375,  -0.953125, -0.140625, 0.875,     -0.9375,
+                                   0.203125, -0.59375,  0.9375,    0.609375,  -0.5625,
+                                   0.9375,   -0.375,    0.375,     -0.46875,  -0.421875,
+                                   -0.875,   -0.40625,  -0.171875, -0.953125, -0.96875};
+    pp["key"]                   = migraphx::literal{key_shape, key_data}.get_argument();
+    migraphx::shape value_shape{migraphx::shape::float_type, {1, 5, 6}};
+    std::vector<float> value_data = {-0.984375, 0.765625, -0.171875, 0.828125, -0.046875, 0.125,
+                                     -0.25,     0.5625,   -0.3125,   0.609375, -0.21875,  -0.75,
+                                     -0.171875, -0.9375,  -0.21875,  -0.21875, 0.421875,  1,
+                                     -0.6875,   0.21875,  0.671875,  0.359375, -0.53125,  -0.15625,
+                                     0.859375,  0.046875, 0.359375,  -0.375,   0.578125,  0.125};
+    pp["value"]                   = migraphx::literal{value_shape, value_data}.get_argument();
+    migraphx::shape decay_shape{migraphx::shape::float_type, {1, 5, 2}};
+    std::vector<float> decay_data = {-0.21875,
+                                     -0.71875,
+                                     -0.765625,
+                                     -0.8125,
+                                     -0.40625,
+                                     -0.921875,
+                                     -0.65625,
+                                     -0.328125,
+                                     -0.71875,
+                                     -0.734375};
+    pp["decay"]                   = migraphx::literal{decay_shape, decay_data}.get_argument();
+
+    auto outputs = p.eval(pp);
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
+
+    std::vector<float> gold = {0.012915143,  -0.010045111, 0.0022550249, 0.41073012,  -0.023248876,
+                               0.061997,     -0.19179308,  0.41082481,   -0.22461385, -0.39996225,
+                               0.11723917,   0.37191153,   -0.034270696, 0.42307267,  -0.018910691,
+                               0.4333581,    -0.40364507,  -1.0106275,   0.12090139,  0.031589046,
+                               -0.063786149, -0.16646698,  0.024210166,  0.56094974,  0.17717047,
+                               0.10088722,   0.022859754,  -0.043993328, 0.034702815, 0.097547576};
+    std::vector<float> gold_state = {-0.42804295,
+                                     -0.23856397,
+                                     -0.001673907,
+                                     0.0987342,
+                                     0.037389982,
+                                     -0.1820066,
+                                     0.15696344,
+                                     -0.28855047,
+                                     0.29662174,
+                                     0.36348879,
+                                     -0.422391,
+                                     -0.27507615};
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result, migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(present,
+                                                         migraphx::verify::expected{gold_state}));
+}
+
+// Delta rule without gating, inverse GQA with per-state-head keys, two chunks
+TEST_CASE(linear_attention_chunked_inverse_delta_test)
+{
+    auto p = read_onnx("linear_attention_chunked_inverse_delta_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pp;
+    migraphx::shape query_shape{migraphx::shape::float_type, {1, 4, 2}};
+    std::vector<float> query_data = {
+        -0.53125, -0.046875, 0.515625, -0.46875, 0.0625, 0.984375, 0, -0.453125};
+    pp["query"] = migraphx::literal{query_shape, query_data}.get_argument();
+    migraphx::shape key_shape{migraphx::shape::float_type, {1, 4, 4}};
+    std::vector<float> key_data = {0.671875,
+                                   0.8125,
+                                   0.5,
+                                   -0.34375,
+                                   0,
+                                   -0.359375,
+                                   0.84375,
+                                   -0.984375,
+                                   0.75,
+                                   -0.484375,
+                                   -0.703125,
+                                   0.671875,
+                                   0.578125,
+                                   -0.921875,
+                                   -0.40625,
+                                   -0.8125};
+    pp["key"]                   = migraphx::literal{key_shape, key_data}.get_argument();
+    migraphx::shape value_shape{migraphx::shape::float_type, {1, 4, 4}};
+    std::vector<float> value_data = {0.5,
+                                     0.8125,
+                                     -0.421875,
+                                     -0.28125,
+                                     -0.9375,
+                                     -0.796875,
+                                     -0.875,
+                                     0.453125,
+                                     -0.578125,
+                                     -0.0625,
+                                     -0.453125,
+                                     0.046875,
+                                     0.109375,
+                                     -0.3125,
+                                     -0.46875,
+                                     0.8125};
+    pp["value"]                   = migraphx::literal{value_shape, value_data}.get_argument();
+    migraphx::shape past_state_shape{migraphx::shape::float_type, {1, 2, 2, 2}};
+    std::vector<float> past_state_data = {
+        0.875, -0.0625, -0.203125, 0.03125, 0.078125, 0.921875, -0.140625, -0.3125};
+    pp["past_state"] = migraphx::literal{past_state_shape, past_state_data}.get_argument();
+    migraphx::shape beta_shape{migraphx::shape::float_type, {1, 4, 2}};
+    std::vector<float> beta_data = {
+        0.953125, 0.65625, 0.140625, 0.546875, 0.8125, 0.5625, 0.265625, 0.359375};
+    pp["beta"] = migraphx::literal{beta_shape, beta_data}.get_argument();
+
+    auto outputs = p.eval(pp);
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
+
+    std::vector<float> gold       = {-0.34250051,
+                                     -0.19828756,
+                                     0.034279134,
+                                     -0.23757434,
+                                     0.36799684,
+                                     -0.061676111,
+                                     -0.31000361,
+                                     0.20226778,
+                                     0.30106819,
+                                     0.52719581,
+                                     0.0091002015,
+                                     0.12553772,
+                                     -0.1023345,
+                                     -0.22494596,
+                                     -0.049656827,
+                                     0.051954813};
+    std::vector<float> gold_state = {0.18815503,
+                                     0.44113183,
+                                     0.31938833,
+                                     0.70206153,
+                                     0.020699807,
+                                     0.21461055,
+                                     0.15498011,
+                                     -0.16215217};
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result, migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(present,
+                                                         migraphx::verify::expected{gold_state}));
+}

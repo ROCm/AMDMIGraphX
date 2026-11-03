@@ -676,17 +676,44 @@ struct program_params
         return map_load_args;
     }
 
+    // A value for a name the program has no input for would otherwise be
+    // dropped, or abort in the shape lookup
+    static std::string unknown_param_error(const std::string& flag, const std::string& name)
+    {
+        return flag + ": '" + name +
+               "' is not an input of this program. Use the `params` command to list the inputs.";
+    }
+
+    // Every parameter a flag supplies a value for, paired with that flag
+    std::vector<std::pair<std::string, std::string>> named_values() const
+    {
+        std::vector<std::pair<std::string, std::string>> result;
+        auto tag = [&](const std::string& flag) {
+            return [=](const std::string& name) { return std::make_pair(flag, name); };
+        };
+        std::transform(fill0.begin(), fill0.end(), std::back_inserter(result), tag("--fill0"));
+        std::transform(fill1.begin(), fill1.end(), std::back_inserter(result), tag("--fill1"));
+        transform_if(
+            load_args_info.begin(),
+            load_args_info.end(),
+            std::back_inserter(result),
+            [](const std::string& x) { return not x.empty() and x.front() == '@'; },
+            [](const std::string& x) { return std::make_pair("--load-arg", x.substr(1)); });
+        return result;
+    }
+
     void warn_unset_inputs(const std::unordered_map<std::string, shape>& param_shapes) const
     {
-        std::set<std::string> load_arg_names;
-        for(auto&& x : load_args_info)
-            if(not x.empty() and x[0] == '@')
-                load_arg_names.insert(x.substr(1));
+        auto named = named_values();
+        std::set<std::string> supplied;
+        std::transform(named.begin(),
+                       named.end(),
+                       std::inserter(supplied, supplied.end()),
+                       [](const auto& nv) { return nv.second; });
         std::set<std::string> unset;
         for(const auto& param : param_shapes)
             if(shape::is_integral(param.second.type()) and not contains(param.first, "#output_") and
-               not contains(fill0, param.first) and not contains(fill1, param.first) and
-               not contains(load_arg_names, param.first))
+               not contains(supplied, param.first))
                 unset.insert(param.first);
         if(unset.empty())
             return;
@@ -713,6 +740,10 @@ struct program_params
             else
                 static_param_shapes[param.first] = param.second.to_static(batch);
         }
+
+        for(const auto& [flag, name] : named_values())
+            if(not contains(static_param_shapes, name))
+                MIGRAPHX_THROW(unknown_param_error(flag, name));
 
         for(auto&& s : fill0)
             m[s] = fill_argument(static_param_shapes.at(s), 0);
@@ -909,6 +940,11 @@ struct compiler
     program compile()
     {
         auto p = l.load();
+        // Catch a misspelled input name before compiling rather than after
+        auto loaded_param_shapes = p.get_parameter_shapes();
+        for(const auto& [flag, name] : parameters.named_values())
+            if(not contains(loaded_param_shapes, name))
+                MIGRAPHX_THROW(program_params::unknown_param_error(flag, name));
         // Dont compile if its already been compiled
 
         if(p.is_compiled())

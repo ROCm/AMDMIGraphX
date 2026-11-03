@@ -5053,15 +5053,17 @@ TEST_CASE(mul_dot_a)
 
         auto lit =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 32}}));
-        auto litb = m2.add_instruction(
-            migraphx::make_op("multibroadcast",
-                              {{"out_lens", migraphx::reorder_dims(bs.lens(), {0, 2, 1})}}),
-            lit);
-        auto litt =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), litb);
+        auto litb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", as.lens()}}), lit);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {1, 1}}}),
+            litb);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 32, 1}}}), slc);
+        auto litk =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), rsp);
 
         auto b   = m2.add_literal(migraphx::generate_literal(bs));
-        auto mul = m2.add_instruction(migraphx::make_op("mul"), b, litt);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), b, litk);
         auto dot = m2.add_instruction(migraphx::make_op("dot"), a, mul);
 
         m2.add_return({dot});
@@ -5098,15 +5100,17 @@ TEST_CASE(mul_dot_b)
 
         auto lit =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 32, 1}}));
-        auto litb = m2.add_instruction(
-            migraphx::make_op("multibroadcast",
-                              {{"out_lens", migraphx::reorder_dims(as.lens(), {0, 2, 1})}}),
-            lit);
-        auto litt =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), litb);
+        auto litb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), lit);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 0}}, {"ends", {1, 1}}}),
+            litb);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 32}}}), slc);
+        auto litk =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", as.lens()}}), rsp);
 
         auto a   = m2.add_literal(migraphx::generate_literal(as));
-        auto mul = m2.add_instruction(migraphx::make_op("mul"), a, litt);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), a, litk);
         auto dot = m2.add_instruction(migraphx::make_op("dot"), mul, b);
 
         m2.add_return({dot});
@@ -7262,6 +7266,101 @@ TEST_CASE(simplify_dot_axis_linear_different_inputs)
     }
     migraphx::module m2 = m1;
     run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// A scale on the contracted axis is tracked through the transpose and
+// moved onto the constant
+TEST_CASE(simplify_dot_axis_linear_mul_through_transpose)
+{
+    migraphx::shape ys{migraphx::shape::float_type, {1, 2, 3}};
+    migraphx::shape cs{migraphx::shape::float_type, {1, 2, 3}};
+    migraphx::shape ss{migraphx::shape::float_type, {1, 1, 3}};
+    migraphx::module m1;
+    {
+        auto y = m1.add_parameter("y", ys);
+        auto c = m1.add_literal(migraphx::generate_literal(cs, 1));
+        auto s = m1.add_literal(migraphx::generate_literal(ss, 2));
+        auto sb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", ys.lens()}}), s);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), y, sb);
+        auto tr =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), mul);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, tr);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y = m2.add_parameter("y", ys);
+        auto c = m2.add_literal(migraphx::generate_literal(cs, 1));
+        auto s = m2.add_literal(migraphx::generate_literal(ss, 2));
+        auto sb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", ys.lens()}}), s);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), sb);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 3}}}), slc);
+        auto sk =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", cs.lens()}}), rsp);
+        auto cm = m2.add_instruction(migraphx::make_op("mul"), c, sk);
+        auto tr =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), cm, tr);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+// A scale inside the mirrored half folds along with the reverse and neg
+TEST_CASE(simplify_dot_axis_linear_scaled_concat)
+{
+    migraphx::shape ys{migraphx::shape::float_type, {1, 3, 2}};
+    migraphx::shape cs{migraphx::shape::float_type, {1, 2, 5}};
+    migraphx::shape ss{migraphx::shape::float_type, {1, 2, 1}};
+    migraphx::module m1;
+    {
+        auto y = m1.add_parameter("y", ys);
+        auto c = m1.add_literal(migraphx::generate_literal(cs, 1));
+        auto s = m1.add_literal(migraphx::generate_literal(ss, 2));
+        auto sb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2}}}), s);
+        auto slc = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), y);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), slc, sb);
+        auto rev = m1.add_instruction(migraphx::make_op("reverse", {{"axes", {1}}}), mul);
+        auto neg = m1.add_instruction(migraphx::make_op("neg"), rev);
+        auto cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), y, neg);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, cat);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y = m2.add_parameter("y", ys);
+        auto c = m2.add_literal(migraphx::generate_literal(cs, 1));
+        auto s = m2.add_literal(migraphx::generate_literal(ss, 2));
+        auto sb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2}}}), s);
+        auto c0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {3}}}), c);
+        auto c1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {3}}, {"ends", {5}}}), c);
+        auto neg = m2.add_instruction(migraphx::make_op("neg"), c1);
+        auto rev = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2}}}), neg);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), sb);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 2}}}), slc);
+        auto sk =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2}}}), rsp);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), rev, sk);
+        auto pad =
+            m2.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 1, 0, 0, 0}}}), mul);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), c0, pad);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), sum, y);
+        m2.add_instruction(pass_op{}, dot);
+    }
     EXPECT(m1 == m2);
 }
 

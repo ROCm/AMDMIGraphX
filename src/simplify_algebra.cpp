@@ -423,71 +423,6 @@ struct find_dot_slice
     }
 };
 
-struct find_dot_mul
-{
-    auto matcher() const
-    {
-        auto const_broadcast =
-            match::opaque(match::name("broadcast", "multibroadcast")(match::is_constant()));
-        auto mul = match::opaque(match::name("mul")(
-            match::used_once(),
-            match::either_arg(0, 1)(const_broadcast.bind("d"),
-                                    match::none_of(match::is_constant()).bind("z"))));
-        auto c   = match::opaque(match::is_constant(not_from_int4()).bind("c"));
-        return match::name("dot")(match::either_arg(0, 1)(mul, c));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins   = r.result;
-        auto a_ins = ins->inputs()[0];
-        auto b_ins = ins->inputs()[1];
-        auto d_ins = r.instructions["d"];
-        auto c_ins = r.instructions["c"];
-        auto z_ins = r.instructions["z"];
-
-        const auto& d_strides = d_ins->get_shape().strides();
-
-        // There should only be one stride that is not zero
-        if(std::count_if(d_strides.begin(), d_strides.end(), [](auto s) { return s != 0; }) > 1)
-            return;
-
-        if(not d_ins->get_shape().scalar())
-        {
-            if(d_strides.back() == 1 and not b_ins->can_eval())
-                return;
-            if(d_strides[d_strides.size() - 2] == 1 and not a_ins->can_eval())
-                return;
-        }
-
-        auto broadcast_v = d_ins->get_operator().to_value();
-        auto c_lens      = c_ins->get_shape().lens();
-        std::vector<int64_t> permutation(c_lens.size());
-        std::iota(permutation.begin(), permutation.end(), 0);
-        std::swap(permutation.back(), permutation[permutation.size() - 2]);
-        c_lens                  = reorder_dims(c_lens, permutation);
-        broadcast_v["out_lens"] = c_lens;
-        auto db_ins =
-            m.insert_instruction(ins, make_op(d_ins->name(), broadcast_v), d_ins->inputs());
-        auto db_transpose_ins =
-            m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), db_ins);
-        auto cd_ins = m.insert_instruction(ins, make_op("mul"), c_ins, db_transpose_ins);
-
-        if(c_ins == b_ins)
-        {
-            a_ins = z_ins;
-            b_ins = cd_ins;
-        }
-        else
-        {
-            a_ins = cd_ins;
-            b_ins = z_ins;
-        }
-
-        m.replace_instruction(ins, make_op("dot"), a_ins, b_ins);
-    }
-};
-
 // ******************************
 //  a * (x + b) => a * x + a * b
 // ******************************
@@ -597,11 +532,11 @@ struct find_add_dot_common
 struct find_dot_axis_linear_ops
 {
     // dot(c, x) with c constant and x a linear recombination of one tensor y
-    // along the contracted axis: concat, slice, reverse and neg of y on that
-    // axis, optionally followed by shape transforms that keep the axis whole.
-    // Mirroring the recombination onto the contracted axis of c folds it into
-    // a constant, so the dot reads y directly with a contraction no longer
-    // than before.
+    // along the contracted axis: concat, slice, reverse, neg and mul by a
+    // constant that varies only along that axis, optionally followed by shape
+    // transforms that keep the axis whole. Mirroring the recombination onto
+    // the contracted axis of c folds it into a constant, so the dot reads y
+    // directly with a contraction no longer than before.
     struct linear_fold
     {
         struct shape_transform
@@ -618,18 +553,51 @@ struct find_dot_axis_linear_ops
         std::size_t axis   = 0;
         std::vector<shape_transform> transforms;
 
-        // Ops that only move or negate rows along `axis`, so along that axis
-        // the output is a signed selection of the input rows
+        // The constant operand of a mul that only scales along `axis`, if it
+        // has one
+        static optional<instruction_ref> axis_scale(instruction_ref ins, std::size_t axis)
+        {
+            if(ins->name() != "mul")
+                return nullopt;
+            const auto& inputs = ins->inputs();
+            auto it = std::find_if(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+                if(not input->can_eval())
+                    return false;
+                const auto& s = input->get_shape();
+                return all_of(range(s.ndim()), [&](auto i) {
+                    return i == axis or s.strides()[i] == 0 or s.lens()[i] == 1;
+                });
+            });
+            if(it == inputs.end())
+                return nullopt;
+            return *it;
+        }
+
+        // Ops that only move, negate or scale rows along `axis`, so along
+        // that axis the output is a weighted selection of the input rows
         static bool is_axis_linear_op(instruction_ref ins, std::size_t axis)
         {
             if(ins->name() == "neg")
                 return true;
+            if(ins->name() == "mul")
+                return axis_scale(ins, axis).has_value();
             if(not contains({"concat", "slice", "reverse"}, ins->name()))
                 return false;
             auto v = ins->normalized_operator().to_value();
             if(ins->name() == "concat")
                 return v.at("axis").to<std::size_t>() == axis;
             return v.at("axes").to_vector<std::size_t>() == std::vector<std::size_t>{axis};
+        }
+
+        // The inputs an axis-linear op recombines, which leaves out the
+        // scale of a mul
+        static std::vector<instruction_ref> linear_inputs(instruction_ref ins, std::size_t axis)
+        {
+            auto inputs = ins->inputs();
+            auto scale  = axis_scale(ins, axis);
+            if(scale.has_value())
+                inputs.erase(std::find(inputs.begin(), inputs.end(), *scale));
+            return inputs;
         }
 
         // The one tensor every leaf of a chain of axis-linear ops reads, if
@@ -639,8 +607,8 @@ struct find_dot_axis_linear_ops
         {
             if(not is_axis_linear_op(ins, axis))
                 return ins;
-            const auto& inputs = ins->inputs();
-            auto leaf          = find_axis_linear_leaf(inputs.front(), axis);
+            auto inputs = linear_inputs(ins, axis);
+            auto leaf   = find_axis_linear_leaf(inputs.front(), axis);
             if(not all_of(inputs, [&](instruction_ref input) {
                    return find_axis_linear_leaf(input, axis) == leaf;
                }))
@@ -729,15 +697,50 @@ struct find_dot_axis_linear_ops
             return result;
         }
 
+        // Broadcast the scale `s`, which varies only along `axis`, along the
+        // contracted axis of `cin`
+        instruction_ref scale_along(module& m, instruction_ref s, instruction_ref cin) const
+        {
+            const auto& lens = s->get_shape().lens();
+            auto axes        = range(lens.size());
+            std::vector<int64_t> other_axes;
+            transform_if(
+                axes.begin(),
+                axes.end(),
+                std::back_inserter(other_axes),
+                [&](auto i) { return i != axis and lens[i] > 1; },
+                [](auto i) { return i; });
+            auto v = s;
+            if(not other_axes.empty())
+            {
+                std::vector<int64_t> starts(other_axes.size(), 0);
+                std::vector<int64_t> ends(other_axes.size(), 1);
+                v = m.insert_instruction(
+                    dot,
+                    make_op("slice", {{"axes", other_axes}, {"starts", starts}, {"ends", ends}}),
+                    v);
+            }
+            std::vector<std::size_t> dims(cin->get_shape().ndim(), 1);
+            dims[c_axis] = lens[axis];
+            v            = m.insert_instruction(dot, make_op("reshape", {{"dims", dims}}), v);
+            return m.insert_instruction(
+                dot, make_op("multibroadcast", {{"out_lens", cin->get_shape().lens()}}), v);
+        }
+
         // Mirror op `ins` of the recombination onto the contracted axis of
         // `cin` and continue into its inputs
         instruction_ref fold(module& m, instruction_ref ins, instruction_ref cin) const
         {
             if(ins == y)
                 return cin;
-            auto input = ins->inputs().front();
+            auto input = linear_inputs(ins, axis).front();
             if(ins->name() == "neg")
                 return fold(m, input, m.insert_instruction(dot, make_op("neg"), cin));
+            if(ins->name() == "mul")
+            {
+                auto scale = scale_along(m, *axis_scale(ins, axis), cin);
+                return fold(m, input, m.insert_instruction(dot, make_op("mul"), cin, scale));
+            }
             if(ins->name() == "reverse")
                 return fold(
                     m,
@@ -3462,7 +3465,6 @@ void simplify_algebra::apply(module& m) const
                             find_mul_slice_conv{},
                             find_mul_dot{},
                             find_dot_slice{},
-                            find_dot_mul{},
                             find_dot_axis_linear_ops{},
                             find_mul_add{},
                             find_unit_ops{},

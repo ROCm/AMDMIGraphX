@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <iterator>
 #include <functional>
@@ -1017,6 +1018,26 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     return expr(op_node{op}, std::move(args));
 }
 
+static bool provable_less_equal(const expr& a, const expr& b)
+{
+    auto difference = (b - a).eval_interval_default();
+    return not scalar_less(difference.min, scalar{int64_t{0}});
+}
+
+static expr normalize_min_max(const op_def* op, std::vector<expr> args)
+{
+    assert(args.size() == 2);
+    const auto& a = args[0];
+    const auto& b = args[1];
+    if(same_symbol(a, b))
+        return combine_symbols(args);
+    if(provable_less_equal(a, b))
+        return op->name == "min" ? a : b;
+    if(provable_less_equal(b, a))
+        return op->name == "min" ? b : a;
+    return expr(op_node{op}, std::move(args));
+}
+
 static expr normalize_impl(const op_def* op, std::vector<expr> args)
 {
     if(std::any_of(args.begin(), args.end(), [](const expr& e) { return e.empty(); }))
@@ -1030,6 +1051,8 @@ static expr normalize_impl(const op_def* op, std::vector<expr> args)
     }
     if(contains({"/", "%"}, op->name) and args.at(1) == lit(0))
         MIGRAPHX_THROW("Division by zero");
+    if(contains({"min", "max"}, op->name))
+        return normalize_min_max(op, std::move(args));
     if(op->name == "+")
         return normalize_add(op, std::move(args));
     if(op->name == "*")
@@ -1099,9 +1122,9 @@ static expr fold_associative_args(expr e)
         return e;
     const auto& op_n = std::get<op_node>(get_node(e));
     auto children    = std::accumulate(e.children().begin() + 1,
-                                    e.children().end(),
-                                    std::vector<expr>{e.children().front()},
-                                    [&](std::vector<expr> c, expr x) {
+                                       e.children().end(),
+                                       std::vector<expr>{e.children().front()},
+                                       [&](std::vector<expr> c, expr x) {
                                         if(std::holds_alternative<literal_node>(get_node(x)) and
                                            std::holds_alternative<literal_node>(get_node(c.back())))
                                         {
@@ -1113,7 +1136,7 @@ static expr fold_associative_args(expr e)
                                             c.push_back(std::move(x));
                                         }
                                         return c;
-                                    });
+                                       });
     return expr(op_n, std::move(children));
 }
 
@@ -1363,14 +1386,16 @@ std::optional<scalar> fixed_value(const expr& expression)
             return;
         if(current.name() == "variable")
         {
-            const auto bounds = current.eval_interval();
-            if(not scalar_equal(bounds.min, bounds.max))
+            const auto* variable = std::get_if<variable_node>(&get_node(current));
+            assert(variable != nullptr);
+            const auto bounds = variable_interval(*variable);
+            if(not bounds.has_value() or not scalar_equal(bounds->min, bounds->max))
             {
                 all_variables_fixed = false;
                 return;
             }
-            const auto [iter, inserted] = values.emplace(as_symbol(current), bounds.min);
-            if(not inserted and not scalar_equal(iter->second, bounds.min))
+            const auto [iter, inserted] = values.emplace(as_symbol(current), bounds->min);
+            if(not inserted and not scalar_equal(iter->second, bounds->min))
                 all_variables_fixed = false;
             return;
         }
@@ -1892,21 +1917,52 @@ static scalar eval_impl(const expr& root, F lookup)
 
 static bool is_unsigned(scalar x)
 {
-    return std::holds_alternative<int64_t>(x) and std::get<int64_t>(x) >= 0;
+    return visit(
+        [](auto value) {
+            if constexpr(std::is_integral_v<decltype(value)>)
+            {
+                return value >= 0;
+            }
+            else
+            {
+                return std::isfinite(value) and value >= 0 and std::floor(value) == value and
+                       value < std::ldexp(1.0, std::numeric_limits<std::size_t>::digits);
+            }
+        },
+        x);
 }
 
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
-    auto find   = make_find_symbol(symbol_map);
-    auto lookup = [&](const expr& sub) -> std::optional<scalar> {
-        if(const auto* v = find(sub))
-            return scalar(*v);
-        return std::nullopt;
-    };
-    auto r = eval_impl(*this, lookup);
-    if(not is_unsigned(r))
-        MIGRAPHX_THROW("Result is not an unsigned integer.");
-    return to<std::size_t>(r);
+    std::unordered_map<expr, expr> substitutions;
+    std::transform(symbol_map.begin(),
+                   symbol_map.end(),
+                   std::inserter(substitutions, substitutions.end()),
+                   [](const auto& item) {
+                       const auto& [symbol, value] = item;
+                       return std::make_pair(symbol, lit(value));
+                   });
+    if(auto result = fixed_value(this->subs(substitutions)))
+    {
+        if(not is_unsigned(*result))
+            MIGRAPHX_THROW("Expression does not evaluate to an unsigned integer: " +
+                           this->to_string());
+        return to<std::size_t>(*result);
+    }
+
+    std::unordered_map<expr, interval> symbol_intervals;
+    std::transform(symbol_map.begin(),
+                   symbol_map.end(),
+                   std::inserter(symbol_intervals, symbol_intervals.end()),
+                   [](const auto& item) {
+                       const auto& [symbol, value] = item;
+                       return std::make_pair(symbol, interval{value, value});
+                   });
+    auto result = eval_interval(symbol_intervals);
+    if(not scalar_equal(result.min, result.max) or not is_unsigned(result.min))
+        MIGRAPHX_THROW("Expression does not evaluate to an unsigned integer: " + this->to_string() +
+                       " " + migraphx::to_string(result));
+    return to<std::size_t>(result.min);
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const

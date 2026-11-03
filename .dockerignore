@@ -8,3 +8,4 @@
 !/tools/*.sh
 !/test/onnx/.onnxrt-commit
 !/docs/sphinx/*.txt
+!/cmake/*.cmake

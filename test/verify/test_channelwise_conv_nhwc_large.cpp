@@ -21,11 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <onnx_test.hpp>
-
-TEST_CASE(external_data_length_large_test)
+// Large enough for half_type to use the channelwise kernel with channels-last layout
+template <migraphx::shape::type_t DType>
+struct test_channelwise_conv_nhwc_large : verify_program<test_channelwise_conv_nhwc_large<DType>>
 {
-    EXPECT(test::throws<migraphx::exception>(
-        [&] { read_onnx("external_data_length_large_test.onnx"); }));
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto input = mm->add_parameter(
+            "x", migraphx::shape::from_permutation(DType, {1, 16, 56, 56}, {0, 2, 3, 1}));
+        auto weights = mm->add_parameter(
+            "w", migraphx::shape::from_permutation(DType, {16, 1, 3, 3}, {0, 2, 3, 1}));
+        mm->add_instruction(migraphx::make_op("convolution", {{"group", 16}}), input, weights);
+        return p;
+    }
+    std::string section() const { return "conv"; }
+};
+template struct test_channelwise_conv_nhwc_large<migraphx::shape::float_type>;
+template struct test_channelwise_conv_nhwc_large<migraphx::shape::half_type>;

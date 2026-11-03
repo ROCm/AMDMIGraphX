@@ -831,4 +831,55 @@ TEST_CASE(input_used_non_packed_unsupported)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(invert_view_chain_reshape)
+{
+    // A strided view of {2, 4} re-indexed to the {2, 2, 2} input of a reshape
+    migraphx::shape view{migraphx::shape::float_type, {2, 4}, {8, 1}};
+    auto inverse =
+        migraphx::invert_view_chain({migraphx::make_op("reshape_lazy", {{"dims", {2, 4}}})},
+                                    {migraphx::shape::float_type, {2, 2, 2}},
+                                    view);
+    EXPECT(inverse.has_value());
+    EXPECT(inverse->first == std::vector<migraphx::operation>{
+                                 migraphx::make_op("reshape_lazy", {{"dims", {2, 2, 2}}})});
+    EXPECT(inverse->second == migraphx::shape{migraphx::shape::float_type, {2, 2, 2}, {8, 2, 1}});
+}
+
+TEST_CASE(invert_view_chain_transpose_reshape)
+{
+    // {3, 2, 4} -> transpose -> {2, 3, 4} -> reshape -> {2, 12}, inverted on a strided view
+    migraphx::shape view{migraphx::shape::float_type, {2, 12}, {24, 1}};
+    auto inverse =
+        migraphx::invert_view_chain({migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}),
+                                     migraphx::make_op("reshape_lazy", {{"dims", {2, 12}}})},
+                                    {migraphx::shape::float_type, {3, 2, 4}},
+                                    view);
+    EXPECT(inverse.has_value());
+    EXPECT(inverse->first == std::vector<migraphx::operation>{
+                                 migraphx::make_op("reshape_lazy", {{"dims", {2, 3, 4}}}),
+                                 migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}})});
+    EXPECT(inverse->second == migraphx::shape{migraphx::shape::float_type, {3, 2, 4}, {4, 24, 1}});
+}
+
+TEST_CASE(invert_view_chain_not_lazy)
+{
+    // The view strides cannot merge the two axes, so the reshape would copy
+    migraphx::shape view{migraphx::shape::float_type, {2, 4}, {8, 1}};
+    EXPECT(not migraphx::invert_view_chain({migraphx::make_op("reshape_lazy", {{"dims", {2, 4}}})},
+                                           {migraphx::shape::float_type, {8}},
+                                           view)
+                   .has_value());
+}
+
+TEST_CASE(invert_view_chain_broadcast)
+{
+    // A broadcast duplicates elements so it has no inverse
+    migraphx::shape view{migraphx::shape::float_type, {2, 4}};
+    EXPECT(not migraphx::invert_view_chain(
+                   {migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}})},
+                   {migraphx::shape::float_type, {2, 1}},
+                   view)
+                   .has_value());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

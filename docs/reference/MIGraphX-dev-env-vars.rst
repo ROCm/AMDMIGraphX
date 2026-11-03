@@ -428,6 +428,16 @@ Debug settings for passes.
 
       | Default: Debug statements for the ``memory-coloring`` pass aren't printed.
 
+  * - | ``MIGRAPHX_TRACE_WRITE_LITERALS``
+      | Prints the GPU memory budget of the ``write_literals`` pass: available memory, literal,
+        code object and scratch estimates, the shortfall, and how many literals are left in host
+        memory for zero-copy reads or staged through a copy each run.
+
+    - | ``1``: The memory budget is printed.
+      | ``0``: Returns to default behavior.
+
+      | Default: The memory budget isn't printed.
+
   * - | ``MIGRAPHX_TRACE_PROPAGATE_CONSTANT``
       | Turns on tracing of instructions that have been replaced with a constant.
     

@@ -86,7 +86,7 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
-#include <migraphx/gpu/retune.hpp>
+#include <migraphx/gpu/recompile.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -412,7 +412,7 @@ struct pipeline_factory
                         options.exhaustive_tune,
                         options.compile_mode == compile_modes::eager,
                         string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}),
-                        options.keep_recipes},
+                        options.recompilable},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -431,6 +431,7 @@ struct pipeline_factory
             normalize_ops{},
             dead_code_elimination{},
             eliminate_identity{},
+            enable_pass(options.recompilable, record_compiled_for{get_context()}),
         };
     }
 };
@@ -460,14 +461,13 @@ setup_context(context& ctx, const compile_options& options, const backend_option
                             backend_opts.problem_cache_files);
 }
 
-std::vector<pass> target::get_retune_passes(migraphx::context& gctx,
-                                            const value& from_ctx,
-                                            const compile_options& options,
-                                            const retune_options& retune) const
+std::vector<pass> target::get_recompile_passes(migraphx::context& gctx,
+                                               const compile_options& options,
+                                               const recompile_options& recompile_opts) const
 {
     auto& ctx = any_cast<context>(gctx);
     setup_context(ctx, options, get_backend_options(options));
-    return {retune_ops{&ctx, from_ctx, retune.force, options.exhaustive_tune}};
+    return {recompile_ops{&ctx, recompile_opts.force, options.exhaustive_tune}};
 }
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const

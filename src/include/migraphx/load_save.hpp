@@ -35,7 +35,7 @@ struct file_options
 {
     std::string format = "msgpack";
     /// Load the kernels of a compiled program. When false, the program can be opened on a
-    /// machine without the device it was compiled for, for example to retune it.
+    /// machine without the device it was compiled for, for example to recompile it.
     bool finalize = true;
 };
 

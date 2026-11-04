@@ -55,10 +55,9 @@ struct MIGRAPHX_GPU_EXPORT target
 
     std::string name() const;
     std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options) const;
-    std::vector<pass> get_retune_passes(migraphx::context& gctx,
-                                        const value& from_ctx,
-                                        const compile_options& options,
-                                        const retune_options& retune) const;
+    std::vector<pass> get_recompile_passes(migraphx::context& gctx,
+                                           const compile_options& options,
+                                           const recompile_options& recompile_opts) const;
     migraphx::context get_context() const;
     argument copy_to(const argument& arg) const;
     argument copy_from(const argument& arg) const;

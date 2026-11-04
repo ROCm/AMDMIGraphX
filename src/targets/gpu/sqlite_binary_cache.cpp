@@ -30,7 +30,6 @@
 #include <migraphx/md5.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
-#include <cassert>
 #include <type_traits>
 #include <utility>
 
@@ -137,19 +136,16 @@ optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path,
             return nullopt;
         }
         r.db = std::move(*db);
-        // The schema and store statement below are skipped only for a read-only connection.
-        assert(not read_only or r.db.read_only());
         r.db.set_busy_timeout(busy_timeout_ms);
-        if(r.db.read_only())
-        {
-            // Only worth a warning when writes were wanted but the database refused them.
-            if(not read_only)
-                log::warn() << "Binary cache at " << path << " is read-only";
-        }
-        else
+        if(not r.db.read_only())
         {
             r.db.execute(schema_sql);
             r.store_stmt = r.db.prepare(store_sql);
+        }
+        // Only worth a warning when writes were wanted but the database refused them.
+        else if(not read_only)
+        {
+            log::warn() << "Binary cache at " << path << " is read-only";
         }
         // Without a working lookup there is no cache, so this failure disables the backend. That
         // includes a read-only database that was never given the schema.

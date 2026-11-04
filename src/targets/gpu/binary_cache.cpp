@@ -124,7 +124,7 @@ binary_cache_backend* binary_cache::get_backend()
     if(version.empty())
         return nullptr;
     if(not database)
-        backend = binary_cache_backend{file_binary_cache{path}};
+        backend = binary_cache_backend{file_binary_cache{path, settings.read_only}};
     else if(auto db = sqlite_binary_cache::open(path, settings.read_only))
         backend = binary_cache_backend{std::move(*db)};
     return backend.has_value() ? &*backend : nullptr;
@@ -161,8 +161,7 @@ void binary_cache::insert(const context& ctx, std::vector<binary_cache_entry> es
     if(es.empty())
         return;
     counters.compiled += es.size();
-    // Gated here because the file backend has no read-only mode and would create its directories.
-    if(auto* b = settings.read_only ? nullptr : get_backend())
+    if(auto* b = get_backend())
     {
         try
         {

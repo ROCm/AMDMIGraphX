@@ -108,6 +108,8 @@ void file_binary_cache::store(const std::string& version,
                               const std::string& device,
                               const std::vector<binary_cache_entry>& entries) const
 {
+    if(read_only)
+        return;
     auto dir = entry_dir(root, version, device);
     fs::create_directories(dir);
     // The content is decided entirely by the key, so a writer that loses the publish race

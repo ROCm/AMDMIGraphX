@@ -48,6 +48,8 @@ struct MIGRAPHX_GPU_EXPORT file_binary_cache
                const std::vector<binary_cache_entry>& entries) const;
 
     fs::path root = {};
+    /// Only look entries up; store does nothing, so no directories are created.
+    bool read_only = false;
 };
 
 } // namespace gpu

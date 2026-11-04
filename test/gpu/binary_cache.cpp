@@ -291,12 +291,12 @@ static void read_only_cache_serves_hits_and_skips_stores()
     migraphx::gpu::context ctx;
     auto path = Backend::path(td);
     {
-        migraphx::gpu::binary_cache writer{migraphx::gpu::binary_cache_settings{path, false}};
+        migraphx::gpu::binary_cache writer{migraphx::gpu::binary_cache_settings{.path = path}};
         writer.insert(ctx, {make_entry("existing")});
     }
 
     migraphx::gpu::binary_cache reader{
-        migraphx::gpu::binary_cache_settings{path, false, /* read_only */ true}};
+        migraphx::gpu::binary_cache_settings{.path = path, .read_only = true}};
     EXPECT(reader.get(ctx, "existing").has_value());
     EXPECT(reader.get_stats().hits == 1);
 
@@ -316,15 +316,21 @@ TEST_CASE(read_only_cache_does_not_create_storage)
 {
     migraphx::tmp_dir td{"binary-cache"};
     migraphx::gpu::context ctx;
-    for(const auto& path : {(td.path / "files").string(), db_path(td)})
-    {
-        migraphx::gpu::binary_cache cache{
-            migraphx::gpu::binary_cache_settings{path, false, /* read_only */ true}};
-        EXPECT(not cache.get(ctx, "missing").has_value());
-        cache.insert(ctx, {make_entry("new")});
-        EXPECT(cache.get(ctx, "new").has_value());
-        EXPECT(not migraphx::fs::exists(path));
-    }
+    auto dir = (td.path / "files").string();
+    migraphx::gpu::binary_cache files{
+        migraphx::gpu::binary_cache_settings{.path = dir, .read_only = true}};
+    EXPECT(not files.get(ctx, "missing").has_value());
+    files.insert(ctx, {make_entry("new")});
+    EXPECT(files.get(ctx, "new").has_value());
+    EXPECT(not migraphx::fs::exists(dir));
+
+    auto db = db_path(td);
+    migraphx::gpu::binary_cache database{
+        migraphx::gpu::binary_cache_settings{.path = db, .read_only = true}};
+    EXPECT(not database.get(ctx, "missing").has_value());
+    database.insert(ctx, {make_entry("new")});
+    EXPECT(database.get(ctx, "new").has_value());
+    EXPECT(not migraphx::fs::exists(db));
 }
 
 // Without a directory nothing reaches disk, though results are still shared in memory.

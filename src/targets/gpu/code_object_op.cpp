@@ -135,8 +135,6 @@ void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
     // their byte offsets are replayed below for compute()-time patching.
     std::vector<kernel_argument_value> flat;
     flat.reserve(kernel_args.size());
-    std::vector<bool> is_pointer;
-    is_pointer.reserve(kernel_args.size());
 
     for(const auto& [idx, v] : kernel_args)
     {
@@ -146,30 +144,22 @@ void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
             slot.align = 8;
             slot.data.assign(8, 0);
             flat.push_back(std::move(slot));
-            is_pointer.push_back(true);
         }
         else
         {
             flat.push_back(v);
-            is_pointer.push_back(false);
         }
     }
 
     packed_kernargs = pack_args(flat);
 
-    // Replay the same alignment math pack_args uses to recover pointer-slot
-    // offsets in the packed buffer.
+    // Recover the pointer-slot offsets in the packed buffer.
     runtime_arg_offsets.clear();
     std::size_t arg_counter = 0;
-    std::size_t pos         = 0;
-    for(std::size_t i = 0; i < flat.size(); ++i)
-    {
-        auto align = flat[i].align;
-        pos += (align - (pos % align)) % align;
-        if(is_pointer[i])
+    for_each_kernarg_slot(kernel_args, [&](std::size_t pos, bool is_pointer) {
+        if(is_pointer)
             runtime_arg_offsets.emplace_back(arg_counter++, pos);
-        pos += flat[i].data.size();
-    }
+    });
 }
 
 } // namespace gpu

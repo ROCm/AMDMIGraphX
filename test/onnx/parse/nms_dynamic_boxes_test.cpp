@@ -26,6 +26,7 @@
 
 TEST_CASE(nms_dynamic_boxes_test)
 {
+    using migraphx::sym::var;
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape sb{migraphx::shape::float_type, {{1, 1}, {6, 20}, {4, 4}}};
@@ -37,9 +38,21 @@ TEST_CASE(nms_dynamic_boxes_test)
     migraphx::shape siou{migraphx::shape::float_type, {1}};
     auto iou = mm->add_parameter("iou_threshold", siou);
     migraphx::shape sst{migraphx::shape::float_type, {1}};
-    auto st  = mm->add_parameter("score_threshold", sst);
-    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"), b, s, mo, iou, st);
-    auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto st      = mm->add_parameter("score_threshold", sst);
+    auto nms     = mm->add_instruction(migraphx::make_op("nonmaxsuppression"), b, s, mo, iou, st);
+    auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto num_selected =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    // 1 batch * 1 class * 20 boxes, so the padded indices are [20, 3]. Added last so it lands at
+    // the front of the module, where the parser puts it.
+    auto starts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto num_selected_var = var("main_NonMaxSuppression_5", {0, 20});
+    auto ends             = migraphx::value::array{migraphx::to_value(num_selected_var)};
+    auto ret              = mm->add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", ends}}),
+        indices,
+        starts,
+        num_selected);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

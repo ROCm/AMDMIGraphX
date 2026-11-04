@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,6 @@
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
-#include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -77,8 +76,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             eliminate_convert{},
             eliminate_identity{},
             eliminate_pad{},
-            dead_code_elimination{},
-            rewrite_rnn{},
             dead_code_elimination{},
             eliminate_common_subexpression{},
             dead_code_elimination{},

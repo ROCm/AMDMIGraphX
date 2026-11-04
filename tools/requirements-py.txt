@@ -21,12 +21,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-onnx==1.21.0;python_version>="3.11"
+onnx==1.17.0;python_version>="3.11"
 onnx==1.14.1;python_version<"3.11"
 numpy==1.26.4;python_version>="3.11"
 numpy==1.21.6;python_version<"3.11"
 typing==3.7.4 
 pytest==9.0.3 
-packaging==23.0
+packaging==26.3
 # pin version of protobuf in Python for onnx runtime unit tests between dist versions
 protobuf==6.33.5

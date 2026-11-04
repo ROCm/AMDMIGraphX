@@ -27,6 +27,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
@@ -49,13 +50,29 @@ struct fused_concat
 
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
-        check_shapes{inputs, *this}.same_ndims();
         // original concat can have multiple inputs. Let's say it has `n` input args.
         // Each of those `n` input args are converted into pointwise modules that take atleast 1
         // input parameter. Fused concat will have `n+1` module arguments. `n+1`th module is the
         // post pointwise module which can take 0 or more input arguments.
-        if((inputs.size() + 1) < mods.size())
-            MIGRAPHX_THROW("FUSED_CONCAT: Missing fused modules inputs parameters");
+        if(mods.size() < 2)
+            MIGRAPHX_THROW("FUSED_CONCAT: Missing fused modules");
+        auto expected_inputs = transform_accumulate(
+            mods.begin(), mods.end() - 1, std::size_t{0}, std::plus<>{}, [](const_module_ref mod) {
+                auto nparams = mod->get_parameter_names().size();
+                if(nparams == 0)
+                    MIGRAPHX_THROW("FUSED_CONCAT: Pre-concat module requires an input parameter");
+                return nparams;
+            });
+        const_module_ref post_mod = mods.back();
+        auto post_params          = post_mod->get_parameter_names().size();
+        if(post_params == 0)
+            MIGRAPHX_THROW("FUSED_CONCAT: Post-concat module requires a concat parameter");
+        expected_inputs += post_params - 1;
+        if(expected_inputs != inputs.size())
+            MIGRAPHX_THROW("FUSED_CONCAT: Expected " + std::to_string(expected_inputs) +
+                           " inputs for fused modules but got " + std::to_string(inputs.size()));
+
+        check_shapes{inputs, *this}.same_ndims();
         auto input_iter = inputs.begin();
         std::vector<shape> concat_inputs;
         for(const_module_ref mod : range(mods.begin(), mods.end() - 1))
@@ -63,10 +80,8 @@ struct fused_concat
             concat_inputs.push_back(*input_iter);
             input_iter += mod->get_parameter_names().size();
         }
-        const_module_ref post_mod = mods.back();
         // post_mod has one input argument that is result of concat and will get generated from
-        // pre-mods internally. Therefore deduct 1 from post_mod params while asserting.
-        assert(input_iter + (post_mod->get_parameter_names().size() - 1) == inputs.end());
+        // pre-mods internally. Therefore deduct 1 from post_mod params.
         auto type                    = std::prev(post_mod->end())->get_shape().type();
         const auto& first_shape_lens = concat_inputs.front().lens();
         auto mismatch_it =
@@ -156,6 +171,7 @@ struct find_concat_pointwise : concat_counter<0>
             return;
         }
         std::vector<module_ref> module_inputs;
+        auto module_prefix = mpm.get_module().name() + ":";
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
@@ -165,14 +181,15 @@ struct find_concat_pointwise : concat_counter<0>
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm = mpm.create_module("concat:noop" +
+                           auto* pm = mpm.create_module(module_prefix + "concat:noop" +
                                                         std::to_string(get_noop_counter()));
                            auto x   = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;
                        });
-        auto* post_pm = mpm.create_module("noop:concat" + std::to_string(get_noop_counter()));
-        auto x        = post_pm->add_parameter("!x0", shape{concat_ins->get_shape().type()});
+        auto* post_pm =
+            mpm.create_module(module_prefix + "noop:concat" + std::to_string(get_noop_counter()));
+        auto x = post_pm->add_parameter("!x0", shape{concat_ins->get_shape().type()});
         post_pm->add_return({x});
         module_inputs.push_back(post_pm);
         mpm.get_module().replace_instruction(
@@ -214,6 +231,7 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                      [&](auto input) { return input != concat_ins; });
 
         std::vector<module_ref> module_inputs;
+        auto module_prefix = mpm.get_module().name() + ":";
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
@@ -223,9 +241,9 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm = mpm.create_module("concat:noop" +
+                           auto* pm = mpm.create_module(module_prefix + "concat:noop" +
                                                         std::to_string(get_noop_counter()));
-                           auto x  = pm->add_parameter("x0", shape{input->get_shape().type()});
+                           auto x   = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;
                        });
@@ -249,10 +267,102 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
     }
 };
 
+// Split a pointwise op along the segments of a concat input whose inputs are
+// all non-pointwise views (such as the two slices of a rotate-half). Each
+// segment becomes a pointwise on sliced inputs, so the resulting concat of
+// pointwise ops can then fuse into a single fused_concat kernel.
+struct find_pointwise_concat_split
+{
+    auto matcher() const
+    {
+        auto concat = match::name("concat")(
+            match::used_once(), match::none_of[match::inputs()](match::name("pointwise")));
+        return fusable_pointwise(match::used_once(),
+                                 match::any_of[match::inputs()](concat.bind("concat")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins        = r.result;
+        auto concat_ins = r.instructions["concat"];
+        if(concat_ins->inputs().size() < 2)
+            return;
+        if(std::count(ins->inputs().begin(), ins->inputs().end(), concat_ins) != 1)
+            return;
+        auto concat_op = concat_ins->normalized_operator();
+        auto axis      = concat_op.to_value()["axis"].to<int64_t>();
+        auto* pm       = ins->module_inputs().front();
+        auto& m        = mpm.get_module();
+        std::vector<instruction_ref> segments;
+        int64_t offset = 0;
+        for(auto seg : concat_ins->inputs())
+        {
+            int64_t len = seg->get_shape().lens()[axis];
+            std::vector<instruction_ref> inputs;
+            std::transform(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                std::back_inserter(inputs),
+                [&](instruction_ref input) {
+                    if(input == concat_ins)
+                        return seg;
+                    return m.insert_instruction(
+                        ins,
+                        make_op("slice",
+                                {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
+                        input);
+                });
+            module pm_copy = *pm;
+            auto* seg_pm   = mpm.create_module(
+                pm->name() + ":split" + std::to_string(segments.size()), std::move(pm_copy));
+            seg_pm->set_bypass();
+            segments.push_back(m.insert_instruction(ins, ins->get_operator(), inputs, {seg_pm}));
+            offset += len;
+        }
+        m.replace_instruction(ins, concat_op, segments);
+    }
+};
+
+// Merge a same-axis concat that feeds directly into another concat
+struct find_nested_concat
+{
+    auto matcher() const
+    {
+        auto concat_used_once = match::name("concat")(match::used_once());
+        return match::name("concat")(match::any_of[match::inputs()](concat_used_once));
+    }
+
+    static int64_t get_axis(instruction_ref ins)
+    {
+        return ins->normalized_operator().to_value()["axis"].to<int64_t>();
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto axis = get_axis(ins);
+        std::vector<instruction_ref> args;
+        fix([&](auto self, auto&& inputs) {
+            for(auto&& i : inputs)
+            {
+                if(i->name() == "concat" and get_axis(i) == axis and i->outputs().size() == 1)
+                    self(i->inputs());
+                else
+                    args.push_back(i);
+            }
+        })(ins->inputs());
+        mpm.get_module().replace_instruction(ins, ins->normalized_operator(), args);
+    }
+};
+
 } // namespace
 
 void fuse_concat::apply(module_pass_manager& mpm) const
 {
+    match::find_matches(mpm, find_pointwise_concat_split{});
+    mpm.run_pass(migraphx::dead_code_elimination{});
+    match::find_matches(mpm, find_nested_concat{});
+    mpm.run_pass(migraphx::dead_code_elimination{});
     match::find_matches(mpm, find_pointwise_concat_pointwise{});
     mpm.run_pass(migraphx::dead_code_elimination{});
     match::find_matches(mpm, find_concat_pointwise{});

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,8 +27,10 @@
 #include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 
 #include <test.hpp>
+#include <vector>
 
 static void run_pass(migraphx::module& m, std::set<migraphx::shape::type_t> types)
 {
@@ -87,6 +89,76 @@ TEST_CASE(quant)
         auto add = mm2.add_instruction(migraphx::make_op("dot"), floatx, floaty);
         mm2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), add);
+    }
+    EXPECT(mm1 == mm2);
+}
+
+TEST_CASE(skip_convert_eval_expr_from_shape)
+{
+    auto n = migraphx::sym::var("n", {1, 4});
+    migraphx::shape input_shape{
+        migraphx::shape::int64_type,
+        std::vector<migraphx::shape::dynamic_dimension>{migraphx::shape::dynamic_dimension{n}}};
+    migraphx::module mm1;
+    auto x    = mm1.add_parameter("x", input_shape);
+    auto eval = mm1.add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}}),
+        x);
+    mm1.add_return({eval});
+
+    auto mm2 = mm1;
+    run_pass(mm1, {migraphx::shape::int64_type});
+    EXPECT(mm1 == mm2);
+}
+
+TEST_CASE(skip_convert_dyn_slice_metadata)
+{
+    migraphx::shape data_shape{migraphx::shape::float_type, {4}};
+    migraphx::shape index_shape{migraphx::shape::int64_type, {1}};
+
+    migraphx::module mm1;
+    auto data   = mm1.add_parameter("data", data_shape);
+    auto starts = mm1.add_parameter("starts", index_shape);
+    auto ends   = mm1.add_parameter("ends", index_shape);
+    auto slice  = mm1.add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}),
+        data,
+        starts,
+        ends);
+    mm1.add_return({slice});
+
+    auto mm2 = mm1;
+    run_pass(mm1, {migraphx::shape::int64_type});
+    EXPECT(mm1 == mm2);
+}
+
+TEST_CASE(unpack_int4_skipped)
+{
+    migraphx::shape ps{migraphx::shape::uint8_type, {2, 2}};
+    migraphx::shape s{migraphx::shape::uint8_type, {2, 4}};
+    migraphx::module mm1;
+    {
+        auto x      = mm1.add_parameter("x", ps);
+        auto y      = mm1.add_parameter("y", s);
+        auto unpack = mm1.add_instruction(migraphx::make_op("unpack_int4"), x);
+        mm1.add_instruction(migraphx::make_op("add"), unpack, y);
+    }
+    run_pass(mm1, {migraphx::shape::uint8_type});
+
+    migraphx::module mm2;
+    {
+        auto x      = mm2.add_parameter("x", ps);
+        auto y      = mm2.add_parameter("y", s);
+        auto unpack = mm2.add_instruction(migraphx::make_op("unpack_int4"), x);
+        auto floatx = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), unpack);
+        auto floaty = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), y);
+        auto add = mm2.add_instruction(migraphx::make_op("add"), floatx, floaty);
+        mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::uint8_type}}), add);
     }
     EXPECT(mm1 == mm2);
 }

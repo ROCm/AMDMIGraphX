@@ -30,10 +30,10 @@
 #include <migraphx/context.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <migraphx/zip_view.hpp>
 #include <algorithm>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace migraphx {
@@ -57,26 +57,35 @@ struct eval_expr_from_shape
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
 
-        std::unordered_set<sym::expr> missing;
-        for(const auto& expression : expressions)
-        {
-            auto variables = sym::find_variables(expression);
-            missing.merge(variables);
-        }
-
+        // Treat each complete symbolic dimension as a runtime value. Substitution also proves
+        // expressions composed from those dimensions are resolvable.
+        std::unordered_map<sym::expr, sym::expr> available;
         for(const auto& input : inputs)
         {
             if(not input.symbolic())
                 continue;
             for(const auto& d : input.dyn_dims())
-                if(d.sym_expr.name() == "variable")
-                    missing.erase(sym::as_symbol(d.sym_expr));
+                if(d.is_symbolic())
+                {
+                    available.emplace(d.sym_expr, sym::lit(1));
+                    if(d.sym_expr.name() == "variable")
+                        available.emplace(sym::as_symbol(d.sym_expr), sym::lit(1));
+                }
         }
-        if(not missing.empty())
-            MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Symbol '" + missing.begin()->to_string() +
-                           "' is not a direct input dimension");
+        for(const auto& expression : expressions)
+        {
+            auto unresolved = sym::find_variables(expression.subs(available));
+            if(not unresolved.empty())
+                MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Expression '" + expression.to_string() +
+                               "' cannot be resolved from the input dimensions");
+        }
 
         return shape{shape::int64_type, {expressions.size()}};
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape, const std::vector<sym_argument>&) const
+    {
+        return {expressions, output_shape};
     }
 
     void finalize(context&, const shape&, const std::vector<shape>& inputs)
@@ -101,13 +110,18 @@ struct eval_expr_from_shape
             const auto& dims = input_shape.dyn_dims();
             for(auto&& [dim, len] : views::zip(dims, lens))
             {
-                if(dim.sym_expr.name() != "variable")
+                if(not dim.is_symbolic())
                     continue;
-                auto variable = sym::as_symbol(dim.sym_expr);
-                auto result   = values.emplace(variable, len);
-                if(not result.second and result.first->second != len)
-                    MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Repeated symbol has inconsistent runtime "
-                                   "dimensions");
+                auto add_value = [&](const sym::expr& expression, std::size_t value) {
+                    auto result = values.emplace(expression, value);
+                    if(not result.second and result.first->second != value)
+                        MIGRAPHX_THROW(
+                            "EVAL_EXPR_FROM_SHAPE: Repeated expression has inconsistent runtime "
+                            "dimensions");
+                };
+                add_value(dim.sym_expr, len);
+                if(dim.sym_expr.name() == "variable")
+                    add_value(sym::as_symbol(dim.sym_expr), len);
             }
         }
 

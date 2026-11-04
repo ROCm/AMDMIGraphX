@@ -104,6 +104,42 @@ This workflow has purpose to clean up any cached data related to the pull reques
 
 ---
 
+## `copilot-review.yaml`
+
+<p>
+This workflow runs the repository's <code>/migraphx-code-review</code> Claude Code skill on a pull request with the GitHub Copilot CLI, so the model comes from the Copilot plan instead of the LLM gateway. Findings are posted as inline review comments plus a summary comment, and the session transcript is added to the job summary. The skill's subagents run as the <code>general-purpose</code> custom agent in <code>.github/agents/</code>.
+</p>
+
+- ## Trigger
+    The workflow is triggered by the following events:
+
+     - A comment containing `/code-review` on a pull request, written by a repository owner, organization member, or collaborator. An optional effort level (`low`, `medium`, `high`, `xhigh`, `max`) can follow the phrase; the default is `xhigh`.
+
+     - The label `code-review` (xhigh) or `code-review-<level>` being added to a same-repo pull request. This runs the workflow file from the PR branch, so it can be used to test changes to the workflow before merging. The label is removed again when the job finishes.
+
+- ## Jobs
+    The workflow has a single job named `review`. The following steps are executed in this job:
+     - `Pick the PR and effort level from the trigger`: reads the PR number and the optional effort level from the comment or the label.
+
+     - `actions/checkout`: checks out the pull request head with full history so the skill can diff against `origin/develop`.
+
+     - `Install Copilot CLI`: installs the `@github/copilot` npm package.
+
+     - `Copilot review`: runs the skill with `copilot -p`, with the model set by `COPILOT_MODEL`, the reasoning effort set to the review level, and only read-only git, grep, find, and gh commands allowed.
+
+     - `Add the session transcript to the job summary`: appends the exported transcript to the job summary.
+
+     - `Remove the trigger label`: for label-triggered runs, removes the label so the PR can be labeled again.
+
+- ## Requirements
+     - The organization policy "Allow use of Copilot CLI billed to the organization" must be enabled so the workflow can authenticate with `GITHUB_TOKEN`.
+
+     - The model named in `COPILOT_MODEL` must be enabled in the organization's Copilot model policy.
+
+    GitHub runs `issue_comment` workflows from the default branch, so the comment trigger only takes effect once this file is on `develop`.
+
+---
+
 ## `history.yaml`
 
 <p>

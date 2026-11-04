@@ -69,6 +69,18 @@ def setupdocker(Map conf) {
     return docker_opts
 }
 
+// The driver exits 0 even when verification fails, so check its log as well as
+// its exit status: a crash or sanitizer error after the success message must fail.
+def driver_test(String driver) {
+    return """
+        status=0
+        ${driver} verify --test > driver.log 2>&1 || status=\$?
+        cat driver.log
+        test \$status -eq 0
+        grep -q "verification passed successfully" driver.log
+    """
+}
+
 def cmake_build = { bconf ->
     def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
     def flags = bconf.get("flags", "")
@@ -95,7 +107,7 @@ def cmake_build = { bconf ->
         # Pin the package's per-GPU dependency to the arch of the GPU in this node
         # so the generated .deb is installable here (empty on nogpu -> device-all deps).
         THEROCK_GPU_ARCH=\$(/opt/rocm/bin/rocminfo 2>/dev/null | grep -o -m1 'gfx[0-9a-z]*' || true)
-        cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON -DMIGRAPHX_THEROCK_GPU_ARCH="\${THEROCK_GPU_ARCH}" ${flags} ..
+        cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/hermetic.cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON -DMIGRAPHX_THEROCK_GPU_ARCH="\${THEROCK_GPU_ARCH}" ${flags} ..
         git diff
         git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
         make -j\$(nproc) generate VERBOSE=1
@@ -103,6 +115,7 @@ def cmake_build = { bconf ->
         git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
         make -j\$(nproc) ${targets} VERBOSE=1
         if [ -n "\$(ls ./*.deb 2>/dev/null)" ]; then md5sum ./*.deb; fi
+        ${driver_test('./bin/migraphx-driver')}
     """
     echo cmd
     sh cmd
@@ -273,10 +286,10 @@ def rocmtest = { Map conf = [:], Closure body ->
 
         stage("build ${variant}") {
             try {
+                sh "mkdir -p '${env.WORKSPACE}/../.cache/ccache' '${env.WORKSPACE}/../.cache/comgr_cache'"
                 withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
                     timeout(time: 4, unit: 'HOURS') {
                         sh """
-                            mkdir -p ${ccache} ${comgr_cache}
                             ls -l /workspaces/
                             ls -l /workspaces/.cache/
                         """
@@ -293,6 +306,11 @@ def rocmtest = { Map conf = [:], Closure body ->
 def setuppackage = {
     sh 'rm -rf ./build/*.deb'
     unstash 'migraphx-package'
+}
+
+def setupstaticdriver = {
+    sh 'rm -rf ./build/bin'
+    unstash 'migraphx-static-driver'
 }
 
 pipeline {
@@ -320,7 +338,7 @@ pipeline {
                             checkout scm
                             def calculateImageTagScript = """
                                 shopt -s globstar
-                                sha256sum Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
+                                sha256sum Dockerfile cmake/hermetic.cmake **/*requirements.txt tools/requirements-py.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
                             """
                             env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
                             env.IMAGE_EXISTS = sh(script: "docker manifest inspect ${DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
@@ -423,8 +441,9 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(skip_also_requires: ['Static Driver Tests']) {
                                 cmake_build(skip_package: true, flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                                stash includes: 'build/bin/migraphx-driver', name: 'migraphx-static-driver'
                             }
                         }
                     }
@@ -483,7 +502,7 @@ pipeline {
                         MIGRAPHX_ENABLE_MLIR_INPUT_FUSION = '1'
                         MIGRAPHX_MLIR_ENABLE_SPLITK = '1'
                         MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION = '1'
-                        MIGRAPHX_ENABLE_MLIR_GEG_FUSION = '1'
+                        MIGRAPHX_ENABLE_MLIR_CEG_FUSION = '1'
                         MIGRAPHX_ENABLE_SPLIT_REDUCE = '1'
                         MIGRAPHX_DISABLE_LAYERNORM_FUSION = '1'
                     }
@@ -561,6 +580,21 @@ pipeline {
                                     env
                                     cd /onnxruntime && ./build_and_test_onnxrt.sh
                                 '''
+                            }
+                        }
+                    }
+                }
+
+                stage('Static Driver Tests') {
+                    agent {
+                        label rocmnodename('mi300+')
+                    }
+                    steps {
+                        script {
+                            rocmtest(setup: setupstaticdriver, image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
+                                // The ORT image only has ROCm installed, so the static
+                                // driver must run without anything from rbuild or the build tree.
+                                sh driver_test('./build/bin/migraphx-driver')
                             }
                         }
                     }

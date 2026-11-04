@@ -88,8 +88,9 @@ struct torch_scatter_reduce : op_builder<torch_scatter_reduce>
                 else
                     v.front() = std::numeric_limits<type>::max();
             });
-            auto identity = m.add_literal(id_arg.get_shape(), id_arg.data());
-            identity      = m.insert_instruction(
+            auto identity =
+                m.add_literal(literal::from_raw_buffer(id_arg.get_shape(), id_arg.data()));
+            identity = m.insert_instruction(
                 ins, make_op("multibroadcast", {{"out_lens", idx->get_shape().lens()}}), identity);
             inp = m.insert_instruction(
                 ins, make_op("scatter_none", {{"axis", axis}}), {inp, idx, identity});

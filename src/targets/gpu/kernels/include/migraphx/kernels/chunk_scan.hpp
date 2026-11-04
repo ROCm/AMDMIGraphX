@@ -67,7 +67,8 @@ __device__ auto load_cols(View m, index_int r, index_int c)
     auto mr = row(m, r);
     if constexpr(N == 1)
     {
-        return mr[c];
+        T x = mr[c];
+        return x;
     }
     else
     {
@@ -102,7 +103,11 @@ struct chunk_scanner
 {
     template <index_int I>
     using arg_t      = decltype(declval<Args>()(arg_c<I>()));
-    using value_type = typename arg_t<Settings::q_index>::type; // the operands' type accumulates
+    using value_type = typename arg_t<Settings::q_index>::type;
+    // half and bf16 operands accumulate in float, like the gemms they replace
+    using acc_type = conditional_t<is_same<value_type, float>{} or is_same<value_type, double>{},
+                                   value_type,
+                                   float>;
     static constexpr index_int chunks = Settings::chunks;
     static constexpr index_int rows   = Settings::rows;
     static constexpr index_int dk     = Settings::dk;
@@ -112,7 +117,7 @@ struct chunk_scanner
     static constexpr index_int tr     = Settings::tr;
     static constexpr index_int td     = Settings::td;
     static constexpr index_int nvt    = dvb / tv;
-    using tile_t                      = conditional_t<(tv > 1), vec<value_type, tv>, value_type>;
+    using tile_t                      = conditional_t<(tv > 1), vec<acc_type, tv>, acc_type>;
     // the leading axes index the problems; multi() of this shape gives the
     // leading index with zeros in the matrix axes
     static constexpr auto so           = get_shape_c<arg_t<Settings::state_out_index>>{};
@@ -157,7 +162,7 @@ struct chunk_scanner
         idx.local_stride(s_tiles.elements(), [&](auto e) {
             auto t = s_tiles.multi(e);
             if constexpr(Settings::has_state)
-                s[t] = load_cols<value_type, tv>(s0m, t[0], col0 + t[1] * tv);
+                s[t] = load_cols<acc_type, tv>(s0m, t[0], col0 + t[1] * tv);
             else
                 s[t] = tile_t{};
         });
@@ -170,6 +175,35 @@ struct chunk_scanner
             auto t = s_tiles.multi(e);
             store_cols<tv>(som, t[0], col0 + t[1] * tv, s[t]);
         });
+    }
+
+    // q_i S and, under the read module, w_i S for the rows of a tile
+    struct state_reads
+    {
+        array<tile_t, tr> qs;
+        array<tile_t, tr> ws;
+    };
+
+    template <class QI, class WI>
+    __device__ state_reads read_state(QI qi, WI wi, index_int r0, index_int vt) const
+    {
+        state_reads reads{};
+        auto scol = column(s, vt);
+        for(index_int k = 0; k < dk; k++)
+        {
+            const tile_t sk = scol[k];
+            repeat_c<tr>([&](auto a) {
+                const index_int r = r0 + a;
+                const acc_type qa = row(qi, r)[k];
+                reads.qs[a] += qa * sk;
+                if constexpr(Settings::has_read)
+                {
+                    const acc_type wa = row(wi, r)[k];
+                    reads.ws[a] += wa * sk;
+                }
+            });
+        }
+        return reads;
     }
 
     // o_i = out(pu0_i, q_i S) and u = read(u0_i, w_i S) for chunk i
@@ -185,43 +219,28 @@ struct chunk_scanner
             i, Settings::pu0_offset, Settings::pu0_delta);
         auto outm = mat<Settings::output_index, get_shape_c<arg_t<Settings::output_index>>>(0);
         idx.local_stride(read_tiles.elements(), [&](auto e) {
-            auto t        = read_tiles.multi(e);
-            const auto r0 = t[0] * tr;
-            const auto vt = t[1];
-            const auto c0 = col0 + vt * tv;
-            array<tile_t, tr> qs{};
-            array<tile_t, tr> ws{};
-            if(live)
-            {
-                auto scol = column(s, vt);
-                for(index_int k = 0; k < dk; k++)
-                {
-                    const tile_t sk = scol[k];
-                    repeat_c<tr>([&](auto a) {
-                        const index_int r = r0 + a;
-                        qs[a] += row(qi, r)[k] * sk;
-                        if constexpr(Settings::has_read)
-                            ws[a] += row(wi, r)[k] * sk;
-                    });
-                }
-            }
+            auto t           = read_tiles.multi(e);
+            const auto r0    = t[0] * tr;
+            const auto vt    = t[1];
+            const auto c0    = col0 + vt * tv;
+            const auto reads = live ? read_state(qi, wi, r0, vt) : state_reads{};
             repeat_c<tr>([&](auto a) {
                 const index_int r = r0 + a;
                 if constexpr(Settings::has_update_dot)
                 {
-                    auto uv = load_cols<value_type, tv>(u0i, r, c0);
+                    auto uv = load_cols<acc_type, tv>(u0i, r, c0);
                     if constexpr(Settings::has_read)
                     {
                         if(live)
-                            uv = vec_transform(uv, ws[a])(read);
+                            uv = vec_transform(uv, reads.ws[a])(read);
                     }
                     column(u, vt)[r] = uv;
                 }
-                tile_t ov = qs[a];
+                tile_t ov = reads.qs[a];
                 if constexpr(Settings::has_out)
                 {
-                    auto pv = load_cols<value_type, tv>(pu0i, r, c0);
-                    ov      = live ? tile_t{vec_transform(pv, qs[a])(out_fn)} : pv;
+                    auto pv = load_cols<acc_type, tv>(pu0i, r, c0);
+                    ov      = live ? tile_t{vec_transform(pv, reads.qs[a])(out_fn)} : pv;
                 }
                 store_cols<tv>(outm, i * rows + r, c0, ov);
             });
@@ -251,13 +270,14 @@ struct chunk_scanner
                     const tile_t ur = ucol[r];
                     repeat_c<td>([&](auto a) {
                         const index_int d = d0 + a;
-                        up[a] += column(kti, r)[d] * ur;
+                        const acc_type ka = column(kti, r)[d];
+                        up[a] += ka * ur;
                     });
                 }
             }
             else
             {
-                repeat_c<td>([&](auto a) { up[a] = load_cols<value_type, tv>(updi, d0 + a, c0); });
+                repeat_c<td>([&](auto a) { up[a] = load_cols<acc_type, tv>(updi, d0 + a, c0); });
             }
             auto scol = column(s, vt);
             repeat_c<td>([&](auto a) {
@@ -266,7 +286,7 @@ struct chunk_scanner
                 if(live)
                 {
                     if constexpr(Settings::has_gamma)
-                        sv = vec_transform(sv, load_cols<value_type, tv>(gi, d, c0), up[a])(step);
+                        sv = vec_transform(sv, load_cols<acc_type, tv>(gi, d, c0), up[a])(step);
                     else
                         sv = vec_transform(sv, up[a])(step);
                 }

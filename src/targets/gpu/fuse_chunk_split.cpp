@@ -236,7 +236,8 @@ std::optional<chunk_step> match_step(instruction_ref pw)
             // u = read(u0, dot(w, S)), possibly through views on either side
             auto ws = std::find_if(u->inputs().begin(), u->inputs().end(), [&](auto in) {
                 auto d = strip_views(in);
-                return is_dot(d) and strip_views(d->inputs().at(1)) == step.state_in and
+                return is_dot(d) and
+                       strip_views(d->inputs().at(1)) == strip_views(step.state_in) and
                        d->outputs().size() == 1;
             });
             if(ws == u->inputs().end())
@@ -532,12 +533,27 @@ bool trace_outputs(chunk_loop& loop)
 // A pointwise body with its parameters retyped to the accumulation type and
 // the converts the fusion pulled in at its boundaries dropped, so the chunks'
 // bodies compare equal; the kernel converts at its loads and stores instead
+// The state accumulates in float unless the operands already are float or
+// double; the kernel's acc_type follows the same rule
+shape::type_t accumulation_type(shape::type_t t)
+{
+    return (t == shape::float_type or t == shape::double_type) ? t : shape::float_type;
+}
+
 module canonical_body(const module& pm, shape::type_t type)
 {
     module m;
     std::unordered_map<instruction_ref, instruction_ref> map;
     for(const auto& name : pm.get_parameter_names())
         map[pm.get_parameter(name)] = m.add_parameter(name, shape{type});
+    // literals keep their value but join the body in its type
+    for(auto ins : iterator_for(pm))
+    {
+        if(ins->name() != "@literal" or ins->get_shape().type() == type)
+            continue;
+        map[ins] = m.add_instruction(make_op("convert", {{"target_type", type}}),
+                                     m.add_literal(ins->get_literal()));
+    }
     auto outs = m.add_instructions(&pm, &map);
     std::transform(outs.begin(), outs.end(), outs.begin(), [](auto out) {
         while(out->name() == "convert")
@@ -764,8 +780,7 @@ bool fuse_loop(module_pass_manager& mpm, const chunk_loop& loop, const std::stri
     auto at = position(m, loop.concat);
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto in) { return position(m, in) >= at; }))
         return false;
-    // the state accumulates in the type of the chunk operands
-    const auto type = inputs.back()->get_shape().type();
+    const auto type = accumulation_type(inputs.back()->get_shape().type());
     if(not same_bodies(loop, op, type))
         return false;
 

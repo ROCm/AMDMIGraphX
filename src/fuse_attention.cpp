@@ -159,9 +159,10 @@ bool attention_submodule_rebuild_blocked(const module& source_mod,
     return std::any_of(source_mod.begin(), source_mod.end(), unsupported);
 }
 
-// Split a packed sequence vector, then broadcast it to the split scores.
-// Broadcasting to the full scores and reshaping that view aliases a short
-// buffer with packed strides.
+// Split a packed sequence tensor, then broadcast it to the split scores.
+// A vector has no query axis, so unsqueeze one; a higher-rank input already
+// has it, so transpose the new group axis ahead of it. Broadcasting to the
+// full scores first would alias a short buffer with packed strides.
 instruction_ref broadcast_split_sequence(module& m,
                                          instruction_ref pos,
                                          instruction_ref input,
@@ -172,9 +173,19 @@ instruction_ref broadcast_split_sequence(module& m,
     const auto n_split = lens.back() / num_groups;
     lens.back()        = num_groups;
     lens.push_back(n_split);
-    auto split         = m.insert_instruction(pos, make_op("reshape", {{"dims", lens}}), input);
-    const int64_t axis = split->get_shape().ndim() - 1;
-    split              = m.insert_instruction(pos, make_op("unsqueeze", {{"axes", {axis}}}), split);
+    auto split = m.insert_instruction(pos, make_op("reshape", {{"dims", lens}}), input);
+    if(input->get_shape().ndim() == 1)
+    {
+        split = m.insert_instruction(pos, make_op("unsqueeze", {{"axes", {1}}}), split);
+    }
+    else
+    {
+        const auto rank = split->get_shape().ndim();
+        std::vector<int64_t> perm(rank);
+        std::iota(perm.begin(), perm.end(), 0);
+        std::swap(perm[rank - 3], perm[rank - 2]);
+        split = m.insert_instruction(pos, make_op("transpose", {{"permutation", perm}}), split);
+    }
     return m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", split_lens}}), split);
 }
 
@@ -440,9 +451,9 @@ struct flash_decoding_split
                     if(value["out_lens"].to_vector<std::size_t>() == scores_lens)
                     {
                         const auto& input_lens = inputs.front()->get_shape().lens();
-                        // A packed sequence vector cannot broadcast to the split scores.
-                        // Split that vector first. An input that already has the score
-                        // rank is broadcast out to the original scores and then split.
+                        // A packed sequence tensor cannot broadcast to the split scores.
+                        // Split it first. An input that already has the score rank is
+                        // broadcast to the original scores and then split.
                         if(not can_multibroadcast(input_lens, split) and
                            can_multibroadcast(input_lens, scores_lens))
                         {

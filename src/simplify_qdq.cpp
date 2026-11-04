@@ -24,6 +24,7 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
@@ -40,6 +41,9 @@
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/match/dq_helpers.hpp>
 #include <migraphx/reshape_dims.hpp>
+#include <algorithm>
+#include <numeric>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -621,7 +625,7 @@ struct match_concat_qlinear
     auto get_slices(instruction_ref cat_ins) const
     {
         std::vector<std::vector<std::pair<std::string, value>>> slices;
-        auto axis    = any_cast<op::concat>(cat_ins->get_operator()).axis;
+        auto axis    = cat_ins->normalized_operator().to_value().at("axis").to<std::size_t>();
         size_t start = 0;
         for(auto cat_inp : cat_ins->inputs())
         {
@@ -641,11 +645,32 @@ struct match_concat_qlinear
         auto scale = ins->inputs()[1];
         auto zp    = ins->inputs()[2];
 
-        auto slices = get_slices(cat_ins);
+        if(not shape::same_lens(scale->get_shape(), ins->get_shape()) or
+           not shape::same_lens(zp->get_shape(), ins->get_shape()))
+        {
+            return;
+        }
+
+        auto slices     = get_slices(cat_ins);
+        auto cat_inputs = cat_ins->inputs();
+        // Each sliced scale and zero point must match the concat input it quantizes, so
+        // check the shapes before inserting anything.
+        auto slice_matches = [&](instruction_ref cat_inp, const auto& slc) {
+            auto slice_op = make_op("slice", slc);
+            return shape::same_lens(slice_op.compute_shape({scale->get_shape()}),
+                                    cat_inp->get_shape()) and
+                   shape::same_lens(slice_op.compute_shape({zp->get_shape()}),
+                                    cat_inp->get_shape());
+        };
+        if(not std::equal(cat_inputs.begin(), cat_inputs.end(), slices.begin(), slice_matches))
+        {
+            return;
+        }
+
         std::vector<instruction_ref> new_cat_inputs;
         std::transform(
-            cat_ins->inputs().begin(),
-            cat_ins->inputs().end(),
+            cat_inputs.begin(),
+            cat_inputs.end(),
             slices.begin(),
             std::back_inserter(new_cat_inputs),
             [&](auto i, const auto& slc) {
@@ -715,25 +740,82 @@ bool is_any_input_int4(instruction_ref a)
  */
 struct remove_qdq_pairs
 {
+    struct qdq_replacement
+    {
+        instruction_ref input;
+        std::vector<operation> ops;
+    };
+
+    static bool is_pack_unpack_op(instruction_ref ins)
+    {
+        return contains({"pack_fp4", "unpack_fp4"}, ins->name());
+    }
+
+    static bool is_replay_op(instruction_ref ins)
+    {
+        return contains({"broadcast", "slice", "reshape", "reshape_lazy"}, ins->name());
+    }
+
+    static bool is_skip_op(instruction_ref ins)
+    {
+        return is_pack_unpack_op(ins) or is_replay_op(ins) or ins->name() == "pad";
+    }
+
+    // pad is only skipped as part of an MXFP4 pack/unpack path.
+    static bool is_supported_qdq_path_op(instruction_ref ins, bool has_pack_unpack)
+    {
+        return is_pack_unpack_op(ins) or is_replay_op(ins) or
+               (has_pack_unpack and ins->name() == "pad");
+    }
+
+    static std::optional<qdq_replacement> find_replacement(instruction_ref dq_ins,
+                                                           instruction_ref q_ins)
+    {
+        qdq_replacement replacement{q_ins->inputs().front(), {}};
+        auto input_path = get_input_path(dq_ins->inputs().front());
+        auto q_pos      = std::find(input_path.begin(), input_path.end(), q_ins);
+        if(q_pos == input_path.end())
+            return std::nullopt;
+
+        auto path_to_q           = range(input_path.begin(), q_pos);
+        const bool pack_fp4_path = std::any_of(input_path.begin(), q_pos, &is_pack_unpack_op);
+        if(not std::all_of(path_to_q.begin(), path_to_q.end(), [&](auto x) {
+               return is_supported_qdq_path_op(x, pack_fp4_path);
+           }))
+        {
+            return std::nullopt;
+        }
+
+        if(not pack_fp4_path)
+        {
+            std::vector<instruction_ref> replay_instructions;
+            std::copy_if(
+                input_path.begin(), q_pos, std::back_inserter(replay_instructions), is_replay_op);
+            // The input path runs from DQ to Q, so replay it from Q to DQ.
+            std::transform(replay_instructions.rbegin(),
+                           replay_instructions.rend(),
+                           std::back_inserter(replacement.ops),
+                           [](auto ins) { return ins->get_operator(); });
+        }
+
+        auto replacement_shape =
+            std::accumulate(replacement.ops.begin(),
+                            replacement.ops.end(),
+                            replacement.input->get_shape(),
+                            [](const auto& s, const auto& op) { return op.compute_shape({s}); });
+        if(replacement_shape != dq_ins->get_shape())
+            return std::nullopt;
+        return replacement;
+    }
+
     auto matcher() const
     {
-        // clang-format off
-        static const std::unordered_set<std::string> skip_set = {
-            "pack_fp4",
-            "unpack_fp4",
-            "broadcast",
-            "slice",
-            "reshape",
-            "reshape_lazy",
-            "pad",
-        };
-        // clang-format on
-        auto q_ins =
-            match::skip(match::name(skip_set))(match::name("quantizelinear").bind("q_ins"));
+        auto q_ins = match::skip(match::make_basic_pred_matcher(&is_skip_op))(
+            match::name("quantizelinear").bind("q_ins"));
         return match::name("dequantizelinear")(match::arg(0)(q_ins));
     }
 
-    auto apply(module&, const match::matcher_result& r) const
+    auto apply(module& m, const match::matcher_result& r) const
     {
         auto dq_ins = r.result;
         auto q_ins  = r.instructions["q_ins"];
@@ -741,18 +823,21 @@ struct remove_qdq_pairs
         {
             return;
         }
-        // Bypassing the pair drops the ops in between, which is only valid when they round-trip to
-        // identity. Skip if a shape-altering op (e.g. reshape) changed the lengths.
-        auto q_input = q_ins->inputs().front();
-        if(q_input->get_shape().lens() != dq_ins->get_shape().lens())
+        auto replacement = find_replacement(dq_ins, q_ins);
+        if(not replacement.has_value())
         {
             return;
+        }
+        auto replacement_ins = replacement->input;
+        for(const auto& op : replacement->ops)
+        {
+            replacement_ins = m.insert_instruction(dq_ins, op, replacement_ins);
         }
         // Need to copy outputs since will be modifying dq_ins outputs
         std::vector<instruction_ref> dq_outputs = dq_ins->outputs();
         for(auto out : dq_outputs)
         {
-            instruction::replace_argument(out, dq_ins, q_input);
+            instruction::replace_argument(out, dq_ins, replacement_ins);
         }
     }
 };
@@ -833,6 +918,7 @@ void simplify_qdq::apply(module& m) const
     if(remove_qdq_only)
     {
         match::find_matches(m, remove_qdq_pairs{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     }
     else
     {

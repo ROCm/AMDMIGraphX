@@ -29,12 +29,37 @@
 #include <migraphx/ranges.hpp>
 
 #include <algorithm>
+#include <iterator>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+bool shape_resolves_expressions(const shape& input_shape, const std::vector<sym::expr>& expressions)
+{
+    std::unordered_map<sym::expr, sym::expr> available;
+    if(input_shape.symbolic())
+    {
+        transform_if(
+            input_shape.dyn_dims().begin(),
+            input_shape.dyn_dims().end(),
+            std::inserter(available, available.end()),
+            [](const auto& d) { return d.is_symbolic(); },
+            [](const auto& d) { return std::make_pair(d.sym_expr, sym::lit(1)); });
+        transform_if(
+            input_shape.dyn_dims().begin(),
+            input_shape.dyn_dims().end(),
+            std::inserter(available, available.end()),
+            [](const auto& d) { return d.is_symbolic() and d.sym_expr.name() == "variable"; },
+            [](const auto& d) { return std::make_pair(sym::as_symbol(d.sym_expr), sym::lit(1)); });
+    }
+    return all_of(expressions, [&](const auto& expression) {
+        return sym::find_variables(expression.subs(available)).empty();
+    });
+}
 
 bool directly_contains_symbol(instruction_ref source, const sym::expr& symbol)
 {
@@ -52,6 +77,9 @@ bool directly_contains_symbol(instruction_ref source, const sym::expr& symbol)
 std::optional<std::vector<instruction_ref>> find_expression_sources(
     const module& m, instruction_ref data, const std::vector<sym::expr>& expressions)
 {
+    if(shape_resolves_expressions(data->get_shape(), expressions))
+        return std::vector<instruction_ref>{data};
+
     std::unordered_set<sym::expr> required;
     for(const auto& expression : expressions)
     {
@@ -79,9 +107,10 @@ std::optional<std::vector<instruction_ref>> find_expression_sources(
     for(const auto& [name, variable] : ordered_variables)
     {
         (void)name;
-        auto source = std::find_if(candidates.begin(), candidates.end(), [&](auto candidate) {
-            return directly_contains_symbol(candidate, variable);
-        });
+        auto source = std::find_if(
+            candidates.begin(), candidates.end(), [&, &variable = variable](auto candidate) {
+                return directly_contains_symbol(candidate, variable);
+            });
         if(source == candidates.end())
             return std::nullopt;
         if(not contains(result, *source))

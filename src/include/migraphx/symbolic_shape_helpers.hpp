@@ -36,8 +36,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 
-// Every free variable must be exposed as a complete dimension of an instruction in the module.
-// Returns deduplicated direct shape sources for evaluating the expressions.
+// Uses data directly when its complete dimensions resolve every expression. Otherwise every free
+// variable must be exposed as a complete dimension of an instruction in the module. Returns
+// deduplicated direct shape sources for evaluating the expressions.
 MIGRAPHX_EXPORT std::optional<std::vector<instruction_ref>> find_expression_sources(
     const module& m, instruction_ref data, const std::vector<sym::expr>& expressions);
 

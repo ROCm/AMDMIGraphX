@@ -37,7 +37,8 @@ TEST_CASE(find_expression_sources_from_data)
 
     const auto n = var("n", {1, 8});
     migraphx::module m;
-    auto data = m.add_parameter("data", {migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
+    auto data =
+        m.add_parameter("data", {migraphx::shape::float_type, {dd{n + lit(1)}, dd{lit(4)}}});
 
     auto sources = migraphx::find_expression_sources(m, data, {n + lit(1), lit(4)});
     EXPECT(sources.has_value());

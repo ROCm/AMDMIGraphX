@@ -1817,11 +1817,11 @@ TEST_CASE(flash_decoding_4d_with_query_key_mask)
 
     migraphx::program p;
     {
-        auto* mm  = p.get_main_module();
-        auto q    = mm->add_parameter("q", s_q);
-        auto k    = mm->add_parameter("k", s_k);
-        auto v    = mm->add_parameter("v", s_v);
-        auto mask = mm->add_parameter("mask", s_mask);
+        auto* mm   = p.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_k);
+        auto v     = mm->add_parameter("v", s_v);
+        auto mask  = mm->add_parameter("mask", s_mask);
         auto group = add_group(
             p,
             "attn0",

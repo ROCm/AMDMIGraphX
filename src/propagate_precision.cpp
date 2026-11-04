@@ -115,6 +115,9 @@ struct precision
 
 static bool is_pointwise_or_reduce(instruction_ref ins)
 {
+    // Explicit IEEE narrowing is a precision boundary, not an operation to promote through.
+    if(ins->name() == "convert" and not ins->get_operator().to_value().at("saturate").to<bool>())
+        return false;
     return contains(ins->name(), "reduce") or
            ins->get_operator().attributes().get("pointwise", false);
 }
@@ -237,7 +240,7 @@ static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_up
     std::unordered_map<instruction_ref, shape::type_t> result;
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() != "convert")
+        if(ins->name() != "convert" or not ins->get_operator().to_value().at("saturate").to<bool>())
             continue;
         auto output = precision{ins->get_shape().type()};
         auto input  = precision{ins->inputs().front()->get_shape().type()};

@@ -46,8 +46,14 @@ struct find_nested_convert : match::supports_dynamic_shapes
         auto matched_ins  = mr.result;
         auto prev_convert = matched_ins->inputs().front();
         auto input        = prev_convert->inputs().front();
+        // Explicit IEEE narrowing is observable even if a later conversion widens it again.
+        if(not matched_ins->get_operator().to_value().at("saturate").to<bool>() or
+           not prev_convert->get_operator().to_value().at("saturate").to<bool>())
+            return;
         while(input->name() == "convert")
         {
+            if(not input->get_operator().to_value().at("saturate").to<bool>())
+                return;
             input = input->inputs().front();
         }
         if(matched_ins->get_shape() == input->get_shape())

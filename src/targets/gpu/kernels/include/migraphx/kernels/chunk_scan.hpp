@@ -30,53 +30,63 @@
 #include <migraphx/kernels/uninitialized_buffer.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/slice.hpp>
 
 namespace migraphx {
 
-// The matrix axes of one chunk: a pointer with compile-time strides
-template <class T, index_int RS, index_int CS>
-struct chunk_mat
-{
-    T* p;
-    __device__ T& operator()(index_int r, index_int c) const { return p[r * RS + c * CS]; }
-    __device__ chunk_mat shift(index_int offset) const { return {p + offset}; }
-};
-
-// The view's matrix at the problem's leading index, offset into the base
+// The matrix axes of the view Shape as a tensor_view: at the leading index
+// lead, offset elements into the base's buffer
 template <class Shape, class Base, class Lead>
-__device__ auto chunk_mat_of(Base base, Lead lead, index_int offset)
+__device__ auto matrix_slice(Base base, Lead lead, index_int offset)
 {
-    constexpr auto s = Shape{};
-    constexpr auto n = s.lens.size();
-    return chunk_mat<typename Base::type, s.strides[n - 2], s.strides[n - 1]>{
-        base.data() + s.index(lead) + offset};
+    constexpr auto s   = Shape{};
+    constexpr auto n   = s.lens.size();
+    constexpr auto mat = make_shape(index_ints<s.lens[n - 2], s.lens[n - 1]>{},
+                                    index_ints<s.strides[n - 2], s.strides[n - 1]>{});
+    return base.with(base.data() + s.index(lead) + offset, mat);
+}
+
+// Row r and column c of a matrix view. Indexing a rank-1 slice keeps the
+// address affine in the loop variable, which lets adjacent loads merge
+template <class View>
+__device__ auto row(View m, index_int r)
+{
+    return slice_tensor(m, array<index_int, 2>{r, 0}, slice_axes<1>());
+}
+
+template <class View>
+__device__ auto column(View m, index_int c)
+{
+    return slice_tensor(m, array<index_int, 2>{0, c}, slice_axes<0>());
 }
 
 // N columns of a row as one tile
-template <class T, index_int N, class M>
-__device__ auto load_cols(M m, index_int r, index_int c)
+template <class T, index_int N, class View>
+__device__ auto load_cols(View m, index_int r, index_int c)
 {
+    auto mr = row(m, r);
     if constexpr(N == 1)
     {
-        return m(r, c);
+        return mr[c];
     }
     else
     {
         vec<T, N> v{};
         for(index_int j = 0; j < N; j++)
-            v[j] = m(r, c + j);
+            v[j] = mr[c + j];
         return v;
     }
 }
 
-template <index_int N, class M, class V>
-__device__ void store_cols(M m, index_int r, index_int c, V v)
+template <index_int N, class View, class V>
+__device__ void store_cols(View m, index_int r, index_int c, V v)
 {
+    auto mr = row(m, r);
     if constexpr(N == 1)
-        m(r, c) = v;
+        mr[c] = v;
     else
         for(index_int j = 0; j < N; j++)
-            m(r, c + j) = v[j];
+            mr[c + j] = v[j];
 }
 
 // Walk the chunks of a linear recurrence with the state tile for one problem
@@ -113,6 +123,9 @@ struct chunk_scanner
     static constexpr auto u_tiles      = make_shape(index_ints<rows, nvt>{});
     static constexpr auto read_tiles   = make_shape(index_ints<rows / tr, nvt>{});
     static constexpr auto update_tiles = make_shape(index_ints<dk / td, nvt>{});
+    // the state and u tiles in LDS, as dk x nvt and rows x nvt column vectors
+    using s_view = decltype(make_tensor_view<lds_memory_tag>(declval<tile_t*>(), s_tiles));
+    using u_view = decltype(make_tensor_view<lds_memory_tag>(declval<tile_t*>(), u_tiles));
 
     Step step;
     Read read;
@@ -121,14 +134,14 @@ struct chunk_scanner
     index idx;
     decltype(lead.multi(0)) base;
     index_int col0;
-    tile_t* s; // the state tile in LDS, dk x nvt column vectors
-    tile_t* u; // the u tile in LDS, rows x nvt column vectors
+    s_view s;
+    u_view u;
 
     // the matrix of argument I at this problem, offset into its base
     template <index_int I, class Shape>
     __device__ auto mat(index_int offset) const
     {
-        return chunk_mat_of<Shape>(args(arg_c<I>()), base, offset);
+        return matrix_slice<Shape>(args(arg_c<I>()), base, offset);
     }
 
     // the chunk i matrix of a family argument
@@ -142,15 +155,11 @@ struct chunk_scanner
     {
         auto s0m = mat<Settings::s0_index, get_shape_c<arg_t<Settings::s0_index>>>(0);
         idx.local_stride(s_tiles.elements(), [&](auto e) {
+            auto t = s_tiles.multi(e);
             if constexpr(Settings::has_state)
-            {
-                auto t = s_tiles.multi(e);
-                s[e]   = load_cols<value_type, tv>(s0m, t[0], col0 + t[1] * tv);
-            }
+                s[t] = load_cols<value_type, tv>(s0m, t[0], col0 + t[1] * tv);
             else
-            {
-                s[e] = tile_t{};
-            }
+                s[t] = tile_t{};
         });
     }
 
@@ -159,7 +168,7 @@ struct chunk_scanner
         auto som = mat<Settings::state_out_index, decltype(so)>(0);
         idx.local_stride(s_tiles.elements(), [&](auto e) {
             auto t = s_tiles.multi(e);
-            store_cols<tv>(som, t[0], col0 + t[1] * tv, s[e]);
+            store_cols<tv>(som, t[0], col0 + t[1] * tv, s[t]);
         });
     }
 
@@ -184,18 +193,20 @@ struct chunk_scanner
             array<tile_t, tr> ws{};
             if(live)
             {
+                auto scol = column(s, vt);
                 for(index_int k = 0; k < dk; k++)
                 {
-                    const tile_t sk = s[k * nvt + vt];
+                    const tile_t sk = scol[k];
                     repeat_c<tr>([&](auto a) {
-                        qs[a] += qi(r0 + a, k) * sk;
+                        const index_int r = r0 + a;
+                        qs[a] += row(qi, r)[k] * sk;
                         if constexpr(Settings::has_read)
-                            ws[a] += wi(r0 + a, k) * sk;
+                            ws[a] += row(wi, r)[k] * sk;
                     });
                 }
             }
             repeat_c<tr>([&](auto a) {
-                const auto r = r0 + a;
+                const index_int r = r0 + a;
                 if constexpr(Settings::has_update_dot)
                 {
                     auto uv = load_cols<value_type, tv>(u0i, r, c0);
@@ -204,7 +215,7 @@ struct chunk_scanner
                         if(live)
                             uv = vec_transform(uv, ws[a])(read);
                     }
-                    u[r * nvt + vt] = uv;
+                    column(u, vt)[r] = uv;
                 }
                 tile_t ov = qs[a];
                 if constexpr(Settings::has_out)
@@ -234,19 +245,24 @@ struct chunk_scanner
             array<tile_t, td> up{};
             if constexpr(Settings::has_update_dot)
             {
+                auto ucol = column(u, vt);
                 for(index_int r = 0; r < rows; r++)
                 {
-                    const tile_t ur = u[r * nvt + vt];
-                    repeat_c<td>([&](auto a) { up[a] += kti(d0 + a, r) * ur; });
+                    const tile_t ur = ucol[r];
+                    repeat_c<td>([&](auto a) {
+                        const index_int d = d0 + a;
+                        up[a] += column(kti, r)[d] * ur;
+                    });
                 }
             }
             else
             {
                 repeat_c<td>([&](auto a) { up[a] = load_cols<value_type, tv>(updi, d0 + a, c0); });
             }
+            auto scol = column(s, vt);
             repeat_c<td>([&](auto a) {
-                const auto d = d0 + a;
-                auto& sv     = s[d * nvt + vt];
+                const index_int d = d0 + a;
+                auto& sv          = scol[d];
                 if(live)
                 {
                     if constexpr(Settings::has_gamma)
@@ -283,8 +299,8 @@ template <class Settings, class Step, class Read, class Out, class... Ts>
 __device__ void chunk_scan(Step step, Read read, Out out_fn, Ts... xs)
 {
     using scanner = chunk_scanner<Settings, Step, Read, Out, decltype(pack(xs...))>;
-    __shared__ uninitialized_buffer<typename scanner::tile_t, scanner::s_tiles.elements()> s;
-    __shared__ uninitialized_buffer<typename scanner::tile_t, scanner::u_tiles.elements()> u;
+    __shared__ uninitialized_buffer<typename scanner::tile_t, scanner::s_tiles.elements()> s_buf;
+    __shared__ uninitialized_buffer<typename scanner::tile_t, scanner::u_tiles.elements()> u_buf;
     auto idx = make_index();
     auto pb  = scanner::grid.multi(idx.group);
     scanner{step,
@@ -294,8 +310,8 @@ __device__ void chunk_scan(Step step, Read read, Out out_fn, Ts... xs)
             idx,
             scanner::lead.multi(pb[0]),
             pb[1] * scanner::dvb,
-            s.data(),
-            u.data()}
+            make_tensor_view<lds_memory_tag>(s_buf.data(), scanner::s_tiles),
+            make_tensor_view<lds_memory_tag>(u_buf.data(), scanner::u_tiles)}
         .run();
 }
 

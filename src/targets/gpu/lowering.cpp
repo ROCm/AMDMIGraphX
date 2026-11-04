@@ -105,7 +105,7 @@ struct miopen_apply
 
         add_extend_op("fixed_pad");
         add_generic_op("contiguous");
-        add_reshape_op();
+        add_2in_reshape_op();
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
@@ -343,7 +343,7 @@ struct miopen_apply
         });
     }
 
-    void add_reshape_op()
+    void add_2in_reshape_op()
     {
         apply_map.emplace("reshape", [=](instruction_ref ins) {
             if(ins->inputs().size() != 2)

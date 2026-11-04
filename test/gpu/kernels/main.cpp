@@ -29,6 +29,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/sym.hpp>
 #include <kernel_tests.hpp>
 #include <test.hpp>
 
@@ -37,6 +38,7 @@
 #include <unordered_set>
 #include <regex>
 #include <string_view>
+#include <tuple>
 
 std::vector<std::string> parse_cases(const std::string_view& content)
 {
@@ -53,6 +55,24 @@ std::vector<std::string> parse_cases(const std::string_view& content)
         it = m.suffix().first;
     }
     return test_names;
+}
+
+// A launch size expression over MIGRAPHX_WAVEFRONTSIZE
+std::size_t launch_size(const std::string& text, std::size_t wavefront_size)
+{
+    return migraphx::sym::parse(text).eval_uint(
+        {{migraphx::sym::var("MIGRAPHX_WAVEFRONTSIZE"), wavefront_size}});
+}
+
+// The file's TEST_LAUNCH(global, local); a single lane without one
+std::pair<std::size_t, std::size_t> parse_launch(const std::string_view& content,
+                                                 std::size_t wavefront_size)
+{
+    std::regex launch_re(R"(TEST_LAUNCH\s*\(([^,()]+),([^()]+)\))");
+    std::match_results<std::string_view::const_iterator> m;
+    if(not std::regex_search(content.cbegin(), content.cend(), m, launch_re))
+        return {1, wavefront_size};
+    return {launch_size(m[1].str(), wavefront_size), launch_size(m[2].str(), wavefront_size)};
 }
 
 struct test_suite : std::enable_shared_from_this<test_suite>
@@ -80,8 +100,8 @@ struct test_suite : std::enable_shared_from_this<test_suite>
         }
 
         migraphx::gpu::context ctx;
-        options.global      = 1;
-        options.local       = ctx.get_current_device().get_wavefront_size();
+        std::tie(options.global, options.local) =
+            parse_launch(src_content, ctx.get_current_device().get_wavefront_size());
         options.kernel_name = "gpu_test_kernel";
         options.src_name    = src_name;
     }

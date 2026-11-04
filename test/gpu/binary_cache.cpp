@@ -437,6 +437,38 @@ static void verified_reuse_matches_fresh_compiles()
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<directory_backend>);
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<database_backend>);
 
+// Benchmarking compiles every candidate solution, but when the problem cache saves the choice a
+// later compile only ever needs the winner, so only winners are stored.
+template <class Backend>
+static void persisted_problem_cache_stores_only_winners()
+{
+    migraphx::tmp_dir all_td{"binary-cache"};
+    migraphx::tmp_dir winners_td{"binary-cache"};
+    migraphx::tmp_dir problems_td{"problem-cache"};
+    auto all_path     = Backend::path(all_td);
+    auto winners_path = Backend::path(winners_td);
+    auto winners_options = cache_options(winners_path);
+    migraphx::set_backend_options(
+        winners_options,
+        {{"problem_cache_files",
+          migraphx::value::array{(problems_td.path / "problems.json").string()}}});
+
+    // Large enough that the block reduction offers two block sizes to benchmark.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {2, 4096}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x)});
+    auto p_winners = p;
+
+    p.compile(migraphx::make_target("gpu"), cache_options(all_path));
+    p_winners.compile(migraphx::make_target("gpu"), winners_options);
+
+    EXPECT(Backend::stored(winners_path) > 0);
+    EXPECT(Backend::stored(winners_path) < Backend::stored(all_path));
+}
+TEST_CASE_REGISTER(persisted_problem_cache_stores_only_winners<directory_backend>);
+TEST_CASE_REGISTER(persisted_problem_cache_stores_only_winners<database_backend>);
+
 // The extension of the path picks the backend and nothing else does, so the only way to see the
 // choice from outside is the artifact it leaves: a database file, or a directory tree.
 TEST_CASE(extension_selects_the_backend)

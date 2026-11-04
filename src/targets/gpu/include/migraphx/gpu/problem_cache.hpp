@@ -63,6 +63,9 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     void load(const std::vector<std::string>& read_only_paths,
               const std::vector<std::string>& writable_paths);
     void save() const;
+    /// True when solutions are saved to a file, so a later compile reuses them instead of
+    /// benchmarking again.
+    bool persists() const { return not save_paths.empty(); }
 
     private:
     // Read/write caches (one per writable file), searched before the read-only

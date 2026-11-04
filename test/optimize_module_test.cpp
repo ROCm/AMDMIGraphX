@@ -159,10 +159,8 @@ TEST_CASE(mul_add_transpose_dot)
         auto lit2_ins = lit_mod.add_literal(lit2);
         auto lit2_unsq =
             lit_mod.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), lit2_ins);
-        auto lit2_mb = lit_mod.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {4, 64}}}), lit2_unsq);
 
-        auto dot_lit   = lit_mod.add_instruction(migraphx::make_op("dot"), lit2_mb, lit3_ins);
+        auto dot_lit   = lit_mod.add_instruction(migraphx::make_op("dot"), lit2_unsq, lit3_ins);
         auto lit23_arg = dot_lit->eval();
         lit23          = migraphx::literal(lit23_arg.get_shape(), lit23_arg.data());
     }

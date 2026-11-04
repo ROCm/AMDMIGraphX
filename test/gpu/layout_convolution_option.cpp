@@ -29,19 +29,24 @@
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/value.hpp>
 #include <test.hpp>
 
-static migraphx::program compile_conv(const std::string& order)
+static migraphx::program compile_conv(const std::string& order, const std::string& arch = "")
 {
     migraphx::program p;
+    // K = 7 stays below the gfx11/gfx12 K-innermost weight threshold. MIOpen rejects
+    // that weight layout when MLIR is disabled.
     auto* mm = p.get_main_module();
     auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {1, 8, 8, 8}});
-    auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {8, 8, 3, 3}});
+    auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {7, 8, 3, 3}});
     mm->add_return({mm->add_instruction(migraphx::make_op("convolution"), x, w)});
 
     migraphx::compile_options options;
     options.backend_options["convolution_layout"] = order;
-    p.compile(migraphx::make_target("gpu"), options);
+    auto target = arch.empty() ? migraphx::make_target("gpu")
+                               : migraphx::make_target("gpu", migraphx::value{{"gpu_arch", arch}});
+    p.compile(target, options);
     return p;
 }
 
@@ -58,6 +63,16 @@ static bool has_channels_last(const migraphx::program& p)
 TEST_CASE(channels_first) { EXPECT(not has_channels_last(compile_conv("channels_first"))); }
 
 TEST_CASE(channels_last) { EXPECT(has_channels_last(compile_conv("channels_last"))); }
+
+// Scoring alone picks channels_last here: its three layouts fit the two-per-parameter
+// allowance, so channels_first can only come from the gfx1100/gfx1151 override.
+TEST_CASE(channels_auto)
+{
+    EXPECT(not has_channels_last(compile_conv("channels_auto", "gfx1100")));
+    EXPECT(not has_channels_last(compile_conv("channels_auto", "gfx1151")));
+    EXPECT(has_channels_last(compile_conv("channels_auto", "gfx1101")));
+    EXPECT(has_channels_last(compile_conv("channels_auto", "gfx1170")));
+}
 
 TEST_CASE(unknown_order)
 {

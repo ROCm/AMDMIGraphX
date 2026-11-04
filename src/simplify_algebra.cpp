@@ -939,7 +939,7 @@ struct find_dot_axis_linear_ops
             w                    = slice_front(m, w, find_all(range(ndim - 2), [&](auto i) {
                                 return wlens[i] > 1 and wstrides[i] == 0;
                                                }));
-            const bool rows = c_axis == ndim - 2;
+            const bool rows      = c_axis == ndim - 2;
             if(columns != rows)
             {
                 std::vector<int64_t> perm(ndim);

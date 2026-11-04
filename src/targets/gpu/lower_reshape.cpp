@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/reshape_dims.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
@@ -56,6 +57,17 @@ instruction_ref insert_contiguous(module& m, instruction_ref pos, instruction_re
     return m.insert_instruction(pos, make_op("gpu::contiguous"), input, alloc);
 }
 
+// True if the buffer of `ins` is returned from the module, either directly or through
+// instructions that alias it, such as squeeze or another reshape_lazy.
+bool reaches_return(instruction_ref ins)
+{
+    return std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref out) {
+        if(out->name() == "@return")
+            return true;
+        return contains(instruction::get_output_alias(out, true), ins) and reaches_return(out);
+    });
+}
+
 struct find_reshape : match::supports_dynamic_shapes
 {
     // Skip reshape(data, output_buffer). Every GPU copy op derives its kernel from one
@@ -69,13 +81,19 @@ struct find_reshape : match::supports_dynamic_shapes
         auto reshape_op = make_op("reshape_lazy", {{"dims", {dims}}});
         auto input      = ins->inputs().front();
         const auto& s   = input->get_shape();
+        // This pass runs after eliminate_contiguous, which keeps the copies feeding @return
+        // so that the program outputs have a standard layout. Aliasing a non-standard input
+        // here would bypass that: the strided view reaching @return changes the shape of the
+        // program output, and callers binding a standard output buffer are rejected.
+        const bool needs_standard_result = reaches_return(ins);
 
         if(not s.dynamic() or s.symbolic())
         {
             auto expected    = ins->get_shape().to_symbolic();
             auto output_dims = ins->get_shape().sym_dims();
             auto reshaped    = reshape_dims(s.to_symbolic(), output_dims, {.lazy = true});
-            if(reshaped and sym::same_symbol(reshaped->sym_elements(), expected.sym_elements()))
+            if(reshaped and sym::same_symbol(reshaped->sym_elements(), expected.sym_elements()) and
+               (reshaped->standard() or not needs_standard_result))
             {
                 m.replace_instruction(ins, reshape_op, {input});
                 return;

@@ -104,13 +104,12 @@ std::optional<std::vector<instruction_ref>> find_expression_sources(
     candidates.insert(candidates.end(), instructions.begin(), instructions.end());
 
     std::vector<instruction_ref> result;
-    for(const auto& [name, variable] : ordered_variables)
+    for(const auto& ordered_variable : ordered_variables)
     {
-        (void)name;
-        auto source = std::find_if(
-            candidates.begin(), candidates.end(), [&, &variable = variable](auto candidate) {
-                return directly_contains_symbol(candidate, variable);
-            });
+        const auto& variable = ordered_variable.second;
+        auto source = std::find_if(candidates.begin(), candidates.end(), [&](auto candidate) {
+            return directly_contains_symbol(candidate, variable);
+        });
         if(source == candidates.end())
             return std::nullopt;
         if(not contains(result, *source))

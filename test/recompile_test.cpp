@@ -75,10 +75,9 @@ static void record_device(migraphx::module& m, const std::string& device)
 {
     migraphx::builtin::comment op{device, device_tag()};
     auto it = find_device_comment(m);
-    if(it == m.end())
-        m.insert_instruction(m.begin(), op);
-    else
-        m.replace_instruction(it, op);
+    m.insert_instruction(it == m.end() ? m.begin() : it, op);
+    if(it != m.end())
+        m.remove_instruction(it);
 }
 
 struct recompile_record
@@ -236,13 +235,22 @@ TEST_CASE(recompile_runs_recompile_passes)
 
 TEST_CASE(recompile_invalid_module_refused)
 {
-    auto p             = compile_for("dev_a");
-    current_device()   = "dev_b";
-    break_recompile()  = true;
-    bool threw_invalid = test::throws<migraphx::exception>(
-        [&] { p.recompile(make_recompile_target()); }, "Invalid module");
+    auto p            = compile_for("dev_a");
+    current_device()  = "dev_b";
+    break_recompile() = true;
+    // Debug builds already reject the module after the pass, with their own message
+    std::string error;
+    try
+    {
+        p.recompile(make_recompile_target());
+    }
+    catch(const migraphx::exception& e)
+    {
+        error = e.what();
+    }
     break_recompile() = false;
-    EXPECT(threw_invalid);
+    EXPECT(error.find("Invalid module") != std::string::npos or
+           error.find("produces invalid program") != std::string::npos);
     // The program is unchanged when recompiling fails
     EXPECT(recorded_device(p) == "dev_a");
     EXPECT(context_device(p) == "dev_a");

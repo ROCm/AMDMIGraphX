@@ -1184,10 +1184,10 @@ void set_compiled_for(module& m, const device_description& device)
 {
     builtin::comment op{to_json_string(to_value(device)), compiled_for_tag()};
     auto it = std::find_if(m.begin(), m.end(), &is_compiled_for);
-    if(it == m.end())
-        m.insert_instruction(m.begin(), op);
-    else
-        m.replace_instruction(it, op);
+    // A builtin op cannot replace an instruction, so insert the new comment and remove the old
+    m.insert_instruction(it == m.end() ? m.begin() : it, op);
+    if(it != m.end())
+        m.remove_instruction(it);
 }
 
 optional<device_description> get_compiled_for(const module& m)

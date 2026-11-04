@@ -52,6 +52,8 @@ struct binary_cache_settings
     std::string path = string_value_of(MIGRAPHX_BINARY_CACHE{});
     /// Compile even when a result can be reused, and fail if the two disagree.
     bool verify = false;
+    /// Only look entries up. A miss is still compiled and shared in memory, but never stored.
+    bool read_only = false;
 };
 
 /**
@@ -76,7 +78,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         std::size_t hits = 0;
         /// Not found, so the caller had to compile.
         std::size_t misses = 0;
-        /// Written to the cache after being compiled.
+        /// Recorded after being compiled; written to storage unless the cache is read-only.
         std::size_t compiled = 0;
     };
 

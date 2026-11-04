@@ -26,6 +26,7 @@
 #include <migraphx/gpu/sqlite_binary_cache.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/md5.hpp>
 #include <migraphx/stringutils.hpp>
@@ -114,8 +115,9 @@ binary_cache_backend* binary_cache::get_backend()
         return backend.has_value() ? &*backend : nullptr;
     backend_opened   = true;
     const auto& path = settings.path;
-    // Checked first so that a memory-only cache never compiles the version probe.
-    if(path.empty())
+    // Checked first so that a memory-only cache never compiles the version probe. Missing
+    // read-only storage can never gain entries, so it is a memory-only cache too.
+    if(path.empty() or (settings.read_only and not fs::exists(path)))
         return nullptr;
     const bool database = sqlite::is_database_path(path);
     version             = version_id(not database);
@@ -123,7 +125,7 @@ binary_cache_backend* binary_cache::get_backend()
         return nullptr;
     if(not database)
         backend = binary_cache_backend{file_binary_cache{path}};
-    else if(auto db = sqlite_binary_cache::open(path))
+    else if(auto db = sqlite_binary_cache::open(path, settings.read_only))
         backend = binary_cache_backend{std::move(*db)};
     return backend.has_value() ? &*backend : nullptr;
 }
@@ -159,7 +161,8 @@ void binary_cache::insert(const context& ctx, std::vector<binary_cache_entry> es
     if(es.empty())
         return;
     counters.compiled += es.size();
-    if(auto* b = get_backend())
+    // Gated here because the file backend has no read-only mode and would create its directories.
+    if(auto* b = settings.read_only ? nullptr : get_backend())
     {
         try
         {

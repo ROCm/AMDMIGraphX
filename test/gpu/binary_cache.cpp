@@ -57,11 +57,11 @@
 #include <string>
 #include <vector>
 
-static migraphx::program pointwise_program()
+static migraphx::program pointwise_program(const std::vector<std::size_t>& lens = {4, 8})
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {4, 8}};
+    migraphx::shape s{migraphx::shape::float_type, lens};
     auto x    = mm->add_parameter("x", s);
     auto y    = mm->add_parameter("y", s);
     auto add  = mm->add_instruction(migraphx::make_op("add"), x, y);
@@ -71,11 +71,15 @@ static migraphx::program pointwise_program()
     return p;
 }
 
-static migraphx::compile_options cache_options(const std::string& path, bool verify = false)
+// A cache named by a backend option is only read unless dev is set, so a case that expects
+// entries to be stored has to say so.
+static migraphx::compile_options
+cache_options(const std::string& path, bool dev, bool verify = false)
 {
     migraphx::compile_options options;
-    migraphx::set_backend_options(options,
-                                  {{"binary_cache", path}, {"binary_cache_verify", verify}});
+    migraphx::set_backend_options(
+        options,
+        {{"binary_cache", path}, {"binary_cache_dev", dev}, {"binary_cache_verify", verify}});
     return options;
 }
 
@@ -278,6 +282,51 @@ static void corrupt_entry_is_ignored()
 TEST_CASE_REGISTER(corrupt_entry_is_ignored<directory_backend>);
 TEST_CASE_REGISTER(corrupt_entry_is_ignored<database_backend>);
 
+// A read-only cache serves what storage already holds, and keeps what it compiles in memory
+// without storing it.
+template <class Backend>
+static void read_only_cache_serves_hits_and_skips_stores()
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto path = Backend::path(td);
+    {
+        migraphx::gpu::binary_cache writer{migraphx::gpu::binary_cache_settings{path, false}};
+        writer.insert(ctx, {make_entry("existing")});
+    }
+
+    migraphx::gpu::binary_cache reader{
+        migraphx::gpu::binary_cache_settings{path, false, /* read_only */ true}};
+    EXPECT(reader.get(ctx, "existing").has_value());
+    EXPECT(reader.get_stats().hits == 1);
+
+    EXPECT(not reader.get(ctx, "new").has_value());
+    EXPECT(reader.get_stats().misses == 1);
+    reader.insert(ctx, {make_entry("new")});
+    EXPECT(reader.get(ctx, "new").has_value());
+    EXPECT(reader.get_stats().reused == 1);
+    EXPECT(Backend::stored(path) == 1);
+}
+TEST_CASE_REGISTER(read_only_cache_serves_hits_and_skips_stores<directory_backend>);
+TEST_CASE_REGISTER(read_only_cache_serves_hits_and_skips_stores<database_backend>);
+
+// A read-only cache with nothing behind it runs from memory and creates no storage, neither the
+// directory tree nor the database file.
+TEST_CASE(read_only_cache_does_not_create_storage)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    for(const auto& path : {(td.path / "files").string(), db_path(td)})
+    {
+        migraphx::gpu::binary_cache cache{
+            migraphx::gpu::binary_cache_settings{path, false, /* read_only */ true}};
+        EXPECT(not cache.get(ctx, "missing").has_value());
+        cache.insert(ctx, {make_entry("new")});
+        EXPECT(cache.get(ctx, "new").has_value());
+        EXPECT(not migraphx::fs::exists(path));
+    }
+}
+
 // Without a directory nothing reaches disk, though results are still shared in memory.
 TEST_CASE(no_directory_writes_nothing)
 {
@@ -380,7 +429,7 @@ static void compiling_twice_populates_the_cache_and_matches_reference()
 {
     migraphx::tmp_dir td{"binary-cache"};
     auto path    = Backend::path(td);
-    auto options = cache_options(path);
+    auto options = cache_options(path, /* dev */ true);
 
     auto p_ref = pointwise_program();
     p_ref.compile(migraphx::make_target("ref"));
@@ -425,7 +474,7 @@ template <class Backend>
 static void verified_reuse_matches_fresh_compiles()
 {
     migraphx::tmp_dir td{"binary-cache"};
-    auto options = cache_options(Backend::path(td), /* verify */ true);
+    auto options = cache_options(Backend::path(td), /* dev */ true, /* verify */ true);
 
     auto warmup = pointwise_program();
     warmup.compile(migraphx::make_target("gpu"), options);
@@ -436,6 +485,28 @@ static void verified_reuse_matches_fresh_compiles()
 
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<directory_backend>);
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<database_backend>);
+
+// Without binary_cache_dev a compile only reads a backend-option cache: kernels it lacks are
+// compiled but not added.
+template <class Backend>
+static void backend_option_cache_is_read_only_by_default()
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = Backend::path(td);
+
+    auto warmup = pointwise_program();
+    warmup.compile(migraphx::make_target("gpu"), cache_options(path, /* dev */ true));
+    auto stored = Backend::stored(path);
+    EXPECT(stored > 0);
+
+    // Different lens make every kernel of this program new to the cache.
+    auto p = pointwise_program({2, 3});
+    p.compile(migraphx::make_target("gpu"), cache_options(path, /* dev */ false));
+    EXPECT(Backend::stored(path) == stored);
+}
+
+TEST_CASE_REGISTER(backend_option_cache_is_read_only_by_default<directory_backend>);
+TEST_CASE_REGISTER(backend_option_cache_is_read_only_by_default<database_backend>);
 
 // The extension of the path picks the backend and nothing else does, so the only way to see the
 // choice from outside is the artifact it leaves: a database file, or a directory tree.
@@ -554,9 +625,10 @@ TEST_CASE(backends_hold_the_same_entries_after_a_compile)
     auto path = db_path(db_td);
 
     auto p_dir = pointwise_program();
-    p_dir.compile(migraphx::make_target("gpu"), cache_options(dir_td.path.string()));
+    p_dir.compile(migraphx::make_target("gpu"),
+                  cache_options(dir_td.path.string(), /* dev */ true));
     auto p_db = pointwise_program();
-    p_db.compile(migraphx::make_target("gpu"), cache_options(path));
+    p_db.compile(migraphx::make_target("gpu"), cache_options(path, /* dev */ true));
 
     auto from_dir = dir_entries(dir_td.path);
     auto from_db  = db_entries(path);

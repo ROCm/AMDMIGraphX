@@ -445,8 +445,8 @@ static void persisted_problem_cache_stores_only_winners()
     migraphx::tmp_dir all_td{"binary-cache"};
     migraphx::tmp_dir winners_td{"binary-cache"};
     migraphx::tmp_dir problems_td{"problem-cache"};
-    auto all_path     = Backend::path(all_td);
-    auto winners_path = Backend::path(winners_td);
+    auto all_path        = Backend::path(all_td);
+    auto winners_path    = Backend::path(winners_td);
     auto winners_options = cache_options(winners_path);
     migraphx::set_backend_options(
         winners_options,

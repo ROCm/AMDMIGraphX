@@ -29,8 +29,9 @@
 
 // The unrolled gated delta recurrence over two chunks with a past state:
 // u = u0 - w S, o = pu0 + q S, S = S * gamma + kt u. The gpu target walks
-// the chunks in one kernel.
-struct test_chunk_scan_gated : verify_program<test_chunk_scan_gated>
+// the chunks in one kernel, accumulating half operands in float.
+template <migraphx::shape::type_t DType>
+struct test_chunk_scan_gated : verify_program<test_chunk_scan_gated<DType>>
 {
     static migraphx::instruction_ref
     chunk(migraphx::module& m, migraphx::instruction_ref x, std::size_t i)
@@ -44,14 +45,14 @@ struct test_chunk_scan_gated : verify_program<test_chunk_scan_gated>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape ss{migraphx::shape::float_type, {1, 2, 4, 8}};
+        migraphx::shape ss{DType, {1, 2, 4, 8}};
         auto s0  = mm->add_parameter("s0", ss);
-        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 2, 4, 4}});
-        auto q   = mm->add_parameter("q", {migraphx::shape::float_type, {1, 2, 2, 4, 4}});
-        auto kt  = mm->add_parameter("kt", {migraphx::shape::float_type, {1, 2, 2, 4, 4}});
-        auto u0  = mm->add_parameter("u0", {migraphx::shape::float_type, {1, 2, 2, 4, 8}});
-        auto pu0 = mm->add_parameter("pu0", {migraphx::shape::float_type, {1, 2, 2, 4, 8}});
-        auto g   = mm->add_parameter("g", {migraphx::shape::float_type, {1, 2, 2, 1, 1}});
+        auto w   = mm->add_parameter("w", {DType, {1, 2, 2, 4, 4}});
+        auto q   = mm->add_parameter("q", {DType, {1, 2, 2, 4, 4}});
+        auto kt  = mm->add_parameter("kt", {DType, {1, 2, 2, 4, 4}});
+        auto u0  = mm->add_parameter("u0", {DType, {1, 2, 2, 4, 8}});
+        auto pu0 = mm->add_parameter("pu0", {DType, {1, 2, 2, 4, 8}});
+        auto g   = mm->add_parameter("g", {DType, {1, 2, 2, 1, 1}});
         auto s   = s0;
         std::vector<migraphx::instruction_ref> outs;
         for(std::size_t i = 0; i < 2; i++)
@@ -71,3 +72,6 @@ struct test_chunk_scan_gated : verify_program<test_chunk_scan_gated>
         return p;
     }
 };
+
+template struct test_chunk_scan_gated<migraphx::shape::float_type>;
+template struct test_chunk_scan_gated<migraphx::shape::half_type>;

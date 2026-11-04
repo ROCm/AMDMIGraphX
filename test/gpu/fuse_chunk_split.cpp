@@ -318,6 +318,63 @@ TEST_CASE(precomputed_update)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// The initial state may itself be a view, as a reshaped past state is
+TEST_CASE(state_from_view)
+{
+    auto ss = fshape({1, 2, 4, 8});
+    auto ks = fshape({1, 2, 2, 2, 4});
+    auto us = fshape({1, 2, 2, 4, 8});
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto past = mm->add_parameter("past", fshape({1, 2, 32}));
+        auto q    = mm->add_parameter("q", ks);
+        auto upd  = mm->add_parameter("upd", us);
+        auto s    = mm->add_instruction(migraphx::make_op("reshape", {{"dims", ss.lens()}}), past);
+        std::vector<migraphx::instruction_ref> outs;
+        for(std::size_t i = 0; i < 2; i++)
+        {
+            outs.push_back(mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, q, i), s));
+            s = add_pointwise(p1,
+                              "main:pointwise" + std::to_string(i),
+                              {s, chunk(*mm, upd, i)},
+                              single_pointwise("add"));
+        }
+        auto o = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), outs);
+        mm->add_return({o, s});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto past = mm->add_parameter("past", fshape({1, 2, 32}));
+        auto q    = mm->add_parameter("q", ks);
+        auto upd  = mm->add_parameter("upd", us);
+        auto s0   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", ss.lens()}}), past);
+        auto* step =
+            create_pointwise_module(p2, "main:chunk_scan0:step", {s0, s0}, single_pointwise("add"));
+        auto op = migraphx::make_op(
+            "gpu::chunk_scan",
+            {{"output_shape", migraphx::to_value(fshape({1, 2, 4, 8}))},
+             {"state_shape", migraphx::to_value(ss)},
+             {"views",
+              migraphx::to_value(std::vector<migraphx::shape>{
+                  fview({1, 2, 2, 4}, {32, 16, 4, 1}), fview({1, 2, 4, 8}, {128, 64, 8, 1})})},
+             {"offsets", {0, 0}},
+             {"deltas", {8, 32}},
+             {"chunks", 2},
+             {"has_state", true},
+             {"has_update_dot", false},
+             {"has_read", false},
+             {"has_gamma", false},
+             {"has_out", false}});
+        auto scan = mm->add_instruction(op, {s0, q, upd}, {step});
+        mm->add_return({get_tuple_elem(*mm, scan, 0), get_tuple_elem(*mm, scan, 1)});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 // A second recurrence fed by the first's final state is its own scan
 TEST_CASE(chained_recurrences)
 {

@@ -44,29 +44,21 @@ __device__ T b_value(migraphx::index_int k, migraphx::index_int j)
     return x - T{3};
 }
 
-// The wave multiplies through the loaders into LDS, then every lane checks
-// the whole product so the failure is seen from lane 0
+// Each lane checks the elements it stores against the product of the
+// formulas; the harness fails the wave when any lane does
 template <class T, migraphx::index_int M, migraphx::index_int N, migraphx::index_int K>
 __device__ bool matmul_matches()
 {
-    __shared__ float c[M * N];
+    bool ok = true;
     migraphx::matmul<T, M, N, K>([](auto i, auto k) { return a_value<T>(i, k); },
                                  [](auto k, auto j) { return b_value<T>(k, j); },
-                                 [&](auto x, auto i, auto j) { c[i * N + j] = x; });
-    __syncthreads();
-    bool ok = true;
-    for(migraphx::index_int i = 0; i < M; i++)
-    {
-        for(migraphx::index_int j = 0; j < N; j++)
-        {
-            float ref = 0;
-            for(migraphx::index_int k = 0; k < K; k++)
-                ref += a_value<float>(i, k) * b_value<float>(k, j);
-            if(not migraphx::float_equal(c[i * N + j], ref))
-                ok = false;
-        }
-    }
-    __syncthreads();
+                                 [&](auto x, auto i, auto j) {
+                                     float ref = 0;
+                                     for(migraphx::index_int k = 0; k < K; k++)
+                                         ref += a_value<float>(i, k) * b_value<float>(k, j);
+                                     if(not migraphx::float_equal(x, ref))
+                                         ok = false;
+                                 });
     return ok;
 }
 

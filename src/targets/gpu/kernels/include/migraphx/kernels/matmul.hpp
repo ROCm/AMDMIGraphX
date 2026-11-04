@@ -36,151 +36,227 @@
 namespace migraphx {
 namespace matmul_detail {
 
-// The k advanced by one instruction
-template <class T>
-constexpr index_int mma_k()
+constexpr index_int lanes = MIGRAPHX_WAVEFRONTSIZE;
+
+// The lane's fragment of a BxB accumulator
+template <index_int B>
+using acc_frag = vec<float, B * B / lanes>;
+
+// One matrix instruction, D[M][N] += A[M][K] B[K][N] accumulating in Acc:
+// specialized for every instruction the architecture has, so a shape is
+// supported exactly when the specialization is complete
+template <class Acc, class T, index_int M, index_int N, index_int K>
+struct mma_intrinsic;
+
+template <class Acc, class T, index_int M, index_int N, index_int K, class = void>
+struct has_mma_intrinsic : false_type
 {
-    return is_same<T, float>{} ? 4 : 16;
+};
+
+template <class Acc, class T, index_int M, index_int N, index_int K>
+struct has_mma_intrinsic<Acc, T, M, N, K, void_t<decltype(sizeof(mma_intrinsic<Acc, T, M, N, K>))>>
+    : true_type
+{
+};
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_MMA_INTRINSIC(acc, type, m, n, k, ...)        \
+    template <>                                                \
+    struct mma_intrinsic<acc, type, m, n, k>                   \
+    {                                                          \
+        template <class Frag, class Acc>                       \
+        __device__ Acc operator()(Frag a, Frag b, Acc c) const \
+        {                                                      \
+            return __VA_ARGS__;                                \
+        }                                                      \
+    };
+
+// The lane layout of the architecture's instructions:
+//   frag_k<B, KI>()     the k elements a lane holds of A and of B
+//   frag_k0(kpl, lg)    the first of them for lane group lg
+//   frag_row<B>(r, lg)  the row of accumulator element r held by lane group lg
+// Every layout gives lane l row l % B of A and column l % B of B and D
+#if defined(__GFX12__) and MIGRAPHX_WAVEFRONTSIZE == 32
+// RDNA4: WMMA 16x16x16, each lane half holds 8 k
+MIGRAPHX_MMA_INTRINSIC(
+    float, half, 16, 16, 16, __builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(a, b, c))
+MIGRAPHX_MMA_INTRINSIC(
+    float, bf16, 16, 16, 16, __builtin_amdgcn_wmma_f32_16x16x16_bf16_w32_gfx12(a, b, c))
+
+template <index_int B, index_int KI>
+constexpr index_int frag_k()
+{
+    return KI * B / lanes;
 }
 
-// The 16x16 matrix instruction of the architecture: which types it takes,
-// the lane's fragment of the accumulator, the row of the block fragment
-// element r holds for lane half (quarter on wave64) lh, and the block
-// product acc += A[i0.., k0..] B[k0.., j0..] over one instruction of k.
-// Every layout gives lane l row l % 16 of A and column l % 16 of B and D;
-// the lane halves split k
-#if defined(__GFX12__)
-// RDNA4: wave32 WMMA, each lane half holds 8 of the 16 k
-template <class T>
-constexpr bool has_mma()
+__device__ constexpr index_int frag_k0(index_int kpl, index_int lg) { return kpl * lg; }
+
+template <index_int B>
+__device__ constexpr index_int frag_row(index_int r, index_int lg)
 {
-    return MIGRAPHX_WAVEFRONTSIZE == 32 and (is_same<T, half>{} or is_same<T, bf16>{});
+    return 8 * lg + r;
+}
+#elif defined(__GFX11__) and MIGRAPHX_WAVEFRONTSIZE == 32
+// RDNA3: WMMA 16x16x16, both lane halves hold all 16 k, D rows interleave
+MIGRAPHX_MMA_INTRINSIC(float, half, 16, 16, 16, __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(a, b, c))
+MIGRAPHX_MMA_INTRINSIC(float,
+                       bf16,
+                       16,
+                       16,
+                       16,
+                       __builtin_amdgcn_wmma_f32_16x16x16_bf16_w32(bit_cast<short>(a),
+                                                                   bit_cast<short>(b),
+                                                                   c))
+
+template <index_int B, index_int KI>
+constexpr index_int frag_k()
+{
+    return KI;
 }
 
-using acc_frag = vec<float, 8>;
+__device__ constexpr index_int frag_k0(index_int, index_int) { return 0; }
 
-__device__ constexpr index_int frag_row(index_int r, index_int lh) { return 8 * lh + r; }
-
-template <class T, class A, class B>
-__device__ void
-mma_block(A a, B b, index_int i0, index_int j0, index_int k0, acc_frag& acc, index_int lane)
+template <index_int B>
+__device__ constexpr index_int frag_row(index_int r, index_int lg)
 {
-    const index_int li = lane % 16;
-    const index_int lh = lane / 16;
-    vec<T, 8> av{};
-    vec<T, 8> bv{};
-    for(index_int r = 0; r < 8; r++)
-    {
-        av[r] = a(i0 + li, k0 + 8 * lh + r);
-        bv[r] = b(k0 + 8 * lh + r, j0 + li);
-    }
-    if constexpr(is_same<T, half>{})
-        acc = __builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(av, bv, acc);
-    else
-        acc = __builtin_amdgcn_wmma_f32_16x16x16_bf16_w32_gfx12(av, bv, acc);
+    return 2 * r + lg;
 }
-#elif defined(__GFX11__)
-// RDNA3: wave32 WMMA, both lane halves hold all 16 k, D rows interleave
-template <class T>
-constexpr bool has_mma()
-{
-    return MIGRAPHX_WAVEFRONTSIZE == 32 and (is_same<T, half>{} or is_same<T, bf16>{});
-}
-
-using acc_frag = vec<float, 8>;
-
-__device__ constexpr index_int frag_row(index_int r, index_int lh) { return 2 * r + lh; }
-
-template <class T, class A, class B>
-__device__ void
-mma_block(A a, B b, index_int i0, index_int j0, index_int k0, acc_frag& acc, index_int lane)
-{
-    const index_int li = lane % 16;
-    vec<T, 16> av{};
-    vec<T, 16> bv{};
-    for(index_int r = 0; r < 16; r++)
-    {
-        av[r] = a(i0 + li, k0 + r);
-        bv[r] = b(k0 + r, j0 + li);
-    }
-    if constexpr(is_same<T, half>{})
-        acc = __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(av, bv, acc);
-    else
-        acc = __builtin_amdgcn_wmma_f32_16x16x16_bf16_w32(
-            bit_cast<short>(av), bit_cast<short>(bv), acc);
-}
-#elif defined(__gfx908__) or defined(__gfx90a__) or defined(__gfx940__) or defined(__gfx941__) or \
-    defined(__gfx942__) or defined(__gfx950__)
-// CDNA: wave64 MFMA, each lane quarter holds 4 of the 16 k (1 of 4 for f32)
-template <class T>
-constexpr bool has_mma()
-{
+#elif (defined(__gfx908__) or defined(__gfx90a__) or defined(__gfx940__) or defined(__gfx941__) or \
+       defined(__gfx942__) or defined(__gfx950__)) and                                             \
+    MIGRAPHX_WAVEFRONTSIZE == 64
+// CDNA: MFMA 16x16 and 32x32 blocks, each lane quarter (half) holds its
+// share of k; bf16 is 16x16x16/32x32x8 from gfx90a on, half of that on
+// gfx908, and gfx950 doubles the f16 and bf16 k
+MIGRAPHX_MMA_INTRINSIC(
+    float, float, 16, 16, 4, __builtin_amdgcn_mfma_f32_16x16x4f32(a, b, c, 0, 0, 0))
+MIGRAPHX_MMA_INTRINSIC(
+    float, float, 32, 32, 2, __builtin_amdgcn_mfma_f32_32x32x2f32(a, b, c, 0, 0, 0))
+MIGRAPHX_MMA_INTRINSIC(
+    float, half, 16, 16, 16, __builtin_amdgcn_mfma_f32_16x16x16f16(a, b, c, 0, 0, 0))
+MIGRAPHX_MMA_INTRINSIC(
+    float, half, 32, 32, 8, __builtin_amdgcn_mfma_f32_32x32x8f16(a, b, c, 0, 0, 0))
 #if defined(__gfx908__)
-    return MIGRAPHX_WAVEFRONTSIZE == 64 and (is_same<T, half>{} or is_same<T, float>{});
+MIGRAPHX_MMA_INTRINSIC(
+    float,
+    bf16,
+    16,
+    16,
+    8,
+    __builtin_amdgcn_mfma_f32_16x16x8bf16(bit_cast<short>(a), bit_cast<short>(b), c, 0, 0, 0))
+MIGRAPHX_MMA_INTRINSIC(
+    float,
+    bf16,
+    32,
+    32,
+    4,
+    __builtin_amdgcn_mfma_f32_32x32x4bf16(bit_cast<short>(a), bit_cast<short>(b), c, 0, 0, 0))
 #else
-    return MIGRAPHX_WAVEFRONTSIZE == 64 and
-           (is_same<T, half>{} or is_same<T, bf16>{} or is_same<T, float>{});
+MIGRAPHX_MMA_INTRINSIC(
+    float,
+    bf16,
+    16,
+    16,
+    16,
+    __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(bit_cast<short>(a), bit_cast<short>(b), c, 0, 0, 0))
+MIGRAPHX_MMA_INTRINSIC(
+    float,
+    bf16,
+    32,
+    32,
+    8,
+    __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(bit_cast<short>(a), bit_cast<short>(b), c, 0, 0, 0))
 #endif
+#if defined(__gfx950__)
+MIGRAPHX_MMA_INTRINSIC(
+    float, half, 16, 16, 32, __builtin_amdgcn_mfma_f32_16x16x32_f16(a, b, c, 0, 0, 0))
+MIGRAPHX_MMA_INTRINSIC(
+    float, half, 32, 32, 16, __builtin_amdgcn_mfma_f32_32x32x16_f16(a, b, c, 0, 0, 0))
+MIGRAPHX_MMA_INTRINSIC(
+    float, bf16, 16, 16, 32, __builtin_amdgcn_mfma_f32_16x16x32_bf16(a, b, c, 0, 0, 0))
+MIGRAPHX_MMA_INTRINSIC(
+    float, bf16, 32, 32, 16, __builtin_amdgcn_mfma_f32_32x32x16_bf16(a, b, c, 0, 0, 0))
+#endif
+
+template <index_int B, index_int KI>
+constexpr index_int frag_k()
+{
+    return KI * B / lanes;
 }
 
-using acc_frag = vec<float, 4>;
+__device__ constexpr index_int frag_k0(index_int kpl, index_int lg) { return kpl * lg; }
 
-__device__ constexpr index_int frag_row(index_int r, index_int lh) { return 4 * lh + r; }
-
-template <class T, class A, class B>
-__device__ void
-mma_block(A a, B b, index_int i0, index_int j0, index_int k0, acc_frag& acc, index_int lane)
+// groups of 4 rows alternate between the lane groups
+template <index_int B>
+__device__ constexpr index_int frag_row(index_int r, index_int lg)
 {
-    const index_int li = lane % 16;
-    const index_int lh = lane / 16;
-    if constexpr(is_same<T, float>{})
-    {
-        const float av = a(i0 + li, k0 + lh);
-        const float bv = b(k0 + lh, j0 + li);
-        acc            = __builtin_amdgcn_mfma_f32_16x16x4f32(av, bv, acc, 0, 0, 0);
-    }
-    else
-    {
-        vec<T, 4> av{};
-        vec<T, 4> bv{};
-        for(index_int r = 0; r < 4; r++)
-        {
-            av[r] = a(i0 + li, k0 + 4 * lh + r);
-            bv[r] = b(k0 + 4 * lh + r, j0 + li);
-        }
-        if constexpr(is_same<T, half>{})
-            acc = __builtin_amdgcn_mfma_f32_16x16x16f16(av, bv, acc, 0, 0, 0);
-        else
-            acc = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(
-                bit_cast<short>(av), bit_cast<short>(bv), acc, 0, 0, 0);
-    }
+    return (r / 4) * (4 * lanes / B) + 4 * lg + r % 4;
 }
 #else
 // no matrix instruction: matmul takes the FMA path and never instantiates these
-template <class T>
-constexpr bool has_mma()
+template <index_int B, index_int KI>
+constexpr index_int frag_k()
 {
-    return false;
+    return 1;
 }
 
-using acc_frag = vec<float, 8>;
+__device__ constexpr index_int frag_k0(index_int, index_int) { return 0; }
 
-__device__ constexpr index_int frag_row(index_int r, index_int lh) { return 8 * lh + r; }
-
-template <class T, class A, class B>
-__device__ void mma_block(A, B, index_int, index_int, index_int, acc_frag&, index_int)
+template <index_int B>
+__device__ constexpr index_int frag_row(index_int r, index_int)
 {
+    return r;
 }
 #endif
 
-// c(x, i, j) for the lane's fragment of block (i0, j0)
-template <class C>
-__device__ void store_block(const acc_frag& acc, index_int i0, index_int j0, C c, index_int lane)
+// The largest instruction k of a BxB block of T, at most KI, that divides K;
+// 0 when there is none
+template <class T, index_int B, index_int K, index_int KI = 64>
+constexpr index_int mma_k()
 {
-    const index_int li = lane % 16;
-    const index_int lh = lane / 16;
-    for(index_int r = 0; r < vec_size<acc_frag>(); r++)
-        c(acc[r], i0 + frag_row(r, lh), j0 + li);
+    if constexpr(KI == 0)
+        return 0;
+    else if constexpr(has_mma_intrinsic<float, T, B, B, KI>{} and K % KI == 0)
+        return KI;
+    else
+        return mma_k<T, B, K, KI / 2>();
+}
+
+// acc += A[i0.., k0..] B[k0.., j0..] for one BxB block and one instruction
+// of KI k
+template <class T, index_int B, index_int KI, class A, class Bl>
+__device__ void
+mma_block(A a, Bl b, index_int i0, index_int j0, index_int k0, acc_frag<B>& acc, index_int lane)
+{
+    constexpr index_int kpl = frag_k<B, KI>();
+    using frag              = conditional_t<(kpl > 1), vec<T, kpl>, T>;
+    const index_int li      = lane % B;
+    const index_int k       = k0 + frag_k0(kpl, lane / B);
+    frag av{};
+    frag bv{};
+    if constexpr(kpl > 1)
+    {
+        for(index_int r = 0; r < kpl; r++)
+        {
+            av[r] = a(i0 + li, k + r);
+            bv[r] = b(k + r, j0 + li);
+        }
+    }
+    else
+    {
+        av = a(i0 + li, k);
+        bv = b(k, j0 + li);
+    }
+    acc = mma_intrinsic<float, T, B, B, KI>{}(av, bv, acc);
+}
+
+// c(x, i, j) for the lane's fragment of block (i0, j0)
+template <index_int B, class C>
+__device__ void store_block(const acc_frag<B>& acc, index_int i0, index_int j0, C c, index_int lane)
+{
+    const index_int li = lane % B;
+    const index_int lg = lane / B;
+    for(index_int r = 0; r < vec_size<acc_frag<B>>(); r++)
+        c(acc[r], i0 + frag_row<B>(r, lg), j0 + li);
 }
 
 // Without a matrix instruction each lane owns tiles of tm consecutive rows
@@ -252,33 +328,46 @@ __device__ void matmul_fma(A a, B b, C c, index_int lane)
 
 } // namespace matmul_detail
 
-// Whether matmul<T, M, N, K> runs on the matrix instruction
+// The block size matmul<T, M, N, K> runs on the matrix instruction with: the
+// largest whose instruction k divides K, 0 for the FMA path
+template <class T, index_int M, index_int N, index_int K>
+constexpr index_int matmul_block()
+{
+    if constexpr(M % 32 == 0 and N % 32 == 0 and matmul_detail::mma_k<T, 32, K>() > 0)
+        return 32;
+    else if constexpr(M % 16 == 0 and N % 16 == 0 and matmul_detail::mma_k<T, 16, K>() > 0)
+        return 16;
+    else
+        return 0;
+}
+
 template <class T, index_int M, index_int N, index_int K>
 constexpr bool matmul_uses_mma()
 {
-    return matmul_detail::has_mma<T>() and M % 16 == 0 and N % 16 == 0 and
-           K % matmul_detail::mma_k<T>() == 0;
+    return matmul_block<T, M, N, K>() > 0;
 }
 
 // C[M][N] = sum_k A[M][K] B[K][N] by one wave: every lane calls it, a(i, k)
 // and b(k, j) load the operands as T, c(x, i, j) receives each sum in float
-// (double for double). 16x16 blocks of a shape the architecture's matrix
-// instruction covers use it, anything else is per-lane FMAs. Index the
+// (double for double). Blocks of a shape the architecture's matrix
+// instructions cover use them, anything else is per-lane FMAs. Index the
 // loaders through rank-1 views so adjacent loads merge.
 template <class T, index_int M, index_int N, index_int K, class A, class B, class C>
 __device__ void matmul(A a, B b, C c)
 {
-    const index_int lane = make_index().local_wave();
-    if constexpr(matmul_uses_mma<T, M, N, K>())
+    const index_int lane   = make_index().local_wave();
+    constexpr index_int bs = matmul_block<T, M, N, K>();
+    if constexpr(bs > 0)
     {
-        for(index_int i0 = 0; i0 < M; i0 += 16)
+        constexpr index_int ki = matmul_detail::mma_k<T, bs, K>();
+        for(index_int i0 = 0; i0 < M; i0 += bs)
         {
-            for(index_int j0 = 0; j0 < N; j0 += 16)
+            for(index_int j0 = 0; j0 < N; j0 += bs)
             {
-                matmul_detail::acc_frag acc{};
-                for(index_int k0 = 0; k0 < K; k0 += matmul_detail::mma_k<T>())
-                    matmul_detail::mma_block<T>(a, b, i0, j0, k0, acc, lane);
-                matmul_detail::store_block(acc, i0, j0, c, lane);
+                matmul_detail::acc_frag<bs> acc{};
+                for(index_int k0 = 0; k0 < K; k0 += ki)
+                    matmul_detail::mma_block<T, bs, ki>(a, b, i0, j0, k0, acc, lane);
+                matmul_detail::store_block<bs>(acc, i0, j0, c, lane);
             }
         }
     }

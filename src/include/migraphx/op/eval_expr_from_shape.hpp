@@ -31,6 +31,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <migraphx/symbolic_shape_helpers.hpp>
 #include <migraphx/zip_view.hpp>
 #include <algorithm>
 #include <unordered_map>
@@ -57,24 +58,10 @@ struct eval_expr_from_shape
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
 
-        // Treat each complete symbolic dimension as a runtime value. Substitution also proves
-        // expressions composed from those dimensions are resolvable.
-        std::unordered_map<sym::expr, sym::expr> available;
-        for(const auto& input : inputs)
-        {
-            if(not input.symbolic())
-                continue;
-            for(const auto& d : input.dyn_dims())
-                if(d.is_symbolic())
-                    available.emplace(sym::as_symbol(d.sym_expr), sym::lit(1));
-        }
-        for(const auto& expression : expressions)
-        {
-            auto unresolved = sym::find_variables(expression.subs(available));
-            if(not unresolved.empty())
-                MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Expression '" + expression.to_string() +
-                               "' cannot be resolved from the input dimensions");
-        }
+        auto unresolved = find_unresolved_shape_expression(inputs, expressions);
+        if(unresolved.has_value())
+            MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Expression '" + unresolved->to_string() +
+                           "' cannot be resolved from the input dimensions");
 
         return shape{shape::int64_type, {expressions.size()}};
     }

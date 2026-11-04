@@ -97,6 +97,57 @@ TEST_CASE(find_expression_sources_from_multiple_roots)
         EXPECT(*sources == std::vector<migraphx::instruction_ref>{m_root, n_root});
 }
 
+TEST_CASE(find_expression_sources_uses_variable_order)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::var;
+
+    const auto a_dim = var("a", {1, 8});
+    const auto z_dim = var("z", {1, 8});
+    migraphx::module m;
+    auto a_root = m.add_parameter("a_root", {migraphx::shape::float_type, {dd{a_dim}}});
+    auto z_root = m.add_parameter("z_root", {migraphx::shape::float_type, {dd{z_dim}}});
+    auto data   = m.add_parameter("data", {migraphx::shape::float_type, {1}});
+
+    auto sources = migraphx::find_expression_sources(m, {data}, {z_dim + a_dim});
+    EXPECT(sources.has_value());
+    EXPECT(*sources == std::vector<migraphx::instruction_ref>{a_root, z_root});
+}
+
+TEST_CASE(find_expression_sources_preserves_source_order)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::var;
+
+    const auto a_dim = var("a", {1, 8});
+    const auto z_dim = var("z", {1, 8});
+    migraphx::module m;
+    auto a_root = m.add_parameter("a_root", {migraphx::shape::float_type, {dd{a_dim}}});
+    auto z_root = m.add_parameter("z_root", {migraphx::shape::float_type, {dd{z_dim}}});
+    std::vector<migraphx::instruction_ref> source_order = {z_root, a_root};
+
+    auto source_map = migraphx::make_symbol_source_map({a_root, z_root});
+    auto sources    = migraphx::find_expression_sources({z_dim + a_dim}, source_map, source_order);
+    EXPECT(sources.has_value());
+    EXPECT(*sources == source_order);
+}
+
+TEST_CASE(find_expression_sources_uses_first_owner)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::var;
+
+    const auto n = var("n", {1, 8});
+    migraphx::module m;
+    auto first  = m.add_parameter("first", {migraphx::shape::float_type, {dd{n}}});
+    auto second = m.add_parameter("second", {migraphx::shape::float_type, {dd{n}}});
+
+    auto source_map = migraphx::make_symbol_source_map({first, second});
+    auto sources    = migraphx::find_expression_sources({n}, source_map, {second, first});
+    EXPECT(sources.has_value());
+    EXPECT(*sources == std::vector<migraphx::instruction_ref>{first});
+}
+
 TEST_CASE(find_expression_sources_from_multiple_inputs)
 {
     using dd = migraphx::shape::dynamic_dimension;
@@ -127,6 +178,21 @@ TEST_CASE(find_expression_sources_from_multiple_inputs_missing_input)
     auto expression = migraphx::sym::min(var("m") + lit(1), var("n") * lit(2));
     auto sources    = migraphx::find_expression_sources(m, {a}, {expression});
     EXPECT(not sources.has_value());
+}
+
+TEST_CASE(find_unresolved_shape_expression)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::var;
+
+    const auto m_dim                    = var("m", {1, 8});
+    const auto n_dim                    = var("n", {1, 8});
+    std::vector<migraphx::shape> inputs = {{migraphx::shape::float_type, {dd{m_dim}}}};
+
+    auto unresolved =
+        migraphx::find_unresolved_shape_expression(inputs, {m_dim, n_dim, m_dim + n_dim});
+    EXPECT(unresolved.has_value());
+    EXPECT(*unresolved == n_dim);
 }
 
 TEST_CASE(find_expression_sources_deduplicates_inputs)

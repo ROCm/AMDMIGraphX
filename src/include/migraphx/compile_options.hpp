@@ -46,10 +46,10 @@ struct compile_options
     bool exhaustive_tune = false;
     /**
      * Keep with each compiled kernel what is needed to recompile it (its precompile op in a
-     * recipe submodule, and its tuning level), so the program can be retuned or retargeted with
-     * program::retune without the original model.
+     * recipe submodule, and its tuning level), so the program can be recompiled for the same or
+     * another device with program::recompile without the original model.
      */
-    bool keep_recipes = false;
+    bool recompilable = false;
 
     compile_modes compile_mode = compile_modes::balanced;
     /**
@@ -61,8 +61,8 @@ struct compile_options
     tracer trace{};
 };
 
-/// Options for program::retune
-struct retune_options
+/// Options for program::recompile
+struct recompile_options
 {
     /// Recompile kernels that are already at the requested tuning level on the same device
     bool force = false;

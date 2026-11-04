@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/program.hpp>
+#include <migraphx/builtin.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/generate.hpp>
@@ -66,7 +67,7 @@ static migraphx::target cross_target(const std::string& arch)
 static migraphx::compile_options recipe_options()
 {
     migraphx::compile_options options;
-    options.keep_recipes = true;
+    options.recompilable = true;
     options.offload_copy = true;
     return options;
 }
@@ -118,12 +119,13 @@ static bool all_have_recipes(migraphx::program& p)
 
 static std::string compiled_arch(const migraphx::program& p)
 {
-    return p.get_compiled_for().at("arch").to<std::string>();
+    auto device = migraphx::gpu::get_compiled_for(*p.get_main_module());
+    return device.has_value() ? device->arch : "";
 }
 
-static migraphx::retune_options force_options()
+static migraphx::recompile_options force_options()
 {
-    migraphx::retune_options options;
+    migraphx::recompile_options options;
     options.force = true;
     return options;
 }
@@ -273,6 +275,20 @@ TEST_CASE(no_recipes_by_default)
         EXPECT(migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator())
                    .tuning_level.empty());
     }
+    EXPECT(not migraphx::gpu::get_compiled_for(*p.get_main_module()).has_value());
+}
+
+TEST_CASE(compiled_for_recorded_as_comment)
+{
+    auto p   = compile_program(cross_target("gfx1100"));
+    auto* mm = p.get_main_module();
+    auto it  = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "@comment" and
+               migraphx::any_cast<migraphx::builtin::comment>(ins.get_operator()).tag ==
+                   "gpu_target";
+    });
+    EXPECT(it != mm->end());
+    EXPECT(compiled_arch(p) == "gfx1100");
 }
 
 TEST_CASE(load_without_finalize)
@@ -282,21 +298,23 @@ TEST_CASE(load_without_finalize)
     fo.finalize = false;
     auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
     EXPECT(q.is_compiled());
-    EXPECT(q.get_compiled_for() == p.get_compiled_for());
-    // Saving an unfinalized program keeps its contexts
+    EXPECT(compiled_arch(q) == compiled_arch(p));
+    EXPECT(test::throws<migraphx::exception>([&] { q.eval(make_params()); }, "without finalizing"));
+    // Saving an unfinalized program keeps the device it was compiled for, and the contexts are
+    // created when it is finalized
     auto r = migraphx::load_buffer(migraphx::save_buffer(q), fo);
-    EXPECT(r.get_compiled_for() == p.get_compiled_for());
+    EXPECT(compiled_arch(r) == compiled_arch(p));
     r.finalize();
     expect_matches_ref(r);
 }
 
-TEST_CASE(retune_same_target_is_noop)
+TEST_CASE(recompile_same_target_is_noop)
 {
     auto p = compile_program(migraphx::make_target("gpu"));
     migraphx::file_options fo;
     fo.finalize = false;
     auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
-    q.retune(migraphx::make_target("gpu"));
+    q.recompile(migraphx::make_target("gpu"));
     auto before = get_kernels(p);
     auto after  = get_kernels(q);
     EXPECT(before.size() == after.size());
@@ -305,23 +323,23 @@ TEST_CASE(retune_same_target_is_noop)
     expect_matches_ref(q);
 }
 
-TEST_CASE(retune_same_target_force)
+TEST_CASE(recompile_same_target_force)
 {
     auto p = compile_program(migraphx::make_target("gpu"));
     migraphx::file_options fo;
     fo.finalize = false;
     auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
-    q.retune(migraphx::make_target("gpu"), {}, force_options());
+    q.recompile(migraphx::make_target("gpu"), {}, force_options());
     EXPECT(all_have_recipes(q));
     expect_matches_ref(q);
 }
 
-TEST_CASE(retune_exhaustive_level)
+TEST_CASE(recompile_exhaustive_level)
 {
     auto p = compile_program(migraphx::make_target("gpu"));
     migraphx::compile_options options;
     options.exhaustive_tune = true;
-    p.retune(migraphx::make_target("gpu"), options);
+    p.recompile(migraphx::make_target("gpu"), options);
     // Only tunable kernels are recompiled at the higher level
     for(const auto& co : get_kernels(p))
         EXPECT(co.tuning_level == "none" or co.tuning_level == "exhaustive");
@@ -333,7 +351,7 @@ TEST_CASE(retarget_cross_compile_newer_generation)
     auto p = compile_program(cross_target("gfx1100"));
     EXPECT(compiled_arch(p) == "gfx1100");
     auto before = get_kernels(p);
-    p.retune(cross_target("gfx1201"));
+    p.recompile(cross_target("gfx1201"));
     EXPECT(compiled_arch(p) == "gfx1201");
     auto after = get_kernels(p);
     EXPECT(before.size() == after.size());
@@ -353,14 +371,14 @@ TEST_CASE(retarget_cross_compile_newer_generation)
 TEST_CASE(retarget_cross_compile_same_generation)
 {
     auto p = compile_program(cross_target("gfx1151"));
-    p.retune(cross_target("gfx1100"));
+    p.recompile(cross_target("gfx1100"));
     EXPECT(compiled_arch(p) == "gfx1100");
 }
 
 TEST_CASE(retarget_older_generation_refused)
 {
     auto p = compile_program(cross_target("gfx1151"));
-    EXPECT(test::throws<migraphx::exception>([&] { p.retune(cross_target("gfx942")); },
+    EXPECT(test::throws<migraphx::exception>([&] { p.recompile(cross_target("gfx942")); },
                                              "older generation"));
     // The program is unchanged
     EXPECT(compiled_arch(p) == "gfx1151");
@@ -371,37 +389,35 @@ TEST_CASE(retarget_without_recipes_refused)
     migraphx::compile_options options;
     options.offload_copy = true;
     auto p               = compile_program(cross_target("gfx1100"), options);
-    EXPECT(test::throws<migraphx::exception>([&] { p.retune(cross_target("gfx1201")); },
-                                             "recompile from the model"));
+    EXPECT(test::throws<migraphx::exception>([&] { p.recompile(cross_target("gfx1201")); },
+                                             "compile the model again"));
 }
 
 TEST_CASE(retarget_fp8_fnuz_refused)
 {
     auto p = compile_program(
         cross_target("gfx942"), recipe_options(), make_program(migraphx::shape::fp8e4m3fnuz_type));
-    EXPECT(
-        test::throws<migraphx::exception>([&] { p.retune(cross_target("gfx1151")); }, "fp8 fnuz"));
+    EXPECT(test::throws<migraphx::exception>([&] { p.recompile(cross_target("gfx1151")); },
+                                             "fp8 fnuz"));
 }
 
-TEST_CASE(load_version_8_program)
+TEST_CASE(load_version_8_program_refused)
 {
     auto p       = compile_program(migraphx::make_target("gpu"));
     auto v       = p.to_value();
     v["version"] = 8;
     migraphx::program q;
-    q.from_value(v);
-    EXPECT(q.is_compiled());
-    expect_matches_ref(q);
+    EXPECT(test::throws<migraphx::exception>([&] { q.from_value(v); }, "version mismatch"));
 }
 
-TEST_CASE(retune_kernel_with_lowering_fill)
+TEST_CASE(recompile_kernel_with_lowering_fill)
 {
     auto p = compile_program(migraphx::make_target("gpu"), recipe_options(), make_nms_program());
     EXPECT(has_kernel(p, "nms_compact_kernel"));
     migraphx::file_options fo;
     fo.finalize = false;
     auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
-    q.retune(migraphx::make_target("gpu"), {}, force_options());
+    q.recompile(migraphx::make_target("gpu"), {}, force_options());
     EXPECT(has_kernel(q, "nms_compact_kernel"));
     expect_nms_result(q);
 }
@@ -409,24 +425,24 @@ TEST_CASE(retune_kernel_with_lowering_fill)
 TEST_CASE(retarget_kernel_with_lowering_fill)
 {
     auto p = compile_program(cross_target("gfx1151"), recipe_options(), make_nms_program());
-    p.retune(cross_target("gfx1100"));
+    p.recompile(cross_target("gfx1100"));
     EXPECT(compiled_arch(p) == "gfx1100");
     EXPECT(has_kernel(p, "nms_compact_kernel"));
 }
 
-TEST_CASE(retune_requires_compiled_program)
+TEST_CASE(recompile_requires_compiled_program)
 {
     auto p = make_program();
-    EXPECT(test::throws<migraphx::exception>([&] { p.retune(migraphx::make_target("gpu")); },
+    EXPECT(test::throws<migraphx::exception>([&] { p.recompile(migraphx::make_target("gpu")); },
                                              "not compiled"));
 }
 
-TEST_CASE(retune_unsupported_target_refused)
+TEST_CASE(recompile_unsupported_target_refused)
 {
     auto p = make_program();
     p.compile(migraphx::make_target("ref"));
-    EXPECT(test::throws<migraphx::exception>([&] { p.retune(migraphx::make_target("ref")); },
-                                             "does not support retune"));
+    EXPECT(test::throws<migraphx::exception>([&] { p.recompile(migraphx::make_target("ref")); },
+                                             "does not support recompile"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

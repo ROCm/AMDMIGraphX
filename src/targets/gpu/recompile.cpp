@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/retune.hpp>
+#include <migraphx/gpu/recompile.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -54,7 +54,7 @@ struct kernel_ref
 };
 
 // Instructions whose solutions or binaries are valid only for the device they were compiled for
-// and that retune cannot regenerate
+// and that recompile cannot regenerate
 bool is_out_of_scope(const std::string& name)
 {
     static const std::set<std::string> names = {"gpu::gemm",
@@ -155,7 +155,7 @@ void check_data_types(const program& p, const context& ctx, const std::string& a
                              " does not support, are used by: " + join_names(found));
     }
     if(not errors.empty())
-        MIGRAPHX_THROW("retune: cannot retarget to " + arch + ": " + join_strings(errors, "; "));
+        MIGRAPHX_THROW("recompile: cannot retarget to " + arch + ": " + join_strings(errors, "; "));
 }
 
 struct kernel_scan
@@ -203,17 +203,17 @@ void check_retarget(const program& p,
     const auto from_gfx = get_gfx_name(from.arch);
     const auto to_gfx   = get_gfx_name(to.arch);
     if(scan.with_recipe == 0)
-        MIGRAPHX_THROW("retune: the program was compiled without re-tune information; "
-                       "recompile from the model with keep_recipes (--keep-recipes)");
+        MIGRAPHX_THROW("recompile: the program was not compiled to be recompilable; "
+                       "compile the model again with recompilable (--recompilable)");
     auto from_gen = get_gfx_generation(from.arch);
     auto to_gen   = get_gfx_generation(to.arch);
     if(to_gen < from_gen)
-        MIGRAPHX_THROW("retune: MXR compiled for gfx" + std::to_string(from_gen) + " (" + from_gfx +
-                       "); " + to_gfx + " is gfx" + std::to_string(to_gen) +
+        MIGRAPHX_THROW("recompile: MXR compiled for gfx" + std::to_string(from_gen) + " (" +
+                       from_gfx + "); " + to_gfx + " is gfx" + std::to_string(to_gen) +
                        "; retargeting to an older generation is not supported");
     check_data_types(p, ctx, to_gfx);
     if(not scan.unsupported.empty())
-        MIGRAPHX_THROW("retune: cannot retarget to " + to_gfx +
+        MIGRAPHX_THROW("recompile: cannot retarget to " + to_gfx +
                        ": these instructions are compiled for " + from_gfx +
                        " and cannot be regenerated (CK, hipBLASLt / rocBLAS, MIOpen, or "
                        "kernels without a recipe): " +
@@ -242,28 +242,21 @@ std::string kernel_time(context& ctx, const operation& op, bool benchmarked, boo
 
 } // namespace
 
-void retune_ops::apply(program& p) const
+void recompile_ops::apply(program& p) const
 {
     assert(ctx != nullptr);
-    if(not from_ctx.is_object() or not from_ctx.contains("compiled_for"))
-        MIGRAPHX_THROW("retune: the program does not record the device it was compiled for; "
-                       "recompile from the model");
-    const auto from = from_value<device_description>(from_ctx.at("compiled_for").without_key());
-    const auto to   = ctx->get_current_device().get_device_description();
-
-    // Carry the streams and events of the schedule over to the new context
-    std::size_t n_events  = 0;
-    std::size_t n_streams = 1;
-    if(from_ctx.contains("events"))
-        n_events = from_ctx.at("events").without_key().to<std::size_t>();
-    if(from_ctx.contains("streams"))
-        n_streams = from_ctx.at("streams").without_key().to<std::size_t>();
-    ctx->restore_schedule_state(n_events, n_streams);
+    auto* mm           = p.get_main_module();
+    const auto from_rd = get_compiled_for(*mm);
+    if(not from_rd.has_value())
+        MIGRAPHX_THROW("recompile: the program does not record the device it was compiled for; "
+                       "compile the model again with recompilable (--recompilable)");
+    const auto& from = *from_rd;
+    const auto to    = ctx->get_current_device().get_device_description();
 
     const bool same_target = from == to;
     if(same_target and not exhaustive_tune and not force)
     {
-        log::info() << "retune: the program is already compiled for " << to.arch
+        log::info() << "recompile: the program is already compiled for " << to.arch
                     << "; nothing to do";
         return;
     }
@@ -315,13 +308,14 @@ void retune_ops::apply(program& p) const
             report << "  (" << recompiled[i].excluded << " signature-changing candidates excluded)";
         report << "\n";
     }
-    log::info() << "retune: recompiled " << selected.size() << " kernels for " << to_gfx << "\n"
+    set_compiled_for(*mm, to);
+    log::info() << "recompile: recompiled " << selected.size() << " kernels for " << to_gfx << "\n"
                 << report.str();
     if(not untouched.empty())
-        log::info() << "retune: left as compiled: " << join_names(untouched);
+        log::info() << "recompile: left as compiled: " << join_names(untouched);
     if(get_gfx_generation(from.arch) != get_gfx_generation(to.arch))
         log::info() << "note: graph decisions were made for " << from_gfx
-                    << "; recompile from the model for best performance on " << to_gfx << ".";
+                    << "; compile the model again for best performance on " << to_gfx << ".";
 }
 
 } // namespace gpu

@@ -875,10 +875,10 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
-        ap(co.keep_recipes,
-           {"--keep-recipes"},
+        ap(co.recompilable,
+           {"--recompilable"},
            ap.help("Keep what is needed to recompile each kernel, so the compiled program can "
-                   "be retuned or retargeted to another GPU with the retune command"),
+                   "be recompiled for the same or another GPU with the recompile command"),
            ap.set_value(true));
         ap(co.compile_mode,
            {"--compile-mode"},
@@ -994,16 +994,13 @@ struct read : command<read>
     void run()
     {
         // Open files compiled for another GPU without loading their kernels
-        l.finalize        = false;
-        auto p            = l.load();
-        auto compiled_for = p.get_compiled_for();
-        if(not compiled_for.is_null())
-            log::info() << "compiled_for: " << to_json_string(compiled_for);
+        l.finalize = false;
+        auto p     = l.load();
         l.save(p);
     }
 };
 
-struct retune_cmd : command<retune_cmd>
+struct recompile_cmd : command<recompile_cmd>
 {
     loader l;
     compiler_target ct;
@@ -1034,12 +1031,12 @@ struct retune_cmd : command<retune_cmd>
     void run()
     {
         if(l.output.empty())
-            MIGRAPHX_THROW("retune: an output file is required (-o <out.mxr>)");
+            MIGRAPHX_THROW("recompile: an output file is required (-o <out.mxr>)");
         // The kernels may have been compiled for another GPU, so they are not loaded
         l.finalize = false;
         auto p     = l.load();
         if(not p.is_compiled())
-            MIGRAPHX_THROW("retune: " + l.file + " is not a compiled program");
+            MIGRAPHX_THROW("recompile: " + l.file + " is not a compiled program");
         compile_options co;
         co.exhaustive_tune = exhaustive_tune;
         if(not backend_options.empty())
@@ -1049,12 +1046,12 @@ struct retune_cmd : command<retune_cmd>
                 MIGRAPHX_THROW("--backend-options must be a JSON object");
             migraphx::set_backend_options(co, v);
         }
-        retune_options ro;
+        recompile_options ro;
         ro.force = force;
-        log::info() << "Retuning ...";
+        log::info() << "Recompiling ...";
         timer t{};
-        p.retune(ct.get_target(), co, ro);
-        log::info() << "Retune time: " << t.record<std::chrono::milliseconds>() << "ms";
+        p.recompile(ct.get_target(), co, ro);
+        log::info() << "Recompile time: " << t.record<std::chrono::milliseconds>() << "ms";
         l.save(p);
     }
 };

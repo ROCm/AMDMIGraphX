@@ -21,11 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_RETUNE_HPP
-#define MIGRAPHX_GUARD_GPU_RETUNE_HPP
+#ifndef MIGRAPHX_GUARD_GPU_RECOMPILE_HPP
+#define MIGRAPHX_GUARD_GPU_RECOMPILE_HPP
 
 #include <migraphx/gpu/config.hpp>
-#include <migraphx/value.hpp>
 #include <string>
 
 namespace migraphx {
@@ -41,20 +40,19 @@ struct context;
  * Recompile the gpu::code_object kernels of a compiled program from their recipes for the
  * device of ctx, in place. The graph, literals, memory plan and schedule are not changed.
  *
- * from_ctx is the serialized context of the program being retuned. force recompiles kernels
- * that are already at the requested tuning level.
+ * The device the program was compiled for is read from the comment that compile_ops records
+ * with recompilable. force recompiles kernels that are already at the requested tuning level.
  */
-struct MIGRAPHX_GPU_EXPORT retune_ops
+struct MIGRAPHX_GPU_EXPORT recompile_ops
 {
     context* ctx         = nullptr;
-    value from_ctx       = value{};
     bool force           = false;
     bool exhaustive_tune = false;
-    std::string name() const { return "gpu::retune_ops"; }
+    std::string name() const { return "gpu::recompile_ops"; }
     void apply(program& p) const;
 };
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_RETUNE_HPP
+#endif // MIGRAPHX_GUARD_GPU_RECOMPILE_HPP

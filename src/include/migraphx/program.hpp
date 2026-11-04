@@ -117,17 +117,14 @@ struct MIGRAPHX_EXPORT program
 
     /**
      * Recompile the kernels of a compiled program for the target `t` from the recipes kept with
-     * compile_options::keep_recipes. Only kernels change: the graph, literals, memory plan and
+     * compile_options::recompilable. Only kernels change: the graph, literals, memory plan and
      * schedule are kept. The tuning level recorded with each kernel is kept unless
-     * `options.exhaustive_tune` is set. The program is unchanged if retuning fails. Throws if
-     * `t` does not support retuning.
+     * `options.exhaustive_tune` is set. The program is unchanged if recompiling fails. Throws if
+     * `t` does not support recompiling.
      */
-    void retune(const target& t,
-                compile_options options           = compile_options{},
-                const retune_options& retune_opts = retune_options{});
-
-    /// The device the program was compiled for, as recorded by its target, or a null value.
-    value get_compiled_for() const;
+    void recompile(const target& t,
+                   compile_options options                 = compile_options{},
+                   const recompile_options& recompile_opts = recompile_options{});
 
     bool is_compiled() const;
 
@@ -148,8 +145,8 @@ struct MIGRAPHX_EXPORT program
 
     value to_value() const;
     void from_value(const value& v);
-    /// When `finalize` is false the contexts of a compiled program are not created and its
-    /// kernels are not loaded until finalize() or retune() is called, so a program compiled for
+    /// When `finalize` is false only the targets of a compiled program are restored: its contexts
+    /// are created and its kernels loaded by finalize() or recompile(), so a program compiled for
     /// another device can be opened.
     void from_value(const value& v, bool finalize);
 
@@ -197,7 +194,6 @@ struct MIGRAPHX_EXPORT program
 
     private:
     void assign(const program& p);
-    void create_pending_contexts() const;
     std::unique_ptr<program_impl> impl;
     // program file version is for the data structure or format of the MXR
     // file. Version should be bumped if any changes occur to the format of

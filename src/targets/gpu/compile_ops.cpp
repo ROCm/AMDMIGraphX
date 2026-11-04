@@ -760,8 +760,8 @@ struct compile_plan
     }
 
     /// Replace the precompile op with its compiled kernel. When make_recipe_module is set, the
-    /// precompile op is also kept in a new recipe submodule of the kernel, so retune can
-    /// recompile it.
+    /// precompile op is also kept in a new recipe submodule of the kernel, so the kernel can be
+    /// recompiled later.
     void replace(module& m,
                  const std::function<module_ref()>& make_recipe_module = nullptr,
                  bool exhaustive                                       = false) const
@@ -785,11 +785,11 @@ struct compile_plan
             if(it->name() == "gpu::code_object")
                 cos.push_back(it);
         }
-        // Only a single kernel can be swapped in place by retune
+        // Only a single kernel can be swapped in place by recompile
         if(cos.size() != 1)
         {
-            log::debug() << "No retune recipe for " << preop.name() << ": compiled to "
-                         << cos.size() << " kernels";
+            log::debug() << "No recipe for " << preop.name() << ": compiled to " << cos.size()
+                         << " kernels";
             return;
         }
         auto co_ins     = cos.front();
@@ -865,7 +865,7 @@ struct compile_manager
     std::vector<compile_plan> cps;
     bool exhaustive     = false;
     bool skip_benchmark = false;
-    /// Creates a recipe submodule for each compiled kernel. Empty unless keep_recipes is set.
+    /// Creates a recipe submodule for each compiled kernel. Empty unless recompilable is set.
     std::function<module_ref()> make_recipe_module = nullptr;
     /// When set, plans with several candidates are saved here as benchmark MXR files instead of
     /// being replaced. Left empty by the nested batch in replace_inserted_device_ops.
@@ -1138,7 +1138,7 @@ void compile_ops::apply(module_pass_manager& mpm) const
     cm.mxr_dir        = dump_mxr_dir;
     // One counter for every batch, since each recipe module needs a unique name
     std::size_t recipes = 0;
-    if(keep_recipes)
+    if(recompilable)
     {
         cm.make_recipe_module = [&] {
             return mpm.create_module(mpm.get_root_module()->name() + ":recipe" +
@@ -1158,6 +1158,44 @@ void compile_ops::apply(module_pass_manager& mpm) const
 
     replace_inserted_device_ops(*ctx, mods, cm.make_recipe_module);
     assign_module_ids(mods);
+}
+
+void record_compiled_for::apply(module_pass_manager& mpm) const
+{
+    if(&mpm.get_module() != mpm.get_root_module())
+        return;
+    set_compiled_for(mpm.get_module(), ctx->get_current_device().get_device_description());
+}
+
+static const std::string& compiled_for_tag()
+{
+    static const std::string tag = "gpu_target";
+    return tag;
+}
+
+static bool is_compiled_for(const instruction& ins)
+{
+    return ins.name() == "@comment" and
+           any_cast<builtin::comment>(ins.get_operator()).tag == compiled_for_tag();
+}
+
+void set_compiled_for(module& m, const device_description& device)
+{
+    builtin::comment op{to_json_string(to_value(device)), compiled_for_tag()};
+    auto it = std::find_if(m.begin(), m.end(), &is_compiled_for);
+    if(it == m.end())
+        m.insert_instruction(m.begin(), op);
+    else
+        m.replace_instruction(it, op);
+}
+
+optional<device_description> get_compiled_for(const module& m)
+{
+    auto it = std::find_if(m.begin(), m.end(), &is_compiled_for);
+    if(it == m.end())
+        return nullopt;
+    return from_value<device_description>(
+        from_json_string(any_cast<builtin::comment>(it->get_operator()).text));
 }
 
 optional<instruction_ref> find_recipe(instruction_ref ins)
@@ -1237,7 +1275,7 @@ kernel_signature make_signature(instruction_ref ins, const code_object_op& co, F
 optional<std::pair<code_object_op, kernel_signature>> candidate_kernel(const compiler_replace& cr,
                                                                        instruction_ref pre_ins)
 {
-    module m{"retune_candidate"};
+    module m{"recompile_candidate"};
     std::vector<instruction_ref> params;
     for(auto i : range(pre_ins->inputs().size()))
         params.push_back(
@@ -1279,7 +1317,7 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
         auto old    = any_cast<code_object_op>(req.ins->get_operator());
         auto recipe = find_recipe(req.ins);
         if(not recipe.has_value())
-            MIGRAPHX_THROW("retune: no recipe for kernel " + old.symbol_name);
+            MIGRAPHX_THROW("recompile: no recipe for kernel " + old.symbol_name);
         // Compile from the precompile op in the recipe module, which the plan does not change
         auto pre = *recipe;
         plans.push_back({&ctx,
@@ -1319,7 +1357,8 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
             std::vector<optional<code_object_op>> kernels(cp.results.size());
             std::size_t excluded = 0;
             if(std::none_of(cp.results.begin(), cp.results.end(), &has_result))
-                MIGRAPHX_THROW("retune: kernel " + olds[i].symbol_name + " failed to compile for " +
+                MIGRAPHX_THROW("recompile: kernel " + olds[i].symbol_name +
+                               " failed to compile for " +
                                ctx.get_current_device().get_device_name() +
                                " (set MIGRAPHX_TRACE_BENCHMARKING=1 to see the compiler errors)");
             for(auto j : range(cp.results.size()))
@@ -1337,13 +1376,13 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
                 excluded++;
             }
             if(excluded > 0)
-                log::info() << "retune: excluded " << excluded << " candidates for "
+                log::info() << "recompile: excluded " << excluded << " candidates for "
                             << olds[i].symbol_name
                             << " that take different arguments or need a fill the program does "
                                "not have (for example split-K)";
             if(std::none_of(cp.results.begin(), cp.results.end(), &has_result))
-                MIGRAPHX_THROW("retune: no candidate for kernel " + olds[i].symbol_name +
-                               " keeps its signature; recompile from the model");
+                MIGRAPHX_THROW("recompile: no candidate for kernel " + olds[i].symbol_name +
+                               " keeps its signature; compile the model again");
             const auto& best = cp.benchmark();
             auto j           = static_cast<std::size_t>(std::distance(
                 cp.results.begin(),
@@ -1363,7 +1402,7 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
     for(auto i : range(n))
     {
         if(not done[i])
-            MIGRAPHX_THROW("retune: no valid compilation for kernel " + olds[i].symbol_name);
+            MIGRAPHX_THROW("recompile: no valid compilation for kernel " + olds[i].symbol_name);
     }
     return result;
 }

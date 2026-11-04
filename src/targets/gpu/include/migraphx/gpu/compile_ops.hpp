@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/gpu/device_description.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
@@ -36,6 +37,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct module;
 struct module_pass_manager;
 
 namespace gpu {
@@ -50,8 +52,17 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
     /// Save each benchmark candidate here as an MXR file and exit instead of compiling; empty
     /// compiles normally.
     fs::path dump_mxr_dir = {};
-    bool keep_recipes     = false;
+    bool recompilable     = false;
     std::string name() const { return "gpu::compile_ops"; }
+    void apply(module_pass_manager& mpm) const;
+};
+
+/// Record the device the program is compiled for with set_compiled_for, so it can be
+/// recompiled. Runs last, since passes such as schedule do not expect a comment in the graph.
+struct MIGRAPHX_GPU_EXPORT record_compiled_for
+{
+    context* ctx = nullptr;
+    std::string name() const { return "gpu::record_compiled_for"; }
     void apply(module_pass_manager& mpm) const;
 };
 
@@ -81,11 +92,18 @@ MIGRAPHX_GPU_EXPORT std::vector<recompiled_kernel>
 recompile_kernels(context& ctx, const std::vector<recompile_request>& requests);
 
 /// The gpu::precompile_op instruction in the recipe module of a gpu::code_object instruction, or
-/// nothing when the kernel was compiled without keep_recipes
+/// nothing when the kernel was compiled without recompilable
 MIGRAPHX_GPU_EXPORT optional<instruction_ref> find_recipe(instruction_ref ins);
 
 /// The name of the op a recipe compiles, for example "gpu::mlir_op"
 MIGRAPHX_GPU_EXPORT std::string recipe_op_name(instruction_ref recipe);
+
+/// Record the device a recompilable program is compiled for, as a comment instruction with the tag
+/// "gpu_target" at the start of m, replacing the one recorded earlier
+MIGRAPHX_GPU_EXPORT void set_compiled_for(module& m, const device_description& device);
+
+/// The device recorded with set_compiled_for, or nothing
+MIGRAPHX_GPU_EXPORT optional<device_description> get_compiled_for(const module& m);
 
 } // namespace gpu
 

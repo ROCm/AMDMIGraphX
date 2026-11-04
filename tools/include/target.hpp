@@ -64,18 +64,16 @@ struct target
     std::vector<pass> get_passes(context& ctx, const compile_options& options) const;
     /**
      * @brief The passes that recompile the kernels of an already compiled program, used by
-     * program::retune. Targets that cannot retune throw.
+     * program::recompile. Targets that cannot recompile throw.
      *
-     * @param ctx The context of the device to retune for
-     * @param from_ctx The serialized context the program was compiled with
+     * @param ctx The context of the device to recompile for
      * @param options Compiling options passed in by the user
-     * @param retune Retune options passed in by the user
+     * @param recompile_opts Recompile options passed in by the user
      * @return The passes to be ran
      */
-    std::vector<pass> get_retune_passes(context& ctx,
-                                        const value& from_ctx,
-                                        const compile_options& options,
-                                        const retune_options& retune) const;
+    std::vector<pass> get_recompile_passes(context& ctx,
+                                           const compile_options& options,
+                                           const recompile_options& recompile_opts) const;
     /**
      * @brief Construct a context for the target.
      * @return The context to be used during compilation and execution.
@@ -121,11 +119,11 @@ argument target_allocate(T& x, const shape&)
 }
 
 template <class T>
-std::vector<pass> target_get_retune_passes(
-    T& x, context&, const value&, const compile_options&, const retune_options&)
+std::vector<pass>
+target_get_recompile_passes(T& x, context&, const compile_options&, const recompile_options&)
 {
     std::string name = x.name();
-    MIGRAPHX_THROW("retune: the " + name + " target does not support retune");
+    MIGRAPHX_THROW("recompile: the " + name + " target does not support recompile");
 }
 
 template <class T>
@@ -168,14 +166,13 @@ void from_value_target(T& x, const value& v)
                       options = 'const compile_options&',
                       returns = 'std::vector<pass>',
                       const   = True),
-              virtual('get_retune_passes',
-                      ctx      = 'context&',
-                      from_ctx = 'const value&',
-                      options  = 'const compile_options&',
-                      retune   = 'const retune_options&',
-                      returns  = 'std::vector<pass>',
-                      const    = True,
-                      default  = 'target_get_retune_passes'),
+              virtual('get_recompile_passes',
+                      ctx            = 'context&',
+                      options        = 'const compile_options&',
+                      recompile_opts = 'const recompile_options&',
+                      returns        = 'std::vector<pass>',
+                      const          = True,
+                      default        = 'target_get_recompile_passes'),
               virtual('get_context', returns = 'context', const = True),
               virtual('find_supported',
                       returns = 'supported_segments',

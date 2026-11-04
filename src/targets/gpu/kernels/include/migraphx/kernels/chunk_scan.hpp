@@ -31,6 +31,7 @@
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/slice.hpp>
+#include <migraphx/kernels/matmul.hpp>
 
 namespace migraphx {
 
@@ -60,44 +61,15 @@ __device__ auto column(View m, index_int c)
     return slice_tensor(m, array<index_int, 2>{0, c}, slice_axes<0>());
 }
 
-// N columns of a row as one tile
-template <class T, index_int N, class View>
-__device__ auto load_cols(View m, index_int r, index_int c)
-{
-    auto mr = row(m, r);
-    if constexpr(N == 1)
-    {
-        T x = mr[c];
-        return x;
-    }
-    else
-    {
-        vec<T, N> v{};
-        for(index_int j = 0; j < N; j++)
-            v[j] = mr[c + j];
-        return v;
-    }
-}
-
-template <index_int N, class View, class V>
-__device__ void store_cols(View m, index_int r, index_int c, V v)
-{
-    auto mr = row(m, r);
-    if constexpr(N == 1)
-        mr[c] = v;
-    else
-        for(index_int j = 0; j < N; j++)
-            mr[c + j] = v[j];
-}
-
 // Walk the chunks of a linear recurrence with the state tile for one problem
 // and one dv block resident in LDS. One workgroup per (problem, dv block):
 // each chunk reads the state with q_i (and w_i under the read module), writes
 // u into LDS, then updates the state with kt_i u (or the precomputed update)
-// through the step module. Each thread owns a tr x tv (read) or td x tv
-// (update) register tile of tv-wide column vectors. The kernel arguments are
-// packed in args and found by the role indices in Settings; see
-// gpu::chunk_scan for the roles.
+// through the step module. The products are wave-level matmuls over 16x16
+// blocks (per-lane FMAs where the architecture has no matrix instruction),
+// with half operands accumulating in float. The kernel arguments are packed
+// in args and found by the role indices in Settings; see gpu::chunk_scan for
+// the roles.
 template <class Settings, class Step, class Read, class Out, class Args>
 struct chunk_scanner
 {
@@ -113,24 +85,25 @@ struct chunk_scanner
     static constexpr index_int dk     = Settings::dk;
     static constexpr index_int dv     = Settings::dv;
     static constexpr index_int dvb    = Settings::dvb;
-    static constexpr index_int tv     = Settings::tv;
-    static constexpr index_int tr     = Settings::tr;
-    static constexpr index_int td     = Settings::td;
-    static constexpr index_int nvt    = dvb / tv;
-    using tile_t                      = conditional_t<(tv > 1), vec<acc_type, tv>, acc_type>;
+    // the blocks of the products: 16 wide where the axis allows it, and 32
+    // rows of the update so a lane's FMA tile without a matrix instruction
+    // reaches 4x4
+    static constexpr index_int bm = rows % 16 == 0 ? 16 : rows;
+    static constexpr index_int bn = dvb % 16 == 0 ? 16 : dvb;
+    static constexpr index_int bd = dk % 32 == 0 ? 32 : (dk % 16 == 0 ? 16 : dk);
     // the leading axes index the problems; multi() of this shape gives the
     // leading index with zeros in the matrix axes
-    static constexpr auto so           = get_shape_c<arg_t<Settings::state_out_index>>{};
-    static constexpr auto lead         = make_shape(transform_i(
+    static constexpr auto so            = get_shape_c<arg_t<Settings::state_out_index>>{};
+    static constexpr auto lead          = make_shape(transform_i(
         so.lens, [](auto x, auto i) { return i < decltype(so.lens){}.size() - 2 ? x : 1; }));
-    static constexpr auto grid         = make_shape(index_ints<lead.elements(), dv / dvb>{});
-    static constexpr auto s_tiles      = make_shape(index_ints<dk, nvt>{});
-    static constexpr auto u_tiles      = make_shape(index_ints<rows, nvt>{});
-    static constexpr auto read_tiles   = make_shape(index_ints<rows / tr, nvt>{});
-    static constexpr auto update_tiles = make_shape(index_ints<dk / td, nvt>{});
-    // the state and u tiles in LDS, as dk x nvt and rows x nvt column vectors
-    using s_view = decltype(make_tensor_view<lds_memory_tag>(declval<tile_t*>(), s_tiles));
-    using u_view = decltype(make_tensor_view<lds_memory_tag>(declval<tile_t*>(), u_tiles));
+    static constexpr auto grid          = make_shape(index_ints<lead.elements(), dv / dvb>{});
+    static constexpr auto s_tile        = make_shape(index_ints<dk, dvb>{});
+    static constexpr auto u_tile        = make_shape(index_ints<rows, dvb>{});
+    static constexpr auto read_blocks   = make_shape(index_ints<rows / bm, dvb / bn>{});
+    static constexpr auto update_blocks = make_shape(index_ints<dk / bd, dvb / bn>{});
+    // the state and u tiles in LDS
+    using s_view = decltype(make_tensor_view<lds_memory_tag>(declval<acc_type*>(), s_tile));
+    using u_view = decltype(make_tensor_view<lds_memory_tag>(declval<acc_type*>(), u_tile));
 
     Step step;
     Read read;
@@ -156,58 +129,58 @@ struct chunk_scanner
         return mat<I, Shape>(offset + i * delta);
     }
 
+    // f(block) for the blocks of a phase, strided over the waves
+    template <class Blocks, class F>
+    __device__ void for_blocks(Blocks blocks, F f) const
+    {
+        for(index_int b = idx.wave(); b < blocks.elements(); b += idx.nwave())
+            f(blocks.multi(b));
+    }
+
     __device__ void load_state() const
     {
         auto s0m = mat<Settings::s0_index, get_shape_c<arg_t<Settings::s0_index>>>(0);
-        idx.local_stride(s_tiles.elements(), [&](auto e) {
-            auto t = s_tiles.multi(e);
+        idx.local_stride(s_tile.elements(), [&](auto e) {
+            auto t = s_tile.multi(e);
             if constexpr(Settings::has_state)
-                s[t] = load_cols<acc_type, tv>(s0m, t[0], col0 + t[1] * tv);
+                s[t] = row(s0m, t[0])[col0 + t[1]];
             else
-                s[t] = tile_t{};
+                s[t] = 0;
         });
     }
 
     __device__ void store_state() const
     {
         auto som = mat<Settings::state_out_index, decltype(so)>(0);
-        idx.local_stride(s_tiles.elements(), [&](auto e) {
-            auto t = s_tiles.multi(e);
-            store_cols<tv>(som, t[0], col0 + t[1] * tv, s[t]);
+        idx.local_stride(s_tile.elements(), [&](auto e) {
+            auto t                      = s_tile.multi(e);
+            row(som, t[0])[col0 + t[1]] = s[t];
         });
     }
 
-    // q_i S and, under the read module, w_i S for the rows of a tile
-    struct state_reads
+    // chunk 0 of a zero start reads nothing: u = u0 and o = pu0, or zero
+    __device__ void copy_chunk(index_int i) const
     {
-        array<tile_t, tr> qs;
-        array<tile_t, tr> ws;
-    };
-
-    template <class QI, class WI>
-    __device__ state_reads read_state(QI qi, WI wi, index_int r0, index_int vt) const
-    {
-        state_reads reads{};
-        auto scol = column(s, vt);
-        for(index_int k = 0; k < dk; k++)
-        {
-            const tile_t sk = scol[k];
-            repeat_c<tr>([&](auto a) {
-                const index_int r = r0 + a;
-                const acc_type qa = row(qi, r)[k];
-                reads.qs[a] += qa * sk;
-                if constexpr(Settings::has_read)
-                {
-                    const acc_type wa = row(wi, r)[k];
-                    reads.ws[a] += wa * sk;
-                }
-            });
-        }
-        return reads;
+        auto u0i = chunk<Settings::u0_index, decltype(Settings::u0_shape)>(
+            i, Settings::u0_offset, Settings::u0_delta);
+        auto pu0i = chunk<Settings::pu0_index, decltype(Settings::pu0_shape)>(
+            i, Settings::pu0_offset, Settings::pu0_delta);
+        auto outm = mat<Settings::output_index, get_shape_c<arg_t<Settings::output_index>>>(0);
+        idx.local_stride(u_tile.elements(), [&](auto e) {
+            auto t       = u_tile.multi(e);
+            const auto r = t[0];
+            const auto c = col0 + t[1];
+            if constexpr(Settings::has_update_dot)
+                u[t] = row(u0i, r)[c];
+            acc_type ov = 0;
+            if constexpr(Settings::has_out)
+                ov = row(pu0i, r)[c];
+            row(outm, i * rows + r)[c] = ov;
+        });
     }
 
     // o_i = out(pu0_i, q_i S) and u = read(u0_i, w_i S) for chunk i
-    __device__ void read_chunk(index_int i, bool live) const
+    __device__ void read_chunk(index_int i) const
     {
         auto wi = chunk<Settings::w_index, decltype(Settings::w_shape)>(
             i, Settings::w_offset, Settings::w_delta);
@@ -218,33 +191,74 @@ struct chunk_scanner
         auto pu0i = chunk<Settings::pu0_index, decltype(Settings::pu0_shape)>(
             i, Settings::pu0_offset, Settings::pu0_delta);
         auto outm = mat<Settings::output_index, get_shape_c<arg_t<Settings::output_index>>>(0);
-        idx.local_stride(read_tiles.elements(), [&](auto e) {
-            auto t           = read_tiles.multi(e);
-            const auto r0    = t[0] * tr;
-            const auto vt    = t[1];
-            const auto c0    = col0 + vt * tv;
-            const auto reads = live ? read_state(qi, wi, r0, vt) : state_reads{};
-            repeat_c<tr>([&](auto a) {
-                const index_int r = r0 + a;
-                if constexpr(Settings::has_update_dot)
-                {
-                    auto uv = load_cols<acc_type, tv>(u0i, r, c0);
+        if constexpr(Settings::has_update_dot and not Settings::has_read)
+        {
+            idx.local_stride(u_tile.elements(), [&](auto e) {
+                auto t = u_tile.multi(e);
+                u[t]   = row(u0i, t[0])[col0 + t[1]];
+            });
+        }
+        for_blocks(read_blocks, [&](auto blk) {
+            const index_int r0 = blk[0] * bm;
+            const index_int v0 = blk[1] * bn;
+            const index_int c0 = col0 + v0;
+            auto store_out     = [&](acc_type x, index_int r, index_int j) {
+                acc_type ov = x;
+                if constexpr(Settings::has_out)
+                    ov = out_fn(row(pu0i, r)[c0 + j], x);
+                row(outm, i * rows + r)[c0 + j] = ov;
+            };
+            matmul<value_type, stacked, bn, dk>(
+                [&](auto r, auto k) {
                     if constexpr(Settings::has_read)
                     {
-                        if(live)
-                            uv = vec_transform(uv, reads.ws[a])(read);
+                        if(is_w(r))
+                            return row(wi, r0 + src_row(r))[k];
                     }
-                    column(u, vt)[r] = uv;
-                }
-                tile_t ov = reads.qs[a];
-                if constexpr(Settings::has_out)
-                {
-                    auto pv = load_cols<acc_type, tv>(pu0i, r, c0);
-                    ov      = live ? tile_t{vec_transform(pv, reads.qs[a])(out_fn)} : pv;
-                }
-                store_cols<tv>(outm, i * rows + r, c0, ov);
-            });
+                    return row(qi, r0 + src_row(r))[k];
+                },
+                [&](auto k, auto j) { return row(s, k)[v0 + j]; },
+                [&](auto x, auto r, auto j) {
+                    if constexpr(Settings::has_read)
+                    {
+                        if(is_w(r))
+                        {
+                            const index_int ur = r0 + src_row(r);
+                            row(u, ur)[v0 + j] = read(row(u0i, ur)[c0 + j], x);
+                            return;
+                        }
+                    }
+                    store_out(x, r0 + src_row(r), j);
+                });
         });
+    }
+
+    // Under the read module the q and w blocks stack as one operand sharing
+    // the state tile: groups of g rows alternate between them, 16 so a
+    // matrix instruction block stays in one, else 1 so a lane's tile holds
+    // a q row and its w row
+    static constexpr index_int stacked = Settings::has_read ? 2 * bm : bm;
+    static constexpr index_int g       = matmul_uses_mma<value_type, stacked, bn, dk>() ? 16 : 1;
+    __device__ static bool is_w(index_int r) { return (r / g) % 2 == 1; }
+    __device__ static index_int src_row(index_int r)
+    {
+        if constexpr(Settings::has_read)
+            return (r / (2 * g)) * g + r % g;
+        else
+            return r;
+    }
+
+    // S = step(S, [gamma_i], up) for one state element, or up on a zero start
+    template <class GI>
+    __device__ void
+    transition(acc_type& sv, GI gi, index_int d, index_int c, acc_type up, bool live) const
+    {
+        if(not live)
+            sv = up;
+        else if constexpr(Settings::has_gamma)
+            sv = step(sv, row(gi, d)[c], up);
+        else
+            sv = step(sv, up);
     }
 
     // S = step(S, [gamma_i], kt_i u or upd_i) for chunk i
@@ -256,46 +270,26 @@ struct chunk_scanner
             i, Settings::upd_offset, Settings::upd_delta);
         auto gi = chunk<Settings::gamma_index, decltype(Settings::gamma_shape)>(
             i, Settings::gamma_offset, Settings::gamma_delta);
-        idx.local_stride(update_tiles.elements(), [&](auto e) {
-            auto t        = update_tiles.multi(e);
-            const auto d0 = t[0] * td;
-            const auto vt = t[1];
-            const auto c0 = col0 + vt * tv;
-            array<tile_t, td> up{};
-            if constexpr(Settings::has_update_dot)
-            {
-                auto ucol = column(u, vt);
-                for(index_int r = 0; r < rows; r++)
-                {
-                    const tile_t ur = ucol[r];
-                    repeat_c<td>([&](auto a) {
-                        const index_int d = d0 + a;
-                        const acc_type ka = column(kti, r)[d];
-                        up[a] += ka * ur;
+        if constexpr(Settings::has_update_dot)
+        {
+            for_blocks(update_blocks, [&](auto blk) {
+                const index_int d0 = blk[0] * bd;
+                const index_int v0 = blk[1] * bn;
+                matmul<value_type, bd, bn, rows>(
+                    [&](auto d, auto r) { return column(kti, r)[d0 + d]; },
+                    [&](auto r, auto j) { return row(u, r)[v0 + j]; },
+                    [&](auto x, auto d, auto j) {
+                        transition(row(s, d0 + d)[v0 + j], gi, d0 + d, col0 + v0 + j, x, live);
                     });
-                }
-            }
-            else
-            {
-                repeat_c<td>([&](auto a) { up[a] = load_cols<acc_type, tv>(updi, d0 + a, c0); });
-            }
-            auto scol = column(s, vt);
-            repeat_c<td>([&](auto a) {
-                const index_int d = d0 + a;
-                auto& sv          = scol[d];
-                if(live)
-                {
-                    if constexpr(Settings::has_gamma)
-                        sv = vec_transform(sv, load_cols<acc_type, tv>(gi, d, c0), up[a])(step);
-                    else
-                        sv = vec_transform(sv, up[a])(step);
-                }
-                else
-                {
-                    sv = up[a];
-                }
             });
-        });
+        }
+        else
+        {
+            idx.local_stride(s_tile.elements(), [&](auto e) {
+                auto t = s_tile.multi(e);
+                transition(s[t], gi, t[0], col0 + t[1], row(updi, t[0])[col0 + t[1]], live);
+            });
+        }
     }
 
     __device__ void run() const
@@ -306,7 +300,10 @@ struct chunk_scanner
         {
             // chunk 0 of a zero start skips the reads and the transition
             const bool live = Settings::has_state or i > 0;
-            read_chunk(i, live);
+            if(live)
+                read_chunk(i);
+            else
+                copy_chunk(i);
             __syncthreads();
             update_chunk(i, live);
             __syncthreads();
@@ -319,8 +316,11 @@ template <class Settings, class Step, class Read, class Out, class... Ts>
 __device__ void chunk_scan(Step step, Read read, Out out_fn, Ts... xs)
 {
     using scanner = chunk_scanner<Settings, Step, Read, Out, decltype(pack(xs...))>;
-    __shared__ uninitialized_buffer<typename scanner::tile_t, scanner::s_tiles.elements()> s_buf;
-    __shared__ uninitialized_buffer<typename scanner::tile_t, scanner::u_tiles.elements()> u_buf;
+    // 16-byte aligned so adjacent lane loads of a row merge
+    __shared__ uninitialized_buffer<typename scanner::acc_type, scanner::s_tile.elements(), 16>
+        s_buf;
+    __shared__ uninitialized_buffer<typename scanner::acc_type, scanner::u_tile.elements(), 16>
+        u_buf;
     auto idx = make_index();
     auto pb  = scanner::grid.multi(idx.group);
     scanner{step,
@@ -330,8 +330,8 @@ __device__ void chunk_scan(Step step, Read read, Out out_fn, Ts... xs)
             idx,
             scanner::lead.multi(pb[0]),
             pb[1] * scanner::dvb,
-            make_tensor_view<lds_memory_tag>(s_buf.data(), scanner::s_tiles),
-            make_tensor_view<lds_memory_tag>(u_buf.data(), scanner::u_tiles)}
+            make_tensor_view<lds_memory_tag>(s_buf.data(), scanner::s_tile),
+            make_tensor_view<lds_memory_tag>(u_buf.data(), scanner::u_tile)}
         .run();
 }
 

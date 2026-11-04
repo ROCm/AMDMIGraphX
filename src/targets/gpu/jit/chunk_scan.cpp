@@ -78,16 +78,6 @@ static std::string stub_pointwise(const std::string& name)
     return "template <class T, class... Ts>\n__device__ T " + name + "(T x, Ts...) { return x; }\n";
 }
 
-// The widest of 4, 2, 1 that divides n while (n / width) * other_tiles still
-// covers the threads; 1 always qualifies
-static std::size_t pick_tile(std::size_t n, std::size_t other_tiles, std::size_t threads)
-{
-    const std::array<std::size_t, 3> widths{4, 2, 1};
-    return *std::find_if(widths.begin(), widths.end(), [&](auto t) {
-        return t == 1 or (n % t == 0 and (n / t) * other_tiles >= threads);
-    });
-}
-
 static std::string shape_text(const shape& s)
 {
     return "make_shape(index_ints<" + to_string_range(s.lens()) + ">{}, index_ints<" +
@@ -145,10 +135,6 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
         for(std::size_t b = 1; b <= std::min<std::size_t>(32, dv); b++)
             if(dv % b == 0)
                 dvb = b;
-        const std::size_t tv  = pick_tile(dvb, 1, 1);
-        const std::size_t nvt = dvb / tv;
-        const std::size_t tr  = pick_tile(rows, nvt, nthreads);
-        const std::size_t td  = pick_tile(dk, nvt, nthreads);
 
         std::string settings;
         settings += "static constexpr index_int chunks = " + std::to_string(chunks) + ";\n";
@@ -156,9 +142,6 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
         settings += "static constexpr index_int dk = " + std::to_string(dk) + ";\n";
         settings += "static constexpr index_int dv = " + std::to_string(dv) + ";\n";
         settings += "static constexpr index_int dvb = " + std::to_string(dvb) + ";\n";
-        settings += "static constexpr index_int tv = " + std::to_string(tv) + ";\n";
-        settings += "static constexpr index_int tr = " + std::to_string(tr) + ";\n";
-        settings += "static constexpr index_int td = " + std::to_string(td) + ";\n";
         for(const auto& [flag, on] :
             std::vector<std::pair<std::string, bool>>{{"has_state", has_state},
                                                       {"has_update_dot", update_dot},

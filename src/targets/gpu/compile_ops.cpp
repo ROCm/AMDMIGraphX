@@ -57,6 +57,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
@@ -245,6 +246,8 @@ static compiler_replace compile_cached(context& ctx,
                                        const std::string& key,
                                        const value& problem)
 {
+    // The one instruction gets this kernel whether it is reused or compiled.
+    ctx.get_binary_cache().record_use(key);
     if(auto cached = cache_lookup(ctx, key))
     {
         if(ctx.get_binary_cache().verify())
@@ -394,6 +397,9 @@ struct dynamic_code_object_op
         auto key = compile_key_or_empty(ctx, ins, preop, solution);
         auto compiled_op =
             compile_cached(ctx, ins, preop, solution, key, config ? config->problem : value{});
+        // Flushed per runtime compile, which happens once per new shape, since there is no later
+        // point in the run to batch it with. The model was written when the program compiled.
+        ctx.get_binary_cache().flush_stats(ctx);
         compiled_op.replace(runtime_mod, ins);
         run_passes(runtime_mod, {dead_code_elimination{}});
 
@@ -730,7 +736,38 @@ struct compile_plan
         return *any_cast<candidate>(best).cr;
     }
 
-    void replace(module& m) const { benchmark().replace(m, ins); }
+    /// Replace the instruction with the selected result, and return that result.
+    const compiler_replace& replace(module& m) const
+    {
+        const auto& best = benchmark();
+        record_use(best);
+        best.replace(m, ins);
+        return best;
+    }
+
+    /// Count the kernel this instruction was given in the binary cache statistics. Only the
+    /// selected result counts, so tuning candidates that lost are never attributed to the model.
+    void record_use(const compiler_replace& best) const
+    {
+        auto& bc = ctx->get_binary_cache();
+        if(not bc.collects_stats())
+            return;
+        const auto* cell = cell_of(best);
+        if(cell == nullptr or is_private_key(cell->key))
+            return;
+        bc.record_use(cell->key);
+    }
+
+    /// The cell holding a result replace returned. benchmark() returns a reference into the cell
+    /// it selected, which is how it is found; null if that ever stops holding.
+    const compile_cell* cell_of(const compiler_replace& best) const
+    {
+        auto cell = find_if(results, [&](const auto& c) {
+            return c->result.has_value() and &*c->result == &best;
+        });
+        assert(cell != results.end());
+        return cell == results.end() ? nullptr : cell->get();
+    }
 
     std::size_t save_binaries(const fs::path& mxr_dir) const
     {
@@ -788,6 +825,9 @@ struct compile_manager
     fs::path mxr_dir             = {};
     std::size_t dumped_mxr_files = 0;
 
+    using task     = std::pair<compile_plan*, std::shared_ptr<compile_cell>>;
+    using cell_set = std::unordered_set<const compile_cell*>;
+
     template <class... Ts>
     void add_plan(Ts&&... xs)
     {
@@ -799,37 +839,63 @@ struct compile_manager
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
-    /// Store every compiled result in the binary cache.
-    static void
-    store_results(const std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>>& tasks)
+    /// Cells that a plan with a single solution uses, so they are needed whatever benchmarking
+    /// picks.
+    cell_set single_solution_cells() const
+    {
+        cell_set cells;
+        for(const auto& cp : cps)
+        {
+            if(cp.results.size() == 1)
+                cells.insert(cp.results.front().get());
+        }
+        return cells;
+    }
+
+    /// Store compiled results in the binary cache and return the ones held back. When the
+    /// problem cache persists its choices, results only benchmarking needs are held back for
+    /// compile() to store if they win, since later compiles reuse the chosen solution.
+    cell_set store_results(const std::vector<task>& tasks) const
     {
         if(tasks.empty())
-            return;
+            return {};
         // Every plan compiles with the same context, so the entries all go to one cache in a
         // single insert, letting its storage commit them together rather than one at a time.
         auto* ctx = tasks.front().first->ctx;
-        assert(all_of(tasks, [&](const auto& task) { return task.first->ctx == ctx; }));
+        assert(all_of(tasks, [&](const auto& t) { return t.first->ctx == ctx; }));
+        const bool winners_only = ctx->get_problem_cache().persists();
+        cell_set needed;
+        if(winners_only)
+            needed = single_solution_cells();
+        cell_set held_back;
         std::vector<binary_cache_entry> entries;
         entries.reserve(tasks.size());
         for(const auto& [cp, cell] : tasks)
         {
             if(not cell->result.has_value())
                 continue;
-            // When verifying, reused results are stored again, harmlessly replacing each entry
-            // with an equivalent one.
-            if(auto e = cp->cache_entry(cell->solution, cell->key, cell->result->code))
-                entries.push_back(std::move(*e));
             assert(not cell->result->code.empty());
             // Only the serializable code is used from here on; dropping the replace function
             // releases what its closure holds and keeps it off other instructions.
             cell->result->replace_fn = nullptr;
+            if(winners_only and cp->results.size() > 1 and not contains(needed, cell.get()))
+            {
+                held_back.insert(cell.get());
+                continue;
+            }
+            // When verifying, reused results are stored again, harmlessly replacing entries
+            // with equivalent ones.
+            if(auto e = cp->cache_entry(cell->solution, cell->key, cell->result->code))
+                entries.push_back(std::move(*e));
         }
         ctx->get_binary_cache().insert(*ctx, std::move(entries));
+        return held_back;
     }
 
     /// Fill every cell's result, from the cache or by compiling, sharing one compile among
-    /// the cells with the same key.
-    void compile_cells()
+    /// the cells with the same key. Returns the compiled cells whose store waits for
+    /// benchmarking, as store_results decides.
+    cell_set compile_cells()
     {
         {
             // Every slot is collected so the keys can be computed in parallel.
@@ -897,7 +963,7 @@ struct compile_manager
                 cell->result = cp->run_compile(cell->solution);
         });
 
-        store_results(tasks);
+        return store_results(tasks);
     }
 
     /// Add every precompile op in the module to the batch.
@@ -917,20 +983,35 @@ struct compile_manager
         const bool dump_mxr = not mxr_dir.empty();
         for(auto& cp : cps)
             cp.add_cells(skip_benchmark, dump_mxr);
-        compile_cells();
+        auto held_back = compile_cells();
 
         if(dump_mxr)
             fs::create_directories(mxr_dir);
 
+        // Held-back results that won benchmarking; the losers are never stored. A dumped plan is
+        // not benchmarked, so its candidates are dropped too.
+        std::vector<binary_cache_entry> winners;
         for(const auto& cp : cps)
         {
             if(cp.results.empty())
                 continue;
             if(dump_mxr and cp.results.size() > 1)
+            {
                 dumped_mxr_files += cp.save_binaries(mxr_dir);
-            else
-                cp.replace(*cp.mod);
+                continue;
+            }
+            const auto& best = cp.replace(*cp.mod);
+            if(held_back.empty())
+                continue;
+            const auto* cell = cp.cell_of(best);
+            // Erasing also stores a winner shared by several plans only once.
+            if(cell == nullptr or held_back.erase(cell) == 0)
+                continue;
+            if(auto e = cp.cache_entry(cell->solution, cell->key, cell->result->code))
+                winners.push_back(std::move(*e));
         }
+        if(not winners.empty())
+            cps.front().ctx->get_binary_cache().insert(*cps.front().ctx, std::move(winners));
 
         // Remove compile_plan already executed
         cps.erase(std::remove_if(cps.begin(),
@@ -1012,6 +1093,8 @@ void compile_ops::apply(module_pass_manager& mpm) const
     assert(cm.cps.empty());
 
     replace_inserted_device_ops(*ctx, mods);
+    // Every kernel of the program has been placed, so its statistics go out in one transaction.
+    ctx->get_binary_cache().flush_stats(*ctx);
 }
 
 } // namespace gpu

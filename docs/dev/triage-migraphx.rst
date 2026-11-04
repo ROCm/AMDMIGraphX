@@ -198,8 +198,53 @@ for lookups, and newly compiled kernels are kept in memory only. A database that
 opened, or whose cache table has an unexpected layout, is skipped with a warning and the compile
 proceeds without a disk cache.
 
-The same settings are available as backend options, which take precedence over the environment
-and are how tests configure the cache:
+A database cache can also record how kernels are used. Set ``MIGRAPHX_BINARY_CACHE_STATS`` to
+collect statistics, and ``MIGRAPHX_BINARY_CACHE_MODEL`` to name the model being compiled; without
+a name the model is recorded as ``default``. Without ``MIGRAPHX_BINARY_CACHE_STATS`` the
+statistics tables are never created. Statistics are only kept in a database, so a directory
+cache ignores the setting with a warning:
+
+.. code-block:: bash
+
+   export MIGRAPHX_BINARY_CACHE=$HOME/.cache/migraphx/kernels.db
+   export MIGRAPHX_BINARY_CACHE_STATS=1
+   export MIGRAPHX_BINARY_CACHE_MODEL=resnet50
+   migraphx-driver compile resnet50.onnx --gpu
+
+Three tables sit beside ``cache_v1``:
+
+* ``model_v1`` has one row per model: its name, a digest of the program as it was handed to
+  compile (``program_hash``, leaving out weight data), and its inputs and compile options as
+  JSON. The same name with a different program, for example another batch size, is another row.
+  The options are the backend options in effect, including ``MIGRAPHX_GPU_OPTIONS``.
+* ``model_kernel_v1`` links models to the ``cache_v1`` kernels they use, with ``use_count``
+  instructions given each kernel. Compiling the same model again with the same toolchain and
+  device replaces its kernels and counts rather than adding to them, so a kernel tuning stopped
+  selecting is no longer listed.
+* ``kernel_use_v1`` has one row per ``cache_v1`` kernel and adds up, over every compile, the
+  instructions given it (``use_count``, including the instruction it was compiled for) and the
+  times it was loaded from the database instead of compiled (``hit_count``).
+
+Only the solution that won tuning is counted for a model, and kernels whose compiler cannot
+describe their output with a key are not cached and so not counted. Deleting a ``cache_v1`` row
+deletes its statistics only on a connection with foreign keys enabled, which the ``sqlite3``
+shell does not do by default:
+
+.. code-block:: bash
+
+   sqlite3 $HOME/.cache/migraphx/kernels.db \
+       "SELECT m.name, c.op_name, mk.use_count FROM model_v1 m
+          JOIN model_kernel_v1 mk USING (model_id)
+          JOIN cache_v1 c USING (version, device, key_hash)
+         ORDER BY m.name, mk.use_count DESC;"
+   sqlite3 $HOME/.cache/migraphx/kernels.db \
+       "SELECT key_hash, count(*) AS models, sum(use_count) AS uses FROM model_kernel_v1
+         GROUP BY version, device, key_hash ORDER BY models DESC;"
+   sqlite3 -cmd "PRAGMA foreign_keys = ON;" $HOME/.cache/migraphx/kernels.db \
+       "DELETE FROM cache_v1 WHERE version GLOB 'v1-hip22.0.*';"
+
+The cache path and verification are also available as backend options, which take precedence
+over the environment and are how tests configure the cache:
 
 .. code-block:: python
 

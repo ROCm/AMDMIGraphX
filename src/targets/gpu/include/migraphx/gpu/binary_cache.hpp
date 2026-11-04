@@ -28,8 +28,10 @@
 #include <migraphx/gpu/compiled_code.hpp>
 #include <migraphx/gpu/binary_cache_entry.hpp>
 #include <migraphx/gpu/binary_cache_backend.hpp>
+#include <migraphx/gpu/binary_cache_stats.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/value.hpp>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -37,11 +39,17 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct program;
+
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BINARY_CACHE)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BINARY_CACHE_STATS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BINARY_CACHE_MODEL)
 
 struct context;
+struct sqlite_binary_cache;
 
 /// How the cache behaves for one compile. Supplied through the target's backend options, with
 /// the MIGRAPHX_BINARY_CACHE environment variable as the default for the directory.
@@ -52,6 +60,11 @@ struct binary_cache_settings
     std::string path = string_value_of(MIGRAPHX_BINARY_CACHE{});
     /// Compile even when a result can be reused, and fail if the two disagree.
     bool verify = false;
+    /// Record how often each kernel is used, overall and per model. Only a database keeps
+    /// statistics; any other cache ignores this.
+    bool stats = enabled(MIGRAPHX_BINARY_CACHE_STATS{});
+    /// The model the statistics are recorded under; empty records them as default_model_name.
+    std::string model = string_value_of(MIGRAPHX_BINARY_CACHE_MODEL{});
 };
 
 /**
@@ -82,7 +95,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
 
     /// Nothing is opened here; storage is set up by the first lookup or insert, so a context that
     /// never compiles never touches the disk or probes the compiler.
-    explicit binary_cache(binary_cache_settings s = {}) : settings(std::move(s)) {}
+    explicit binary_cache(binary_cache_settings s = {});
 
     /// Look up a key, consulting memory first and then the storage backend.
     optional<compiled_code> get(const context& ctx, const std::string& key);
@@ -103,12 +116,32 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     /// written to disk, since entries from different compilers could not be told apart.
     static const std::string& version_id(bool use_short_digest);
 
+    /// The model name statistics are recorded under when none is given.
+    static constexpr const char* default_model_name = "default";
+
+    /// True when usage statistics are asked for and the cache is a database that can keep them.
+    bool collects_stats() const { return stats_enabled; }
+
+    /// Describe the program being compiled and the options it is compiled with, so the next
+    /// flush_stats records its kernels under it. Ignored unless collecting statistics.
+    void set_program(const program& p, value options);
+
+    /// Count one instruction given the kernel with this key. Ignored unless collecting
+    /// statistics, or when the key is empty.
+    void record_use(const std::string& key);
+
+    /// Write the usage counted since the last flush, and the model set by set_program if it has
+    /// not been written yet. A failure is a warning, never a failed compile.
+    void flush_stats(const context& ctx);
+
     private:
     /// The storage backend, opened on first use, or null for a memory-only cache.
     binary_cache_backend* get_backend();
 
     std::unordered_map<std::string, compiled_code> memo;
     binary_cache_settings settings;
+    /// Decided once from the settings, since it is checked on every lookup.
+    bool stats_enabled = false;
     /// The version_id entries are stored under, in the form the backend uses.
     std::string version;
     /// Where entries are persisted, or empty for a memory-only cache.
@@ -116,6 +149,25 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     /// Whether get_backend has already tried to open the backend, successfully or not.
     bool backend_opened = false;
     stats counters;
+    /// The database statistics are written to, sharing the backend's connection, or null when
+    /// they are not collected.
+    std::shared_ptr<sqlite_binary_cache> stats_db;
+    /// Usage counted since the last flush_stats.
+    binary_cache_usage_map pending;
+    /// The model the next flush_stats records, cleared once written so that later compiles at
+    /// runtime only add to the kernel totals.
+    optional<binary_cache_model> model;
+};
+
+/// Hands the program to the binary cache before anything is lowered, so the statistics describe
+/// the model as it was given to compile. Only added to the passes when collecting statistics.
+struct MIGRAPHX_GPU_EXPORT record_binary_cache_model
+{
+    context* ctx = nullptr;
+    /// The compile options recorded with the model.
+    value options = value::object{};
+    std::string name() const { return "gpu::record_binary_cache_model"; }
+    void apply(program& p) const;
 };
 
 } // namespace gpu

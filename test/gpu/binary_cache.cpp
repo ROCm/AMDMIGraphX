@@ -437,6 +437,38 @@ static void verified_reuse_matches_fresh_compiles()
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<directory_backend>);
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<database_backend>);
 
+// Benchmarking compiles every candidate solution, but when the problem cache saves the choice a
+// later compile only ever needs the winner, so only winners are stored.
+template <class Backend>
+static void persisted_problem_cache_stores_only_winners()
+{
+    migraphx::tmp_dir all_td{"binary-cache"};
+    migraphx::tmp_dir winners_td{"binary-cache"};
+    migraphx::tmp_dir problems_td{"problem-cache"};
+    auto all_path     = Backend::path(all_td);
+    auto winners_path = Backend::path(winners_td);
+    auto winners_options = cache_options(winners_path);
+    migraphx::set_backend_options(
+        winners_options,
+        {{"problem_cache_files",
+          migraphx::value::array{(problems_td.path / "problems.json").string()}}});
+
+    // Large enough that the block reduction offers two block sizes to benchmark.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {2, 4096}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x)});
+    auto p_winners = p;
+
+    p.compile(migraphx::make_target("gpu"), cache_options(all_path));
+    p_winners.compile(migraphx::make_target("gpu"), winners_options);
+
+    EXPECT(Backend::stored(winners_path) > 0);
+    EXPECT(Backend::stored(winners_path) < Backend::stored(all_path));
+}
+TEST_CASE_REGISTER(persisted_problem_cache_stores_only_winners<directory_backend>);
+TEST_CASE_REGISTER(persisted_problem_cache_stores_only_winners<database_backend>);
+
 // The extension of the path picks the backend and nothing else does, so the only way to see the
 // choice from outside is the artifact it leaves: a database file, or a directory tree.
 TEST_CASE(extension_selects_the_backend)
@@ -942,6 +974,191 @@ TEST_CASE(version_id_is_stable)
     EXPECT(not migraphx::gpu::binary_cache::version_id(true).empty());
     EXPECT(migraphx::gpu::binary_cache::version_id(true) !=
            migraphx::gpu::binary_cache::version_id(false));
+}
+
+/// The column n of the first row a query returns, or empty when it returns nothing. Values are
+/// aliased to n because sqlite::execute keys its rows by column name.
+static std::string query_n(const std::string& path, const std::string& sql)
+{
+    auto rows = migraphx::sqlite::read(path).execute(sql);
+    if(rows.empty())
+        return {};
+    return rows.front().at("n");
+}
+
+TEST_CASE(stats_off_creates_no_stats_tables)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{
+        .path = db_path(td), .verify = false, .stats = false, .model = "unused"}};
+
+    EXPECT(not cache.collects_stats());
+    cache.insert(ctx, {make_entry("plain")});
+    cache.record_use("plain");
+    cache.flush_stats(ctx);
+    EXPECT(row_count(db_path(td)) == 1);
+    EXPECT(query_n(db_path(td),
+                   "SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND "
+                   "name <> 'cache_v1';") == "0");
+}
+
+TEST_CASE(stats_create_their_tables)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto db = migraphx::gpu::sqlite_binary_cache::open(db_path(td), true);
+    EXPECT(db.has_value());
+    EXPECT(db->has_stats());
+    EXPECT(query_n(db_path(td),
+                   "SELECT group_concat(name) AS n FROM (SELECT name FROM sqlite_master WHERE "
+                   "type = 'table' AND name <> 'cache_v1' ORDER BY name);") ==
+           "kernel_use_v1,model_kernel_v1,model_v1");
+}
+
+// Kernel totals add up across calls, while a model's counts are replaced, so compiling the same
+// model again does not count its kernels twice.
+TEST_CASE(record_usage_counts_kernels_and_models)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    auto db   = migraphx::gpu::sqlite_binary_cache::open(path, true);
+    EXPECT(db.has_value());
+    db->store("v", "d", {make_entry("k1"), make_entry("k2")});
+
+    migraphx::gpu::binary_cache_model model;
+    model.name         = "modelA";
+    model.program_hash = "hash";
+    migraphx::gpu::binary_cache_usage_map usage = {{"k1", {2, 0}}, {"k2", {1, 1}}};
+    db->record_usage("v", "d", model, usage);
+    db->record_usage("v", "d", model, usage);
+
+    auto k1 = migraphx::md5("k1");
+    auto k2 = migraphx::md5("k2");
+    EXPECT(query_n(path, "SELECT count(*) AS n FROM model_v1;") == "1");
+    EXPECT(query_n(path, "SELECT name AS n FROM model_v1;") == "modelA");
+    EXPECT(query_n(path,
+                   "SELECT use_count AS n FROM model_kernel_v1 WHERE key_hash = '" + k1 + "';") ==
+           "2");
+    EXPECT(query_n(path,
+                   "SELECT use_count AS n FROM model_kernel_v1 WHERE key_hash = '" + k2 + "';") ==
+           "1");
+    EXPECT(query_n(path,
+                   "SELECT use_count AS n FROM kernel_use_v1 WHERE key_hash = '" + k1 + "';") ==
+           "4");
+    EXPECT(query_n(path,
+                   "SELECT hit_count AS n FROM kernel_use_v1 WHERE key_hash = '" + k2 + "';") ==
+           "2");
+}
+
+// Tuning can pick a different solution on a later compile, and the kernel the model no longer uses
+// must stop being attributed to it.
+TEST_CASE(recompiled_model_drops_kernels_it_no_longer_uses)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    auto db   = migraphx::gpu::sqlite_binary_cache::open(path, true);
+    EXPECT(db.has_value());
+    db->store("v", "d", {make_entry("old-winner"), make_entry("new-winner")});
+
+    migraphx::gpu::binary_cache_model model;
+    model.name         = "modelA";
+    model.program_hash = "hash";
+    db->record_usage("v", "d", model, {{"old-winner", {3, 0}}});
+    db->record_usage("v", "d", model, {{"old-winner", {0, 1}}, {"new-winner", {3, 1}}});
+
+    EXPECT(query_n(path, "SELECT count(*) AS n FROM model_kernel_v1;") == "1");
+    EXPECT(query_n(path, "SELECT key_hash AS n FROM model_kernel_v1;") ==
+           migraphx::md5("new-winner"));
+    EXPECT(query_n(path, "SELECT sum(use_count) AS n FROM kernel_use_v1;") == "6");
+}
+
+// A kernel whose store failed has no cache row to refer to, and must not take the others down.
+TEST_CASE(record_usage_skips_kernels_not_stored)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    auto db   = migraphx::gpu::sqlite_binary_cache::open(path, true);
+    EXPECT(db.has_value());
+    db->store("v", "d", {make_entry("stored")});
+
+    db->record_usage("v", "d", migraphx::nullopt, {{"stored", {1, 0}}, {"never-stored", {1, 0}}});
+    EXPECT(query_n(path, "SELECT count(*) AS n FROM kernel_use_v1;") == "1");
+    EXPECT(query_n(path, "SELECT count(*) AS n FROM model_v1;") == "0");
+}
+
+// Storing an entry again must update it in place: replacing the row would cascade away its
+// statistics.
+TEST_CASE(restoring_an_entry_keeps_its_stats)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    auto db   = migraphx::gpu::sqlite_binary_cache::open(path, true);
+    EXPECT(db.has_value());
+    db->store("v", "d", {make_entry("k")});
+    db->record_usage("v", "d", migraphx::nullopt, {{"k", {3, 0}}});
+    db->store("v", "d", {make_entry("k")});
+    EXPECT(query_n(path, "SELECT use_count AS n FROM kernel_use_v1;") == "3");
+}
+
+// Two identical kernels in one model are one kernel used twice. A second compile through a new
+// binary_cache on the same database loads it, adding to its totals but leaving the model's count.
+TEST_CASE(compile_records_model_and_kernel_use)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    migraphx::gpu::binary_cache_settings settings{
+        .path = path, .verify = false, .stats = true, .model = "two_adds"};
+
+    for(int run = 0; run < 2; run++)
+    {
+        auto cache = std::make_shared<migraphx::gpu::binary_cache>(settings);
+        migraphx::gpu::context ctx{0, 1};
+        ctx.set_binary_cache(cache);
+        auto p = two_identical_pointwise();
+        migraphx::run_passes(p,
+                             {migraphx::gpu::record_binary_cache_model{&ctx},
+                              migraphx::gpu::lowering{&ctx, false},
+                              migraphx::gpu::compile_ops{&ctx}});
+        EXPECT(count_code_objects(*p.get_main_module()) == 2);
+    }
+
+    EXPECT(query_n(path, "SELECT count(*) AS n FROM model_v1;") == "1");
+    EXPECT(query_n(path, "SELECT name AS n FROM model_v1;") == "two_adds");
+    EXPECT(query_n(path, "SELECT count(*) AS n FROM model_kernel_v1;") == "1");
+    EXPECT(query_n(path, "SELECT use_count AS n FROM model_kernel_v1;") == "2");
+    EXPECT(query_n(path, "SELECT use_count AS n FROM kernel_use_v1;") == "4");
+    EXPECT(query_n(path, "SELECT hit_count AS n FROM kernel_use_v1;") == "1");
+}
+
+TEST_CASE(unnamed_model_is_recorded_as_default)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    migraphx::gpu::context ctx;
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{
+        .path = path, .verify = false, .stats = true, .model = ""}};
+
+    cache.set_program(pointwise_program(), migraphx::value::object{});
+    cache.flush_stats(ctx);
+    EXPECT(query_n(path, "SELECT name AS n FROM model_v1;") ==
+           migraphx::gpu::binary_cache::default_model_name);
+    EXPECT(query_n(path, "SELECT inputs AS n FROM model_v1;").find("\"x\"") != std::string::npos);
+}
+
+// Only a database keeps statistics; asking for them with a directory changes nothing.
+TEST_CASE(stats_need_a_database)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{
+        .path = td.path.string(), .verify = false, .stats = true, .model = "m"}};
+
+    EXPECT(not cache.collects_stats());
+    cache.insert(ctx, {make_entry("in-a-directory")});
+    cache.set_program(pointwise_program(), migraphx::value::object{});
+    cache.record_use("in-a-directory");
+    cache.flush_stats(ctx);
+    EXPECT(entry_files(td.path).size() == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

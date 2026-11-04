@@ -94,6 +94,7 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -373,6 +374,17 @@ static migraphx::context make_context(const target& t)
     return context(gpu::get_device_id());
 }
 
+/// The compile options as recorded with a model in the binary cache statistics. The backend
+/// options are the ones in effect, after MIGRAPHX_GPU_OPTIONS and defaults are applied.
+static value compile_options_value(const compile_options& options, value backend)
+{
+    return {{"fast_math", options.fast_math},
+            {"exhaustive_tune", options.exhaustive_tune},
+            {"offload_copy", options.offload_copy},
+            {"compile_mode", options.compile_mode},
+            {"backend_options", std::move(backend)}};
+}
+
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto backend_opts = get_backend_options(options);
@@ -420,6 +432,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     }
 
     std::vector<pass> passes;
+    // Must precede the pipelines; see record_binary_cache_model.
+    if(ctx.get_binary_cache().collects_stats())
+        passes.push_back(record_binary_cache_model{
+            &ctx, compile_options_value(options, migraphx::to_value(backend_opts))});
     std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));
     return passes;
 }

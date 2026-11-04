@@ -30,6 +30,9 @@
 #include <migraphx/md5.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
+#include <cassert>
+#include <cstdint>
+#include <exception>
 #include <type_traits>
 #include <utility>
 
@@ -79,15 +82,85 @@ CREATE TABLE IF NOT EXISTS cache_v1 (
 constexpr const char* get_sql = "SELECT key, op_name, problem, solution, code FROM cache_v1"
                                 " WHERE version = ?1 AND device = ?2 AND key_hash = ?3;";
 
-// INSERT OR REPLACE is the analog of the file backend's publish-by-rename: the content is
-// decided entirely by the key, so two processes compiling the same kernel is benign and the
-// last writer wins with an equivalent row. The timestamp is computed by the database rather
-// than the process so that rows written by different machines stay comparable. MIGraphX never
-// reads it; it lets a cache be pruned by age.
+// Overwriting is the analog of the file backend's publish-by-rename: content is decided by the
+// key, so the last writer wins with an equivalent row. An upsert, since INSERT OR REPLACE deletes
+// first and would cascade away the kernel's statistics. The timestamp comes from the database so
+// rows from different machines compare, for pruning by age.
 constexpr const char* store_sql =
-    "INSERT OR REPLACE INTO cache_v1"
+    "INSERT INTO cache_v1"
     " (version, device, key_hash, key, op_name, problem, solution, code, timestamp)"
-    " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, CAST(STRFTIME('%s','now') AS INTEGER));";
+    " VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, CAST(STRFTIME('%s','now') AS INTEGER))"
+    " ON CONFLICT (version, device, key_hash) DO UPDATE SET"
+    " key = excluded.key, op_name = excluded.op_name, problem = excluded.problem,"
+    " solution = excluded.solution, code = excluded.code, timestamp = excluded.timestamp;";
+
+// Usage statistics, created only when asked for. Each row references its cache_v1 row so pruning
+// the cache prunes its statistics. Foreign keys are per connection and off by default, so this
+// pragma runs on each open, outside a transaction since inside one it is ignored.
+constexpr const char* stats_schema_sql = R"__migraphx__(
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS model_v1 (
+  model_id      INTEGER PRIMARY KEY,
+  name          TEXT    NOT NULL,
+  program_hash  TEXT    NOT NULL,
+  inputs        TEXT    NOT NULL,
+  options       TEXT    NOT NULL,
+  UNIQUE (name, program_hash)
+);
+CREATE TABLE IF NOT EXISTS model_kernel_v1 (
+  model_id   INTEGER NOT NULL,
+  version    TEXT    NOT NULL,
+  device     TEXT    NOT NULL,
+  key_hash   TEXT    NOT NULL,
+  use_count  INTEGER NOT NULL,
+  PRIMARY KEY (model_id, version, device, key_hash),
+  FOREIGN KEY (model_id) REFERENCES model_v1(model_id) ON DELETE CASCADE,
+  FOREIGN KEY (version, device, key_hash)
+    REFERENCES cache_v1(version, device, key_hash) ON DELETE CASCADE
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS model_kernel_v1_kernel ON model_kernel_v1(version, device, key_hash);
+CREATE TABLE IF NOT EXISTS kernel_use_v1 (
+  version    TEXT    NOT NULL,
+  device     TEXT    NOT NULL,
+  key_hash   TEXT    NOT NULL,
+  use_count  INTEGER NOT NULL DEFAULT 0,
+  hit_count  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (version, device, key_hash),
+  FOREIGN KEY (version, device, key_hash)
+    REFERENCES cache_v1(version, device, key_hash) ON DELETE CASCADE
+) WITHOUT ROWID;
+)__migraphx__";
+
+// Updating on conflict rather than DO NOTHING is what lets RETURNING hand back a known model's
+// id, and keeps its options current.
+constexpr const char* model_sql =
+    "INSERT INTO model_v1 (name, program_hash, inputs, options) VALUES (?1, ?2, ?3, ?4)"
+    " ON CONFLICT (name, program_hash) DO UPDATE SET"
+    " inputs = excluded.inputs, options = excluded.options"
+    " RETURNING model_id;";
+
+// A compile records every kernel of the model, so the previous list for this toolchain and device
+// is dropped first. Otherwise a kernel the model stopped using, such as when tuning picks a
+// different solution, would stay attributed to it.
+constexpr const char* clear_model_kernels_sql =
+    "DELETE FROM model_kernel_v1 WHERE model_id = ?1 AND version = ?2 AND device = ?3;";
+
+// Selecting from cache_v1 skips a kernel whose store failed, rather than letting its foreign key
+// fail the whole transaction.
+constexpr const char* model_kernel_sql =
+    "INSERT INTO model_kernel_v1 (model_id, version, device, key_hash, use_count)"
+    " SELECT ?1, version, device, key_hash, ?5 FROM cache_v1"
+    " WHERE version = ?2 AND device = ?3 AND key_hash = ?4"
+    " ON CONFLICT (model_id, version, device, key_hash) DO UPDATE SET"
+    " use_count = excluded.use_count;";
+
+constexpr const char* use_sql =
+    "INSERT INTO kernel_use_v1 (version, device, key_hash, use_count, hit_count)"
+    " SELECT version, device, key_hash, ?4, ?5 FROM cache_v1"
+    " WHERE version = ?1 AND device = ?2 AND key_hash = ?3"
+    " ON CONFLICT (version, device, key_hash) DO UPDATE SET"
+    " use_count = use_count + excluded.use_count,"
+    " hit_count = hit_count + excluded.hit_count;";
 
 // Stores come in a burst after each round of compiles, and outside a transaction every one of
 // them is its own commit, each waiting for the disk. IMMEDIATE takes the write lock up front, so
@@ -97,9 +170,34 @@ constexpr const char* begin_sql    = "BEGIN IMMEDIATE;";
 constexpr const char* commit_sql   = "COMMIT;";
 constexpr const char* rollback_sql = "ROLLBACK;";
 
+/// Run f in one write transaction. A transaction left open would hold the write lock against
+/// every other process, so a failure rolls it back before rethrowing.
+template <class F>
+void in_transaction(sqlite& db, const char* what, F f)
+{
+    db.execute(begin_sql);
+    try
+    {
+        f();
+        db.execute(commit_sql);
+    }
+    catch(...)
+    {
+        try
+        {
+            db.execute(rollback_sql);
+        }
+        catch(const std::exception& ex)
+        {
+            log::warn() << "Failed to roll back binary cache " << what << ": " << ex.what();
+        }
+        throw;
+    }
+}
+
 } // namespace
 
-optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path)
+optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path, bool stats)
 {
     sqlite_binary_cache r;
     try
@@ -134,6 +232,8 @@ optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path)
         {
             r.db.execute(schema_sql);
             r.store_stmt = r.db.prepare(store_sql);
+            if(stats)
+                r.open_stats(path);
         }
         // Without a working lookup there is no cache, so this failure disables the backend. That
         // includes a read-only database that was never given the schema.
@@ -196,32 +296,22 @@ void sqlite_binary_cache::store(const std::string& version,
         return;
     try
     {
-        db.execute(begin_sql);
-        for(const auto& e : entries)
-        {
-            store_stmt(version,
-                       device,
-                       md5(e.key),
-                       e.key,
-                       e.op_name,
-                       to_json_string(e.problem),
-                       to_json_string(e.solution),
-                       to_msgpack(migraphx::to_value(e.code)));
-        }
-        db.execute(commit_sql);
+        in_transaction(db, "entries", [&] {
+            for(const auto& e : entries)
+            {
+                store_stmt(version,
+                           device,
+                           md5(e.key),
+                           e.key,
+                           e.op_name,
+                           to_json_string(e.problem),
+                           to_json_string(e.solution),
+                           to_msgpack(migraphx::to_value(e.code)));
+            }
+        });
     }
     catch(...)
     {
-        // A transaction left open would hold the write lock against every other process, so it
-        // is rolled back and the entries are lost instead. The caller reports the original error.
-        try
-        {
-            db.execute(rollback_sql);
-        }
-        catch(const std::exception& ex)
-        {
-            log::warn() << "Failed to roll back binary cache entries: " << ex.what();
-        }
         // A database that refused one write, often after waiting out the busy timeout, would
         // most likely refuse the next one as well, so later stores are skipped and the cache
         // carries on read-only. Lookups keep working.
@@ -229,6 +319,58 @@ void sqlite_binary_cache::store(const std::string& version,
         log::warn() << "Binary cache is read-only from now on";
         throw;
     }
+}
+
+void sqlite_binary_cache::open_stats(const std::string& path)
+{
+    try
+    {
+        db.execute(stats_schema_sql);
+        model_stmt        = db.prepare(model_sql);
+        clear_model_stmt  = db.prepare(clear_model_kernels_sql);
+        model_kernel_stmt = db.prepare(model_kernel_sql);
+        use_stmt          = db.prepare(use_sql);
+    }
+    catch(const std::exception& ex)
+    {
+        model_stmt        = {};
+        clear_model_stmt  = {};
+        model_kernel_stmt = {};
+        use_stmt          = {};
+        log::warn() << "Disabling binary cache statistics at " << path << ": " << ex.what();
+    }
+}
+
+void sqlite_binary_cache::record_usage(const std::string& version,
+                                       const std::string& device,
+                                       const optional<binary_cache_model>& model,
+                                       const binary_cache_usage_map& usage)
+{
+    if(not has_stats() or (usage.empty() and not model.has_value()))
+        return;
+    in_transaction(db, "statistics", [&] {
+        std::int64_t model_id = 0;
+        if(model.has_value())
+        {
+            auto rows = model_stmt(model->name,
+                                   model->program_hash,
+                                   to_json_string(model->inputs),
+                                   to_json_string(model->options));
+            // An upsert with RETURNING always yields its one row.
+            auto it = rows.begin();
+            assert(it != rows.end());
+            model_id = (*it).at("model_id").to<std::int64_t>();
+            clear_model_stmt(model_id, version, device);
+        }
+        for(const auto& [key, u] : usage)
+        {
+            auto key_hash = md5(key);
+            use_stmt(version, device, key_hash, u.uses, u.hits);
+            // A kernel only loaded, such as a tuning candidate that lost, is not part of the model.
+            if(model.has_value() and u.uses > 0)
+                model_kernel_stmt(model_id, version, device, key_hash, u.uses);
+        }
+    });
 }
 
 } // namespace gpu

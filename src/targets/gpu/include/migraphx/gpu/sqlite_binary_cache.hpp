@@ -27,6 +27,7 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/binary_cache_entry.hpp>
+#include <migraphx/gpu/binary_cache_stats.hpp>
 #include <migraphx/sqlite.hpp>
 #include <migraphx/optional.hpp>
 #include <string>
@@ -50,7 +51,10 @@ struct MIGRAPHX_GPU_EXPORT sqlite_binary_cache
     /// stands, without creating the schema. Returns nullopt when the database cannot be opened
     /// at all or entries cannot be looked up in it, so an unusable database leaves the cache
     /// memory-only rather than raising an error.
-    static optional<sqlite_binary_cache> open(const std::string& path);
+    ///
+    /// With stats, a writable database also gets the statistics tables and enforces their
+    /// foreign keys; failing to set them up only disables statistics.
+    static optional<sqlite_binary_cache> open(const std::string& path, bool stats = false);
 
     optional<binary_cache_entry>
     load(const std::string& version, const std::string& device, const std::string& key) const;
@@ -61,10 +65,28 @@ struct MIGRAPHX_GPU_EXPORT sqlite_binary_cache
                const std::string& device,
                const std::vector<binary_cache_entry>& entries);
 
+    /// True when the database was opened with stats and can record them.
+    bool has_stats() const { return use_stmt.valid(); }
+
+    /// Add the usage to each kernel's totals and, when a model is given, replace its kernel list
+    /// for this version and device, in one transaction. Kernels that are not stored, because
+    /// their store failed, are skipped. A failure rolls everything back and rethrows.
+    void record_usage(const std::string& version,
+                      const std::string& device,
+                      const optional<binary_cache_model>& model,
+                      const binary_cache_usage_map& usage);
+
     private:
-    sqlite db              = {};
-    sqlite_stmt get_stmt   = {};
-    sqlite_stmt store_stmt = {};
+    /// Create the statistics tables and prepare their statements, or warn and go without.
+    void open_stats(const std::string& path);
+
+    sqlite db                     = {};
+    sqlite_stmt get_stmt          = {};
+    sqlite_stmt store_stmt        = {};
+    sqlite_stmt model_stmt        = {};
+    sqlite_stmt clear_model_stmt  = {};
+    sqlite_stmt model_kernel_stmt = {};
+    sqlite_stmt use_stmt          = {};
 };
 
 } // namespace gpu

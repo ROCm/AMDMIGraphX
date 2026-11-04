@@ -26,12 +26,17 @@
 #include <migraphx/gpu/sqlite_binary_cache.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/md5.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx_kernels.hpp>
 #include <algorithm>
+#include <cassert>
 #include <sstream>
+#include <unordered_map>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -114,18 +119,101 @@ binary_cache_backend* binary_cache::get_backend()
         return backend.has_value() ? &*backend : nullptr;
     backend_opened   = true;
     const auto& path = settings.path;
+    const bool database = sqlite::is_database_path(path);
+    if(settings.stats and not database)
+        log::warn() << "Binary cache statistics need MIGRAPHX_BINARY_CACHE to name a .db or "
+                       ".sqlite database; not collecting them";
     // Checked first so that a memory-only cache never compiles the version probe.
     if(path.empty())
         return nullptr;
-    const bool database = sqlite::is_database_path(path);
-    version             = version_id(not database);
+    version = version_id(not database);
     if(version.empty())
         return nullptr;
     if(not database)
+    {
         backend = binary_cache_backend{file_binary_cache{path}};
-    else if(auto db = sqlite_binary_cache::open(path))
+    }
+    else if(auto db = sqlite_binary_cache::open(path, settings.stats))
+    {
+        // A copy shares the connection, so statistics go to the same database as the entries.
+        if(db->has_stats())
+            stats_db = std::make_shared<sqlite_binary_cache>(*db);
         backend = binary_cache_backend{std::move(*db)};
+    }
     return backend.has_value() ? &*backend : nullptr;
+}
+
+binary_cache::binary_cache(binary_cache_settings s)
+    : settings(std::move(s)),
+      stats_enabled(settings.stats and sqlite::is_database_path(settings.path))
+{
+}
+
+/// A digest of what in the program decides its kernels. Large literals print as { ... }, so the
+/// digest is cheap for large models and unaffected by the weights.
+static std::string program_hash(const program& p)
+{
+    std::stringstream ss;
+    std::unordered_map<instruction_ref, std::string> names;
+    for(const auto* m : p.get_modules())
+    {
+        ss << m->name() << ":\n";
+        names = m->print(
+            [&](auto ins, const auto& ins_names) {
+                instruction::print(ss, ins, ins_names);
+                ss << "\n";
+            },
+            std::move(names));
+    }
+    return md5(ss.str());
+}
+
+void binary_cache::set_program(const program& p, value options)
+{
+    if(not collects_stats())
+        return;
+    binary_cache_model m;
+    m.name         = settings.model.empty() ? default_model_name : settings.model;
+    m.program_hash = program_hash(p);
+    m.options      = std::move(options);
+    // In the order the module declares them, which get_parameter_shapes would lose.
+    const auto* mm = p.get_main_module();
+    for(const auto& name : mm->get_parameter_names())
+        m.inputs[name] = to_string(mm->get_parameter_shape(name));
+    model = std::move(m);
+}
+
+void binary_cache::record_use(const std::string& key)
+{
+    if(collects_stats() and not key.empty())
+        pending[key].uses++;
+}
+
+void binary_cache::flush_stats(const context& ctx)
+{
+    if(not collects_stats())
+        return;
+    auto usage = std::exchange(pending, {});
+    auto m     = std::exchange(model, nullopt);
+    // The backend opens lazily on lookup, so open it here for a program whose kernels all
+    // bypassed the cache, which must still be recorded as a model.
+    get_backend();
+    if(stats_db == nullptr)
+        return;
+    try
+    {
+        stats_db->record_usage(version, device_dir(ctx), m, usage);
+    }
+    catch(const std::exception& ex)
+    {
+        log::warn() << "Failed to record binary cache statistics: " << ex.what();
+    }
+}
+
+void record_binary_cache_model::apply(program& p) const
+{
+    assert(ctx != nullptr);
+    ctx->get_binary_cache().set_program(p, options);
 }
 
 optional<compiled_code> binary_cache::get(const context& ctx, const std::string& key)
@@ -144,6 +232,8 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
         if(e.has_value())
         {
             counters.hits++;
+            if(collects_stats())
+                pending[key].hits++;
             return memo.emplace(key, std::move(e->code)).first->second;
         }
     }

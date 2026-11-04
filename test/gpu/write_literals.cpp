@@ -537,7 +537,7 @@ TEST_CASE(memory_fits_after_coloring_literals_read_together)
     migraphx::run_passes(m,
                          {migraphx::gpu::write_literals{.max_memory = 150000},
                           migraphx::schedule{migraphx::gpu::schedule_model{1}, true},
-                          migraphx::memory_coloring{"hip::allocate"},
+                          migraphx::memory_coloring{migraphx::gpu::gpu_allocation_model{}},
                           migraphx::dead_code_elimination{}});
     EXPECT(gpu_memory(m) <= 150000);
 }

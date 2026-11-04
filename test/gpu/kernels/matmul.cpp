@@ -74,6 +74,34 @@ TEST_CASE_REGISTER(matmul_blocks<migraphx::half>)
 TEST_CASE_REGISTER(matmul_blocks<migraphx::bf16>)
 TEST_CASE_REGISTER(matmul_blocks<float>)
 
+// 32x32 blocks, with the k of every 32x32 instruction: 64 for all of them,
+// 16 and 8 for the f16 and f32 ones, 4 for the bf16 of gfx908
+template <class T>
+TEST_CASE_TEMPLATE(matmul_big_blocks)
+{
+    EXPECT(matmul_matches<T, 32, 32, 64>());
+    EXPECT(matmul_matches<T, 64, 32, 16>());
+    EXPECT(matmul_matches<T, 32, 64, 8>());
+    EXPECT(matmul_matches<T, 32, 32, 4>());
+    EXPECT(matmul_matches<T, 96, 32, 32>());
+}
+TEST_CASE_REGISTER(matmul_big_blocks<migraphx::half>)
+TEST_CASE_REGISTER(matmul_big_blocks<migraphx::bf16>)
+TEST_CASE_REGISTER(matmul_big_blocks<float>)
+
+// A single instruction of the smallest 16x16 k: f32 16x16x4, gfx908 bf16
+// 16x16x8, and a block mix of 32 and 16
+template <class T>
+TEST_CASE_TEMPLATE(matmul_small_k)
+{
+    EXPECT(matmul_matches<T, 16, 16, 4>());
+    EXPECT(matmul_matches<T, 16, 16, 8>());
+    EXPECT(matmul_matches<T, 48, 16, 32>());
+}
+TEST_CASE_REGISTER(matmul_small_k<migraphx::half>)
+TEST_CASE_REGISTER(matmul_small_k<migraphx::bf16>)
+TEST_CASE_REGISTER(matmul_small_k<float>)
+
 // Shapes no matrix instruction covers take the per-lane path
 template <class T>
 TEST_CASE_TEMPLATE(matmul_odd_shapes)

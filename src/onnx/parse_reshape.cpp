@@ -64,7 +64,8 @@ struct parse_reshape : op_parser<parse_reshape>
         validate_reshape_element_count(
             "PARSE_RESHAPE", input_shape, output_shape, has_inferred_dim(reshape_dims));
         const auto output_expressions = output_shape.sym_dims();
-        auto sources = find_expression_sources(*info.mod, input, output_expressions);
+        auto sources                  = find_expression_sources(
+            *info.mod, std::vector<instruction_ref>{input}, output_expressions);
         if(not sources.has_value())
             return std::nullopt;
         const auto resolved_dims = info.add_instruction(

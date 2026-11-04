@@ -66,11 +66,7 @@ struct eval_expr_from_shape
                 continue;
             for(const auto& d : input.dyn_dims())
                 if(d.is_symbolic())
-                {
-                    available.emplace(d.sym_expr, sym::lit(1));
-                    if(d.sym_expr.name() == "variable")
-                        available.emplace(sym::as_symbol(d.sym_expr), sym::lit(1));
-                }
+                    available.emplace(sym::as_symbol(d.sym_expr), sym::lit(1));
         }
         for(const auto& expression : expressions)
         {
@@ -112,16 +108,11 @@ struct eval_expr_from_shape
             {
                 if(not dim.is_symbolic())
                     continue;
-                auto add_value = [&](const sym::expr& expression, std::size_t value) {
-                    auto result = values.emplace(expression, value);
-                    if(not result.second and result.first->second != value)
-                        MIGRAPHX_THROW(
-                            "EVAL_EXPR_FROM_SHAPE: Repeated expression has inconsistent runtime "
-                            "dimensions");
-                };
-                add_value(dim.sym_expr, len);
-                if(dim.sym_expr.name() == "variable")
-                    add_value(sym::as_symbol(dim.sym_expr), len);
+                auto [iter, inserted] = values.emplace(sym::as_symbol(dim.sym_expr), len);
+                if(not inserted and iter->second != len)
+                    MIGRAPHX_THROW(
+                        "EVAL_EXPR_FROM_SHAPE: Repeated expression has inconsistent runtime "
+                        "dimensions");
             }
         }
 

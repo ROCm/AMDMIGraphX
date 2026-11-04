@@ -38,22 +38,22 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-bool shape_resolves_expressions(const shape& input_shape, const std::vector<sym::expr>& expressions)
+// Check if all expressions are resolved by the inputs.
+bool shapes_resolve_expressions(const std::vector<instruction_ref>& inputs,
+                                const std::vector<sym::expr>& expressions)
 {
+    // sym::lit(1) is a dummy value for sym_expr::subs()
     std::unordered_map<sym::expr, sym::expr> available;
-    if(input_shape.symbolic())
+    for(auto input : inputs)
     {
+        const auto& input_shape = input->get_shape();
+        if(not input_shape.symbolic())
+            continue;
         transform_if(
             input_shape.dyn_dims().begin(),
             input_shape.dyn_dims().end(),
             std::inserter(available, available.end()),
             [](const auto& d) { return d.is_symbolic(); },
-            [](const auto& d) { return std::make_pair(d.sym_expr, sym::lit(1)); });
-        transform_if(
-            input_shape.dyn_dims().begin(),
-            input_shape.dyn_dims().end(),
-            std::inserter(available, available.end()),
-            [](const auto& d) { return d.is_symbolic() and d.sym_expr.name() == "variable"; },
             [](const auto& d) { return std::make_pair(sym::as_symbol(d.sym_expr), sym::lit(1)); });
     }
     return all_of(expressions, [&](const auto& expression) {
@@ -74,11 +74,15 @@ bool directly_contains_symbol(instruction_ref source, const sym::expr& symbol)
 
 } // namespace
 
-std::optional<std::vector<instruction_ref>> find_expression_sources(
-    const module& m, instruction_ref data, const std::vector<sym::expr>& expressions)
+std::optional<std::vector<instruction_ref>>
+find_expression_sources(const module& m,
+                        const std::vector<instruction_ref>& inputs,
+                        const std::vector<sym::expr>& expressions)
 {
-    if(shape_resolves_expressions(data->get_shape(), expressions))
-        return std::vector<instruction_ref>{data};
+    std::vector<instruction_ref> unique_inputs;
+    std::copy_if(inputs.begin(), inputs.end(), std::back_inserter(unique_inputs), [&](auto input) {
+        return not contains(unique_inputs, input);
+    });
 
     std::unordered_set<sym::expr> required;
     for(const auto& expression : expressions)
@@ -86,6 +90,10 @@ std::optional<std::vector<instruction_ref>> find_expression_sources(
         auto variables = sym::find_variables(expression);
         required.insert(variables.begin(), variables.end());
     }
+    if(required.empty() and not unique_inputs.empty())
+        return std::vector<instruction_ref>{unique_inputs.front()};
+    if(not unique_inputs.empty() and shapes_resolve_expressions(unique_inputs, expressions))
+        return unique_inputs;
 
     std::vector<std::pair<std::string, sym::expr>> ordered_variables;
     std::transform(
@@ -97,11 +105,23 @@ std::optional<std::vector<instruction_ref>> find_expression_sources(
         return x.first < y.first;
     });
 
-    std::vector<instruction_ref> candidates = {data};
+    std::vector<instruction_ref> candidates = unique_inputs;
     auto parameters                         = m.get_parameters();
-    candidates.insert(candidates.end(), parameters.begin(), parameters.end());
+    std::copy_if(parameters.begin(),
+                 parameters.end(),
+                 std::back_inserter(candidates),
+                 [&](auto parameter) { return not contains(candidates, parameter); });
     auto instructions = iterator_for(m);
-    candidates.insert(candidates.end(), instructions.begin(), instructions.end());
+    std::copy_if(instructions.begin(),
+                 instructions.end(),
+                 std::back_inserter(candidates),
+                 [&](auto instruction) { return not contains(candidates, instruction); });
+    if(required.empty())
+    {
+        if(candidates.empty())
+            return std::nullopt;
+        return std::vector<instruction_ref>{candidates.front()};
+    }
 
     std::vector<instruction_ref> result;
     for(const auto& ordered_variable : ordered_variables)
@@ -115,8 +135,6 @@ std::optional<std::vector<instruction_ref>> find_expression_sources(
         if(not contains(result, *source))
             result.push_back(*source);
     }
-    if(result.empty())
-        result.push_back(data);
     return result;
 }
 

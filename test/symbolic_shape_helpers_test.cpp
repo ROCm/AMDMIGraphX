@@ -40,7 +40,23 @@ TEST_CASE(find_expression_sources_from_data)
     auto data =
         m.add_parameter("data", {migraphx::shape::float_type, {dd{n + lit(1)}, dd{lit(4)}}});
 
-    auto sources = migraphx::find_expression_sources(m, data, {n + lit(1), lit(4)});
+    auto sources = migraphx::find_expression_sources(m, {data}, {n + lit(1), lit(4)});
+    EXPECT(sources.has_value());
+    if(sources.has_value())
+        EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
+}
+
+TEST_CASE(find_expression_sources_from_data_bare_expression)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    migraphx::module m;
+    auto data =
+        m.add_parameter("data", {migraphx::shape::float_type, {dd{var("n", {1, 8}) * lit(2)}}});
+
+    auto sources = migraphx::find_expression_sources(m, {data}, {var("n") * lit(2)});
     EXPECT(sources.has_value());
     if(sources.has_value())
         EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
@@ -57,7 +73,7 @@ TEST_CASE(find_expression_sources_from_root)
     auto root = m.add_parameter("root", {migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
     auto data = m.add_instruction(migraphx::make_op("flatten", {{"axis", 0}}), root);
 
-    auto sources = migraphx::find_expression_sources(m, data, {n, lit(4)});
+    auto sources = migraphx::find_expression_sources(m, {data}, {n, lit(4)});
     EXPECT(sources.has_value());
     if(sources.has_value())
         EXPECT(*sources == std::vector<migraphx::instruction_ref>{root});
@@ -75,10 +91,79 @@ TEST_CASE(find_expression_sources_from_multiple_roots)
     auto n_root = m.add_parameter("n_root", {migraphx::shape::float_type, {dd{n_dim}}});
     auto data   = m.add_parameter("data", {migraphx::shape::float_type, {1}});
 
-    auto sources = migraphx::find_expression_sources(m, data, {m_dim + n_dim});
+    auto sources = migraphx::find_expression_sources(m, {data}, {m_dim + n_dim});
     EXPECT(sources.has_value());
     if(sources.has_value())
         EXPECT(*sources == std::vector<migraphx::instruction_ref>{m_root, n_root});
+}
+
+TEST_CASE(find_expression_sources_from_multiple_inputs)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    migraphx::module m;
+    auto a = m.add_parameter("a", {migraphx::shape::float_type, {dd{var("m", {1, 8}) + lit(1)}}});
+    auto b = m.add_parameter("b", {migraphx::shape::float_type, {dd{var("n", {1, 8}) * lit(2)}}});
+
+    auto expression = migraphx::sym::min(var("m") + lit(1), var("n") * lit(2));
+    auto sources    = migraphx::find_expression_sources(m, {a, b}, {expression});
+    EXPECT(sources.has_value());
+    if(sources.has_value())
+        EXPECT(*sources == std::vector<migraphx::instruction_ref>{a, b});
+}
+
+TEST_CASE(find_expression_sources_from_multiple_inputs_missing_input)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    migraphx::module m;
+    auto a = m.add_parameter("a", {migraphx::shape::float_type, {dd{var("m", {1, 8}) + lit(1)}}});
+    m.add_parameter("b", {migraphx::shape::float_type, {dd{var("n", {1, 8}) * lit(2)}}});
+
+    auto expression = migraphx::sym::min(var("m") + lit(1), var("n") * lit(2));
+    auto sources    = migraphx::find_expression_sources(m, {a}, {expression});
+    EXPECT(not sources.has_value());
+}
+
+TEST_CASE(find_expression_sources_deduplicates_inputs)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::var;
+
+    const auto n = var("n", {1, 8});
+    migraphx::module m;
+    auto data = m.add_parameter("data", {migraphx::shape::float_type, {dd{n}}});
+
+    auto sources = migraphx::find_expression_sources(m, {data, data}, {n});
+    EXPECT(sources.has_value());
+    if(sources.has_value())
+        EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
+}
+
+TEST_CASE(find_expression_sources_empty_inputs)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::var;
+
+    const auto n = var("n", {1, 8});
+    migraphx::module m;
+    auto root = m.add_parameter("root", {migraphx::shape::float_type, {dd{n}}});
+
+    auto sources = migraphx::find_expression_sources(m, {}, {n});
+    EXPECT(sources.has_value());
+    if(sources.has_value())
+        EXPECT(*sources == std::vector<migraphx::instruction_ref>{root});
+}
+
+TEST_CASE(find_expression_sources_empty_inputs_without_candidates)
+{
+    migraphx::module m;
+    auto sources = migraphx::find_expression_sources(m, {}, {migraphx::sym::lit(1)});
+    EXPECT(not sources.has_value());
 }
 
 TEST_CASE(find_expression_sources_missing_root)
@@ -91,7 +176,7 @@ TEST_CASE(find_expression_sources_missing_root)
     migraphx::module m;
     auto data = m.add_parameter("data", {migraphx::shape::float_type, {dd{n * lit(4)}}});
 
-    auto sources = migraphx::find_expression_sources(m, data, {n});
+    auto sources = migraphx::find_expression_sources(m, {data}, {n});
     EXPECT(not sources.has_value());
 }
 
@@ -100,9 +185,10 @@ TEST_CASE(find_expression_sources_without_variables)
     using migraphx::sym::lit;
 
     migraphx::module m;
-    auto data = m.add_parameter("data", {migraphx::shape::float_type, {1}});
+    auto data   = m.add_parameter("data", {migraphx::shape::float_type, {1}});
+    auto unused = m.add_parameter("unused", {migraphx::shape::float_type, {1}});
 
-    auto sources = migraphx::find_expression_sources(m, data, {lit(2), lit(3)});
+    auto sources = migraphx::find_expression_sources(m, {data, unused}, {lit(2), lit(3)});
     EXPECT(sources.has_value());
     if(sources.has_value())
         EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});

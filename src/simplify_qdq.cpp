@@ -238,13 +238,9 @@ struct match_find_quantizable_ops
                not is_valid_qparam(zp2, dq2, 2, qop_args[1], axis2))
                 return;
         }
-        bool is_fp16_model = false;
-        if(dq1->get_shape().type() != qop->get_shape().type() and
-           qop->get_shape().type() == migraphx::shape::half_type)
-        {
-            assert(dq1->get_shape().type() == migraphx::shape::float_type);
-            is_fp16_model = true;
-        }
+        const bool is_fp16_model = dq1->get_shape().type() != qop->get_shape().type() and
+                                   qop->get_shape().type() == migraphx::shape::half_type;
+        assert(not is_fp16_model or dq1->get_shape().type() == migraphx::shape::float_type);
 
         auto qop_between_arg0 = get_between_ins(dq1, qop_args[0]);
         auto qop_between_arg1 = get_between_ins(dq2, qop_args[1]);

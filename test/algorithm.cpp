@@ -54,6 +54,30 @@ static auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltyp
     return c.erase(pos, last);
 }
 
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(group_adjacent_runs, int)
+{
+    Container v = {1, 2, 3, 7, 8, 10};
+    std::vector<std::vector<int>> groups;
+    migraphx::group_adjacent(
+        v.begin(),
+        v.end(),
+        [&](auto first, auto last) { groups.emplace_back(first, last); },
+        [](int x, int y) { return y == x + 1; });
+    EXPECT(groups == std::vector<std::vector<int>>{{1, 2, 3}, {7, 8}, {10}});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(group_adjacent_empty, int)
+{
+    Container v;
+    std::vector<std::vector<int>> groups;
+    migraphx::group_adjacent(
+        v.begin(),
+        v.end(),
+        [&](auto first, auto last) { groups.emplace_back(first, last); },
+        [](int x, int y) { return y == x + 1; });
+    EXPECT(groups.empty());
+}
+
 MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_remove_if1, int)
 {
     Container v = {0, 1, 1, 1, 4, 2, 2, 4, 2};

@@ -142,6 +142,22 @@ Iterator min_element_if(Iterator first, Iterator last, Predicate pred, Compare c
     return last;
 }
 
+/// Groups consecutive elements for as long as pred holds between each
+/// adjacent pair, passing each group's range to out
+template <class Iterator, class Output, class Predicate>
+void group_adjacent(Iterator start, Iterator last, Output out, Predicate pred)
+{
+    while(start != last)
+    {
+        auto it =
+            std::adjacent_find(start, last, [&](auto&& x, auto&& y) { return not pred(x, y); });
+        if(it != last)
+            ++it;
+        out(start, it);
+        start = it;
+    }
+}
+
 template <class Iterator, class Output, class Predicate>
 void group_by(Iterator start, Iterator last, Output out, Predicate pred)
 {

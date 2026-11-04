@@ -736,34 +736,36 @@ struct find_dot_axis_linear_ops
         }
 
         // The layout ops on the path to `leaf` rebased onto its shape, whose
-        // contracted axis may be shorter than where they were applied
+        // contracted axis may be shorter than where they were applied. Each
+        // run of adjacent ops is one shape transform
         static optional<rebased_layouts> rebase_layouts(const leaf_path& leaf)
         {
             rebased_layouts result{{}, leaf.ins->get_shape().lens()};
-            auto ok =
-                std::all_of(leaf.layouts.rbegin(), leaf.layouts.rend(), [&](instruction_ref ins) {
-                    auto op = ins->get_operator();
-                    // Only a reshape or a stepped unsqueeze spells out lengths
-                    if(op.name() != "reshape" and
-                       (op.name() != "unsqueeze" or op.to_value().at("steps").empty()))
-                    {
-                        result.lens =
-                            op.compute_shape({shape{shape::float_type, result.lens}}).lens();
-                        result.ops.push_back(std::move(op));
-                        return true;
-                    }
-                    auto desc = shape_transform_descriptor::create(
-                        ins->inputs().front()->get_shape().lens(), {op});
-                    if(desc.empty())
-                        return false;
-                    auto rebased = desc.rebase(result.lens);
-                    if(rebased.empty())
-                        return false;
-                    auto ops = rebased.generate(result.lens);
-                    result.ops.insert(result.ops.end(), ops.begin(), ops.end());
-                    result.lens = rebased.lens();
-                    return true;
+            std::vector<std::vector<instruction_ref>> runs;
+            group_adjacent(
+                leaf.layouts.rbegin(),
+                leaf.layouts.rend(),
+                [&](auto first, auto last) { runs.emplace_back(first, last); },
+                [](instruction_ref below, instruction_ref above) {
+                    return above->inputs().front() == below;
                 });
+            auto ok = all_of(runs, [&](const std::vector<instruction_ref>& run) {
+                std::vector<operation> ops;
+                std::transform(run.begin(), run.end(), std::back_inserter(ops), [](auto ins) {
+                    return ins->get_operator();
+                });
+                auto desc = shape_transform_descriptor::create(
+                    run.front()->inputs().front()->get_shape().lens(), ops);
+                if(desc.empty())
+                    return false;
+                auto rebased = desc.rebase(result.lens);
+                if(rebased.empty())
+                    return false;
+                auto generated = rebased.generate(result.lens);
+                result.ops.insert(result.ops.end(), generated.begin(), generated.end());
+                result.lens = rebased.lens();
+                return true;
+            });
             if(not ok)
                 return nullopt;
             return result;

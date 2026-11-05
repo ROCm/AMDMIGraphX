@@ -32,6 +32,7 @@ Full documentation for MIGraphX is available at
 
 ### Optimized
 
+* Optimized `dot` with repeated broadcasted input rows to evaluate one row and broadcast the result, avoiding large duplicate literals during constant propagation.
 * Added a `simplify_algebra` rewrite that folds `dot(a, b) + dot(a, c)` into `dot(a, b + c)` when `b` and `c` are constant, so one GEMM with half the weights replaces two GEMMs (or a double-width horizontally fused GEMM plus slices and an add) (#5415).
 * Reduced compile-time heap allocations in `simplify_algebra`, `simplify_reshapes`, and `fuse_pointwise`: `match::name` shares its name set across matcher copies, and read-only uses of an instruction's inputs bind a reference or move instead of copying the vector (#5362).
 
@@ -177,6 +178,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `simplify_qdq` Q/DQ removal to preserve intervening shape operations and avoid rewrites that change output shapes.
 * Fixed a `simplify_reshapes` compilation failure when `find_slice_squeeze` rewrites pointwise operations with singleton scalar inputs by broadcasting scalars to the restored slice dimensions (#5192).
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).

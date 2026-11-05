@@ -131,6 +131,7 @@ struct record_recompile_pass
         last_recompile().exhaustive_tune = exhaustive_tune;
         last_recompile().runs++;
         record_device(m, current_device());
+        // cppcheck-suppress knownConditionTrueFalse
         if(break_recompile())
         {
             auto x = std::find_if(

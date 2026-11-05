@@ -263,7 +263,7 @@ void program::recompile(const target& t, compile_options options)
     std::vector<context> contexts = {t.get_context()};
     auto passes                   = t.get_recompile_passes(contexts.front(), options);
     run_passes(p, passes, options.trace);
-    for(const auto& mod : p.get_modules())
+    for(const auto* mod : p.get_modules())
     {
         auto invalid = mod->validate();
         if(invalid != mod->end())

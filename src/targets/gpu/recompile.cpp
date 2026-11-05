@@ -223,7 +223,7 @@ void check_retarget(const program& p,
 
 // Only tuned kernels are timed: time_op feeds random inputs, which can drive kernels that take
 // indices (gather, scatter) out of bounds and fault the whole device.
-std::string kernel_time(context& ctx, const operation& op, bool benchmarked, bool tunable)
+std::string kernel_time(const context& ctx, const operation& op, bool benchmarked, bool tunable)
 {
     if(not tunable)
         return "not timed";

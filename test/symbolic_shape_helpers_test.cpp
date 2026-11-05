@@ -42,8 +42,7 @@ TEST_CASE(find_expression_sources_from_data)
 
     auto sources = migraphx::find_expression_sources(m, {data}, {n + lit(1), lit(4)});
     EXPECT(sources.has_value());
-    if(sources.has_value())
-        EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
+    EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
 }
 
 TEST_CASE(find_expression_sources_from_data_bare_expression)
@@ -58,8 +57,7 @@ TEST_CASE(find_expression_sources_from_data_bare_expression)
 
     auto sources = migraphx::find_expression_sources(m, {data}, {var("n") * lit(2)});
     EXPECT(sources.has_value());
-    if(sources.has_value())
-        EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
+    EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
 }
 
 TEST_CASE(find_expression_sources_from_root)
@@ -75,8 +73,7 @@ TEST_CASE(find_expression_sources_from_root)
 
     auto sources = migraphx::find_expression_sources(m, {data}, {n, lit(4)});
     EXPECT(sources.has_value());
-    if(sources.has_value())
-        EXPECT(*sources == std::vector<migraphx::instruction_ref>{root});
+    EXPECT(*sources == std::vector<migraphx::instruction_ref>{root});
 }
 
 TEST_CASE(find_expression_sources_from_multiple_roots)
@@ -93,8 +90,7 @@ TEST_CASE(find_expression_sources_from_multiple_roots)
 
     auto sources = migraphx::find_expression_sources(m, {data}, {m_dim + n_dim});
     EXPECT(sources.has_value());
-    if(sources.has_value())
-        EXPECT(*sources == std::vector<migraphx::instruction_ref>{m_root, n_root});
+    EXPECT(*sources == std::vector<migraphx::instruction_ref>{m_root, n_root});
 }
 
 TEST_CASE(find_expression_sources_uses_variable_order)
@@ -161,8 +157,7 @@ TEST_CASE(find_expression_sources_from_multiple_inputs)
     auto expression = migraphx::sym::min(var("m") + lit(1), var("n") * lit(2));
     auto sources    = migraphx::find_expression_sources(m, {a, b}, {expression});
     EXPECT(sources.has_value());
-    if(sources.has_value())
-        EXPECT(*sources == std::vector<migraphx::instruction_ref>{a, b});
+    EXPECT(*sources == std::vector<migraphx::instruction_ref>{a, b});
 }
 
 TEST_CASE(find_expression_sources_from_multiple_inputs_missing_input)
@@ -206,8 +201,7 @@ TEST_CASE(find_expression_sources_deduplicates_inputs)
 
     auto sources = migraphx::find_expression_sources(m, {data, data}, {n});
     EXPECT(sources.has_value());
-    if(sources.has_value())
-        EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
+    EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
 }
 
 TEST_CASE(find_expression_sources_empty_inputs)
@@ -221,8 +215,7 @@ TEST_CASE(find_expression_sources_empty_inputs)
 
     auto sources = migraphx::find_expression_sources(m, {}, {n});
     EXPECT(sources.has_value());
-    if(sources.has_value())
-        EXPECT(*sources == std::vector<migraphx::instruction_ref>{root});
+    EXPECT(*sources == std::vector<migraphx::instruction_ref>{root});
 }
 
 TEST_CASE(find_expression_sources_empty_inputs_without_candidates)
@@ -256,8 +249,7 @@ TEST_CASE(find_expression_sources_without_variables)
 
     auto sources = migraphx::find_expression_sources(m, {data, unused}, {lit(2), lit(3)});
     EXPECT(sources.has_value());
-    if(sources.has_value())
-        EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
+    EXPECT(*sources == std::vector<migraphx::instruction_ref>{data});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

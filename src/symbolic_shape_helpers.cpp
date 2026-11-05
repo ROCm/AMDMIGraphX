@@ -64,6 +64,7 @@ find_ordered_variables(const std::vector<sym::expr>& expressions)
         required.begin(), required.end(), std::back_inserter(result), [](const auto& variable) {
             return std::make_pair(variable.to_string(), variable);
         });
+    // Keep eval_expr_from_shape inputs deterministic despite the unordered variable set.
     std::sort(result.begin(), result.end(), [](const auto& x, const auto& y) {
         return x.first < y.first;
     });

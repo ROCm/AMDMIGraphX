@@ -215,16 +215,18 @@ struct miopen_apply
         }
     }
 
-    instruction_ref lower_to_host(instruction_ref ins, const operation& op) const
+    instruction_ref lower_to_host(instruction_ref ins) const
     {
         std::vector<instruction_ref> cpu_inputs;
         auto inputs = ins->inputs();
+        if(inputs.empty())
+            MIGRAPHX_THROW("gpu::lower_to_host: host fallback requires an output buffer input");
         auto output = inputs.back();
         std::transform(inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
             return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
         });
         cpu_inputs.front() = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-        auto cpu_out       = mod->insert_instruction(ins, op, cpu_inputs);
+        auto cpu_out       = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
         auto gpu_out = mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
         return mod->replace_instruction(ins, gpu_out);
     }
@@ -232,7 +234,7 @@ struct miopen_apply
     instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const
     {
         if(attrs.at("target") == "cpu")
-            return lower_to_host(ins, ins->get_operator());
+            return lower_to_host(ins);
         return ins;
     }
 
@@ -346,9 +348,10 @@ struct miopen_apply
     void add_2in_reshape_op()
     {
         apply_map.emplace("reshape", [=](instruction_ref ins) {
+            // One-input reshape is handled by lower_reshape; the two-input copy runs on host data.
             if(ins->inputs().size() != 2)
                 return ins;
-            return lower_to_host(ins, ins->get_operator());
+            return lower_to_host(ins);
         });
     }
 

@@ -36,6 +36,7 @@
 #include <migraphx/stringutils.hpp>
 #include <algorithm>
 #include <iomanip>
+#include <iterator>
 #include <set>
 #include <sstream>
 #include <string>
@@ -253,48 +254,29 @@ void recompile_ops::apply(program& p) const
     const auto& from = *from_rd;
     const auto to    = ctx->get_current_device().get_device_description();
 
-    const bool same_target = from == to;
-    if(same_target and not exhaustive_tune and not force)
-    {
-        log::info() << "recompile: the program is already compiled for " << to.arch
-                    << "; nothing to do";
-        return;
-    }
-
     auto scan = scan_kernels(p);
-    if(not same_target)
+    if(from != to)
         check_retarget(p, *ctx, scan, from, to);
     const auto from_gfx = get_gfx_name(from.arch);
     const auto to_gfx   = get_gfx_name(to.arch);
 
-    // Select the kernels to recompile and the tuning level for each
-    std::vector<kernel_ref> selected;
+    // Each kernel keeps its recorded tuning level unless exhaustive_tune raises it
     std::vector<recompile_request> requests;
-    std::vector<std::string> untouched;
-    for(const auto& k : scan.kernels)
-    {
-        const auto& co      = any_cast<code_object_op>(k.ins->get_operator());
-        const bool tunable  = co.tuning_level != "none";
-        const bool was_exh  = co.tuning_level == "exhaustive";
-        const bool exh      = exhaustive_tune or was_exh;
-        const bool at_level = was_exh == exh;
-        if(same_target and not force and (at_level or not tunable))
-        {
-            untouched.push_back(describe(k.ins));
-            continue;
-        }
-        selected.push_back(k);
-        requests.push_back({k.ins, exh});
-    }
-    untouched.insert(untouched.end(), scan.unsupported.begin(), scan.unsupported.end());
+    std::transform(scan.kernels.begin(),
+                   scan.kernels.end(),
+                   std::back_inserter(requests),
+                   [&](const kernel_ref& k) -> recompile_request {
+                       const auto& co = any_cast<code_object_op>(k.ins->get_operator());
+                       return {k.ins, exhaustive_tune or co.tuning_level == "exhaustive"};
+                   });
 
     // Compile everything before changing the program, so a failure leaves it unchanged
     auto recompiled = recompile_kernels(*ctx, requests);
 
     std::stringstream report;
-    for(auto i : range(selected.size()))
+    for(auto i : range(scan.kernels.size()))
     {
-        const auto& k   = selected[i];
+        const auto& k   = scan.kernels[i];
         const auto& nop = recompiled[i].code_object;
         const auto& nco = any_cast<code_object_op>(nop);
         k.mod->replace_instruction(k.ins, nop, k.ins->inputs(), k.ins->module_inputs());
@@ -310,10 +292,11 @@ void recompile_ops::apply(program& p) const
     }
     assign_module_ids(*mm);
     set_compiled_for(*mm, to);
-    log::info() << "recompile: recompiled " << selected.size() << " kernels for " << to_gfx << "\n"
+    log::info() << "recompile: recompiled " << scan.kernels.size() << " kernels for " << to_gfx
+                << "\n"
                 << report.str();
-    if(not untouched.empty())
-        log::info() << "recompile: left as compiled: " << join_names(untouched);
+    if(not scan.unsupported.empty())
+        log::info() << "recompile: left as compiled: " << join_names(scan.unsupported);
     if(get_gfx_generation(from.arch) != get_gfx_generation(to.arch))
         log::info() << "note: graph decisions were made for " << from_gfx
                     << "; compile the model again for best performance on " << to_gfx << ".";

@@ -123,13 +123,6 @@ static std::string compiled_arch(const migraphx::program& p)
     return device.has_value() ? device->arch : "";
 }
 
-static migraphx::recompile_options force_options()
-{
-    migraphx::recompile_options options;
-    options.force = true;
-    return options;
-}
-
 static std::vector<migraphx::argument> run_program(const migraphx::program& p,
                                                    const migraphx::parameter_map& params)
 {
@@ -308,29 +301,16 @@ TEST_CASE(load_without_finalize)
     expect_matches_ref(r);
 }
 
-TEST_CASE(recompile_same_target_is_noop)
+TEST_CASE(recompile_same_target)
 {
     auto p = compile_program(migraphx::make_target("gpu"));
     migraphx::file_options fo;
     fo.finalize = false;
     auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
     q.recompile(migraphx::make_target("gpu"));
-    auto before = get_kernels(p);
-    auto after  = get_kernels(q);
-    EXPECT(before.size() == after.size());
-    for(std::size_t i = 0; i < before.size(); i++)
-        EXPECT(before[i].code_object == after[i].code_object);
-    expect_matches_ref(q);
-}
-
-TEST_CASE(recompile_same_target_force)
-{
-    auto p = compile_program(migraphx::make_target("gpu"));
-    migraphx::file_options fo;
-    fo.finalize = false;
-    auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
-    q.recompile(migraphx::make_target("gpu"), {}, force_options());
+    EXPECT(get_kernels(q).size() == get_kernels(p).size());
     EXPECT(all_have_recipes(q));
+    EXPECT(compiled_arch(q) == compiled_arch(p));
     expect_matches_ref(q);
 }
 
@@ -344,7 +324,7 @@ TEST_CASE(recompile_shares_modules)
     mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x),
                     mm->add_instruction(migraphx::make_op("relu"), y)});
     p = compile_program(migraphx::make_target("gpu"), recipe_options(), p);
-    p.recompile(migraphx::make_target("gpu"), {}, force_options());
+    p.recompile(migraphx::make_target("gpu"));
     auto kernels = get_kernels(p);
     EXPECT(kernels.size() == 2);
     EXPECT(kernels[0].code_object == kernels[1].code_object);
@@ -359,7 +339,7 @@ TEST_CASE(recompile_exhaustive_level)
     migraphx::compile_options options;
     options.exhaustive_tune = true;
     p.recompile(migraphx::make_target("gpu"), options);
-    // Only tunable kernels are recompiled at the higher level
+    // Tunable kernels are recompiled at the higher level
     for(const auto& co : get_kernels(p))
         EXPECT(co.tuning_level == "none" or co.tuning_level == "exhaustive");
     expect_matches_ref(p);
@@ -436,7 +416,7 @@ TEST_CASE(recompile_kernel_with_lowering_fill)
     migraphx::file_options fo;
     fo.finalize = false;
     auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
-    q.recompile(migraphx::make_target("gpu"), {}, force_options());
+    q.recompile(migraphx::make_target("gpu"));
     EXPECT(has_kernel(q, "nms_compact_kernel"));
     expect_nms_result(q);
 }

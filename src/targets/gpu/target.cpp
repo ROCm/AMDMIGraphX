@@ -394,12 +394,11 @@ setup_context(context& ctx, const compile_options& options, const backend_option
 }
 
 std::vector<pass> target::get_recompile_passes(migraphx::context& gctx,
-                                               const compile_options& options,
-                                               const recompile_options& recompile_opts) const
+                                               const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
     setup_context(ctx, options, get_backend_options(options));
-    return {recompile_ops{&ctx, recompile_opts.force, options.exhaustive_tune}};
+    return {recompile_ops{&ctx, options.exhaustive_tune}};
 }
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const

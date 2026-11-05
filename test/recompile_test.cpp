@@ -84,8 +84,8 @@ struct recompile_record
 {
     std::string from;
     std::string to;
-    bool force = false;
-    int runs   = 0;
+    bool exhaustive_tune = false;
+    int runs             = 0;
 };
 
 static recompile_record& last_recompile()
@@ -118,7 +118,7 @@ struct record_device_pass
 
 struct record_recompile_pass
 {
-    bool force = false;
+    bool exhaustive_tune = false;
 
     std::string name() const { return "record_recompile"; }
     void apply(migraphx::module& m) const
@@ -127,8 +127,8 @@ struct record_recompile_pass
         if(it != m.end())
             last_recompile().from =
                 migraphx::any_cast<migraphx::builtin::comment>(it->get_operator()).text;
-        last_recompile().to    = current_device();
-        last_recompile().force = force;
+        last_recompile().to              = current_device();
+        last_recompile().exhaustive_tune = exhaustive_tune;
         last_recompile().runs++;
         record_device(m, current_device());
         if(break_recompile())
@@ -148,12 +148,10 @@ struct recompile_test_target
     {
         return {record_device_pass{}};
     }
-    std::vector<migraphx::pass>
-    get_recompile_passes(migraphx::context&,
-                         const migraphx::compile_options&,
-                         const migraphx::recompile_options& recompile_opts) const
+    std::vector<migraphx::pass> get_recompile_passes(migraphx::context&,
+                                                     const migraphx::compile_options& options) const
     {
-        return {record_recompile_pass{recompile_opts.force}};
+        return {record_recompile_pass{options.exhaustive_tune}};
     }
     migraphx::context get_context() const { return recompile_test_context{}; }
 };
@@ -222,13 +220,13 @@ TEST_CASE(recompile_runs_recompile_passes)
     EXPECT(recorded_device(p) == "dev_a");
     last_recompile() = {};
     current_device() = "dev_b";
-    migraphx::recompile_options options;
-    options.force = true;
-    p.recompile(make_recompile_target(), {}, options);
+    migraphx::compile_options options;
+    options.exhaustive_tune = true;
+    p.recompile(make_recompile_target(), options);
     EXPECT(last_recompile().runs == 1);
     EXPECT(last_recompile().from == "dev_a");
     EXPECT(last_recompile().to == "dev_b");
-    EXPECT(last_recompile().force);
+    EXPECT(last_recompile().exhaustive_tune);
     EXPECT(recorded_device(p) == "dev_b");
     EXPECT(context_device(p) == "dev_b");
 }
@@ -303,7 +301,7 @@ TEST_CASE(recompile_without_finalize)
     p.recompile(make_recompile_target());
     EXPECT(last_recompile().runs == 1);
     EXPECT(last_recompile().from == "dev_a");
-    EXPECT(not last_recompile().force);
+    EXPECT(not last_recompile().exhaustive_tune);
     EXPECT(recorded_device(p) == "dev_b");
 }
 

@@ -45,6 +45,7 @@
 #include <migraphx/gpu/compiled_code.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -333,6 +334,49 @@ TEST_CASE(duplicate_kernels_compile_once_without_a_directory)
     EXPECT(cache->get_stats().reused == 1);
 }
 
+// module_id of every code object in m, in instruction order
+static std::vector<std::int64_t> module_ids(const migraphx::module& m)
+{
+    std::vector<std::int64_t> ids;
+    migraphx::transform_if(
+        m.begin(),
+        m.end(),
+        std::back_inserter(ids),
+        [](const auto& ins) { return ins.name() == "gpu::code_object"; },
+        [](const auto& ins) {
+            return migraphx::any_cast<migraphx::gpu::code_object_op>(ins.get_operator()).module_id;
+        });
+    return ids;
+}
+
+TEST_CASE(identical_kernels_get_the_same_module_id)
+{
+    migraphx::gpu::context ctx{0, 1};
+    auto p = two_identical_pointwise();
+    migraphx::run_passes(p,
+                         {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::compile_ops{&ctx}});
+    EXPECT(module_ids(*p.get_main_module()) == std::vector<std::int64_t>{0, 0});
+
+    // Rerunning keeps the numbering
+    migraphx::run_passes(p, {migraphx::gpu::compile_ops{&ctx}});
+    EXPECT(module_ids(*p.get_main_module()) == std::vector<std::int64_t>{0, 0});
+}
+
+TEST_CASE(different_kernels_get_different_module_ids)
+{
+    migraphx::gpu::context ctx{0, 1};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    auto x   = mm->add_parameter("x", s);
+    auto add = add_pointwise(p, "main:pointwise0", {x, x}, single_pointwise("add"));
+    auto mul = add_pointwise(p, "main:pointwise1", {add, x}, single_pointwise("mul"));
+    mm->add_return({mul});
+    migraphx::run_passes(p,
+                         {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::compile_ops{&ctx}});
+    EXPECT(module_ids(*mm) == std::vector<std::int64_t>{0, 1});
+}
+
 static migraphx::program same_pointwise_in_two_submodules()
 {
     migraphx::program p;
@@ -371,6 +415,9 @@ TEST_CASE(same_kernel_in_two_submodules_compiles_once)
     EXPECT(count_code_objects(*p.get_module("If_0_else")) == 1);
     EXPECT(cache->get_stats().compiled == 1);
     EXPECT(cache->get_stats().reused == 0);
+    // Both submodules share the module too
+    EXPECT(module_ids(*p.get_module("If_0_if")) == std::vector<std::int64_t>{0});
+    EXPECT(module_ids(*p.get_module("If_0_else")) == std::vector<std::int64_t>{0});
 }
 
 // Compiling twice against the same cache has to leave entries behind and keep producing the

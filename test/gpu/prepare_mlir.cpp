@@ -68,7 +68,7 @@ TEST_CASE(reduce_unit_axis)
 
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", s);
+        auto x   = m1.add_parameter("x", s);
         auto max = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), x);
         auto any = m1.add_instruction(migraphx::make_op("reduce_any", {{"axes", {4}}}), x);
         auto all = m1.add_instruction(migraphx::make_op("reduce_all", {{"axes", {4}}}), x);
@@ -78,7 +78,7 @@ TEST_CASE(reduce_unit_axis)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", s);
+        auto x   = m2.add_parameter("x", s);
         auto max = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), x);
         auto any = m2.add_instruction(migraphx::make_op("reduce_any", {{"axes", {4}}}), x);
         auto all = m2.add_instruction(migraphx::make_op("reduce_all", {{"axes", {4}}}), x);

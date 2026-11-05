@@ -5365,29 +5365,25 @@ TEST_CASE(kv_flash_decoding_score_scale_param)
 
     migraphx::program p1;
     {
-        auto* mm    = p1.get_main_module();
-        auto q      = mm->add_parameter("q", s_q);
-        auto k      = mm->add_parameter("k", s_cache);
-        auto v      = mm->add_parameter("v", s_cache);
-        auto scale  = mm->add_parameter("scale", s_scale);
-        auto group  = add_group(
-            p1,
-            "attn0",
-            "kv_cache_attention",
-            {q, k, v, scale},
-            [=](auto* gm, const auto& inputs) {
+        auto* mm   = p1.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_cache);
+        auto v     = mm->add_parameter("v", s_cache);
+        auto scale = mm->add_parameter("scale", s_scale);
+        auto group = add_group(
+            p1, "attn0", "kv_cache_attention", {q, k, v, scale}, [=](auto* gm, const auto& inputs) {
                 auto tsp_k = gm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs.at(1));
                 auto gemm1  = gm->add_instruction(migraphx::make_op("dot"), inputs.at(0), tsp_k);
                 auto scaled = gm->add_instruction(migraphx::make_op("mul"), gemm1, inputs.at(3));
-                auto rmax   = gm->add_instruction(
-                    migraphx::make_op("reduce_max", {{"axes", {3}}}), scaled);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scaled);
                 auto bc_rm = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s_scale.lens()}}), rmax);
-                auto sub  = gm->add_instruction(migraphx::make_op("sub"), scaled, bc_rm);
-                auto exp  = gm->add_instruction(migraphx::make_op("exp"), sub);
-                auto rsum = gm->add_instruction(
-                    migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), scaled, bc_rm);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
                 auto bc_rs = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s_scale.lens()}}), rsum);
                 auto div   = gm->add_instruction(migraphx::make_op("div"), exp, bc_rs);
@@ -5396,10 +5392,9 @@ TEST_CASE(kv_flash_decoding_score_scale_param)
             });
         mm->add_return({group});
     }
-    run_pass(p1,
-             {.attn_enabled              = false,
-              .flash_decoding_enabled    = true,
-              .flash_decoding_num_splits = 2});
+    run_pass(
+        p1,
+        {.attn_enabled = false, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
 
     migraphx::program p2;
     {
@@ -5435,8 +5430,8 @@ TEST_CASE(kv_flash_decoding_score_scale_param)
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), scaled);
                 auto bc_rm = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", split}}), rmax);
-                auto sub  = gm->add_instruction(migraphx::make_op("sub"), scaled, bc_rm);
-                auto exp  = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), scaled, bc_rm);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
                 auto rsum =
                     gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {4}}}), exp);
                 auto bc_rs = gm->add_instruction(
@@ -5453,10 +5448,10 @@ TEST_CASE(kv_flash_decoding_score_scale_param)
         auto k2_max    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), lse);
         auto k2_max_bc = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 2, 1, 1}}}), k2_max);
-        auto k2_sub    = mm->add_instruction(migraphx::make_op("sub"), lse, k2_max_bc);
-        auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
-        auto k2_exp_bc = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", split}}), k2_exp);
+        auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_max_bc);
+        auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
+        auto k2_exp_bc =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", split}}), k2_exp);
         auto k2_cvt = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_exp_bc);
         auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_prime, k2_cvt);

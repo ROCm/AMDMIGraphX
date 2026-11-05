@@ -3117,16 +3117,12 @@ TEST_CASE(kv_flash_decoding_group)
     {
         auto* mm = expected.get_main_module();
         auto x   = mm->add_parameter("x", s);
-        auto fused = add_mlir(
-            expected,
-            "attn0_kv_flash_decoding",
-            {x},
-            [](auto* gm, const auto& inputs) {
-                auto reduced = gm->add_instruction(
-                    migraphx::make_op("reduce_max", {{"axes", {2}}}), inputs[0]);
-                return std::make_tuple(
-                    migraphx::make_op("group", {{"tag", "kv_cache_attention"}}),
-                    std::vector<migraphx::instruction_ref>{inputs[0], reduced});
+        auto fused =
+            add_mlir(expected, "attn0_kv_flash_decoding", {x}, [](auto* gm, const auto& inputs) {
+                auto reduced = gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}),
+                                                   inputs[0]);
+                return std::make_tuple(migraphx::make_op("group", {{"tag", "kv_cache_attention"}}),
+                                       std::vector<migraphx::instruction_ref>{inputs[0], reduced});
             });
         auto output =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);

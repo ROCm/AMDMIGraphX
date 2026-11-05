@@ -244,13 +244,12 @@ void run_verify::verify(const program_info& pi) const
             {
                 migraphx::compile_options mode_opts = c_opts;
                 mode_opts.compile_mode              = mode;
-                results.emplace_back(
-                    auto_print::make_name(tname, mode),
-                    detach_async(
-                        [this, t, p, inputs = copy_params(m), mode_opts] {
-                            return run_target(t, p, inputs, mode_opts);
-                        },
-                        ti.parallel));
+                results.emplace_back(auto_print::make_name(tname, mode),
+                                     detach_async(
+                                         [this, t, p, inputs = copy_params(m), mode_opts] {
+                                             return run_target(t, p, inputs, mode_opts);
+                                         },
+                                         ti.parallel));
             }
         }
 

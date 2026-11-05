@@ -1748,9 +1748,8 @@ struct dot_input_split
         }
         // Query splits are an unsqueeze and a broadcast. K and V splits reshape the dot
         // input, which is not a packed buffer when the head repeat could not be rebuilt.
-        if(std::any_of(ops.begin(), ops.end(), [](const operation& op) {
-               return op.name() == "reshape";
-           }))
+        if(std::any_of(
+               ops.begin(), ops.end(), [](const operation& op) { return op.name() == "reshape"; }))
             return false;
         splits.emplace(input, ops);
         return true;

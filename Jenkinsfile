@@ -184,28 +184,33 @@ def checkoutWithRetry = { int maxAttempts = 3 ->
                 // descriptor) can produce a non-serializable result that causes
                 // the workspace to appear empty after an apparently successful clone.
                 extensions: new ArrayList(scm.extensions) + [
-                    [$class: 'CloneOption', timeout: 30, shallow: true, depth: 1, retryFetchCount: 3],
+                    // Full clone. depth 1 drops parents, so the Git plugin's changelog
+                    // walk fails and any tag-based step breaks. The 30-minute fetch
+                    // timeout plus retryFetchCount cover a stalled fetch.
+                    [$class: 'CloneOption', timeout: 30, shallow: false, retryFetchCount: 3],
                     [$class: 'CheckoutOption', timeout: 30],
                 ],
                 userRemoteConfigs: scm.userRemoteConfigs,
             ])
             return
         } catch (Exception e) {
+            // FlowInterruptedException extends AbortException, so match it by name.
+            // A plain AbortException is how the Git plugin reports a failed fetch
+            // (exit 128); those fall through and are retried.
             if (e instanceof InterruptedException ||
-                e.class.name == 'org.jenkinsci.plugins.workflow.steps.FlowInterruptedException' ||
-                e.class.name == 'hudson.AbortException') {
+                e.class.name == 'org.jenkinsci.plugins.workflow.steps.FlowInterruptedException') {
                 throw e
             }
             if (attempt == maxAttempts) {
                 // Exclude url keys to avoid leaking embedded credentials.
                 sh 'git config --list | grep -v -i "token\\|password\\|auth\\|header\\|url" || true'
                 sh 'ip route || true'
-                sh 'curl -sv https://github.com 2>&1 | tail -20 || true'
+                sh 'curl --connect-timeout 10 --max-time 20 -sv https://github.com 2>&1 | tail -20 || true'
                 throw e
             }
-            // Linear backoff: 15 s, 30 s, 45 s, ...
-            def delay = 15 * attempt
-            echo "checkout scm failed (attempt ${attempt}/${maxAttempts}): ${e.message}. Retrying in ${delay}s..."
+            // Exponential backoff: 15 s, 30 s, 60 s, ...
+            def delay = 15 * (1 << (attempt - 1))
+            echo "git checkout failed (attempt ${attempt}/${maxAttempts}): ${e.message}. Retrying in ${delay}s..."
             sleep(time: delay, unit: 'SECONDS')
         }
     }

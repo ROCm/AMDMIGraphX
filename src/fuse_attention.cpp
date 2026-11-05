@@ -427,8 +427,7 @@ struct flash_decoding_split
             else if(ins->name() == "@literal" and
                     split_literal(ins->get_literal()).get_shape().lens() !=
                         ins->get_literal().get_shape().lens() and
-                    (feeds_first_dot(ins, gemm1, end) or
-                     not consumed_as_scores(ins, scores_lens)))
+                    (feeds_first_dot(ins, gemm1, end) or not consumed_as_scores(ins, scores_lens)))
             {
                 return true;
             }

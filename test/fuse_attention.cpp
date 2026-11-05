@@ -5516,9 +5516,8 @@ TEST_CASE(kv_flash_decoding_range_before_scores)
         auto sl    = mm->add_parameter("sl", s_sl);
         auto group = add_group(
             p1, "attn0", "kv_cache_attention", {q, k, v, sl}, [=](auto* gm, const auto& inputs) {
-                auto range = gm->add_literal(
-                    migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
-                auto ninf = gm->add_literal(
+                auto range = gm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
+                auto ninf  = gm->add_literal(
                     migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
                 auto bc_ninf = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s_q.lens()}}), ninf);
@@ -5526,7 +5525,7 @@ TEST_CASE(kv_flash_decoding_range_before_scores)
                     gm->add_instruction(migraphx::make_op("dot"), inputs.at(0), inputs.at(1));
                 auto bc_sl = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", {1, 8}}}), inputs.at(3));
-                auto grtr = gm->add_instruction(migraphx::make_op("greater"), range, bc_sl);
+                auto grtr    = gm->add_instruction(migraphx::make_op("greater"), range, bc_sl);
                 auto bc_grtr = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s_q.lens()}}), grtr);
                 auto mask =

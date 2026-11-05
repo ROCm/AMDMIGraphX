@@ -1561,17 +1561,14 @@ program& program::sort()
     return *this;
 }
 
-bool operator==(const program& x, const program& y)
-{
-    return migraphx::to_string(x) == migraphx::to_string(y);
-}
-
-std::ostream& operator<<(std::ostream& os, const program& p)
+static void print_modules(std::ostream& os, const program& p, bool skip_bypassed)
 {
     auto vec_modules = p.get_modules();
     std::unordered_map<instruction_ref, std::string> names;
     for(auto& mod : vec_modules)
     {
+        if(skip_bypassed and mod->bypass())
+            continue;
         os << "module: \"" << mod->name() << "\"" << std::endl;
         names = mod->print(
             [&](auto ins, const auto& ins_names) {
@@ -1581,7 +1578,21 @@ std::ostream& operator<<(std::ostream& os, const program& p)
             names);
         os << std::endl;
     }
+}
 
+bool operator==(const program& x, const program& y)
+{
+    std::stringstream xs;
+    std::stringstream ys;
+    print_modules(xs, x, false);
+    print_modules(ys, y, false);
+    return xs.str() == ys.str();
+}
+
+std::ostream& operator<<(std::ostream& os, const program& p)
+{
+    // A compiled program never runs its bypassed modules (such as recompile recipes) directly
+    print_modules(os, p, p.is_compiled());
     return os;
 }
 

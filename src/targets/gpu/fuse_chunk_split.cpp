@@ -28,8 +28,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/op/slice.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/erase.hpp>
 #include <migraphx/param_utils.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -133,10 +133,16 @@ view_origin origin_of(instruction_ref ins)
     {
         if(r.base->name() == "slice")
         {
-            const auto& op   = any_cast<op::slice>(r.base->get_operator());
-            const auto& in_s = r.base->inputs().front()->get_shape();
-            // compute_offset is in bytes
-            r.offset += op.compute_offset(in_s) / in_s.type_size();
+            // the element the slice starts at in its input
+            const auto v      = r.base->get_operator().to_value();
+            const auto axes   = v.at("axes").to_vector<std::size_t>();
+            const auto starts = v.at("starts").to_vector<std::size_t>();
+            const auto& in_s  = r.base->inputs().front()->get_shape();
+            std::vector<std::size_t> start(in_s.ndim(), 0);
+            for_each(axes.begin(), axes.end(), starts.begin(), [&](auto axis, auto s) {
+                start.at(axis) = s;
+            });
+            r.offset += in_s.index(start);
         }
         r.base = r.base->inputs().front();
     }

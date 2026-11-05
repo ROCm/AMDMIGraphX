@@ -1122,9 +1122,11 @@ static void assign_module_ids(const std::vector<module_ref>& mods)
             continue;
         auto op      = any_cast<code_object_op>(a.ins->get_operator());
         op.module_id = a.module_id;
-        a.m->replace_instruction(a.ins, std::move(op), a.ins->inputs());
+        a.m->replace_instruction(a.ins, std::move(op), a.ins->inputs(), a.ins->module_inputs());
     }
 }
+
+void assign_module_ids(module& root) { assign_module_ids(collect_modules(&root)); }
 
 void compile_ops::apply(module_pass_manager& mpm) const
 {

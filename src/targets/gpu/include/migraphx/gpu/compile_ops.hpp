@@ -95,6 +95,10 @@ recompile_kernels(context& ctx, const std::vector<recompile_request>& requests);
 /// nothing when the kernel was compiled without recompilable
 MIGRAPHX_GPU_EXPORT optional<instruction_ref> find_recipe(instruction_ref ins);
 
+/// Give the code objects in root and its submodules that hold the same binary the same
+/// module_id, so finalize loads each binary once
+MIGRAPHX_GPU_EXPORT void assign_module_ids(module& root);
+
 /// The name of the op a recipe compiles, for example "gpu::mlir_op"
 MIGRAPHX_GPU_EXPORT std::string recipe_op_name(instruction_ref recipe);
 

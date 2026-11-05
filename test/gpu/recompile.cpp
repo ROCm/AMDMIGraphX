@@ -334,6 +334,25 @@ TEST_CASE(recompile_same_target_force)
     expect_matches_ref(q);
 }
 
+TEST_CASE(recompile_shares_modules)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x),
+                    mm->add_instruction(migraphx::make_op("relu"), y)});
+    p = compile_program(migraphx::make_target("gpu"), recipe_options(), p);
+    p.recompile(migraphx::make_target("gpu"), {}, force_options());
+    auto kernels = get_kernels(p);
+    EXPECT(kernels.size() == 2);
+    EXPECT(kernels[0].code_object == kernels[1].code_object);
+    EXPECT(kernels[0].module_id != -1);
+    EXPECT(kernels[0].module_id == kernels[1].module_id);
+    EXPECT(all_have_recipes(p));
+}
+
 TEST_CASE(recompile_exhaustive_level)
 {
     auto p = compile_program(migraphx::make_target("gpu"));

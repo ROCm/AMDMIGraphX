@@ -137,6 +137,11 @@ __device__ __host__ T* remove_bool(T* x)
 
 inline __device__ __host__ uint8_t* remove_bool(bool* x) { return reinterpret_cast<uint8_t*>(x); }
 
+inline __device__ __host__ const uint8_t* remove_bool(const bool* x)
+{
+    return reinterpret_cast<const uint8_t*>(x);
+}
+
 template <class T>
 struct pack_factor : integral_constant<index_int, 1>
 {

@@ -299,25 +299,23 @@ TEST_CASE(dynamic_dimension_intersection)
     EXPECT(fib.value() == shape::dynamic_dimension{3, 4});
 }
 
-TEST_CASE(dynamic_dimension_intersection_sym_mismatch)
+TEST_CASE(dynamic_dimension_intersection_symbolic_error)
 {
     auto k1 = var("k1", {1, 128});
     auto k2 = var("k2", {1, 128});
     dd a{k1};
     dd b{k2};
-    EXPECT(not a.intersection(b).has_value());
+    EXPECT(test::throws([&] { a.intersection(a); }));
+    EXPECT(test::throws([&] { a.intersection(b); }));
 }
 
-TEST_CASE(dynamic_dimension_intersection_sym_vs_range)
+TEST_CASE(dynamic_dimension_intersection_symbolic_range_error)
 {
     auto k = var("k", {1, 128});
     dd a{k};
     dd b{1, 64};
-    auto result = a.intersection(b);
-    EXPECT(result.has_value());
-    EXPECT(result->get_interval().min == 1);
-    EXPECT(result->get_interval().max == 64);
-    EXPECT(not result->is_symbolic());
+    EXPECT(test::throws([&] { a.intersection(b); }));
+    EXPECT(test::throws([&] { b.intersection(a); }));
 }
 
 TEST_CASE(dynamic_dimension_serialize)
@@ -1783,38 +1781,6 @@ TEST_CASE(test_symbolic_shape_print)
     EXPECT(to_str(s1) != to_str(s3));
 }
 
-TEST_CASE(dd_intersection_symbolic_with_range)
-{
-    auto n = var("n", {1, 32});
-    dd a{n};
-    dd b{2, 6};
-    auto result = a.intersection(b);
-    EXPECT(result.has_value());
-    EXPECT(result->get_interval().min == 2);
-    EXPECT(result->get_interval().max == 6);
-    EXPECT(result->sym_expr.empty());
-}
-
-TEST_CASE(dd_intersection_symbolic_same_symbol)
-{
-    auto n = var("n", {1, 32});
-    dd a{n};
-    dd b{n};
-    auto result = a.intersection(b);
-    EXPECT(result.has_value());
-    EXPECT(*result == a);
-}
-
-TEST_CASE(dd_intersection_symbolic_different_symbol)
-{
-    auto n = var("n", {1, 32});
-    auto m = var("m", {1, 16});
-    dd a{n};
-    dd b{m};
-    auto result = a.intersection(b);
-    EXPECT(not result.has_value());
-}
-
 // -------------------------------------------------------------------
 // Symbolic shapes: packed/standard/transposed/broadcasted/scalar
 // -------------------------------------------------------------------
@@ -2144,6 +2110,33 @@ TEST_CASE(find_permutation_symbolic_3d)
     EXPECT(migraphx::find_permutation(s) == permutation);
 }
 
+TEST_CASE(find_permutation_symbolic_zero_extent)
+{
+    auto k = var("k", {0, 200});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(1)}, dd{k}}};
+    std::vector<int64_t> permutation = {0, 1};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(find_permutation_symbolic_compound_zero_extent)
+{
+    auto k = var("k", {0, 200});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(2) * k}, dd{lit(4)}}};
+    std::vector<int64_t> permutation = {0, 1, 2};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(find_permutation_symbolic_always_empty)
+{
+    auto a = var("a", {1, 16});
+    auto b = var("b", {1, 4});
+    auto c = var("c", {1, 8});
+    auto z = var("z", {0, 0});
+    migraphx::shape s{migraphx::shape::float_type, {dd{a}, dd{c}, dd{z}}, {a / b, c, lit(1)}};
+    std::vector<int64_t> permutation = {0, 1, 2};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
 TEST_CASE(from_symbolic_2d_permutation)
 {
     auto n                           = var("n", {1, 8});
@@ -2215,6 +2208,16 @@ TEST_CASE(find_permutation_symbolic_stride_ordering_reversal)
     // a/b has interval [0, 16], c has interval [1, 8].
     // At max: 16 > 8 (a/b sorted first), at min: 0 < 1 (reversal).
     migraphx::shape s{migraphx::shape::float_type, {dd{a}, dd{c}}, {a / b, c}};
+    EXPECT(test::throws([&] { migraphx::find_permutation(s); }));
+}
+
+TEST_CASE(find_permutation_symbolic_zero_extent_stride_ordering_reversal)
+{
+    auto a = var("a", {1, 16});
+    auto b = var("b", {1, 4});
+    auto c = var("c", {1, 8});
+    auto z = var("z", {0, 4});
+    migraphx::shape s{migraphx::shape::float_type, {dd{a}, dd{c}, dd{z}}, {a / b, c, lit(1)}};
     EXPECT(test::throws([&] { migraphx::find_permutation(s); }));
 }
 

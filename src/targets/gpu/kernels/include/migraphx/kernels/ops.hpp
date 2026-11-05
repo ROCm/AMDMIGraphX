@@ -79,10 +79,7 @@ struct mean
             constexpr type d = 1.0 / N;
             return x * d;
         }
-        else
-        {
-            return x / static_cast<type>(N);
-        }
+        return x / static_cast<type>(N);
     }
 };
 

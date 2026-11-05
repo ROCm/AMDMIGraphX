@@ -168,7 +168,7 @@ struct hip_load_scalar
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).elements(1);
-        return {inputs.front().type(), inputs.front().lens()};
+        return inputs.front();
     }
     void finalize(context&, const shape& output_shape, const std::vector<shape>&)
     {

@@ -26,6 +26,7 @@
 #define MIGRAPHX_GUARD_KERNELS_MATMUL_HPP
 
 #include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/type_traits.hpp>

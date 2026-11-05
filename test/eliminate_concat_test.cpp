@@ -177,6 +177,7 @@ struct concat_test_optimization
         return true;
     }
     void set_output_shape(migraphx::instruction_ref, const migraphx::shape&) const {}
+    bool is_copy(migraphx::instruction_ref ins) const { return ins->name() == "test::copy"; }
 
     test_allocation_model allocation() const { return test_allocation_model{}; }
 };
@@ -880,6 +881,155 @@ TEST_CASE(invert_view_chain_broadcast)
                    {migraphx::shape::float_type, {2, 1}},
                    view)
                    .has_value());
+}
+
+// A copy that consumes the concat through a transpose: its buffer becomes the
+// super buffer viewed through the inverse transpose, so the producers write the
+// transposed layout and the copy disappears
+TEST_CASE(concat_transpose_copy_sinks)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 4));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 6, 4));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), c1);
+        auto a4 = m1.add_instruction(make_allocate(2, 4, 6));
+        auto cp = m1.add_instruction(migraphx::make_op("test::copy"), t1, a4);
+        m1.add_return({cp});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a4 = m2.add_instruction(make_allocate(2, 4, 6));
+        auto v =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), a4);
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), v);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), v);
+        auto s2  = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), v, s1, s2);
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), id1);
+        m2.add_return({t1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A copy straight after the concat into a permuted buffer: the producers write
+// that buffer in its layout
+TEST_CASE(concat_copy_sinks)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 4));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 6, 4));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto a4 = m1.add_instruction(make_allocate<0, 2, 1>(2, 6, 4));
+        auto cp = m1.add_instruction(migraphx::make_op("test::copy"), c1, a4);
+        m1.add_return({cp});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a4     = m2.add_instruction(make_allocate<0, 2, 1>(2, 6, 4));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), a4);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), a4);
+        auto s2  = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a4, s1, s2);
+        m2.add_return({id1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The concat has a second consumer, so the copy is not the only reader and stays
+TEST_CASE(concat_copy_with_other_consumer_keeps_copy)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 4));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 6, 4));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), c1);
+        auto a4 = m1.add_instruction(make_allocate(2, 4, 6));
+        auto cp = m1.add_instruction(migraphx::make_op("test::copy"), t1, a4);
+        auto s3 = m1.add_instruction(simple_op{}, c1);
+        m1.add_return({cp, s3});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a3     = m2.add_instruction(make_allocate(2, 6, 4));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), a3);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), a3);
+        auto s2  = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a3, s1, s2);
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), id1);
+        auto a4 = m2.add_instruction(make_allocate(2, 4, 6));
+        auto cp = m2.add_instruction(migraphx::make_op("test::copy"), t1, a4);
+        auto s3 = m2.add_instruction(simple_op{}, id1);
+        m2.add_return({cp, s3});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The copy writes into a parameter rather than an allocation, so its buffer
+// cannot be hoisted before the producers
+TEST_CASE(concat_copy_into_parameter_keeps_copy)
+{
+    migraphx::shape out_shape{migraphx::shape::float_type, {2, 4, 6}};
+    migraphx::module m1;
+    {
+        auto out = m1.add_parameter("out", out_shape);
+        auto a1  = m1.add_instruction(make_allocate(2, 3, 4));
+        auto s1  = m1.add_instruction(simple_op{}, a1);
+        auto a2  = m1.add_instruction(make_allocate(2, 3, 4));
+        auto s2  = m1.add_instruction(simple_op{}, a2);
+        auto a3  = m1.add_instruction(make_allocate(2, 6, 4));
+        auto c1  = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), c1);
+        auto cp = m1.add_instruction(migraphx::make_op("test::copy"), t1, out);
+        m1.add_return({cp});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto out    = m2.add_parameter("out", out_shape);
+        auto a3     = m2.add_instruction(make_allocate(2, 6, 4));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), a3);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), a3);
+        auto s2  = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a3, s1, s2);
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), id1);
+        auto cp = m2.add_instruction(migraphx::make_op("test::copy"), t1, out);
+        m2.add_return({cp});
+    }
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

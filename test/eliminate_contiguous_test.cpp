@@ -289,4 +289,49 @@ TEST_CASE(slice_contiguous)
                m.begin(), m.end(), [](auto&& ins) { return ins.name() == "contiguous"; }) == 1);
 }
 
+// The reshape merges axes the transpose split apart in memory, so without the
+// contiguous it would copy; the contiguous stays even though add accepts any layout
+TEST_CASE(contiguous_nonlazy_reshape_kept)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {3, 8}});
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
+        auto c = m1.add_instruction(migraphx::make_op("contiguous"), t);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 8}}}), c);
+        m1.add_instruction(migraphx::make_op("add"), r, y);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(contiguous_lazy_reshape_removed)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {3, 2, 2, 2}});
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
+        auto c = m1.add_instruction(migraphx::make_op("contiguous"), t);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 2, 2}}}), c);
+        m1.add_instruction(migraphx::make_op("add"), r, y);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+        auto y = m2.add_parameter("y", {migraphx::shape::float_type, {3, 2, 2, 2}});
+        auto t =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
+        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 2, 2}}}), t);
+        m2.add_instruction(migraphx::make_op("add"), r, y);
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

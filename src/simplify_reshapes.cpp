@@ -44,6 +44,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/reshape_dims.hpp>
 #include <migraphx/instruction_traversal.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/par.hpp>
@@ -2475,6 +2476,50 @@ struct find_flatten
     }
 };
 
+// Rewrite layout(reshape(x)) to reshape(layout(x)) when the reshape cannot alias
+// x as a view: the reshape then copies and the layout copies again, whereas the
+// layout alone can produce the memory order the reshape aliases.
+struct find_layout_reshape
+{
+    // A static reshape that cannot alias its input as a view
+    static bool is_copying_reshape(instruction_ref ins)
+    {
+        const auto& s = ins->inputs().front()->get_shape();
+        if(s.dynamic() or ins->get_shape().dynamic())
+            return false;
+        return not reshape_dims(s, ins->get_shape().lens(), {.lazy = true}).has_value();
+    }
+
+    auto matcher() const
+    {
+        auto copying_reshape =
+            match::name("reshape")(match::nargs(1),
+                                   match::used_once(),
+                                   match::make_basic_pred_matcher(&is_copying_reshape));
+        return match::name("layout")(match::args(copying_reshape));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto layout      = r.result;
+        auto reshape     = layout->inputs().front();
+        auto x           = reshape->inputs().front();
+        const auto& xs   = x->get_shape();
+        const auto& outs = layout->get_shape();
+        // Derive the memory order of x from which the output layout is a view
+        auto relayout = reshape_dims(outs, xs.lens(), {.lazy = true});
+        if(not relayout.has_value())
+            return;
+        auto perm      = find_permutation(*relayout);
+        auto layout_op = make_op("layout", {{"permutation", perm}});
+        auto rs        = reshape_dims(layout_op.compute_shape({xs}), outs.lens(), {.lazy = true});
+        if(not rs.has_value() or rs->to_static() != outs)
+            return;
+        auto new_layout = m.insert_instruction(layout, layout_op, x);
+        m.replace_instruction(layout, make_op("reshape", {{"dims", outs.lens()}}), new_layout);
+    }
+};
+
 // Rewrite layout(multibroadcast|broadcast(x)) to broadcast(layout(x)), skipping
 // the inner layout when it would be a no-op, so only the unique data is
 // materialized instead of a full copy per broadcast output.
@@ -2613,7 +2658,8 @@ void simplify_reshapes::apply(module& m) const
                             find_reshape_dot{},
                             find_mul_add_shape_op_dot{},
                             find_op_shape_transform_op{.enable = enable_op_shape_transform_op},
-                            find_entry_shape_transform_op{.enable = enable_op_shape_transform_op});
+                            find_entry_shape_transform_op{.enable = enable_op_shape_transform_op},
+                            find_layout_reshape{});
         dead_code_elimination{}.apply(m);
     });
 }

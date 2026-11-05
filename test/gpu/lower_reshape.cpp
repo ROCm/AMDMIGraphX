@@ -189,9 +189,8 @@ TEST_CASE(propagate_reshape_layout)
             m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 256, 4, 256, 4}}}), x);
         auto t = m1.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 4, 1, 3}}}), r1);
-        auto c = add_contiguous(m1, t);
         auto r2 =
-            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 256, 256}}}), c);
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 256, 256}}}), t);
         m1.add_return({add_contiguous(m1, r2)});
     }
     run_pass(m1);
@@ -215,6 +214,43 @@ TEST_CASE(propagate_reshape_layout)
     migraphx::shape expected_shape{
         migraphx::shape::float_type, {1, 16, 256, 256}, {1048576, 1, 4096, 16}};
     EXPECT(std::prev(m1.end())->inputs().front()->inputs().front()->get_shape() == expected_shape);
+}
+
+// A contiguous already standardizes the transposed input, so eliminate_contiguous keeps it
+// (removing it would only trade it for the relayout copy above) and the reshape aliases
+// its standard output
+TEST_CASE(keep_contiguous_before_copying_reshape)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {1, 1, 1024, 1024}};
+
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto r1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 256, 4, 256, 4}}}), x);
+        auto t = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 4, 1, 3}}}), r1);
+        auto c = add_contiguous(m1, t);
+        auto r2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 256, 256}}}), c);
+        m1.add_return({add_contiguous(m1, r2)});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", input_shape);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", {1, 256, 4, 256, 4}}}), x);
+        auto t = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 4, 1, 3}}}), r1);
+        auto c = add_contiguous(m2, t);
+        auto r2 =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {1, 16, 256, 256}}}), c);
+        m2.add_return({add_contiguous(m2, r2)});
+    }
+    EXPECT(m1 == m2);
+    EXPECT(std::prev(m1.end())->inputs().front()->inputs().front()->get_shape().standard());
 }
 
 // The singleton dims carry arbitrary strides, but the two elements still sit at offsets

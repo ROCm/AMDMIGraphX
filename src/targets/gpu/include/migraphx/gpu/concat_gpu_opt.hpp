@@ -63,6 +63,17 @@ struct concat_gpu_optimization
         v["output_shape"] = to_value(s);
         ins->replace(make_op("gpu::precompile_op", v));
     }
+    // Layout changes and plain copies write their input unchanged into the
+    // allocation they take last
+    bool is_copy(instruction_ref ins) const
+    {
+        if(contains({"gpu::contiguous", "hip::copy"}, ins->name()))
+            return true;
+        if(ins->name() != "gpu::precompile_op")
+            return false;
+        auto op = from_value<operation>(ins->get_operator().to_value().at("op"));
+        return contains({"layout", "contiguous"}, op.name());
+    }
     bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const
     {
         if(is_context_free(ins->get_operator()) or

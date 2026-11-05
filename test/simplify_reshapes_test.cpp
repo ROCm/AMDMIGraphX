@@ -7047,4 +7047,81 @@ TEST_CASE(op_shape_transform_shared_reduce_expanding_chain)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// The reshape merges axes that the transpose left apart in memory, so it cannot
+// alias its input; the layout moves before it so the reshape aliases the copy
+TEST_CASE(layout_reshape_transposed)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), t);
+        auto l = m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1, 2}}}), r);
+        m1.add_instruction(pass_op{}, l);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto t =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto l =
+            m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1, 2, 3}}}), t);
+        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), l);
+        m2.add_instruction(pass_op{}, r);
+    }
+    EXPECT(m1 == m2);
+}
+
+// A permuted layout maps back to the memory order of the reshape input that
+// the reshape aliases into that layout
+TEST_CASE(layout_reshape_transposed_permuted_layout)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), t);
+        auto l = m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 1}}}), r);
+        m1.add_instruction(pass_op{}, l);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto t =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto l =
+            m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), t);
+        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), l);
+        m2.add_instruction(pass_op{}, r);
+    }
+    EXPECT(m1 == m2);
+}
+
+// The reshape already aliases the transposed input, so the copy costs the same
+// on either side and nothing moves
+TEST_CASE(layout_reshape_lazy_unchanged)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 20, 3}}}), t);
+        auto l = m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1, 2}}}), r);
+        m1.add_instruction(pass_op{}, l);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

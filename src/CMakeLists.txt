@@ -144,12 +144,14 @@ add_library(migraphx
     reshape_dims.cpp
     rewrite_topk.cpp
     schedule.cpp
+    select_module.cpp
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
+    simplify_symbolic_dimensions.cpp
     split_single_dyn_dim.cpp
     split_sym_dim.cpp
     stack_segment.cpp

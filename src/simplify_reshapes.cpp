@@ -2146,22 +2146,14 @@ struct find_unary_shape_transforms
             y              = y->outputs().front();
         }
 
+        // The unary moves up to a producer that can fuse it: the shape
+        // transforms then sit next to the consumer, which absorbs them in the
+        // producer's dimensions. Otherwise it moves down to a fusable consumer,
+        // or up past the transforms below when neither neighbour fuses it.
         bool move_up   = can_fuse_unary(x);
-        bool move_down = can_fuse_unary(y);
-
-        if(move_up and move_down)
-        {
-            if(x->name() == "@literal")
-                move_down = false; // NOLINT(bugprone-branch-clone)
-            else if(yops.empty())
-                move_up = false;
-            else
-                move_down = false;
-        }
-        else if(not move_up and not move_down and not yops.empty())
-        {
+        bool move_down = not move_up and can_fuse_unary(y);
+        if(not move_up and not move_down and not yops.empty())
             move_up = true;
-        }
 
         if(move_up)
         {

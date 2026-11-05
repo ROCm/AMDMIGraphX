@@ -67,6 +67,7 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_symbolic_dimensions.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/split_sym_dim.hpp>
@@ -135,10 +136,16 @@ struct backend_options
     // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with pointwise ops.
     bool enable_skinny_dot   = false;
     bool standardize_outputs = false;
-    // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
+    // Keep range-based dynamic shapes for runtime compilation instead of specializing ranges.
+    bool disable_range_based_splitting = false;
+    // When true, kernels compile in-process, not in migraphx-hiprtc-driver.
+    // Not honoured by binary_cache's compiler-version probe, which still spawns the driver.
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;
+    // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
+    // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
+    std::size_t literal_staging_peak_percent = 5;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -151,8 +158,10 @@ struct backend_options
                     f(self.convolution_layout, "convolution_layout"),
                     f(self.enable_skinny_dot, "enable_skinny_dot"),
                     f(self.standardize_outputs, "standardize_outputs"),
+                    f(self.disable_range_based_splitting, "disable_range_based_splitting"),
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
+                    f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
@@ -189,8 +198,13 @@ struct pipeline_factory
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
+            dead_code_elimination{},
+            simplify_symbolic_dimensions{},
+            dead_code_elimination{},
             split_sym_dim{},
-            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+            enable_pass(not backend_opts.disable_range_based_splitting and
+                            disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
+                        split_single_dyn_dim{}),
             dead_code_elimination{},
             simplify_dyn_ops{},
             dead_code_elimination{},
@@ -332,7 +346,8 @@ struct pipeline_factory
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{.max_memory = max_memory},
+            write_literals{.max_memory           = max_memory,
+                           .staging_peak_percent = backend_opts.literal_staging_peak_percent},
             enable_pass(backend_opts.hip_graph, hipgraphify{}),
             dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},

@@ -308,6 +308,7 @@ void recompile_ops::apply(program& p) const
             report << "  (" << recompiled[i].excluded << " signature-changing candidates excluded)";
         report << "\n";
     }
+    assign_module_ids(*mm);
     set_compiled_for(*mm, to);
     log::info() << "recompile: recompiled " << selected.size() << " kernels for " << to_gfx << "\n"
                 << report.str();

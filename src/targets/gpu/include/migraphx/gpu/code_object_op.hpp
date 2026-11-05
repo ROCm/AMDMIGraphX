@@ -56,12 +56,6 @@ struct code_object_op
     // Assigned by compile_ops: code objects with the same module_id hold the same binary and
     // share one loaded module through the context; -1 loads a private module.
     std::int64_t module_id = -1;
-
-    // Tuning level of the kernel when it was compiled with recompilable: "quick", "exhaustive",
-    // or "none" when the kernel has nothing to tune. Empty without recompilable. The recipe
-    // itself, the precompile op, is in the instruction's recipe submodule.
-    std::string tuning_level = "";
-
     // Pre-packed kernarg buffer built in finalize(); not reflected.
     std::vector<char> packed_kernargs{};
     // (runtime arg index, byte offset) pairs for pointer patching in compute().
@@ -81,8 +75,7 @@ struct code_object_op
                     f(self.output_arg, "output_arg"),
                     f(self.annotations, "annotations"),
                     f(self.kernel_args, "kernel_args"),
-                    f(self.module_id, "module_id"),
-                    f(self.tuning_level, "tuning_level"));
+                    f(self.module_id, "module_id"));
     }
 
     value attributes() const
@@ -126,8 +119,6 @@ struct code_object_op
             os << "annotations=" << op.annotations << ",";
         if(op.module_id != -1)
             os << "module_id=" << op.module_id << ",";
-        if(not op.tuning_level.empty())
-            os << "tuning_level=" << op.tuning_level << ",";
         os << "]";
         return os;
     }

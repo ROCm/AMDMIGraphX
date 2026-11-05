@@ -40,13 +40,13 @@ struct context;
  * Recompile the gpu::code_object kernels of a compiled program from their recipes for the
  * device of ctx, in place. The graph, literals, memory plan and schedule are not changed.
  *
- * The device the program was compiled for is read from the comment that compile_ops records
- * with recompilable. Every kernel with a recipe is recompiled, also for the same device.
+ * The device the program was compiled for and its tuning level are read from the comments that
+ * record_compiled_for writes with recompilable. Every kernel with a recipe is recompiled, also
+ * for the same device, exhaustively when the program was tuned exhaustively or ctx asks for it.
  */
 struct MIGRAPHX_GPU_EXPORT recompile_ops
 {
-    context* ctx         = nullptr;
-    bool exhaustive_tune = false;
+    context* ctx = nullptr;
     std::string name() const { return "gpu::recompile_ops"; }
     void apply(program& p) const;
 };

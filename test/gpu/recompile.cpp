@@ -117,6 +117,15 @@ static bool all_have_recipes(migraphx::program& p)
     });
 }
 
+static std::size_t count_comments(const migraphx::program& p, const std::string& tag)
+{
+    const auto* mm = p.get_main_module();
+    return static_cast<std::size_t>(std::count_if(mm->begin(), mm->end(), [&](const auto& ins) {
+        return ins.name() == "@comment" and
+               migraphx::any_cast<migraphx::builtin::comment>(ins.get_operator()).tag == tag;
+    }));
+}
+
 static std::string compiled_arch(const migraphx::program& p)
 {
     auto device = migraphx::gpu::get_compiled_for(*p.get_main_module());
@@ -218,15 +227,16 @@ TEST_CASE(gfx_generation)
     EXPECT(migraphx::gpu::get_gfx_generation("sm_80") == 0);
 }
 
-TEST_CASE(code_object_tuning_level_round_trip)
+TEST_CASE(tuning_level_recorded_as_comment)
 {
-    migraphx::gpu::code_object_op co;
-    co.symbol_name  = "kernel";
-    co.tuning_level = "quick";
-    auto op         = migraphx::make_op("gpu::code_object", migraphx::to_value(co));
-    auto op2        = migraphx::make_op("gpu::code_object", op.to_value());
-    auto co2        = migraphx::any_cast<migraphx::gpu::code_object_op>(op2);
-    EXPECT(co2.tuning_level == "quick");
+    auto p   = compile_program(migraphx::make_target("gpu"));
+    auto* mm = p.get_main_module();
+    EXPECT(count_comments(p, "gpu_tuning") == 1);
+    EXPECT(not migraphx::gpu::is_exhaustive_tuned(*mm));
+    migraphx::gpu::set_exhaustive_tuned(*mm, true);
+    EXPECT(count_comments(p, "gpu_tuning") == 1);
+    auto q = migraphx::load_buffer(migraphx::save_buffer(p));
+    EXPECT(migraphx::gpu::is_exhaustive_tuned(*q.get_main_module()));
 }
 
 TEST_CASE(recipes_kept)
@@ -235,8 +245,6 @@ TEST_CASE(recipes_kept)
     EXPECT(all_have_recipes(p));
     for(auto ins : kernel_instructions(p))
     {
-        const auto& co = migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator());
-        EXPECT(co.tuning_level == "quick" or co.tuning_level == "none");
         // The recipe takes the same arguments as the kernel and is skipped by passes
         auto recipe = *migraphx::gpu::find_recipe(ins);
         EXPECT(recipe->inputs().size() == ins->inputs().size());
@@ -265,22 +273,15 @@ TEST_CASE(no_recipes_by_default)
     {
         EXPECT(not migraphx::gpu::find_recipe(ins).has_value());
         EXPECT(ins->module_inputs().empty());
-        EXPECT(migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator())
-                   .tuning_level.empty());
     }
-    EXPECT(not migraphx::gpu::get_compiled_for(*p.get_main_module()).has_value());
+    EXPECT(count_comments(p, "gpu_target") == 0);
+    EXPECT(count_comments(p, "gpu_tuning") == 0);
 }
 
 TEST_CASE(compiled_for_recorded_as_comment)
 {
-    auto p   = compile_program(cross_target("gfx1100"));
-    auto* mm = p.get_main_module();
-    auto it  = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "@comment" and
-               migraphx::any_cast<migraphx::builtin::comment>(ins.get_operator()).tag ==
-                   "gpu_target";
-    });
-    EXPECT(it != mm->end());
+    auto p = compile_program(cross_target("gfx1100"));
+    EXPECT(count_comments(p, "gpu_target") == 1);
     EXPECT(compiled_arch(p) == "gfx1100");
 }
 
@@ -339,9 +340,11 @@ TEST_CASE(recompile_exhaustive_level)
     migraphx::compile_options options;
     options.exhaustive_tune = true;
     p.recompile(migraphx::make_target("gpu"), options);
-    // Tunable kernels are recompiled at the higher level
-    for(const auto& co : get_kernels(p))
-        EXPECT(co.tuning_level == "none" or co.tuning_level == "exhaustive");
+    EXPECT(migraphx::gpu::is_exhaustive_tuned(*p.get_main_module()));
+    EXPECT(count_comments(p, "gpu_tuning") == 1);
+    // A later recompile keeps the recorded level
+    p.recompile(migraphx::make_target("gpu"));
+    EXPECT(migraphx::gpu::is_exhaustive_tuned(*p.get_main_module()));
     expect_matches_ref(p);
 }
 

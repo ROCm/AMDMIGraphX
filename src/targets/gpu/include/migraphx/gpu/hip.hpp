@@ -30,6 +30,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/value.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -86,6 +87,8 @@ struct hip_allocate
     }
 
     std::string name() const { return "hip::allocate"; }
+    value attributes() const { return {{"side_effect", true}}; }
+
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(0);

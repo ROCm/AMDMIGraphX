@@ -29,6 +29,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/concat.hpp>
@@ -145,15 +146,6 @@ instruction_ref insert_auto_reshape(module& m,
     return insert_auto_reshape(m, ins, std::vector<T>(dims), input);
 }
 
-instruction_ref
-insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
-{
-    return std::accumulate(
-        ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op) {
-            return m.insert_instruction(ins, op, x);
-        });
-}
-
 struct find_nested_shape_transforms
 {
     static const auto& shape_transform_ops()
@@ -198,8 +190,17 @@ struct find_nested_shape_transforms
         }
         else if(x->get_shape().elements() == 1 and ins->get_shape().elements() == 1)
         {
-            // TODO: Use squeeze or unsqueeze
-            m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), x);
+            m.replace_instruction(ins, insert_auto_reshape(m, ins, ins->get_shape().lens(), x));
+        }
+        else if(x->get_shape().elements() == 1)
+        {
+            // A single element can only be broadcasted, but the descriptor keeps
+            // its unit axes in place and may still need a squeeze around the broadcast
+            const auto& out_lens = ins->get_shape().lens();
+            auto y               = x;
+            if(x->get_shape().ndim() > out_lens.size())
+                y = insert_auto_reshape(m, ins, std::vector<std::size_t>(out_lens.size(), 1), x);
+            m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), y);
         }
         else
         {
@@ -887,21 +888,45 @@ struct find_nested_slice
  *  param1: lens = [3, 4], strides = [4, 1]
  *  con0: concat(param0, param1, axis = 1)
  *  multibroadcast(con0, lens = [2, 3, 4])
+ *
+ *  A concat along an axis that every input broadcasts, such as stacking broadcast
+ *  weights with unsqueeze + concat, concatenates the un-broadcast inputs instead, so
+ *  propagate_constant doesn't materialize the broadcast.
  */
 struct find_concat_multibroadcasts
 {
+    static bool broadcast_concat_axis(instruction_ref ins)
+    {
+        if(ins->get_shape().dynamic())
+            return false;
+        auto axis = any_cast<op::concat>(ins->normalized_operator()).axis;
+        return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref x) {
+            return x->get_shape().strides()[axis] == 0;
+        });
+    }
+
     auto matcher() const
     {
-        return match::name("concat")(
-            match::all_of[match::inputs()](match::name("multibroadcast", "broadcast")));
+        return match::name("concat")(match::any_of(
+            match::all_of[match::inputs()](match::name("multibroadcast", "broadcast")),
+            match::make_basic_pred_matcher(&broadcast_concat_axis)));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto concat_ins       = mr.result;
-        auto concat_op        = any_cast<op::concat>(concat_ins->get_operator());
+        auto concat_ins    = mr.result;
+        auto concat_op     = any_cast<op::concat>(concat_ins->normalized_operator());
+        auto concat_inputs = concat_ins->inputs();
+
+        if(broadcast_concat_axis(concat_ins))
+        {
+            auto bcast = insert_concat_broadcasts(m, concat_ins, concat_inputs, concat_op.axis);
+            if(bcast.has_value())
+                m.replace_instruction(concat_ins, *bcast);
+            return;
+        }
+
         auto concat_out_lens  = concat_ins->get_shape().lens();
-        auto concat_inputs    = concat_ins->inputs();
         auto front_mb_strides = concat_inputs.front()->get_shape().strides();
         assert(concat_op.axis >= 0);
 
@@ -1071,7 +1096,8 @@ struct find_concat_slice
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins    = mr.result;
+        auto ins = mr.result;
+        // Deliberately a copy: the loop below mutates the module while this is live.
         auto inputs = ins->inputs();
         auto outs   = ins->outputs();
         std::vector<migraphx::instruction_ref> slice_ins;
@@ -1130,6 +1156,162 @@ struct find_concat_slice
     }
 };
 
+// Concat of equal, consecutive slices of the same tensor along a different axis, or
+// along the same axis through a view chain, is a layout change of that tensor, e.g.
+// for x{4, 3 * 8}:
+//     concat[axis=0](slice[axes={1}](x, 0, 8), slice(x, 8, 16), slice(x, 16, 24))
+// is reshape(transpose(reshape(x, {4, 3, 8}), {1, 0, 2}), {12, 8}). The slices don't
+// have to cover all of x, and may each be wrapped in an equivalent chain of view ops.
+//
+// clang-format off
+// x {4, 24}
+// columns:  [ 0:8 | 8:16 | 16:24 ]
+//              |      |       |
+//           slice   slice   slice     each {4, 8}
+//              \      |      /
+//               concat axis 0
+//                    |
+//                 {12, 8}
+//
+// becomes
+//
+// x {4, 24}
+//   | reshape  {4, 3, 8}     split the sliced axis into {n, len}
+//   | transpose {1, 0, 2}    move n to the front
+//   | reshape  {12, 8}       merge n into the concat axis
+//   v
+// {12, 8}
+//
+// Each slice may sit under the same view chain (reshape, squeeze, unsqueeze, transpose,
+// flatten). That chain is applied to every row after n is moved to the front, then n is
+// moved to the concat axis. unsqueeze and reshape that describe the same view still match.
+//
+// A partial cover slices the covered range first and leaves the rest alone:
+//
+// x {2, 3, 34}
+//   | slice columns [0:32]
+//   | layout rewrite of the 4 chunks of 8
+//   v
+// concat result
+//
+// x {2, 3, 34}
+//   | slice columns [32:34]     unchanged gate
+// clang-format on
+struct find_concat_slice_layout
+{
+    static const auto& view_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "reshape", "squeeze", "unsqueeze", "transpose", "flatten"};
+        return names;
+    }
+
+    // A transpose of a rank `rank` tensor that moves axis `from` to `to`
+    static operation move_axis(std::size_t rank, int64_t from, int64_t to)
+    {
+        std::vector<int64_t> perm(rank);
+        std::iota(perm.begin(), perm.end(), 0);
+        perm.erase(perm.begin() + from);
+        perm.insert(perm.begin() + to, from);
+        return make_op("transpose", {{"permutation", perm}});
+    }
+
+    auto matcher() const
+    {
+        auto slice = match::skip(match::name(view_ops()))(match::name("slice")(match::nargs(1)));
+        return match::name("concat")(match::all_of[match::inputs()](slice));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins           = mr.result;
+        const auto& inputs = ins->inputs();
+        auto n             = inputs.size();
+        if(n < 2 or ins->get_shape().dynamic())
+            return;
+
+        std::vector<instruction_ref> slices;
+        std::vector<std::vector<operation>> chains;
+        for(auto input : inputs)
+        {
+            auto [root, chain] = get_input_ops_if(
+                input, [](instruction_ref x) { return contains(view_ops(), x->name()); });
+            if(root->name() != "slice")
+                return;
+            slices.push_back(root);
+            chains.push_back(std::move(chain));
+        }
+
+        auto x     = slices.front()->inputs().front();
+        auto front = slices.front()->normalized_operator().to_value();
+        auto axes  = front["axes"].to_vector<int64_t>();
+        if(axes.size() != 1)
+            return;
+        int64_t axis  = axes.front();
+        int64_t start = front["starts"].to_vector<int64_t>().front();
+        int64_t len   = front["ends"].to_vector<int64_t>().front() - start;
+        if(len <= 0)
+            return;
+        for(std::size_t i = 0; i < n; ++i)
+        {
+            if(slices[i]->inputs().front() != x)
+                return;
+            auto v     = slices[i]->normalized_operator().to_value();
+            int64_t si = start + static_cast<int64_t>(i) * len;
+            if(v["axes"].to_vector<int64_t>() != axes or
+               v["starts"].to_vector<int64_t>().front() != si or
+               v["ends"].to_vector<int64_t>().front() != si + len)
+                return;
+        }
+
+        // Compare descriptors so differently spelled but equivalent chains, such as
+        // unsqueeze and reshape, still match
+        const auto& slice_lens = slices.front()->get_shape().lens();
+        auto desc              = shape_transform_descriptor::create(slice_lens, chains.front());
+        if(desc.empty() or std::any_of(chains.begin() + 1, chains.end(), [&](const auto& chain) {
+               return shape_transform_descriptor::create(slice_lens, chain) != desc;
+           }))
+            return;
+
+        auto caxis = ins->normalized_operator().to_value()["axis"].to<int64_t>();
+        // Without a view chain, a same-axis concat of slices is not a layout change
+        if(caxis == axis and desc.generate().empty())
+            return;
+
+        auto z     = x;
+        auto total = static_cast<int64_t>(n) * len;
+        if(start != 0 or total != static_cast<int64_t>(x->get_shape().lens()[axis]))
+        {
+            z = m.insert_instruction(
+                ins,
+                make_op("slice",
+                        {{"axes", {axis}}, {"starts", {start}}, {"ends", {start + total}}}),
+                x);
+        }
+
+        // Split the slice axis into {n, len} and move n to the front, so each
+        // slice is one row; apply the view chain to every row, then move n to the
+        // concat axis and merge it into that axis.
+        std::vector<operation> ops;
+        auto split_lens  = z->get_shape().lens();
+        split_lens[axis] = len;
+        split_lens.insert(split_lens.begin() + axis, n);
+        ops.push_back(make_op("reshape", {{"dims", split_lens}}));
+        if(axis != 0)
+            ops.push_back(move_axis(split_lens.size(), axis, 0));
+        desc.prepend_axis(n);
+        auto chain = desc.generate();
+        ops.insert(ops.end(), chain.begin(), chain.end());
+        if(caxis != 0)
+            ops.push_back(move_axis(ins->get_shape().ndim() + 1, 0, caxis));
+        ops.push_back(make_op("reshape", {{"dims", ins->get_shape().lens()}}));
+
+        auto y = insert_ops(m, ins, optimize_shape_transforms(z->get_shape().lens(), ops), z);
+        assert(y->get_shape().lens() == ins->get_shape().lens());
+        m.replace_instruction(ins, y);
+    }
+};
+
 struct find_concat_transpose
 {
     auto matcher() const
@@ -1146,10 +1328,10 @@ struct find_concat_transpose
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins          = mr.result;
-        auto trans_inputs = ins->inputs();
-        auto v            = ins->get_operator().to_value();
-        auto permutation  = get_permutation(trans_inputs.front());
+        auto ins                 = mr.result;
+        const auto& trans_inputs = ins->inputs();
+        auto v                   = ins->get_operator().to_value();
+        auto permutation         = get_permutation(trans_inputs.front());
 
         // permutation should be the same for all inputs
         if(not std::all_of(trans_inputs.begin(), trans_inputs.end(), [&](auto in) {
@@ -1186,9 +1368,9 @@ struct find_concat_reshape
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins          = mr.result;
-        auto concat_shape = ins->get_shape();
-        auto reshapes     = ins->inputs();
+        auto ins             = mr.result;
+        auto concat_shape    = ins->get_shape();
+        const auto& reshapes = ins->inputs();
         if(reshapes.empty())
             return;
         auto input_shape = reshapes.front()->inputs().front()->get_shape();
@@ -1964,22 +2146,14 @@ struct find_unary_shape_transforms
             y              = y->outputs().front();
         }
 
+        // The unary moves up to a producer that can fuse it: the shape
+        // transforms then sit next to the consumer, which absorbs them in the
+        // producer's dimensions. Otherwise it moves down to a fusable consumer,
+        // or up past the transforms below when neither neighbour fuses it.
         bool move_up   = can_fuse_unary(x);
-        bool move_down = can_fuse_unary(y);
-
-        if(move_up and move_down)
-        {
-            if(x->name() == "@literal")
-                move_down = false; // NOLINT(bugprone-branch-clone)
-            else if(yops.empty())
-                move_up = false;
-            else
-                move_down = false;
-        }
-        else if(not move_up and not move_down and not yops.empty())
-        {
+        bool move_down = not move_up and can_fuse_unary(y);
+        if(not move_up and not move_down and not yops.empty())
             move_up = true;
-        }
 
         if(move_up)
         {
@@ -2414,6 +2588,10 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m, find_gather{});
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m, find_slice_reshaped_concat{});
+        // Runs before find_concat_reshape, which would otherwise take
+        // concat(unsqueeze(broadcast)) and keep concatenating the broadcast. It is a separate
+        // call so a concat it matches but can't rewrite is still seen by find_concat_reshape.
+        match::find_matches(m, find_concat_multibroadcasts{});
         match::find_matches(m,
                             find_nop_reshapes{},
                             find_flatten{},
@@ -2423,9 +2601,9 @@ void simplify_reshapes::apply(module& m) const
                             find_nested_shape_transforms{},
                             find_gather_slice_concat{},
                             find_concat_slice{},
+                            find_concat_slice_layout{},
                             find_concat_transpose{},
                             find_concat_reshape{},
-                            find_concat_multibroadcasts{},
                             find_nested_slice{},
                             find_nested_concat{},
                             find_transpose_slice{},

@@ -172,18 +172,13 @@ struct MIGRAPHX_EXPORT shape
         bool has_optimal() const;
 
         /**
-         * Return a dynamic_dimension with the intersection of two dynamic_dimension ranges if
-         * possible. When both dimensions are symbolic, they are compatible only if they
-         * share the same symbolic expression.
+         * Return a dynamic_dimension with the intersection of two range-based dynamic dimensions
+         * if possible. Symbolic dimensions cannot be intersected.
          */
         std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
         {
-            if(this->is_symbolic() and other.is_symbolic())
-            {
-                if(this->sym_expr == other.sym_expr)
-                    return *this;
-                return nullopt;
-            }
+            if(this->is_symbolic() or other.is_symbolic())
+                MIGRAPHX_THROW("dynamic_dimension: cannot intersect symbolic dimensions");
             auto this_interval  = this->get_interval();
             auto other_interval = other.get_interval();
             auto left           = std::max(this_interval.min, other_interval.min);
@@ -235,6 +230,7 @@ struct MIGRAPHX_EXPORT shape
 
     static bool is_integral(type_t t);
     static bool is_compatible(const shape& actual, const shape& expected);
+    static bool is_compatible_type_and_lens(const shape& actual, const shape& expected);
     static bool is_compatible_lens(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
@@ -342,6 +338,7 @@ struct MIGRAPHX_EXPORT shape
 
     bool symbolic() const;
     const std::vector<sym::expr>& dyn_strides() const;
+    bool has_fixed_strides() const;
 
     /*!
      * Minimum lengths for dynamic shape.

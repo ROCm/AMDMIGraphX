@@ -61,6 +61,9 @@ dnnl_context& get_dnnl_context();
 
 dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t);
 
+// oneDNN has no bool, int64, double or fp8 memory types
+bool is_dnnl_supported_type(shape::type_t t);
+
 dnnl::memory::format_tag to_dnnl_memory_format_tag(std::size_t n);
 
 template <class R>

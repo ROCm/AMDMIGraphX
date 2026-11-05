@@ -32,6 +32,8 @@
 #include <migraphx/module.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
 #include <test.hpp>
 
@@ -347,6 +349,32 @@ TEST_CASE(print_skips_bypassed_modules)
     EXPECT(std::count(printed.begin(), printed.end(), "neg") == 0);
     EXPECT(std::count(printed.begin(), printed.end(), "abs") == 1);
     EXPECT(std::count(printed.begin(), printed.end(), "relu") == 1);
+}
+
+static void add_bypassed_module(migraphx::program& p, const std::string& op)
+{
+    auto* sub = p.create_module("sub");
+    auto sx   = sub->add_parameter("sx", migraphx::shape{migraphx::shape::float_type, {4}});
+    sub->add_return({sub->add_instruction(migraphx::make_op(op), sx)});
+    sub->set_bypass();
+}
+
+TEST_CASE(stream_skips_bypassed_modules_when_compiled)
+{
+    // Uncompiled programs still show their fused modules
+    EXPECT(migraphx::contains(migraphx::to_string(make_bypass_program()), "module: \"sub\""));
+
+    auto p = compile_for("dev_a");
+    add_bypassed_module(p, "neg");
+    auto printed = migraphx::to_string(p);
+    EXPECT(not migraphx::contains(printed, "module: \"sub\""));
+    EXPECT(migraphx::contains(printed, "module: \"main\""));
+
+    // Equality still compares the bypassed modules
+    auto q = compile_for("dev_a");
+    add_bypassed_module(q, "abs");
+    EXPECT(migraphx::to_string(p) == migraphx::to_string(q));
+    EXPECT(p != q);
 }
 
 TEST_CASE(older_program_version_refused)

@@ -133,13 +133,21 @@ struct chunk_scanner
         return mat<Family::index, decltype(Family::view)>(Family::offset + i * Family::delta);
     }
 
-    __device__ static bool is_w(index_int r) { return (r / g) % 2 == 1; }
+    // a stacked row as (group, q or w, row within the group)
+    static constexpr auto stack =
+        make_shape(index_ints<Settings::has_read ? stacked / (2 * g) : 1, 2, g>{});
+    __device__ static bool is_w(index_int r) { return stack.multi(r)[1] == 1; }
     __device__ static index_int src_row(index_int r)
     {
         if constexpr(Settings::has_read)
-            return (r / (2 * g)) * g + r % g;
+        {
+            const auto m = stack.multi(r);
+            return m[0] * g + m[2];
+        }
         else
+        {
             return r;
+        }
     }
 
     __device__ void load_state() const

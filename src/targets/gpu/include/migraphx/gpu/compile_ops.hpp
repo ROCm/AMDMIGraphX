@@ -57,8 +57,9 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
     void apply(module_pass_manager& mpm) const;
 };
 
-/// Record the device the program is compiled for with set_compiled_for, so it can be
-/// recompiled. Runs last, since passes such as schedule do not expect a comment in the graph.
+/// Record the device the program is compiled for with set_compiled_for, and its tuning level with
+/// set_exhaustive_tuned, so it can be recompiled. Runs last, since passes such as schedule do not
+/// expect a comment in the graph.
 struct MIGRAPHX_GPU_EXPORT record_compiled_for
 {
     context* ctx = nullptr;
@@ -77,6 +78,8 @@ struct recompiled_kernel
 {
     // The new gpu::code_object. The instruction keeps its recipe module.
     operation code_object;
+    // Whether the kernel has tuning solutions to choose from
+    bool tunable = false;
     // The tuning solution the new kernel was compiled with, or null if it has nothing to tune
     value solution;
     // Candidates dropped because they take different arguments or need a fill the program does
@@ -108,6 +111,14 @@ MIGRAPHX_GPU_EXPORT void set_compiled_for(module& m, const device_description& d
 
 /// The device recorded with set_compiled_for, or nothing
 MIGRAPHX_GPU_EXPORT optional<device_description> get_compiled_for(const module& m);
+
+/// Record whether the kernels of a recompilable program were tuned exhaustively, as a comment
+/// instruction with the tag "gpu_tuning" ("exhaustive" or "quick") at the start of m, replacing
+/// the one recorded earlier
+MIGRAPHX_GPU_EXPORT void set_exhaustive_tuned(module& m, bool exhaustive);
+
+/// Whether set_exhaustive_tuned recorded exhaustive tuning
+MIGRAPHX_GPU_EXPORT bool is_exhaustive_tuned(const module& m);
 
 } // namespace gpu
 

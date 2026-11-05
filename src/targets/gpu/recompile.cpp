@@ -260,15 +260,14 @@ void recompile_ops::apply(program& p) const
     const auto from_gfx = get_gfx_name(from.arch);
     const auto to_gfx   = get_gfx_name(to.arch);
 
-    // Each kernel keeps its recorded tuning level unless exhaustive_tune raises it
+    // The program keeps its recorded tuning level unless exhaustive tuning is requested
+    const bool exhaustive   = ctx->get_exhaustive_tune_flag() or is_exhaustive_tuned(*mm);
+    const std::string level = exhaustive ? "exhaustive" : "quick";
     std::vector<recompile_request> requests;
     std::transform(scan.kernels.begin(),
                    scan.kernels.end(),
                    std::back_inserter(requests),
-                   [&](const kernel_ref& k) -> recompile_request {
-                       const auto& co = any_cast<code_object_op>(k.ins->get_operator());
-                       return {k.ins, exhaustive_tune or co.tuning_level == "exhaustive"};
-                   });
+                   [&](const kernel_ref& k) -> recompile_request { return {k.ins, exhaustive}; });
 
     // Compile everything before changing the program, so a failure leaves it unchanged
     auto recompiled = recompile_kernels(*ctx, requests);
@@ -281,17 +280,18 @@ void recompile_ops::apply(program& p) const
         const auto& nco = any_cast<code_object_op>(nop);
         k.mod->replace_instruction(k.ins, nop, k.ins->inputs(), k.ins->module_inputs());
 
-        const bool tunable = nco.tuning_level != "none";
+        const bool tunable = recompiled[i].tunable;
         auto time          = kernel_time(*ctx, nop, recompiled[i].benchmarked, tunable);
         report << "  " << nco.symbol_name << "  " << from_gfx << " -> " << to_gfx << "  "
-               << solution_string(recompiled[i].solution) << "  "
-               << (tunable ? nco.tuning_level : "-") << "  " << time;
+               << solution_string(recompiled[i].solution) << "  " << (tunable ? level : "-") << "  "
+               << time;
         if(recompiled[i].excluded > 0)
             report << "  (" << recompiled[i].excluded << " signature-changing candidates excluded)";
         report << "\n";
     }
     assign_module_ids(*mm);
     set_compiled_for(*mm, to);
+    set_exhaustive_tuned(*mm, exhaustive);
     log::info() << "recompile: recompiled " << scan.kernels.size() << " kernels for " << to_gfx
                 << "\n"
                 << report.str();

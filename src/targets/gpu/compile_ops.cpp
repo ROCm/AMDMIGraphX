@@ -763,9 +763,7 @@ struct compile_plan
     /// Replace the precompile op with its compiled kernel. When make_recipe_module is set, the
     /// precompile op is also kept in a new recipe submodule of the kernel, so the kernel can be
     /// recompiled later.
-    void replace(module& m,
-                 const std::function<module_ref()>& make_recipe_module = nullptr,
-                 bool exhaustive                                       = false) const
+    void replace(module& m, const std::function<module_ref()>& make_recipe_module = nullptr) const
     {
         const auto& cr = benchmark();
         if(not make_recipe_module or ins == m.begin())
@@ -793,9 +791,7 @@ struct compile_plan
                          << " kernels";
             return;
         }
-        auto co_ins     = cos.front();
-        auto co         = any_cast<code_object_op>(co_ins->get_operator());
-        co.tuning_level = tuning_level(exhaustive);
+        auto co_ins = cos.front();
 
         auto* recipe = make_recipe_module();
         std::vector<instruction_ref> params;
@@ -804,15 +800,7 @@ struct compile_plan
         recipe->add_return({recipe->add_instruction(pre_op, params, mods)});
         // Later passes such as write_literals must not rewrite the recipe
         set_bypass(recipe);
-        m.replace_instruction(co_ins, co, co_ins->inputs(), {recipe});
-    }
-
-    /// The tuning level recorded with a kernel compiled from this plan
-    std::string tuning_level(bool exhaustive) const
-    {
-        if(not config.has_value())
-            return "none";
-        return exhaustive ? "exhaustive" : "quick";
+        m.replace_instruction(co_ins, co_ins->get_operator(), co_ins->inputs(), {recipe});
     }
 
     std::size_t save_binaries(const fs::path& mxr_dir) const
@@ -1014,8 +1002,7 @@ struct compile_manager
             if(dump_mxr and cp.results.size() > 1)
                 dumped_mxr_files += cp.save_binaries(mxr_dir);
             else
-                cp.replace(
-                    *cp.mod, make_recipe_module, exhaustive or cp.ctx->get_exhaustive_tune_flag());
+                cp.replace(*cp.mod, make_recipe_module);
         }
 
         // Remove compile_plan already executed
@@ -1167,38 +1154,58 @@ void record_compiled_for::apply(module_pass_manager& mpm) const
 {
     if(&mpm.get_module() != mpm.get_root_module())
         return;
-    set_compiled_for(mpm.get_module(), ctx->get_current_device().get_device_description());
+    auto& m = mpm.get_module();
+    set_compiled_for(m, ctx->get_current_device().get_device_description());
+    set_exhaustive_tuned(m, ctx->get_exhaustive_tune_flag());
 }
 
-static const std::string& compiled_for_tag()
+static instruction_ref find_tagged_comment(const module& m, const std::string& tag)
 {
-    static const std::string tag = "gpu_target";
-    return tag;
+    return std::find_if(m.begin(), m.end(), [&](const instruction& ins) {
+        return ins.name() == "@comment" and
+               any_cast<builtin::comment>(ins.get_operator()).tag == tag;
+    });
 }
 
-static bool is_compiled_for(const instruction& ins)
+// Comments are written at the start of m, replacing the one with the same tag
+static void set_tagged_comment(module& m, const std::string& tag, const std::string& text)
 {
-    return ins.name() == "@comment" and
-           any_cast<builtin::comment>(ins.get_operator()).tag == compiled_for_tag();
-}
-
-void set_compiled_for(module& m, const device_description& device)
-{
-    builtin::comment op{to_json_string(to_value(device)), compiled_for_tag()};
-    auto it = std::find_if(m.begin(), m.end(), &is_compiled_for);
+    auto it = find_tagged_comment(m, tag);
     // A builtin op cannot replace an instruction, so insert the new comment and remove the old
-    m.insert_instruction(it == m.end() ? m.begin() : it, op);
+    m.insert_instruction(it == m.end() ? m.begin() : it, builtin::comment{text, tag});
     if(it != m.end())
         m.remove_instruction(it);
 }
 
-optional<device_description> get_compiled_for(const module& m)
+static optional<std::string> get_tagged_comment(const module& m, const std::string& tag)
 {
-    auto it = std::find_if(m.begin(), m.end(), &is_compiled_for);
+    auto it = find_tagged_comment(m, tag);
     if(it == m.end())
         return nullopt;
-    return from_value<device_description>(
-        from_json_string(any_cast<builtin::comment>(it->get_operator()).text));
+    return any_cast<builtin::comment>(it->get_operator()).text;
+}
+
+void set_compiled_for(module& m, const device_description& device)
+{
+    set_tagged_comment(m, "gpu_target", to_json_string(to_value(device)));
+}
+
+optional<device_description> get_compiled_for(const module& m)
+{
+    auto text = get_tagged_comment(m, "gpu_target");
+    if(not text.has_value())
+        return nullopt;
+    return from_value<device_description>(from_json_string(*text));
+}
+
+void set_exhaustive_tuned(module& m, bool exhaustive)
+{
+    set_tagged_comment(m, "gpu_tuning", exhaustive ? "exhaustive" : "quick");
+}
+
+bool is_exhaustive_tuned(const module& m)
+{
+    return get_tagged_comment(m, "gpu_tuning") == std::string{"exhaustive"};
 }
 
 optional<instruction_ref> find_recipe(instruction_ref ins)
@@ -1386,16 +1393,14 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
             if(std::none_of(cp.results.begin(), cp.results.end(), &has_result))
                 MIGRAPHX_THROW("recompile: no candidate for kernel " + olds[i].symbol_name +
                                " keeps its signature; compile the model again");
-            const auto& best = cp.benchmark();
-            auto j           = static_cast<std::size_t>(std::distance(
+            const auto& best      = cp.benchmark();
+            auto j                = static_cast<std::size_t>(std::distance(
                 cp.results.begin(),
                 std::find_if(cp.results.begin(), cp.results.end(), [&](const auto& c) {
                     return has_result(c) and &*c->result == &best;
                 })));
-            auto co          = *kernels.at(j);
-            co.tuning_level =
-                cp.tuning_level(requests[i].exhaustive or ctx.get_exhaustive_tune_flag());
-            result[i].code_object = co;
+            result[i].code_object = *kernels.at(j);
+            result[i].tunable     = cp.config.has_value();
             result[i].solution    = cp.solution_of(best);
             result[i].excluded    = excluded;
             result[i].benchmarked = not ctx.is_cross_compile();

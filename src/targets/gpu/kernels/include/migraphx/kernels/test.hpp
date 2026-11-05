@@ -348,10 +348,8 @@ struct test_manager
 // NOLINTNEXTLINE
 #define TEST_CASE_REGISTER(...)
 
-// The launch size of the file's cases, TEST_LAUNCH(global, local): the
-// harness evaluates the expressions with MIGRAPHX_WAVEFRONTSIZE bound, so
-// TEST_LAUNCH(MIGRAPHX_WAVEFRONTSIZE, MIGRAPHX_WAVEFRONTSIZE) runs a whole
-// wave for wave-collective code. The default is a single lane.
+// TEST_LAUNCH(global, local) sets the launch size of the file's cases, with
+// MIGRAPHX_WAVEFRONTSIZE bound in the expressions; the default is one lane
 // NOLINTNEXTLINE
 #define TEST_LAUNCH(...)
 

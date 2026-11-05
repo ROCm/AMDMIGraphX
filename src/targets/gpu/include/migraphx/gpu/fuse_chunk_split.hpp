@@ -33,7 +33,7 @@ struct module_pass_manager;
 namespace gpu {
 // Fuse the chunk loop of a linear recurrence (the chunked linear attention
 // prefill) into one gpu::chunk_scan that walks the chunks with the state
-// resident, instead of three launches per chunk
+// resident instead of launching every chunk's gemms and pointwises
 struct MIGRAPHX_GPU_EXPORT fuse_chunk_split
 {
     std::string name() const { return "gpu::fuse_chunk_split"; }

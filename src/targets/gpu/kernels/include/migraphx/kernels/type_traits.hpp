@@ -32,6 +32,19 @@ namespace migraphx {
 template <class...>
 using void_t = void;
 
+// The type sums of T accumulate in: float, unless T is double
+template <class T>
+struct acc_type
+{
+    using type = float;
+};
+
+template <>
+struct acc_type<double>
+{
+    using type = double;
+};
+
 template <class T, class U = T&&>
 U private_declval(int);
 

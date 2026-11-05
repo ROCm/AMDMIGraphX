@@ -34,6 +34,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <test.hpp>
+#include "kernel_names.hpp"
 #include <pointwise.hpp>
 
 static void run_pass(migraphx::program& p)
@@ -73,28 +74,6 @@ static migraphx::instruction_ref
 get_tuple_elem(migraphx::module& m, migraphx::instruction_ref x, std::size_t i)
 {
     return m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", i}}), x);
-}
-
-// The kernels launched by the program, without the output copies
-static std::vector<std::string> get_kernel_names(migraphx::program& p)
-{
-    std::vector<std::string> result;
-    auto im = migraphx::iterator_for(*p.get_main_module());
-    migraphx::transform_if(
-        im.begin(),
-        im.end(),
-        std::back_inserter(result),
-        [](auto ins) {
-            if(ins->name() != "gpu::code_object")
-                return false;
-            const auto& op = migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator());
-            return op.symbol_name != "hip_copy_kernel";
-        },
-        [](auto ins) {
-            return migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator())
-                .symbol_name;
-        });
-    return result;
 }
 
 // Two chunks of two rows over two heads with a past state, the gated delta
@@ -156,25 +135,24 @@ TEST_CASE(gated_delta_with_state)
             create_pointwise_module(p2, "main:chunk_scan0:read", {s0, s0}, single_pointwise("sub"));
         auto* out =
             create_pointwise_module(p2, "main:chunk_scan0:out", {s0, s0}, single_pointwise("add"));
-        auto op   = migraphx::make_op("gpu::chunk_scan",
-                                      {{"output_shape", migraphx::to_value(fshape({1, 2, 4, 8}))},
-                                       {"state_shape", migraphx::to_value(ss)},
-                                       {"views",
-                                        migraphx::to_value(std::vector<migraphx::shape>{
-                                            fview({1, 2, 2, 4}, {32, 16, 4, 1}),
-                                            fview({1, 2, 2, 4}, {32, 16, 4, 1}),
-                                            fview({1, 2, 4, 2}, {32, 16, 2, 1}),
-                                            fview({1, 2, 2, 8}, {64, 32, 8, 1}),
-                                            fview({1, 2, 4, 8}, {4, 2, 0, 0}),
-                                            fview({1, 2, 2, 8}, {64, 32, 8, 1})})},
-                                       {"offsets", {0, 0, 0, 0, 0, 0}},
-                                       {"deltas", {8, 8, 8, 16, 1, 16}},
-                                       {"chunks", 2},
-                                       {"has_state", true},
-                                       {"has_update_dot", true},
-                                       {"has_read", true},
-                                       {"has_gamma", true},
-                                       {"has_out", true}});
+        auto op = migraphx::make_op(
+            "gpu::chunk_scan",
+            {{"output_shape", migraphx::to_value(fshape({1, 2, 4, 8}))},
+             {"state_shape", migraphx::to_value(ss)},
+             {"families",
+              migraphx::to_value(std::vector<std::string>{"w", "q", "kt", "u0", "gamma", "pu0"})},
+             {"views",
+              migraphx::to_value(
+                  std::vector<migraphx::shape>{fview({1, 2, 2, 4}, {32, 16, 4, 1}),
+                                               fview({1, 2, 2, 4}, {32, 16, 4, 1}),
+                                               fview({1, 2, 4, 2}, {32, 16, 2, 1}),
+                                               fview({1, 2, 2, 8}, {64, 32, 8, 1}),
+                                               fview({1, 2, 4, 8}, {4, 2, 0, 0}),
+                                               fview({1, 2, 2, 8}, {64, 32, 8, 1})})},
+             {"offsets", {0, 0, 0, 0, 0, 0}},
+             {"deltas", {8, 8, 8, 16, 1, 16}},
+             {"chunks", 2},
+             {"has_state", true}});
         auto scan = mm->add_instruction(op, {s0, w, q, kt, u0, g, pu0}, {step, read, out});
         mm->add_return({get_tuple_elem(*mm, scan, 0), get_tuple_elem(*mm, scan, 1)});
     }
@@ -237,24 +215,23 @@ TEST_CASE(delta_zero_start)
             create_pointwise_module(p2, "main:chunk_scan0:read", {u0, u0}, single_pointwise("sub"));
         auto* out =
             create_pointwise_module(p2, "main:chunk_scan0:out", {u0, u0}, single_pointwise("add"));
-        auto op   = migraphx::make_op("gpu::chunk_scan",
-                                      {{"output_shape", migraphx::to_value(fshape({1, 2, 6, 8}))},
-                                       {"state_shape", migraphx::to_value(ss)},
-                                       {"views",
-                                        migraphx::to_value(std::vector<migraphx::shape>{
-                                            fview({1, 2, 2, 4}, {48, 24, 4, 1}),
-                                            fview({1, 2, 2, 4}, {48, 24, 4, 1}),
-                                            fview({1, 2, 4, 2}, {48, 24, 2, 1}),
-                                            fview({1, 2, 2, 8}, {96, 48, 8, 1}),
-                                            fview({1, 2, 2, 8}, {96, 48, 8, 1})})},
-                                       {"offsets", {0, 0, 0, 0, 0}},
-                                       {"deltas", {8, 8, 8, 16, 16}},
-                                       {"chunks", 3},
-                                       {"has_state", false},
-                                       {"has_update_dot", true},
-                                       {"has_read", true},
-                                       {"has_gamma", false},
-                                       {"has_out", true}});
+        auto op = migraphx::make_op(
+            "gpu::chunk_scan",
+            {{"output_shape", migraphx::to_value(fshape({1, 2, 6, 8}))},
+             {"state_shape", migraphx::to_value(ss)},
+             {"families",
+              migraphx::to_value(std::vector<std::string>{"w", "q", "kt", "u0", "pu0"})},
+             {"views",
+              migraphx::to_value(
+                  std::vector<migraphx::shape>{fview({1, 2, 2, 4}, {48, 24, 4, 1}),
+                                               fview({1, 2, 2, 4}, {48, 24, 4, 1}),
+                                               fview({1, 2, 4, 2}, {48, 24, 2, 1}),
+                                               fview({1, 2, 2, 8}, {96, 48, 8, 1}),
+                                               fview({1, 2, 2, 8}, {96, 48, 8, 1})})},
+             {"offsets", {0, 0, 0, 0, 0}},
+             {"deltas", {8, 8, 8, 16, 16}},
+             {"chunks", 3},
+             {"has_state", false}});
         auto scan = mm->add_instruction(op, {w, q, kt, u0, pu0}, {step, read, out});
         mm->add_return({get_tuple_elem(*mm, scan, 0), get_tuple_elem(*mm, scan, 1)});
     }
@@ -301,17 +278,14 @@ TEST_CASE(precomputed_update)
             "gpu::chunk_scan",
             {{"output_shape", migraphx::to_value(fshape({1, 2, 4, 8}))},
              {"state_shape", migraphx::to_value(ss)},
+             {"families", migraphx::to_value(std::vector<std::string>{"q", "upd"})},
              {"views",
               migraphx::to_value(std::vector<migraphx::shape>{
                   fview({1, 2, 2, 4}, {32, 16, 4, 1}), fview({1, 2, 4, 8}, {128, 64, 8, 1})})},
              {"offsets", {0, 0}},
              {"deltas", {8, 32}},
              {"chunks", 2},
-             {"has_state", true},
-             {"has_update_dot", false},
-             {"has_read", false},
-             {"has_gamma", false},
-             {"has_out", false}});
+             {"has_state", true}});
         auto scan = mm->add_instruction(op, {s0, q, upd}, {step});
         mm->add_return({get_tuple_elem(*mm, scan, 0), get_tuple_elem(*mm, scan, 1)});
     }
@@ -358,17 +332,14 @@ TEST_CASE(state_from_view)
             "gpu::chunk_scan",
             {{"output_shape", migraphx::to_value(fshape({1, 2, 4, 8}))},
              {"state_shape", migraphx::to_value(ss)},
+             {"families", migraphx::to_value(std::vector<std::string>{"q", "upd"})},
              {"views",
               migraphx::to_value(std::vector<migraphx::shape>{
                   fview({1, 2, 2, 4}, {32, 16, 4, 1}), fview({1, 2, 4, 8}, {128, 64, 8, 1})})},
              {"offsets", {0, 0}},
              {"deltas", {8, 32}},
              {"chunks", 2},
-             {"has_state", true},
-             {"has_update_dot", false},
-             {"has_read", false},
-             {"has_gamma", false},
-             {"has_out", false}});
+             {"has_state", true}});
         auto scan = mm->add_instruction(op, {s0, q, upd}, {step});
         mm->add_return({get_tuple_elem(*mm, scan, 0), get_tuple_elem(*mm, scan, 1)});
     }
@@ -439,17 +410,14 @@ TEST_CASE(chained_recurrences)
                 "gpu::chunk_scan",
                 {{"output_shape", migraphx::to_value(fshape({1, 2, 4, 8}))},
                  {"state_shape", migraphx::to_value(ss)},
+                 {"families", migraphx::to_value(std::vector<std::string>{"q", "upd"})},
                  {"views",
                   migraphx::to_value(std::vector<migraphx::shape>{
                       fview({1, 2, 2, 4}, {32, 16, 4, 1}), fview({1, 2, 4, 8}, {256, 128, 8, 1})})},
                  {"offsets", {0, offset}},
                  {"deltas", {8, 32}},
                  {"chunks", 2},
-                 {"has_state", true},
-                 {"has_update_dot", false},
-                 {"has_read", false},
-                 {"has_gamma", false},
-                 {"has_out", false}});
+                 {"has_state", true}});
         };
         auto scan0 = mm->add_instruction(scan_op(0), {s0, q, upd}, {step0});
         auto s1    = get_tuple_elem(*mm, scan0, 1);

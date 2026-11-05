@@ -29,8 +29,8 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/serialize.hpp>
-#include <array>
 #include <algorithm>
 
 namespace migraphx {
@@ -78,12 +78,6 @@ static std::string stub_pointwise(const std::string& name)
     return "template <class T, class... Ts>\n__device__ T " + name + "(T x, Ts...) { return x; }\n";
 }
 
-static std::string shape_text(const shape& s)
-{
-    return "make_shape(index_ints<" + to_string_range(s.lens()) + ">{}, index_ints<" +
-           to_string_range(s.strides()) + ">{})";
-}
-
 struct chunk_scan_compiler : compiler<chunk_scan_compiler>
 {
     std::vector<std::string> names() const { return {"gpu::chunk_scan"}; }
@@ -96,45 +90,31 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
         options.inputs      = flatten_tuple_shapes(inputs);
         options.kernel_name = "chunk_scan_kernel";
 
-        const auto state      = from_value<shape>(v.at("state_shape"));
-        const auto chunks     = v.at("chunks").to<std::size_t>();
-        const bool has_state  = v.at("has_state").to<bool>();
-        const bool update_dot = v.at("has_update_dot").to<bool>();
-        const bool has_read   = v.at("has_read").to<bool>();
-        const bool has_gamma  = v.at("has_gamma").to<bool>();
-        const bool has_out    = v.at("has_out").to<bool>();
-        auto views            = from_value<std::vector<shape>>(v.at("views"));
-        auto offsets          = v.at("offsets").to_vector<std::size_t>();
-        auto deltas           = v.at("deltas").to_vector<std::size_t>();
-
-        // the families present, in the op's input order
-        std::vector<std::string> present;
-        if(has_read)
-            present.push_back("w");
-        present.push_back("q");
-        if(update_dot)
-        {
-            present.push_back("kt");
-            present.push_back("u0");
-        }
-        else
-        {
-            present.push_back("upd");
-        }
-        if(has_gamma)
-            present.push_back("gamma");
-        if(has_out)
-            present.push_back("pu0");
+        const auto state     = from_value<shape>(v.at("state_shape"));
+        const auto chunks    = v.at("chunks").to<std::size_t>();
+        const bool has_state = v.at("has_state").to<bool>();
+        const auto families  = v.at("families").to_vector<std::string>();
+        const auto views     = from_value<std::vector<shape>>(v.at("views"));
+        const auto offsets   = v.at("offsets").to_vector<std::size_t>();
+        const auto deltas    = v.at("deltas").to_vector<std::size_t>();
+        auto has             = [&](const std::string& role) { return contains(families, role); };
 
         const auto dk   = state.lens().at(state.ndim() - 2);
         const auto dv   = state.lens().back();
-        const auto q_i  = std::find(present.begin(), present.end(), "q") - present.begin();
+        const auto q_i  = std::find(families.begin(), families.end(), "q") - families.begin();
         const auto rows = views.at(q_i).lens().at(views.at(q_i).ndim() - 2);
-        // the widest dv block that divides dv, up to 32 columns
-        std::size_t dvb = 1;
+        // the widest dv block up to 32 columns that divides dv and keeps the
+        // state and u tiles, accumulated in float, in LDS
+        constexpr std::size_t max_lds = 64 * 1024;
+        const std::size_t acc_size    = state.type() == shape::double_type ? 8 : 4;
+        std::size_t dvb               = 0;
         for(std::size_t b = 1; b <= std::min<std::size_t>(32, dv); b++)
-            if(dv % b == 0)
+        {
+            if(dv % b == 0 and (dk + rows) * b * acc_size <= max_lds)
                 dvb = b;
+        }
+        if(dvb == 0)
+            MIGRAPHX_THROW("chunk_scan: the state tile does not fit in LDS");
 
         std::string settings;
         settings += "static constexpr index_int chunks = " + std::to_string(chunks) + ";\n";
@@ -144,40 +124,35 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
         settings += "static constexpr index_int dvb = " + std::to_string(dvb) + ";\n";
         for(const auto& [flag, on] :
             std::vector<std::pair<std::string, bool>>{{"has_state", has_state},
-                                                      {"has_update_dot", update_dot},
-                                                      {"has_read", has_read},
-                                                      {"has_gamma", has_gamma},
-                                                      {"has_out", has_out}})
+                                                      {"has_update_dot", has("kt")},
+                                                      {"has_read", has("w")},
+                                                      {"has_gamma", has("gamma")},
+                                                      {"has_out", has("pu0")}})
             settings += "static constexpr bool " + flag + " = " + (on ? "true" : "false") + ";\n";
         // kernel arguments: [state0], families..., output, state_out
-        std::vector<std::string> arg_names;
-        if(has_state)
-            arg_names.push_back("s0");
-        arg_names.insert(arg_names.end(), present.begin(), present.end());
-        arg_names.push_back("output");
-        arg_names.push_back("state_out");
-        // absent roles alias q, which the kernel never reads through them
-        auto arg_index = [&](const std::string& role) {
-            auto it = std::find(arg_names.begin(), arg_names.end(), role);
-            if(it == arg_names.end())
-                it = std::find(arg_names.begin(), arg_names.end(), "q");
-            return it - arg_names.begin();
-        };
-        for(const auto& role : std::vector<std::string>{
-                "s0", "w", "q", "kt", "u0", "upd", "gamma", "pu0", "output", "state_out"})
-            settings += "static constexpr index_int " + role +
-                        "_index = " + std::to_string(arg_index(role)) + ";\n";
-        std::vector<std::string> families{"w", "q", "kt", "u0", "upd", "gamma", "pu0"};
-        for(const auto& f : families)
+        const std::size_t nargs = (has_state ? 1 : 0) + families.size() + 2;
+        settings += "static constexpr index_int s0_index = 0;\n";
+        settings +=
+            "static constexpr index_int output_index = " + std::to_string(nargs - 2) + ";\n";
+        settings +=
+            "static constexpr index_int state_out_index = " + std::to_string(nargs - 1) + ";\n";
+        // each family: its argument and its chunk 0 view, offset and stride
+        for(std::size_t k = 0; k < families.size(); k++)
         {
-            auto it = std::find(present.begin(), present.end(), f);
-            auto k  = (it == present.end() ? q_i : it - present.begin());
+            settings += "struct " + families[k] + " {\n";
             settings +=
-                "static constexpr auto " + f + "_shape = " + shape_text(views.at(k)) + ";\n";
-            settings += "static constexpr index_int " + f +
-                        "_offset = " + std::to_string(offsets.at(k)) + ";\n";
-            settings += "static constexpr index_int " + f +
-                        "_delta = " + std::to_string(deltas.at(k)) + ";\n";
+                "static constexpr index_int index = " + std::to_string(k + (has_state ? 1 : 0)) +
+                ";\n";
+            settings += "static constexpr auto view = " + generate_make_shape(views[k]) + ";\n";
+            settings += "static constexpr index_int offset = " + std::to_string(offsets[k]) + ";\n";
+            settings += "static constexpr index_int delta = " + std::to_string(deltas[k]) + ";\n";
+            settings += "};\n";
+        }
+        // absent roles alias q; the kernel never reads through them
+        for(const auto& role : std::vector<std::string>{"w", "kt", "u0", "upd", "gamma", "pu0"})
+        {
+            if(not has(role))
+                settings += "using " + role + " = q;\n";
         }
 
         auto problems = state.elements() / (dk * dv);
@@ -185,23 +160,24 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
         auto src = interpolate_string(chunk_scan_kernel,
                                       {{"preamble", v.at("preamble").to<std::string>()},
                                        {"settings", settings},
-                                       {"params", enum_params(arg_names.size(), "void * p")},
-                                       {"args", enum_params(arg_names.size(), "p")}});
+                                       {"params", enum_params(nargs, "void * p")},
+                                       {"args", enum_params(nargs, "p")}});
         return compile_hip_code_object(ctx, src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        auto v    = op.to_value();
-        auto mods = ins->module_inputs();
+        auto v              = op.to_value();
+        const auto& mods    = ins->module_inputs();
+        const auto families = v.at("families").to_vector<std::string>();
         std::string preamble;
         std::size_t k = 0;
         preamble += gen::generate_pointwise(*mods.at(k++), "chunk_scan_step");
-        if(v.at("has_read").to<bool>())
+        if(contains(families, "w"))
             preamble += gen::generate_pointwise(*mods.at(k++), "chunk_scan_read");
         else
             preamble += stub_pointwise("chunk_scan_read");
-        if(v.at("has_out").to<bool>())
+        if(contains(families, "pu0"))
             preamble += gen::generate_pointwise(*mods.at(k++), "chunk_scan_out");
         else
             preamble += stub_pointwise("chunk_scan_out");

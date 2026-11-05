@@ -106,7 +106,7 @@ TEST_CASE(if_lowering_scalar_cond)
     EXPECT(p1 == p2);
 }
 
-// hip::load_scalar only takes one element, so a multi-element condition keeps copy_from_gpu.
+// A condition spanning more than one element keeps copy_from_gpu.
 TEST_CASE(if_lowering_multi_element_cond)
 {
     migraphx::shape cond_s{migraphx::shape::bool_type, {2}};
@@ -195,6 +195,15 @@ TEST_CASE(loop_lowering_load_scalar)
         mm->add_return({r});
     }
     EXPECT(p1 == p2);
+}
+
+TEST_CASE(load_scalar_shape)
+{
+    migraphx::shape broadcasted{migraphx::shape::int64_type, {4}, {0}};
+    auto load = migraphx::make_op("hip::load_scalar");
+    EXPECT(load.compute_shape({broadcasted}) == broadcasted);
+    EXPECT(test::throws(
+        [&] { load.compute_shape({migraphx::shape{migraphx::shape::int64_type, {2}}}); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

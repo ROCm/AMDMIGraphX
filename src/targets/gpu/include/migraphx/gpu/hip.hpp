@@ -167,7 +167,9 @@ struct hip_load_scalar
     std::string name() const { return "hip::load_scalar"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).elements(1);
+        check_shapes{inputs, *this}.has(1);
+        if(inputs.front().element_space() != 1)
+            MIGRAPHX_THROW("LOAD_SCALAR: input must occupy a single element");
         return inputs.front();
     }
     void finalize(context&, const shape& output_shape, const std::vector<shape>&)
@@ -176,7 +178,9 @@ struct hip_load_scalar
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        copy_from_gpu(ctx, args.front(), result);
+        // Copy through a single-element view so broadcast inputs also use the direct copy
+        shape element{result.get_shape().type()};
+        copy_from_gpu(ctx, args.front().reshape(element), result.reshape(element));
         gpu_spin_sync(ctx);
         return result;
     }

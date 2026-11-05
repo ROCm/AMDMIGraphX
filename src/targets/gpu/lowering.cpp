@@ -416,11 +416,11 @@ struct miopen_apply
     }
 
     // hip::load_scalar allocates its pinned host buffer once in finalize() instead of on every
-    // eval like hip::copy_from_gpu, but only supports static single-element inputs
+    // eval like hip::copy_from_gpu, but only supports static inputs that occupy a single element
     instruction_ref insert_host_scalar(instruction_ref ins, instruction_ref input) const
     {
         const auto& s = input->get_shape();
-        if(s.dynamic() or s.elements() != 1)
+        if(s.dynamic() or s.element_space() > 1)
         {
             auto cpu_input = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), input);
             return mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_input);

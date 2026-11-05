@@ -343,6 +343,8 @@ MIGRAPHX_EXPORT expr max(expr x, expr y);
 MIGRAPHX_EXPORT std::optional<bool>
 strict_less(const expr& a, const expr& b, interval default_bounds = {});
 MIGRAPHX_EXPORT std::optional<bool>
+provable_less_equal(const expr& a, const expr& b, interval default_bounds = {});
+MIGRAPHX_EXPORT std::optional<bool>
 provable_equal(const expr& a, const expr& b, interval default_bounds = {});
 MIGRAPHX_EXPORT std::optional<scalar> fixed_value(const expr& expression);
 

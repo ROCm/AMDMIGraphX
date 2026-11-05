@@ -114,16 +114,19 @@ struct analyze_gather : analyzer<analyze_gather>
         if(has_variable_data_axis and
            not contains({shape::int32_type, shape::int64_type}, inputs.back().type()))
             return symbolic_op_info{ins};
-        // The freezer normalizes negative indices against the unpadded extent, so extending the
-        // data axis cannot change which valid element an index selects.
-        auto result =
-            analyze_axes(ins, [axis = *axis](std::size_t input, std::size_t current_axis) {
+        const bool nonnegative_indices = has_nonnegative_values(ins->inputs().at(1));
+        // When negative indices are possible, the freezer normalizes them against the unpadded
+        // extent, so extending the data axis cannot change which valid element an index selects.
+        auto result = analyze_axes(
+            ins, [axis = *axis, nonnegative_indices](std::size_t input, std::size_t current_axis) {
                 if(input == 1)
                     return parallel_axis();
-                return current_axis == axis ? padded_axis(fill_kind::dont_care, true)
-                                            : parallel_axis();
+                if(current_axis != axis)
+                    return parallel_axis();
+                return nonnegative_indices ? contracted_axis(fill_kind::dont_care)
+                                           : padded_axis(fill_kind::dont_care, true);
             });
-        if(has_variable_data_axis and result.supported)
+        if(has_variable_data_axis and not nonnegative_indices and result.supported)
         {
             result.freezer = freeze;
             result.runtime_extent_expressions.push_back(data_dims.at(*axis).sym_expr);

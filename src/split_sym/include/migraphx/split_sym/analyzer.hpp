@@ -43,6 +43,7 @@
 #include <optional>
 #include <set>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -175,6 +176,10 @@ struct symbolic_op_info
     std::vector<std::size_t> shape_input_indices;
     std::vector<sym::expr> runtime_extent_expressions;
     bool supported = false;
+    // False keeps the operation in its own block so producers are not cloned per root combination.
+    bool allow_block_merge = true;
+    // Static parameter shapes are required for operations whose output layout depends on them.
+    bool force_static_parameters = false;
 
     const shape& get_output_shape() const { return ins->get_shape(); }
 
@@ -237,21 +242,32 @@ preserve_padding(instruction_ref ins, const padding_requirement& requirement);
 
 std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank);
 
+bool has_nonnegative_values(instruction_ref ins);
+
+std::vector<std::pair<std::size_t, sym::expr>> variable_prefix_axes(const shape& s,
+                                                                    std::size_t naxes);
+
+instruction_ref make_prefix_mask(module& m,
+                                 const std::vector<std::size_t>& prefix_lens,
+                                 const std::vector<std::pair<std::size_t, sym::expr>>& prefix_axes);
+
 bool windowed_zero_pad(const std::vector<std::size_t>& padding,
                        std::size_t spatial_dimensions,
                        std::size_t axis);
 
 template <class OutputRule, class InputRule>
 symbolic_op_info analyze_axes(instruction_ref ins,
+                              const shape& output_shape,
                               std::vector<std::size_t> shape_input_indices,
                               const OutputRule& output_rule,
                               const InputRule& input_rule)
 {
     symbolic_op_info info{ins};
     info.shape_input_indices = std::move(shape_input_indices);
-    const auto& output_shape = info.get_output_shape();
-    auto output_axes         = range(output_shape.ndim());
-    auto output_dims         = output_shape.to_symbolic().dyn_dims();
+    if(output_shape.dynamic() and not output_shape.symbolic())
+        return info;
+    auto output_axes = range(output_shape.ndim());
+    auto output_dims = output_shape.to_symbolic().dyn_dims();
 
     std::copy_if(output_axes.begin(),
                  output_axes.end(),
@@ -311,10 +327,20 @@ symbolic_op_info analyze_axes(instruction_ref ins,
 }
 
 template <class OutputRule, class InputRule>
+symbolic_op_info analyze_axes(instruction_ref ins,
+                              std::vector<std::size_t> shape_input_indices,
+                              const OutputRule& output_rule,
+                              const InputRule& input_rule)
+{
+    return analyze_axes(
+        ins, ins->get_shape(), std::move(shape_input_indices), output_rule, input_rule);
+}
+
+template <class OutputRule, class InputRule>
 symbolic_op_info
 analyze_axes(instruction_ref ins, const OutputRule& output_rule, const InputRule& input_rule)
 {
-    return analyze_axes(ins, {}, output_rule, input_rule);
+    return analyze_axes(ins, std::vector<std::size_t>{}, output_rule, input_rule);
 }
 
 template <class InputRule>

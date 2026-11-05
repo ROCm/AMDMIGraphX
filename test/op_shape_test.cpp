@@ -2047,6 +2047,21 @@ TEST_CASE(eval_expr_from_shape_multi_input)
                  b);
 }
 
+TEST_CASE(eval_expr_from_shape_multi_input_compound)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    migraphx::shape a{migraphx::shape::float_type, {dd{m + lit(1)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{n * lit(2)}}};
+    auto expression = migraphx::sym::min(var("m") + lit(1), var("n") * lit(2));
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {1}},
+                 migraphx::make_op(
+                     "eval_expr_from_shape",
+                     {{"expressions", migraphx::value::array{migraphx::to_value(expression)}}}),
+                 a,
+                 b);
+}
+
 TEST_CASE(eval_expr_from_shape_missing_symbol_multi_input)
 {
     auto m = var("m", {1, 16});
@@ -7923,7 +7938,7 @@ TEST_CASE(test_concat_nhwc_singleton)
     expect_shape(sout, migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
 }
 
-TEST_CASE(test_dyn_concat)
+TEST_CASE(test_range_concat)
 {
     migraphx::shape sx{migraphx::shape::float_type, {{1, 3, {3}}, {4, 4}, {1, 5, {5}}, {6, 6}}};
     migraphx::shape sy{migraphx::shape::float_type, {{1, 3, {3}}, {4, 4}, {1, 4, {4}}, {6, 6}}};
@@ -7950,6 +7965,40 @@ TEST_CASE(test_dyn_concat)
     // static input with non-axis dim that doesn't match the range-dynamic input
     migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
+}
+
+TEST_CASE(dyn_concat_shape)
+{
+    auto n = var("n", {0, 8});
+    auto m = var("m", {0, 16});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}, dd{lit(4)}}};
+    migraphx::shape count{migraphx::shape::int64_type, {2}};
+    migraphx::shape output_count{migraphx::shape::int64_type, {1}};
+    migraphx::shape expected{{migraphx::shape{migraphx::shape::float_type, {24, 4}}, output_count}};
+    expect_shape(expected, migraphx::make_op("dyn_concat", {{"axis", 0}}), count, sx, sy);
+
+    migraphx::shape s0{migraphx::shape::float_type, {2, 0, 3}};
+    migraphx::shape s1{migraphx::shape::float_type, {2, 5, 3}};
+    migraphx::shape middle_expected{
+        {migraphx::shape{migraphx::shape::float_type, {2, 5, 3}}, output_count}};
+    expect_shape(middle_expected, migraphx::make_op("dyn_concat", {{"axis", 1}}), count, s0, s1);
+    expect_shape(middle_expected, migraphx::make_op("dyn_concat", {{"axis", -2}}), count, s0, s1);
+}
+
+TEST_CASE(dyn_concat_shape_errors)
+{
+    auto n = var("n", {0, 8});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape count{migraphx::shape::int64_type, {2}};
+    auto op = migraphx::make_op("dyn_concat", {{"axis", 0}});
+
+    throws_shape(op, count, sx, sy);
+    throws_shape(op, sx, sx);
+    throws_shape(op, migraphx::shape{migraphx::shape::int32_type, {2}}, sx, sx);
+    throws_shape(op, migraphx::shape{migraphx::shape::int64_type, {1}}, sx, sx);
+    throws_shape(migraphx::make_op("dyn_concat", {{"axis", 2}}), count, sx, sx);
 }
 
 TEST_CASE(concat_sym)

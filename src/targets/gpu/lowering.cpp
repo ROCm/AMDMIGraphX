@@ -37,6 +37,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/sym.hpp>
 
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
@@ -84,16 +85,6 @@ struct miopen_apply
         (void)i;
     }
 
-    static bool only_used_as_slice_metadata(instruction_ref ins)
-    {
-        const auto& outputs = ins->outputs();
-        return not outputs.empty() and
-               std::all_of(outputs.begin(), outputs.end(), [&](auto output) {
-                   return contains({"slice", "dyn_slice"}, output->name()) and
-                          output->inputs().front() != ins;
-               });
-    }
-
     void init()
     {
         assert(mod != nullptr);
@@ -120,6 +111,7 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_lrn_op();
+        add_dyn_concat_op();
         add_nms_op();
         add_nonzero_op();
         add_convolution_backwards_op();
@@ -170,7 +162,8 @@ struct miopen_apply
         // else branch to handle legacy program without the return instruction
         else
         {
-            mod->add_instruction(make_op("hip::copy_from_gpu"), ret);
+            auto output = mod->add_instruction(make_op("hip::copy_from_gpu"), ret);
+            mod->add_return({output});
         }
     }
 
@@ -187,6 +180,12 @@ struct miopen_apply
             }
             else if(has_compiler_for(it->name()))
             {
+                if(not s.dynamic() and s.type() != shape::tuple_type and s.elements() == 0)
+                {
+                    auto output = insert_allocation(it, s);
+                    check_shape(s, mod->replace_instruction(it, output));
+                    continue;
+                }
                 check_shape(s, insert_precompile_op(it));
                 check_shape(s, insert_dynamic_code_object_op(it));
             }
@@ -214,26 +213,25 @@ struct miopen_apply
         }
     }
 
+    instruction_ref lower_to_host(instruction_ref ins) const
+    {
+        std::vector<instruction_ref> cpu_inputs;
+        auto inputs = ins->inputs();
+        if(inputs.empty())
+            MIGRAPHX_THROW("gpu::lower_to_host: host fallback requires an output buffer input");
+        auto output = inputs.back();
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+            return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+        });
+        auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
+        auto gpu_out = mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
+        return mod->replace_instruction(ins, gpu_out);
+    }
+
     instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const
     {
-        const auto& custom_op = ins->get_operator();
         if(attrs.at("target") == "cpu")
-        {
-            auto s = ins->get_shape();
-            std::vector<instruction_ref> cpu_inputs;
-            auto inputs = ins->inputs();
-            auto output = inputs.back();
-            std::transform(
-                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
-                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
-                });
-            cpu_inputs.front() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-            auto cpu_out = mod->insert_instruction(ins, custom_op, cpu_inputs);
-            auto gpu_out =
-                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
-            return mod->replace_instruction(ins, gpu_out);
-        }
+            return lower_to_host(ins);
         return ins;
     }
 
@@ -422,8 +420,7 @@ struct miopen_apply
             std::vector<instruction_ref> inputs = ins->inputs();
             auto cpu_cond =
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.front());
-            auto sync_cond = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_cond);
-            inputs.front() = sync_cond;
+            inputs.front() = cpu_cond;
 
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });
@@ -439,9 +436,7 @@ struct miopen_apply
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(0));
             auto cpu_cond =
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
-            auto synced_max_iter =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter, cpu_cond);
-            inputs.at(0)     = synced_max_iter;
+            inputs.at(0)     = cpu_max_iter;
             inputs.at(1)     = cpu_cond;
             auto copy_inputs = inputs;
             std::transform(copy_inputs.begin(),
@@ -461,6 +456,19 @@ struct miopen_apply
 
             return mod->replace_instruction(
                 ins, make_op("gpu::loop", ins->get_operator().to_value()), inputs, mod_args);
+        });
+    }
+
+    void add_dyn_concat_op()
+    {
+        apply_map.emplace("dyn_concat", [=](instruction_ref ins) {
+            auto inputs = ins->inputs();
+            if(all_of(range(inputs.begin() + 1, inputs.end()),
+                      [](instruction_ref input) { return input->get_shape().has_fixed_strides(); }))
+                return insert_precompile_op(ins);
+            inputs.push_back(insert_allocation(ins, ins->get_shape()));
+            return mod->replace_instruction(
+                ins, make_op("gpu::dyn_concat", ins->get_operator().to_value()), inputs);
         });
     }
 
@@ -583,7 +591,6 @@ struct miopen_apply
         std::transform(inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
             return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
         });
-        cpu_inputs.front() = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
 
         auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
 
@@ -629,8 +636,6 @@ struct miopen_apply
                 inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
                     return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
                 });
-            cpu_inputs.front() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
             auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
@@ -649,8 +654,6 @@ struct miopen_apply
                 inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
                     return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
                 });
-            cpu_inputs.front() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
             auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
@@ -712,7 +715,7 @@ struct miopen_apply
         apply_map.emplace("scan_slice", [=](instruction_ref ins) {
             auto inputs  = ins->inputs();
             auto cpu_idx = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[1]);
-            inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
+            inputs[1]    = cpu_idx;
             return mod->replace_instruction(
                 ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
         });
@@ -735,23 +738,13 @@ struct miopen_apply
             auto inputs = ins->inputs();
             if(inputs.size() > 1)
             {
-                std::vector<instruction_ref> copied_inputs;
-                std::vector<std::size_t> copied_indices;
                 // The data input stays on GPU since slice creates an aliased view into it.
-                // Copy only runtime metadata that was not already produced on the host.
+                // Copy only the runtime metadata inputs.
                 for(std::size_t i = 1; i < inputs.size(); ++i)
                 {
-                    if(inputs[i]->name() == "eval_expr_from_shape")
-                        continue;
                     inputs[i] =
                         mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[i]);
-                    copied_inputs.push_back(inputs[i]);
-                    copied_indices.push_back(i);
                 }
-                if(copied_inputs.empty())
-                    return ins;
-                inputs[copied_indices.front()] =
-                    mod->insert_instruction(ins, make_op("hip::sync_stream"), copied_inputs);
                 return mod->replace_instruction(
                     ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
             }
@@ -765,10 +758,8 @@ struct miopen_apply
     void add_dimensions_of_op()
     {
         apply_map.emplace("dimensions_of", [=](instruction_ref ins) {
-            auto output = insert_allocation(ins, ins->get_shape());
-            auto sync_input =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), ins->inputs().front());
-            auto host_out = mod->insert_instruction(ins, ins->get_operator(), sync_input);
+            auto output   = insert_allocation(ins, ins->get_shape());
+            auto host_out = mod->insert_instruction(ins, ins->get_operator(), ins->inputs());
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
             return mod->replace_instruction(ins, gpu_out);
@@ -778,8 +769,6 @@ struct miopen_apply
     void add_eval_expr_from_shape_op()
     {
         apply_map.emplace("eval_expr_from_shape", [=](instruction_ref ins) {
-            if(only_used_as_slice_metadata(ins))
-                return ins;
             auto output   = insert_allocation(ins, ins->get_shape());
             auto host_out = mod->insert_instruction(ins, ins->get_operator(), ins->inputs());
             auto gpu_out =

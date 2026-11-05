@@ -32,10 +32,10 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <migraphx/symbolic_shape_helpers.hpp>
 #include <migraphx/zip_view.hpp>
 #include <algorithm>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace migraphx {
@@ -59,33 +59,10 @@ struct eval_expr_from_shape
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
 
-        std::unordered_set<sym::expr> source_expressions;
-        std::unordered_set<sym::expr> direct_symbols;
-        for(const auto& input : inputs)
-        {
-            if(not input.symbolic())
-                continue;
-            for(const auto& d : input.dyn_dims())
-            {
-                source_expressions.insert(sym::as_symbol(d.sym_expr));
-                if(d.sym_expr.name() == "variable")
-                    direct_symbols.insert(sym::as_symbol(d.sym_expr));
-            }
-        }
-
-        for(const auto& expression : expressions)
-        {
-            if(contains(source_expressions, sym::as_symbol(expression)))
-                continue;
-            auto variables = sym::find_variables(expression);
-            auto missing =
-                std::find_if(variables.begin(), variables.end(), [&](const auto& symbol) {
-                    return not contains(direct_symbols, symbol);
-                });
-            if(missing != variables.end())
-                MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Symbol '" + missing->to_string() +
-                               "' is not a direct input dimension");
-        }
+        auto unresolved = find_unresolved_shape_expression(inputs, expressions);
+        if(unresolved.has_value())
+            MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Expression '" + unresolved->to_string() +
+                           "' cannot be resolved from the input dimensions");
 
         return shape{shape::int64_type, {expressions.size()}};
     }
@@ -117,10 +94,10 @@ struct eval_expr_from_shape
             const auto& dims = input_shape.dyn_dims();
             for(auto&& [dim, len] : views::zip(dims, lens))
             {
-                if(sym::find_variables(dim.sym_expr).empty())
+                if(not dim.is_symbolic())
                     continue;
-                auto result = values.emplace(sym::as_symbol(dim.sym_expr), len);
-                if(not result.second and result.first->second != len)
+                auto [iter, inserted] = values.emplace(sym::as_symbol(dim.sym_expr), len);
+                if(not inserted and iter->second != len)
                     MIGRAPHX_THROW(
                         "EVAL_EXPR_FROM_SHAPE: Repeated expression has inconsistent runtime "
                         "dimensions");

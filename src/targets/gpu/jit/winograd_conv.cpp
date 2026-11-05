@@ -109,7 +109,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
         [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}, ${ft}, ${nhwc}, ${conv_cast}>(
+            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}, ${fe}, ${ft}, ${nhwc}, ${conv_cast}>(
                 ${post}, output, x, u, inputs...);
         });
 }
@@ -264,7 +264,13 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         // the c contraction (cross-wave LDS reduce at the end). When sk>1, kw
         // is forced to 1 (LDS budget for per-wave U slots would otherwise
         // overflow).
-        const auto sk           = v.get("sk", std::size_t{1});
+        const auto sk = v.get("sk", std::size_t{1});
+        // fe = fold-at-end: keep all 16 M accumulators live across the c loop
+        // and run the output transform once after it, instead of folding every
+        // iteration. Costs 128 VGPRs of accumulators, so it requires kw=1.
+        const bool fe = v.get("fe", false);
+        if(fe and kw != 1)
+            MIGRAPHX_THROW("winograd_conv: fe requires kw == 1");
         const std::size_t bk    = 16;
         const std::size_t bk_wg = bk * kw;
         // BT = BT_per_wave * (NW/SK). SK splits waves within a workgroup
@@ -303,6 +309,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"cb", std::to_string(cb)},
                                        {"kw", std::to_string(kw)},
                                        {"sk", std::to_string(sk)},
+                                       {"fe", fe ? "true" : "false"},
                                        {"ft", v.get("full_transform", false) ? "true" : "false"},
                                        {"nhwc", nhwc ? "true" : "false"},
                                        {"post", v.get("post", std::string{"op::id{}"})},
@@ -427,6 +434,16 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 1}, {"sk", 2}});
         tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 1}, {"sk", 2}});
         tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 1}, {"sk", 4}});
+        // fe: fold-at-end — the per-iteration A^T M A fold (~220 fp32 add
+        // slots per 16 WMMAs, which cannot hide behind WMMA since it shares
+        // the VALU) moves to a single fold after the c loop, at the cost of
+        // 128 VGPRs of live accumulators (kw must be 1). Wins on long c
+        // contractions; the tuner keeps it only where the register pressure
+        // doesn't spill.
+        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 1}, {"sk", 1}, {"fe", true}});
+        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 1}, {"sk", 1}, {"fe", true}});
+        tc.solutions.push_back({{"nw", 8}, {"cb", 16}, {"kw", 1}, {"sk", 1}, {"fe", true}});
+        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 1}, {"sk", 2}, {"fe", true}});
         return tc;
     }
 };

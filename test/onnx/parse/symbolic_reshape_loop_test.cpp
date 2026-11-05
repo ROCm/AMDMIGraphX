@@ -47,18 +47,13 @@ TEST_CASE(symbolic_reshape_loop_test)
     auto* body          = p.create_module("main_Loop_4_loop");
     auto iteration_num  = body->add_parameter("iteration_num", iteration_shape);
     auto body_condition = body->add_parameter("body_cond", condition_shape);
-    auto body_carried   = body->add_parameter("body_carried", carried_shape);
-    const auto expressions =
-        migraphx::to_value(std::vector<migraphx::sym::expr>{batch, lit(int64_t{4})});
-    auto resolved_dims = body->add_instruction(
-        migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}),
-        body_carried,
-        body_condition,
-        iteration_num,
-        x);
-    auto allocation = body->add_instruction(
-        migraphx::make_op("allocate", {{"shape", migraphx::to_value(input_shape)}}), resolved_dims);
-    auto body_output = body->add_instruction(migraphx::make_op("reshape"), x, allocation);
+    body->add_parameter("body_carried", carried_shape);
+    const auto expressions = migraphx::to_value(std::vector<migraphx::sym::expr>{batch, lit(4)});
+    auto body_dims         = body->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), x);
+    auto body_allocation = body->add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(input_shape)}}), body_dims);
+    auto body_output = body->add_instruction(migraphx::make_op("reshape"), x, body_allocation);
     auto reduced_output =
         body->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), body_output);
     body->add_return({body_condition, reduced_output});

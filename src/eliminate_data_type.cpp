@@ -103,6 +103,7 @@ void eliminate_data_type::apply(module& m) const
                                                            "concat_past_present",
                                                            "convert",
                                                            "deref",
+                                                           "dyn_concat",
                                                            "dyn_slice",
                                                            "eval_expr_from_shape",
                                                            "fixed_pad",

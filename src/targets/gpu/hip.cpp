@@ -154,8 +154,10 @@ static std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host)
 {
     gpu_sync();
-    auto result = allocate_gpu(sz, host);
+    auto result = allocate_gpu(sz == 0 ? 1 : sz, host);
     assert(host or is_device_ptr(result.get()));
+    if(sz == 0)
+        return result;
     assert(not is_device_ptr(x));
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)
@@ -219,6 +221,8 @@ argument from_gpu(const argument& arg)
     }
     else
     {
+        if(arg_shape.elements() == 0)
+            return argument{arg_shape};
         auto v = read_from_gpu<migraphx::byte>(arg.data(), arg.get_shape().bytes());
         // cppcheck-suppress returnDanglingLifetime
         result = {arg.get_shape(), [v]() mutable { return v.data(); }};
@@ -295,6 +299,10 @@ void copy_to_gpu(context& ctx, const argument& src, const argument& dst)
 
 void copy_from_gpu(context& ctx, const argument& src, const argument& dst)
 {
+    if(src.get_shape().type() != shape::tuple_type and
+       dst.get_shape().type() != shape::tuple_type and src.get_shape().elements() == 0 and
+       dst.get_shape().elements() == 0)
+        return;
     if(src.get_shape() == dst.get_shape() and dst.get_shape().packed())
     {
         hip_async_copy(ctx, src, dst, hipMemcpyDeviceToHost);

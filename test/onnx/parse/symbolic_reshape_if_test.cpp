@@ -39,23 +39,21 @@ TEST_CASE(symbolic_reshape_if_test)
     auto cond = mm->add_parameter("cond", {migraphx::shape::bool_type});
     auto x    = mm->add_parameter("x", input_shape);
 
-    const auto expressions =
-        migraphx::to_value(std::vector<migraphx::sym::expr>{batch, lit(int64_t{4})});
-    auto add_reshape = [&](migraphx::module* mod) {
-        auto resolved_dims = mod->add_instruction(
-            migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), x);
-        auto allocation = mod->add_instruction(
-            migraphx::make_op("allocate", {{"shape", migraphx::to_value(input_shape)}}),
-            resolved_dims);
-        return mod->add_instruction(migraphx::make_op("reshape"), x, allocation);
-    };
-
-    auto* then_mod   = p.create_module("main_If_2_if");
-    auto then_output = add_reshape(then_mod);
+    auto* then_mod         = p.create_module("main_If_2_if");
+    const auto expressions = migraphx::to_value(std::vector<migraphx::sym::expr>{batch, lit(4)});
+    auto then_dims         = then_mod->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), x);
+    auto then_allocation = then_mod->add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(input_shape)}}), then_dims);
+    auto then_output = then_mod->add_instruction(migraphx::make_op("reshape"), x, then_allocation);
     then_mod->add_return({then_output});
 
-    auto* else_mod   = p.create_module("main_If_2_else");
-    auto else_output = add_reshape(else_mod);
+    auto* else_mod = p.create_module("main_If_2_else");
+    auto else_dims = else_mod->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), x);
+    auto else_allocation = else_mod->add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(input_shape)}}), else_dims);
+    auto else_output = else_mod->add_instruction(migraphx::make_op("reshape"), x, else_allocation);
     else_mod->add_return({else_output});
 
     auto result = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});

@@ -1723,26 +1723,37 @@ bool prebuild_kv_cache_split(module& mm,
 }
 
 // Generic split ops for one dot input. A parameter is rewritten immediately and any other
-// instruction is wrapped when the softmax body is copied
+// instruction is wrapped when the softmax body is copied. False means the tentative module
+// must be dropped: the cache layout did not rebuild, or a reshape would split an
+// unrecognized view of the repeated cache.
 struct dot_input_split
 {
     instruction_ref input{};
     std::vector<std::size_t> expected{};
     std::vector<operation> ops{};
 
-    void place(module& mm,
+    bool place(module& mm,
                std::unordered_map<instruction_ref, instruction_ref>& params,
                std::unordered_map<instruction_ref, std::vector<operation>>& splits,
                std::size_t sequence_length,
                std::size_t groups) const
     {
         const auto layout = match_kv_cache_layout(input, sequence_length);
-        if(layout.has_value() and prebuild_kv_cache_split(mm, params, *layout, groups, expected))
-            return;
+        if(layout.has_value())
+            return prebuild_kv_cache_split(mm, params, *layout, groups, expected);
         if(input->name() == "@param")
+        {
             params[input] = insert_ops(mm, mm.end(), ops, params.at(input));
-        else
-            splits.emplace(input, ops);
+            return true;
+        }
+        // Query splits are an unsqueeze and a broadcast. K and V splits reshape the dot
+        // input, which is not a packed buffer when the head repeat could not be rebuilt.
+        if(std::any_of(ops.begin(), ops.end(), [](const operation& op) {
+               return op.name() == "reshape";
+           }))
+            return false;
+        splits.emplace(input, ops);
+        return true;
     }
 };
 
@@ -1781,16 +1792,20 @@ struct find_kv_cache_flash_decoding
             map_old_params_to_new[param] = m_flash_decode.add_parameter(name, param->get_shape());
         }
         // A packed cache is split on its sequence axis before the head repeat.
-        // Q, and a K or V that is not that cache view, keep the generic split ops.
+        // Q, and a K or V parameter, keep the generic split. An unrecognized K or V
+        // view is left unsplit and this module is discarded.
         std::unordered_map<instruction_ref, std::vector<operation>> qkv_splits;
         for(const auto& input : {dot_input_split{operands->q, transform.q_shape, transform.q_ops},
                                  dot_input_split{operands->k, transform.k_shape, transform.k_ops},
                                  dot_input_split{operands->v, transform.v_shape, transform.v_ops}})
-            input.place(m_flash_decode,
-                        map_old_params_to_new,
-                        qkv_splits,
-                        operands->sequence_length,
-                        actual_groups);
+        {
+            if(not input.place(m_flash_decode,
+                               map_old_params_to_new,
+                               qkv_splits,
+                               operands->sequence_length,
+                               actual_groups))
+                return;
+        }
 
         // Score-shaped parameters stay on the group interface. Split their uses
         // here; query and cache parameters were remapped above, and a parameter

@@ -915,6 +915,104 @@ TEST_CASE(kv_flash_decoding_unsupported_seqlens_broadcast)
     EXPECT(not has_kv_flash_decoding);
 }
 
+// Head size equals the cache length, so the sequence axis is not unique and the
+// head-repeat view cannot be rebuilt. Flash decoding must not reshape that view.
+TEST_CASE(kv_flash_decoding_ambiguous_cache_axis)
+{
+    migraphx::shape s_half{migraphx::shape::half_type, {1}};
+    migraphx::shape s_range{migraphx::shape::int32_type, {4}};
+    migraphx::shape s_sl{migraphx::shape::int32_type, {1}};
+    migraphx::shape s_rope{migraphx::shape::half_type, {1, 6, 1, 4}};
+    migraphx::shape s_cur_v{migraphx::shape::half_type, {1, 2, 1, 4}};
+    migraphx::shape s_cache{migraphx::shape::half_type, {1, 2, 4, 4}};
+
+    migraphx::program p;
+    {
+        auto* mm = p.get_main_module();
+        auto ninf =
+            mm->add_literal(migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
+        auto scale = mm->add_literal(migraphx::literal{s_half, {0.5}});
+        auto range = mm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3}});
+        auto sl    = mm->add_parameter("sl", s_sl);
+        auto rope  = mm->add_parameter("rope", s_rope);
+        auto slc_k = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), rope);
+        auto past_k = mm->add_parameter("past_k", s_cache);
+        auto cpp_k  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, sl, past_k);
+        auto cur_v  = mm->add_parameter("cur_v", s_cur_v);
+        auto past_v = mm->add_parameter("past_v", s_cache);
+        auto cpp_v  = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), cur_v, sl, past_v);
+        auto slc_q = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), rope);
+        auto unsq_v = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), cpp_v);
+        auto bc_v   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 4, 4}}}), unsq_v);
+        auto rsp_v =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 4, 4}}}), bc_v);
+        auto unsq_k = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), cpp_k);
+        auto tsp_k  = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 4, 3}}}), unsq_k);
+        auto bc_k = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 4, 4}}}), tsp_k);
+        auto rsp_k =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 4, 4}}}), bc_k);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), slc_q, rsp_k);
+        auto bc_ninf = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 4}}}), ninf);
+        auto bc_scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 4}}}), scale);
+        auto cvt_scores = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), gemm1);
+        auto cvt_scale = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bc_scale);
+        auto scaled = mm->add_instruction(migraphx::make_op("mul"), cvt_scores, cvt_scale);
+        auto bc_sl =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}), sl);
+        auto grtr     = mm->add_instruction(migraphx::make_op("greater"), range, bc_sl);
+        auto cvt_grtr = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), grtr);
+        auto bc_grtr = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 4}}}), cvt_grtr);
+        auto cvt_ninf = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bc_ninf);
+        auto mask    = mm->add_instruction(migraphx::make_op("where"), bc_grtr, cvt_ninf, scaled);
+        auto rdc_max = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mask);
+        auto bc_rm   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 4}}}), rdc_max);
+        auto sub     = mm->add_instruction(migraphx::make_op("sub"), mask, bc_rm);
+        auto exp     = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rdc_sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto bc_rs   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 1, 4}}}), rdc_sum);
+        auto div    = mm->add_instruction(migraphx::make_op("div"), exp, bc_rs);
+        auto cvt_sm = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+        auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), cvt_sm, rsp_v);
+        auto tsp_out = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);
+        auto rsp_out =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 16}}}), tsp_out);
+        mm->add_return({rsp_out, cpp_k, cpp_v});
+    }
+    run_pass(p,
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = 2,
+              .flash_decoding_threshold  = 1});
+
+    const auto* mod                  = p.get_main_module();
+    const bool has_kv_flash_decoding = std::any_of(mod->begin(), mod->end(), [](const auto& ins) {
+        if(ins.name() != "group")
+            return false;
+        const auto& module_inputs = ins.module_inputs();
+        return not module_inputs.empty() and
+               module_inputs.front()->name().find("flash_decoding") != std::string::npos;
+    });
+    EXPECT(not has_kv_flash_decoding);
+}
+
 TEST_CASE(gemm_multi_use_pw_softmax_gemm)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 4, 16, 8}};

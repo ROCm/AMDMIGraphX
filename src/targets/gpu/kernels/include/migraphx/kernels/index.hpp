@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -133,7 +133,7 @@ struct index
     }
 #endif
 
-    constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
+    constexpr auto ngroup() const { return (nglobal() + max_nlocal() - _c<1>) / max_nlocal(); }
 
     template <unsigned int SubWaveSize>
     constexpr index_constant<SubWaveSize> nlocal_subwave() const
@@ -320,6 +320,8 @@ struct per_block
 
     constexpr auto size() const { return idx.ngroup(); }
 
+    constexpr auto group() const { return idx.group; }
+
     template <class N, class F>
     constexpr void group_stride(N n, F f) const
     {
@@ -332,6 +334,20 @@ struct per_block
         return idx.local_stride(n, f);
     }
 };
+
+template <class Group, index_int Block, class N>
+constexpr auto block_stride(index idx, N n)
+{
+    return [=](auto f) {
+        const auto m = n / _c<Block>;
+        Group{idx}.local_stride(m, [&](auto j) {
+            const auto jblock = j * Block;
+            repeat_c<Block>([&](auto k) { f(jblock + k); });
+        });
+        const auto mblock = m * _c<Block>;
+        Group{idx}.local_stride(n - mblock, [&](auto k) { f(mblock + k); });
+    };
+}
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_INDEX_HPP

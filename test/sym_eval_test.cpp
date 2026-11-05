@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <migraphx/value.hpp>
 #include <limits>
 #include "test.hpp"
 
@@ -184,6 +185,22 @@ TEST_CASE(sym_eval_dimensions_of)
     auto dims =
         mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 2}}), x);
     EXPECT(sym_values(dims) == symbolic_tensor_value{lit(1), s});
+}
+
+TEST_CASE(sym_eval_eval_expr_from_shape)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    const auto s = var("S", {1, 16});
+    auto x       = mm->add_parameter(
+        "x",
+        shape{shape::float_type, {shape::dynamic_dimension{lit(1)}, shape::dynamic_dimension{s}}});
+    const symbolic_tensor_value expressions = {lit(1), s + lit(1)};
+    auto result =
+        mm->add_instruction(migraphx::make_op("eval_expr_from_shape",
+                                              {{"expressions", migraphx::to_value(expressions)}}),
+                            x);
+    EXPECT(sym_values(result) == expressions);
 }
 
 TEST_CASE(sym_eval_recursive)

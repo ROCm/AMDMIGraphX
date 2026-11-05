@@ -35,9 +35,12 @@ struct test_nonzero : verify_program<test_nonzero<DType>>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{DType, {2, 3, 4, 5}};
-        auto x = mm->add_parameter("data", s);
-        auto r = mm->add_instruction(migraphx::make_op("nonzero"), x);
-        mm->add_return({r});
+        auto x       = mm->add_parameter("data", s);
+        auto nz      = mm->add_instruction(migraphx::make_op("nonzero"), x);
+        auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
+        auto num_nonzero =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
+        mm->add_return({indices, num_nonzero});
 
         return p;
     }
@@ -63,8 +66,11 @@ struct test_nonzero_transpose : verify_program<test_nonzero_transpose<DType>>
         auto x = mm->add_parameter("data", s);
         auto transposed =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
-        auto r = mm->add_instruction(migraphx::make_op("nonzero"), transposed);
-        mm->add_return({r});
+        auto nz      = mm->add_instruction(migraphx::make_op("nonzero"), transposed);
+        auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
+        auto num_nonzero =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
+        mm->add_return({indices, num_nonzero});
 
         return p;
     }

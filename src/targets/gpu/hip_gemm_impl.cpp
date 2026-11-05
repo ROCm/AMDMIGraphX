@@ -535,14 +535,10 @@ struct hip_gemm_impl
 
         // If algo is supported, update the workspace size to the actual size needed.
         // Otherwise, use the default workspace size.
-        if(status == HIPBLAS_STATUS_SUCCESS)
+        // TODO: Remove the workspace check once issues with '0' workspace size are resolved.
+        if(status == HIPBLAS_STATUS_SUCCESS and ret_workspace_size != 0)
         {
-            // TODO: Remove this check once issues with '0' workspace size are resolved.
-            // Temporarily, we use the approach where, if the returned workspace size is '0',
-            // we use the default workspace size.
-            // Otherwise, we use the returned workspace size.
-            if(ret_workspace_size != 0)
-                workspace_size = ret_workspace_size;
+            workspace_size = ret_workspace_size;
         }
         return workspace_size;
     }
@@ -580,6 +576,9 @@ struct hip_gemm_impl
             auto algo                 = result[i].algo;
             size_t ret_workspace_size = 0;
 
+            // To balance performance and memory usage, solutions for exhaustive tuning are only
+            // considered if their workspace size is less than or equal to 128MB.
+            // This avoids using excessive memory for potentially minor speed improvements.
             if(hipblaslt_ext::matmulIsAlgoSupported(ctx.get_stream().get_hipblaslt(),
                                                     hipblaslt_desc,
                                                     get_alpha(),
@@ -589,13 +588,11 @@ struct hip_gemm_impl
                                                     mat_c,
                                                     is_3inputs ? mat_d : mat_c,
                                                     algo,
-                                                    ret_workspace_size) == HIPBLAS_STATUS_SUCCESS)
+                                                    ret_workspace_size) ==
+                   HIPBLAS_STATUS_SUCCESS and
+               ret_workspace_size <= hipblaslt_workspace_size / 2)
             {
-                // To balance performance and memory usage, solutions for exhaustive tuning
-                // are only considered if their workspace size is less than or equal to 128MB.
-                // This avoids using excessive memory for potentially minor speed improvements.
-                if(ret_workspace_size <= hipblaslt_workspace_size / 2)
-                    solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
+                solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
             }
         }
 

@@ -349,6 +349,41 @@ TEST_CASE(record_broadcast2)
            all_axes{d_axes{{}}, d_axes{{0}}, d_axes{{1}}, d_axes{{}}, d_axes{{}}});
 }
 
+TEST_CASE(prepend_axis_transpose)
+{
+    auto desc = make_descriptor({4, 6}, make_op("transpose", {{"permutation", {1, 0}}}));
+    desc.prepend_axis(3);
+    EXPECT(desc.rank == 3);
+    EXPECT(get_final_lens(desc) == final_lens{3, 6, 4});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{2}}, d_axes{{1}}});
+    auto expected = ops{make_op("transpose", {{"permutation", {0, 2, 1}}})};
+    EXPECT(run_shape_transforms({3, 4, 6}, desc.generate()) ==
+           run_shape_transforms({3, 4, 6}, expected));
+}
+
+TEST_CASE(prepend_axis_reshape)
+{
+    auto desc = make_descriptor({4, 6}, make_op("reshape", {{"dims", {2, 2, 6}}}));
+    desc.prepend_axis(5);
+    EXPECT(get_final_lens(desc) == final_lens{5, 2, 2, 6});
+    EXPECT(get_all_axes(desc) ==
+           all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}, d_axes{{2}}});
+    auto expected = ops{make_op("reshape", {{"dims", {5, 2, 2, 6}}})};
+    EXPECT(run_shape_transforms({5, 4, 6}, desc.generate()) ==
+           run_shape_transforms({5, 4, 6}, expected));
+}
+
+TEST_CASE(prepend_axis_broadcast)
+{
+    auto desc = make_descriptor({1, 3}, make_op("multibroadcast", {{"out_lens", {2, 3}}}));
+    desc.prepend_axis(4);
+    EXPECT(get_final_lens(desc) == final_lens{4, 2, 3});
+    EXPECT(desc.find_broadcasted_axes() == std::set<std::size_t>{1});
+    auto expected = ops{make_op("multibroadcast", {{"out_lens", {4, 2, 3}}})};
+    EXPECT(run_shape_transforms({4, 1, 3}, desc.generate()) ==
+           run_shape_transforms({4, 1, 3}, expected));
+}
+
 TEST_CASE(simplify_dimension_merge_adjacent)
 {
     auto d = dimension{{sub{2, {0, 0}}, sub{3, {0, 1}}}};
@@ -654,9 +689,30 @@ TEST_CASE(optimize_multibroadcast_transpose)
                    make_op("multibroadcast", {{"out_lens", {2, 320, 64, 64}}}),
                    make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
                }) == ops{
-                         make_op("unsqueeze", {{"axes", {0}}}),
-                         make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
+                         make_op("transpose", {{"permutation", {1, 2, 0}}}),
                          make_op("multibroadcast", {{"out_lens", {2, 64, 64, 320}}}),
+                     });
+}
+
+TEST_CASE(optimize_unsqueeze_multibroadcast_after_1s)
+{
+    // Broadcasting aligns from the right, so an unsqueezed axis that only
+    // follows 1s is added by the multibroadcast
+    EXPECT(check_optimize_shape_transforms(
+               {1, 1, 1, 3},
+               {
+                   make_op("unsqueeze", {{"axes", {3}}}),
+                   make_op("multibroadcast", {{"out_lens", {1, 1, 1, 2, 3}}}),
+               }) == ops{make_op("multibroadcast", {{"out_lens", {1, 1, 1, 2, 3}}})});
+    // A non-1 axis before the unsqueezed axis still needs the unsqueeze
+    EXPECT(check_optimize_shape_transforms(
+               {2, 1, 3},
+               {
+                   make_op("unsqueeze", {{"axes", {2}}}),
+                   make_op("multibroadcast", {{"out_lens", {2, 1, 4, 3}}}),
+               }) == ops{
+                         make_op("unsqueeze", {{"axes", {2}}}),
+                         make_op("multibroadcast", {{"out_lens", {2, 1, 4, 3}}}),
                      });
 }
 
@@ -999,6 +1055,67 @@ TEST_CASE(common_dims_resize)
            ops{make_op("squeeze", {{"axes", {3, 5}}})});
     EXPECT(desc.to_src_from_common().generate({4, 16, 32, 1, 32, 1}) ==
            ops{make_op("squeeze", {{"axes", {3, 5}}})});
+    // The broadcasted common dims have no source axis, so they cant be rebased back
+    EXPECT(desc.to_src_from_common().rebase({4, 16, 32, 2, 32, 2}).empty());
+}
+
+TEST_CASE(common_dims_reduce_unsqueeze_broadcast)
+{
+    auto desc = make_simple_descriptor({1, 1, 1, 3},
+                                       make_op("unsqueeze", {{"axes", {3}}}),
+                                       make_op("multibroadcast", {{"out_lens", {1, 1, 1, 2, 3}}}))
+                    .rebase({1, 384, 480, 3}, true);
+
+    EXPECT(desc.common_dims() == final_lens{1, 384, 480, 2, 3});
+    EXPECT(desc.find_broadcasted_axes() == std::set<std::size_t>{1, 2});
+
+    EXPECT(desc.common_axes_map_from_src() == axes_map{{0}, {1}, {2}, {4}});
+    EXPECT(desc.common_axes_map_from_dst() == axes_map{{0}, {1}, {2}, {3}, {4}});
+
+    EXPECT(desc.to_common_from_src().generate({1, 384, 480, 3}) ==
+           ops{make_op("unsqueeze", {{"axes", {3}}}),
+               make_op("multibroadcast", {{"out_lens", {1, 384, 480, 2, 3}}})});
+    EXPECT(desc.to_common_from_dst().generate({1, 1, 1, 2, 3}, true) == ops{});
+    EXPECT(desc.to_dst_from_common().generate({1, 1, 1, 2, 3}) == ops{});
+
+    EXPECT(desc.to_src_from_common().generate({1, 1, 1, 1, 3}) ==
+           ops{make_op("squeeze", {{"axes", {3}}})});
+    // The broadcasted common dim has no source axis, so it cant be rebased back
+    EXPECT(desc.has_axisless_broadcast());
+    EXPECT(desc.to_src_from_common().rebase({1, 1, 1, 2, 3}).empty());
+    EXPECT(desc.to_src_from_common().rebase(desc.common_dims()).empty());
+}
+
+TEST_CASE(rebase_broadcast_detach_new_axis)
+{
+    // The broadcast is attributed to source axis 2 while it is 1, but once
+    // that axis is rebased to 480 the broadcast becomes a new axis
+    auto base_desc = make_simple_descriptor(
+        {1, 1, 1, 3}, make_op("multibroadcast", {{"out_lens", {1, 1, 1, 2, 3}}}));
+    EXPECT(not base_desc.has_axisless_broadcast());
+    EXPECT(base_desc.find_broadcasted_axes() == std::set<std::size_t>{2});
+
+    auto desc = base_desc.rebase({1, 384, 480, 3}, true);
+    EXPECT(desc.common_dims() == final_lens{1, 384, 480, 2, 3});
+    EXPECT(desc.find_broadcasted_axes() == std::set<std::size_t>{1, 2});
+    EXPECT(desc.has_axisless_broadcast());
+    EXPECT(desc.common_axes_map_from_src() == axes_map{{0}, {1}, {2}, {4}});
+    EXPECT(desc.to_common_from_src().generate({1, 384, 480, 3}) ==
+           ops{make_op("unsqueeze", {{"axes", {3}}}),
+               make_op("multibroadcast", {{"out_lens", {1, 384, 480, 2, 3}}})});
+    EXPECT(desc.to_src_from_common().rebase(desc.common_dims()).empty());
+}
+
+TEST_CASE(rebase_broadcast_reduced_axis)
+{
+    // Broadcasting a reduced axis back to its size stays attached to that axis
+    auto desc = make_simple_descriptor({2, 32, 1},
+                                       make_op("multibroadcast", {{"out_lens", {2, 32, 40960}}}))
+                    .rebase({2, 32, 40960}, true);
+    EXPECT(desc.common_dims() == final_lens{2, 32, 40960});
+    EXPECT(desc.find_broadcasted_axes() == std::set<std::size_t>{2});
+    EXPECT(not desc.has_axisless_broadcast());
+    EXPECT(desc.to_src_from_common().generate({2, 32, 1}) == ops{});
 }
 
 TEST_CASE(common_dims_squeeze_1x1)
@@ -1466,7 +1583,7 @@ TEST_CASE(generate_shape_transforms_for)
 
     EXPECT(generate_for({2, 2, 2, 2, 3}, {0, 2, 0, 1, 0}, {4}) ==
            ops{
-               make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}),
+               make_op("reshape", {{"dims", {2, 1, 2, 1}}}),
                make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}),
            });
 
@@ -1548,6 +1665,67 @@ TEST_CASE(generate_shape_transforms_for_offset)
                make_op("reshape", {{"dims", {4, 6, 4}}}),
                make_op("slice", {{"axes", {1, 2}}, {"starts", {1, 1}}, {"ends", {4, 3}}}),
            });
+}
+
+TEST_CASE(is_transposed_basic)
+{
+    EXPECT(make_simple_descriptor({2, 3, 4}, make_op("transpose", {{"permutation", {0, 2, 1}}}))
+               .is_transposed());
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {2, 12}}}))
+                   .is_transposed());
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {2, 3, 2, 2}}}))
+                   .is_transposed());
+}
+
+TEST_CASE(is_transposed_cancelled)
+{
+    // Two transposes that compose to the identity
+    EXPECT(not make_simple_descriptor({2, 3, 4},
+                                      make_op("transpose", {{"permutation", {0, 2, 1}}}),
+                                      make_op("transpose", {{"permutation", {0, 2, 1}}}))
+                   .is_transposed());
+}
+
+TEST_CASE(is_transposed_1_dim)
+{
+    // Moving a 1 dimension doesnt reorder any data
+    EXPECT(not make_simple_descriptor({1, 3, 4}, make_op("transpose", {{"permutation", {1, 2, 0}}}))
+                   .is_transposed());
+}
+
+TEST_CASE(is_transposed_split)
+{
+    // Split then swap the split dimensions
+    EXPECT(make_simple_descriptor({6, 4},
+                                  make_op("reshape", {{"dims", {2, 3, 4}}}),
+                                  make_op("transpose", {{"permutation", {1, 0, 2}}}))
+               .is_transposed());
+}
+
+TEST_CASE(is_collapsing_basic)
+{
+    EXPECT(
+        make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {6, 4}}})).is_collapsing());
+    EXPECT(make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {24}}})).is_collapsing());
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("reshape", {{"dims", {2, 3, 2, 2}}}))
+                   .is_collapsing());
+}
+
+TEST_CASE(is_collapsing_1_dims)
+{
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("unsqueeze", {{"axes", {0}}}))
+                   .is_collapsing());
+    EXPECT(
+        not make_simple_descriptor({1, 3, 4}, make_op("squeeze", {{"axes", {0}}})).is_collapsing());
+    // Merging with a 1 dimension isnt collapsing
+    EXPECT(not make_simple_descriptor({1, 3, 4}, make_op("reshape", {{"dims", {3, 4}}}))
+                   .is_collapsing());
+}
+
+TEST_CASE(is_collapsing_transposed)
+{
+    EXPECT(not make_simple_descriptor({2, 3, 4}, make_op("transpose", {{"permutation", {2, 0, 1}}}))
+                   .is_collapsing());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

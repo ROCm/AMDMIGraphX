@@ -22,6 +22,10 @@
 # THE SOFTWARE.
 #####################################################################################
 import os, sys
+import codecs
+import glob
+import pickle
+import zipfile
 import numpy as np
 import argparse
 import onnx
@@ -57,6 +61,9 @@ def get_sub_folders(dir_name):
     dir_contents = os.listdir(dir_name)
     folders = []
     for item in dir_contents:
+        # Skip AppleDouble/pax metadata that some zoo archives ship
+        if item.startswith('.') or item == 'PaxHeader':
+            continue
         tmp_item = dir_name + '/' + item
         if os.path.isdir(tmp_item):
             folders.append(item)
@@ -71,7 +78,10 @@ def get_test_cases(dir_name):
 
 def get_model_name(dir_name):
     dir_contents = os.listdir(dir_name)
-    for item in dir_contents:
+    for item in sorted(dir_contents):
+        # Skip AppleDouble sidecar files like ._model.onnx
+        if item.startswith('._'):
+            continue
         file_name = dir_name + '/' + item
         if os.path.isfile(file_name) and file_name.endswith('.onnx'):
             return item
@@ -92,26 +102,15 @@ def read_pb_file(filename):
 def wrapup_inputs(io_folder, param_names):
     param_map = {}
     data_array = []
-    name_array = []
     for i in range(len(param_names)):
         file_name = io_folder + '/input_' + str(i) + '.pb'
         name, data = read_pb_file(file_name)
         param_map[name] = data
         data_array.append(data)
-        if name:
-            name_array.append(name)
 
-    if len(name_array) < len(data_array):
-        param_map = {}
-        for i in range(len(param_names)):
-            param_map[param_names[i]] = data_array[i]
-
-        return param_map
-
-    for name in param_names:
-        if not name in param_map.keys():
-            print("Input {} does not exist!".format(name))
-            sys.exit()
+    # fall back to positional mapping (input_i.pb -> i-th model input)
+    if any(name not in param_map for name in param_names):
+        return {param_names[i]: data_array[i] for i in range(len(param_names))}
 
     return param_map
 
@@ -127,12 +126,12 @@ def read_outputs(io_folder, out_names):
         if name:
             name_array.append(name)
 
-    if len(name_array) < len(data_array):
+    # fall back to positional order when names are absent or do not match
+    if any(name not in name_array for name in out_names):
         return data_array
 
     for name in out_names:
-        index = name_array.index(name)
-        outputs.append(data_array[index])
+        outputs.append(data_array[name_array.index(name)])
 
     return outputs
 
@@ -163,27 +162,19 @@ def model_output_names(model_file_name):
 
 def get_input_shapes(sample_case, param_names):
     param_shape_map = {}
-    name_array = []
     shape_array = []
     for i in range(len(param_names)):
         file_name = sample_case + '/input_' + str(i) + '.pb'
         name, data = read_pb_file(file_name)
         param_shape_map[name] = data.shape
         shape_array.append(data.shape)
-        if name:
-            name_array.append(name)
 
-    if len(name_array) < len(shape_array):
-        param_shape_map = {}
-        for i in range(len(param_names)):
-            param_shape_map[param_names[i]] = shape_array[i]
-
-        return param_shape_map
-
-    for name in param_names:
-        if not name in param_shape_map:
-            print("Input {} does not exist!".format(name))
-            sys.exit()
+    # fall back to positional mapping when names are absent or do not match
+    if any(name not in param_shape_map for name in param_names):
+        return {
+            param_names[i]: shape_array[i]
+            for i in range(len(param_names))
+        }
 
     return param_shape_map
 
@@ -214,11 +205,18 @@ def check_correctness(gold_outputs, outputs, rtol=1e-3, atol=1e-3):
     out_num = len(gold_outputs)
     ret = True
     for i in range(out_num):
-        if not np.allclose(gold_outputs[i], outputs[i], rtol, atol):
+        gold = np.asarray(gold_outputs[i])
+        actual = np.asarray(outputs[i])
+        if gold.shape != actual.shape:
+            print("\nOutput {} shape mismatch: expected {}, got {}".format(
+                i, gold.shape, actual.shape))
+            ret = False
+            continue
+        if not np.allclose(gold, actual, rtol, atol):
             print("\nOutput {} is incorrect ...".format(i))
-            print("Expected value: \n{}".format(gold_outputs[i]))
+            print("Expected value: \n{}".format(gold))
             print("......")
-            print("Actual value: \n{}\n".format(outputs[i]))
+            print("Actual value: \n{}\n".format(actual))
             ret = False
 
     return ret
@@ -227,13 +225,118 @@ def check_correctness(gold_outputs, outputs, rtol=1e-3, atol=1e-3):
 def tune_input_shape(model, input_data):
     param_shapes = model.get_parameter_shapes()
     input_shapes = {}
+    changed = False
     for name, s in param_shapes.items():
         assert name in input_data
-        data_shape = list(input_data[name].shape)
-        if not np.array_equal(data_shape, s.lens()):
-            input_shapes[name] = data_shape
+        input_shapes[name] = list(input_data[name].shape)
+        changed = changed or not np.array_equal(input_shapes[name], s.lens())
+    return input_shapes if changed else {}
 
-    return input_shapes
+
+def map_inputs(param_names, inputs):
+    if len(param_names) != len(inputs):
+        raise ValueError("Expected {} inputs, got {}".format(
+            len(param_names), len(inputs)))
+    return dict(zip(param_names, inputs))
+
+
+_NUMPY_GLOBALS = {
+    ('_codecs', 'encode'): codecs.encode,
+    ('numpy', 'ndarray'): np.ndarray,
+    ('numpy', 'dtype'): np.dtype,
+    ('numpy.core.multiarray', '_reconstruct'): np.empty(0).__reduce__()[0],
+    ('numpy._core.multiarray', '_reconstruct'): np.empty(0).__reduce__()[0],
+    ('numpy.core.multiarray', 'scalar'): np.float32(0).__reduce__()[0],
+    ('numpy._core.multiarray', 'scalar'): np.float32(0).__reduce__()[0],
+}
+
+
+class _NumpyUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        try:
+            return _NUMPY_GLOBALS[(module, name)]
+        except KeyError as e:
+            raise pickle.UnpicklingError(
+                "Unsupported object in legacy NPZ: {}.{}".format(module,
+                                                                 name)) from e
+
+
+def _load_npz_array(archive, name):
+    with archive.open(name + '.npy') as stream:
+        version = np.lib.format.read_magic(stream)
+        shape, _, dtype = np.lib.format._read_array_header(stream, version)
+        if dtype.hasobject:
+            array = _NumpyUnpickler(stream, fix_imports=True,
+                                    encoding='bytes').load()
+            if not (isinstance(array, np.ndarray) and array.shape == shape
+                    and array.dtype == dtype):
+                raise ValueError(
+                    "Invalid object array '{}' in legacy NPZ".format(name))
+            return array
+        stream.seek(0)
+        return np.load(stream, allow_pickle=False)
+
+
+def load_npz_case(npz_path):
+    # Legacy caffe2-era ONNX zoo test data: an .npz holding object arrays
+    # 'inputs' and 'outputs', each with the tensors in model order.
+    with zipfile.ZipFile(npz_path) as data:
+        keys = [name[:-4] for name in data.namelist() if name.endswith('.npy')]
+        if 'inputs' not in keys or 'outputs' not in keys:
+            raise KeyError(
+                "{}: expected 'inputs' and 'outputs' arrays, found {}".format(
+                    os.path.basename(npz_path), keys))
+        inputs = [np.asarray(x) for x in _load_npz_array(data, 'inputs')]
+        outputs = [np.asarray(x) for x in _load_npz_array(data, 'outputs')]
+    return inputs, outputs
+
+
+def run_npz_cases(test_loc, model_path_name, param_names, npz_files, args):
+    target = args.target
+    test_name = os.path.basename(os.path.normpath(test_loc))
+    cases = [load_npz_case(f) for f in npz_files]
+
+    param_shapes = {
+        name: data.shape
+        for name, data in map_inputs(param_names, cases[0][0]).items()
+    }
+    for name, dims in param_shapes.items():
+        print("Input: {}, shape: {}".format(name, dims))
+    print()
+
+    model = migraphx.parse_onnx(model_path_name, map_input_dims=param_shapes)
+    if args.fp16:
+        migraphx.quantize_fp16(model)
+    model.compile(migraphx.get_target(target))
+
+    correct_num = 0
+    for idx, (inputs, gold_outputs) in enumerate(cases):
+        input_data = map_inputs(param_names, inputs)
+
+        input_shapes = tune_input_shape(model, input_data)
+        if not len(input_shapes) == 0:
+            model = migraphx.parse_onnx(model_path_name,
+                                        map_input_dims=input_shapes)
+            if args.fp16:
+                migraphx.quantize_fp16(model)
+            model.compile(migraphx.get_target(target))
+
+        output_data = run_one_case(model, input_data)
+        ret = check_correctness(gold_outputs,
+                                output_data,
+                                atol=args.atol,
+                                rtol=args.rtol)
+        if ret:
+            correct_num += 1
+        print("\tCase {}: {}".format(idx, "PASSED" if ret else "FAILED"))
+
+    case_num = len(cases)
+    print("\nTest \"{}\" has {} cases:".format(test_name, case_num))
+    print("\t Passed: {}".format(correct_num))
+    print("\t Failed: {}".format(case_num - correct_num))
+    if case_num > correct_num:
+        print(str(case_num - correct_num) + " cases failed!")
+        sys.exit(1)
 
 
 def main():
@@ -256,8 +359,18 @@ def main():
     # get output names
     output_names = model_output_names(model_path_name)
 
-    # get test cases
+    # Older caffe2-era archives use test_data_*.npz instead of test_data_set_*.
     cases = get_test_cases(test_loc)
+    if not cases:
+        npz_files = sorted(glob.glob(os.path.join(test_loc,
+                                                  'test_data_*.npz')))
+        if npz_files:
+            run_npz_cases(test_loc, model_path_name, param_names, npz_files,
+                          args)
+            return
+        print("No test_data_set_* or test_data_*.npz found in {}".format(
+            test_loc))
+        sys.exit(1)
     sample_case = test_loc + '/' + cases[0]
     param_shapes = get_input_shapes(sample_case, param_names)
     for name, dims in param_shapes.items():
@@ -284,6 +397,8 @@ def main():
         if not len(input_shapes) == 0:
             model = migraphx.parse_onnx(model_path_name,
                                         map_input_dims=input_shapes)
+            if args.fp16:
+                migraphx.quantize_fp16(model)
             model.compile(migraphx.get_target(target))
 
         # run the model and return outputs

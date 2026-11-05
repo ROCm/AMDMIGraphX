@@ -247,6 +247,24 @@ class MIGRAPHX_EXPORT expr
 
 MIGRAPHX_EXPORT expr var(std::string name);
 MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
+// Merging same-named variables can produce multiple asserted intervals; this overload preserves
+// the complete constraint set so the merged variable can be reconstructed.
+MIGRAPHX_EXPORT expr var(std::string name,
+                         std::vector<interval> constraints,
+                         std::set<scalar> optimals = {});
+
+// Map names to unique identifiers accepted by var() and parse(). resolve() keeps repeated external
+// names stable, while allocate() reserves a new name for an internal symbol.
+class MIGRAPHX_EXPORT symbol_name_registry
+{
+    public:
+    std::string resolve(std::string_view external_name);
+    std::string allocate(std::string_view preferred_name);
+
+    private:
+    std::unordered_map<std::string, std::string> resolved_names;
+    std::unordered_set<std::string> used_names;
+};
 
 // Project an expr onto its structural symbol form, stripping all variable
 // metadata (constraints, optimals). `same_symbol(a, b)` is true when a and b
@@ -258,6 +276,7 @@ MIGRAPHX_EXPORT bool same_symbol(const expr& a, const expr& b);
 
 // Find distinct variables as metadata-free symbols.
 MIGRAPHX_EXPORT std::unordered_set<expr> find_variables(const expr& e);
+
 // Whether dividend is evenly divisible by divisor (integral operands only).
 MIGRAPHX_EXPORT bool is_divisible(const expr& dividend, const expr& divisor);
 

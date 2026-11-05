@@ -1,0 +1,108 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+#include <migraphx/split_sym/analyzer.hpp>
+#include <migraphx/make_op.hpp>
+#include <string>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace split_sym {
+namespace {
+
+std::optional<fill_kind> reduce_identity(const std::string& name)
+{
+    if(name == "reduce_max")
+        return fill_kind::lowest;
+    if(name == "reduce_min")
+        return fill_kind::highest;
+    if(name == "reduce_prod" or name == "reduce_all")
+        return fill_kind::one;
+    if(name == "reduce_sum" or name == "reduce_any")
+        return fill_kind::zero;
+    return std::nullopt;
+}
+
+std::optional<std::vector<std::size_t>> reduce_axes(const operation& op, std::size_t ndim)
+{
+    auto attributes = op.to_value();
+    if(not attributes.contains("axes"))
+        return std::nullopt;
+    auto axes = attributes.at("axes").to_vector<int64_t>();
+    if(axes.empty())
+        return std::nullopt;
+    std::vector<std::size_t> result;
+    result.reserve(axes.size());
+    for(auto axis : axes)
+    {
+        auto normalized = normalize_axis(axis, ndim);
+        if(not normalized.has_value())
+            return std::nullopt;
+        result.push_back(*normalized);
+    }
+    return result;
+}
+
+struct analyze_reduce : analyzer<analyze_reduce>
+{
+    bool matches(const operation& op) const { return op.attributes().contains("reduce"); }
+
+    symbolic_op_info analyze(instruction_ref ins) const
+    {
+        const auto& op = ins->get_operator();
+        if(ins->inputs().size() != 1)
+            return symbolic_op_info{ins};
+        auto axes = reduce_axes(op, ins->inputs().front()->get_shape().ndim());
+        if(not axes.has_value())
+            return symbolic_op_info{ins};
+        auto identity = reduce_identity(op.name());
+        auto result   = analyze_axes(ins, [&](std::size_t, std::size_t axis) {
+            if(not contains(*axes, axis))
+                return parallel_axis();
+            return identity.has_value() ? contracted_axis(*identity) : axis_desc{};
+        });
+        if(identity.has_value() and result.supported)
+            result.freezer = freeze;
+        return result;
+    }
+
+    static instruction_ref freeze(module& m,
+                                  instruction_ref source,
+                                  const std::vector<instruction_ref>& args,
+                                  const std::unordered_map<sym::expr, std::size_t>&)
+    {
+        auto identity = reduce_identity(source->name());
+        assert(identity.has_value());
+        auto padded_args = args;
+        for(auto& arg : padded_args)
+            if(arg->get_shape().dynamic())
+                arg = m.add_instruction(make_op("fixed_pad", {{"value", fill_value(*identity)}}),
+                                        arg);
+        return m.add_instruction(source->get_operator(), padded_args);
+    }
+};
+
+} // namespace
+} // namespace split_sym
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

@@ -54,7 +54,7 @@ std::vector<instruction_ref> get_alloc_aliases(const module& mod)
     std::transform(returns.begin(),
                    returns.end(),
                    join_back_inserter(alloc_aliases),
-                   [](const auto& i) { return instruction::get_output_alias(i); });
+                   [](const auto& i) { return resolve_output_aliases(i); });
     return alloc_aliases;
 }
 
@@ -113,7 +113,7 @@ get_output_debug_symbols(const module& mod)
         }
         for(const auto& os : range(output_symbols.begin(), output_symbols.end()))
         {
-            mod_output_debug_symbols[alloc_aliases.at(index)] = {os};
+            mod_output_debug_symbols[alloc_aliases.at(index)].insert(os);
             ++index;
         }
         return mod_output_debug_symbols;
@@ -222,7 +222,43 @@ bool replace_alias_allocation(module& m, instruction_ref ins)
     return true;
 }
 
-void insert_copy(module& m, const allocation_model& model)
+bool is_select_module_input(module_ref root, module_ref submodule)
+{
+    auto modules = root->get_sub_modules();
+    modules.push_back(root);
+    return any_of(modules, [&](module_ref mod) {
+        return any_of(iterator_for(*mod), [&](instruction_ref ins) {
+            return ins->name() == "select_module" and contains(ins->module_inputs(), submodule);
+        });
+    });
+}
+
+instruction_ref insert_output_copy(module& m,
+                                   const allocation_model& model,
+                                   instruction_ref pos,
+                                   instruction_ref input)
+{
+    auto input_shape = input->get_shape();
+    auto alloc_shape =
+        input_shape.dynamic() ? shape{input_shape.type(), input_shape.max_lens()} : input_shape;
+    auto output = m.insert_instruction(
+        pos, make_op("allocate", migraphx::value{{"shape", to_value(alloc_shape)}}));
+    if(input_shape.dynamic())
+    {
+        std::vector<int64_t> axes(input_shape.ndim());
+        std::iota(axes.begin(), axes.end(), 0);
+        auto dims = m.insert_instruction(
+            pos, make_op("dimensions_of", {{"end", input_shape.ndim()}}), input);
+        output = m.insert_instruction(
+            pos,
+            make_op("slice", {{"axes", axes}, {"starts", std::vector<int64_t>(axes.size(), 0)}}),
+            output,
+            dims);
+    }
+    return m.insert_instruction(pos, make_op(model.copy()), input, output);
+}
+
+void insert_copy(module& m, const allocation_model& model, bool copy_aliased_returns)
 {
     // Rewriting a return can change the aliases of the other returns, so visit them in order
     std::unordered_set<instruction_ref> visited;
@@ -240,12 +276,27 @@ void insert_copy(module& m, const allocation_model& model)
         if(replace_alias_allocation(m, ins))
             continue;
         auto insert_ins = std::next(ins);
-        auto alloc      = m.insert_instruction(
-            insert_ins,
-            make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
-        auto copy = m.insert_instruction(insert_ins, make_op(model.copy()), ins, alloc);
+        auto copy       = insert_output_copy(m, model, insert_ins, ins);
         m.replace_instruction(ins, copy);
     }
+
+    if(not copy_aliased_returns)
+        return;
+
+    auto returns    = m.get_returns();
+    auto return_ins = m.insert_end();
+    std::unordered_set<instruction_ref> returned;
+    bool changed = false;
+    std::transform(returns.begin(), returns.end(), returns.begin(), [&](instruction_ref ins) {
+        if(ins->get_shape().any_of_dynamic() and not ins->get_shape().dynamic())
+            return ins;
+        if(returned.insert(ins).second and ins->name() != "@param")
+            return ins;
+        changed = true;
+        return insert_output_copy(m, model, return_ins, ins);
+    });
+    if(changed)
+        m.replace_return(returns);
 }
 
 void insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)
@@ -275,7 +326,8 @@ void insert_submod_allocations(instruction_ref ins, module& mod, const allocatio
 void replace_allocate::apply(module_pass_manager& mpm) const
 {
     module& m              = mpm.get_module();
-    bool is_root           = *mpm.get_root_module() == m;
+    module_ref root_module = mpm.get_root_module();
+    bool is_root           = *root_module == m;
     bool root_offload_copy = is_root ? this->offload_copy : false;
     // Adjust allocations before replacing
     for(auto ins : iterator_for(m))
@@ -287,7 +339,7 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         insert_submod_allocations(ins, m, model);
     }
     if(not root_offload_copy and model.needs_out_params())
-        insert_copy(m, model);
+        insert_copy(m, model, is_root or is_select_module_input(root_module, &m));
     auto mod_output_names         = create_output_names(m);
     auto mod_output_debug_symbols = get_output_debug_symbols(m);
     for(auto ins : iterator_for(m))

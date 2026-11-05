@@ -35,15 +35,20 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/checked_ops.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/logger.hpp>
 #include <onnx.pb.h>
+#include <algorithm>
+#include <cctype>
 #include <iomanip>
+#include <iterator>
 #include <set>
 #include <sstream>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -83,12 +88,14 @@ static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
     return result;
 }
 
-static literal
-create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
+static literal create_literal(shape::type_t shape_type,
+                              const std::vector<size_t>& dims,
+                              const char* data,
+                              std::size_t size)
 {
     // empty input
-    auto elem_num =
-        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    auto elem_num = std::accumulate(
+        dims.begin(), dims.end(), std::size_t{1}, [](auto a, auto b) { return checked_mul(a, b); });
     if(elem_num == 0)
     {
         return literal{shape_type};
@@ -96,20 +103,24 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
 
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
     if(dims.empty())
-        return literal{{shape_type}, data};
-    return literal{{shape_type, dims}, data};
+        return literal::from_standard_buffer({shape_type}, data, size);
+    return literal::from_standard_buffer({shape_type, dims}, data, size);
 }
 
 template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
 static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
 {
     // empty input
-    auto elem_num =
-        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    auto elem_num = std::accumulate(
+        dims.begin(), dims.end(), std::size_t{1}, [](auto a, auto b) { return checked_mul(a, b); });
     if(elem_num == 0)
     {
         return literal{shape_type};
     }
+
+    if(data.size() != elem_num)
+        MIGRAPHX_THROW("PARSE_TENSOR: number of values " + std::to_string(data.size()) +
+                       " does not match tensor elements " + std::to_string(elem_num));
 
     // scalar input
     if(dims.empty())
@@ -148,7 +159,8 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
         {
             bias_bcast = add_instruction(
                 make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", to_value(s.dyn_dims())}}),
-                args[2]);
+                args[2],
+                curr_ins);
         }
         else if(s.dynamic())
         {
@@ -392,7 +404,7 @@ parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto
 }
 
 static std::unordered_map<std::string, instruction_ref>
-parse_inputs(const onnx_parser& parser,
+parse_inputs(onnx_parser& parser,
              module* mod,
              const onnx::GraphProto& graph,
              std::unordered_map<std::string, instruction_ref> mod_insts)
@@ -413,7 +425,7 @@ parse_inputs(const onnx_parser& parser,
             if(parser.map_input_dims.count(name) > 0)
             {
                 std::vector<std::size_t> dims = parser.map_input_dims.at(name);
-                s                             = parser.parse_type(input.type(), dims);
+                s                             = parser.parse_param_shape(input.type(), dims);
             }
             else if(parser.map_dyn_input_dims.count(name) > 0)
             {
@@ -422,7 +434,7 @@ parse_inputs(const onnx_parser& parser,
                 {
                     // Name each overridden axis from the model's dim_param so it
                     // becomes a symbol; bounds/optimals come from the override.
-                    s = parser.parse_type(input.type(), name, override_dims);
+                    s = parser.parse_param_shape(input.type(), name, override_dims);
                 }
                 else
                 {
@@ -432,7 +444,7 @@ parse_inputs(const onnx_parser& parser,
             }
             else
             {
-                s = parser.parse_type(input.type(), name);
+                s = parser.parse_param_shape(input.type(), name);
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -565,9 +577,8 @@ static bool check_sorted(const onnx::GraphProto& graph,
         for(auto&& input : node.input())
         {
             // operators like resize can use empty strings to skip unused inputs
-            if(not input.empty())
-                if(not contains(visited_nodes, input))
-                    return false;
+            if(not input.empty() and not contains(visited_nodes, input))
+                return false;
         }
         // node outputs struct is used to keep track of currently visited nodes
         visited_nodes.insert(node.output().begin(), node.output().end());
@@ -684,7 +695,9 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         else
         {
             result = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node_name, mod}, args);
+                *this,
+                {get_attributes(node), output_num, node_name, mod, std::string{node.domain()}},
+                args);
         }
         output_num = std::min<std::size_t>(output_num, result.size());
         std::transform(node.output().begin(),
@@ -805,6 +818,58 @@ static shape parse_tensor_shape(const onnx::TensorProto& t)
     return shape{get_type(t.data_type()), dims};
 }
 
+static std::size_t parse_external_size(const std::string& value, const char* field)
+{
+    if(value.empty() or
+       not std::all_of(value.begin(), value.end(), [](unsigned char c) { return std::isdigit(c); }))
+        MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+    try
+    {
+        std::size_t pos    = 0;
+        std::size_t parsed = std::stoull(value, &pos);
+        if(pos != value.size())
+            MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+        return parsed;
+    }
+    catch(const std::exception&)
+    {
+        MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+    }
+}
+
+// Lexically resolve '.' and '..' without touching the filesystem. The
+// Filesystem TS (std::experimental::filesystem, used on some older toolchains)
+// lacks weakly_canonical and path::lexically_relative, so normalize by hand.
+static fs::path lexically_normalize(const fs::path& p)
+{
+    auto parts = std::accumulate(
+        p.begin(), p.end(), std::vector<fs::path>{}, [](auto acc, const fs::path& part) {
+            if(part == ".")
+                return acc;
+            if(part == ".." and not acc.empty() and acc.back() != "..")
+                acc.pop_back();
+            else
+                acc.push_back(part);
+            return acc;
+        });
+    return std::accumulate(parts.begin(),
+                           parts.end(),
+                           fs::path{},
+                           [](fs::path acc, const auto& part) { return acc /= part; });
+}
+
+static fs::path resolve_external_data_path(const fs::path& base_dir, const fs::path& relative)
+{
+    const fs::path base     = lexically_normalize(base_dir);
+    const fs::path resolved = lexically_normalize(base_dir / relative);
+    // resolved must stay within base: base's components must be a strict prefix
+    // of resolved's. A '..' that climbs out of base breaks the prefix match.
+    const auto m = std::mismatch(base.begin(), base.end(), resolved.begin(), resolved.end());
+    if(m.first != base.end() or m.second == resolved.end())
+        MIGRAPHX_THROW("ONNX external data path escapes model directory: " + relative.string());
+    return resolved;
+}
+
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
     auto tensor_shape         = parse_tensor_shape(t);
@@ -814,6 +879,9 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
     if(not external_data.empty())
     {
+        if(tensor_shape.elements() == 0)
+            return literal{type};
+
         const std::string& data_file = external_data.at(0).value();
         size_t num_data_fields       = external_data.size();
         size_t offset                = 0;
@@ -821,29 +889,27 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
         if(num_data_fields > 1) // if offset field is present
         {
-            offset = std::stoull(t.external_data().at(1).value());
+            offset = parse_external_size(t.external_data().at(1).value(), "offset");
         }
         if(num_data_fields > 2) // if nbytes field is present
         {
-            nbytes = std::stoull(t.external_data().at(2).value());
+            nbytes = parse_external_size(t.external_data().at(2).value(), "length");
         }
-        std::vector<char> raw_buffer;
-        if(not external_data_path.empty())
-        {
-            raw_buffer = read_buffer(fs::path{external_data_path} / data_file, offset, nbytes);
-        }
-        else
-        {
-            raw_buffer = read_buffer(path / data_file, offset, nbytes);
-        }
-        std::string s(raw_buffer.begin(), raw_buffer.end());
-        return create_literal(type, dims, s.data());
+        if(nbytes != tensor_shape.bytes())
+            MIGRAPHX_THROW("PARSE_TENSOR: external data length " + std::to_string(nbytes) + " of " +
+                           t.name() + " does not match tensor bytes " +
+                           std::to_string(tensor_shape.bytes()));
+
+        const fs::path base_dir  = external_data_path.empty() ? path : fs::path{external_data_path};
+        const fs::path data_path = resolve_external_data_path(base_dir, data_file);
+        std::vector<char> raw_buffer = read_buffer(data_path, offset, nbytes);
+        return create_literal(type, dims, raw_buffer.data(), raw_buffer.size());
     }
 
     if(t.has_raw_data())
     {
         const std::string& s = t.raw_data();
-        return create_literal(type, dims, s.data());
+        return create_literal(type, dims, s.data(), s.size());
     }
 
     switch(t.data_type())
@@ -905,14 +971,16 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-static shape::dynamic_dimension make_symbol(const std::string& sym_name,
+static shape::dynamic_dimension make_symbol(onnx_parser& parser,
+                                            const std::string& sym_name,
                                             const shape::dynamic_dimension& bounds)
 {
     auto iv = bounds.get_interval();
-    return shape::dynamic_dimension{sym::var(sym_name, {iv.min, iv.max}, sym_optimals(bounds))};
+    return shape::dynamic_dimension{
+        sym::var(parser.symbol_names.resolve(sym_name), {iv.min, iv.max}, sym_optimals(bounds))};
 }
 
-static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,
+static shape::dynamic_dimension resolve_dim(onnx_parser& parser,
                                             const shape::dynamic_dimension& bounds,
                                             const std::string& name,
                                             int axis)
@@ -924,11 +992,11 @@ static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,
         return shape::dynamic_dimension{sym::lit(bounds.get_interval().min)};
     // A ranged bound becomes a per-axis symbol "<input>_d<axis>" (onnxruntime's scheme
     // for unnamed dims).
-    return make_symbol(name + "_d" + std::to_string(axis), bounds);
+    return make_symbol(parser, name + "_d" + std::to_string(axis), bounds);
 }
 
 static shape::dynamic_dimension
-resolve_default_dim(const onnx_parser& parser, const std::string& name, int axis)
+resolve_default_dim(onnx_parser& parser, const std::string& name, int axis)
 {
     return resolve_dim(parser, parser.default_dyn_dim_value, name, axis);
 }
@@ -944,7 +1012,7 @@ static shape::dynamic_dimension dim_param_bounds(const onnx_parser& parser,
     return parser.default_dyn_dim_value;
 }
 
-static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
+static shape::dynamic_dimension map_dyn_dim(onnx_parser& parser,
                                             const onnx::TensorShapeProto::Dimension* model_dim,
                                             const shape::dynamic_dimension* override_dim,
                                             const std::string& name,
@@ -957,7 +1025,8 @@ static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
     {
         const auto& dim_param = model_dim->dim_param();
         if(parser.use_symbolic_shapes)
-            return make_symbol(dim_param, dim_param_bounds(parser, dim_param, override_dim));
+            return make_symbol(
+                parser, dim_param, dim_param_bounds(parser, dim_param, override_dim));
         if(override_dim != nullptr)
             return *override_dim;
         if(contains(parser.dim_params, dim_param))
@@ -979,16 +1048,16 @@ static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
     return resolve_default_dim(parser, name, axis);
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::string& name) const
+shape onnx_parser::parse_param_shape(const onnx::TypeProto& t, const std::string& name)
 {
-    return parse_type(t, name, {});
+    return parse_param_shape(t, name, {});
 }
 
 // Resolve an input's dims; a map_dyn_input_dims override (if any) supplies bounds while
 // the model supplies the symbol name.
-shape onnx_parser::parse_type(const onnx::TypeProto& t,
-                              const std::string& name,
-                              const std::vector<shape::dynamic_dimension>& override_dims) const
+shape onnx_parser::parse_param_shape(const onnx::TypeProto& t,
+                                     const std::string& name,
+                                     const std::vector<shape::dynamic_dimension>& override_dims)
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
     auto&& tensor_dims       = t.tensor_type().shape().dim();
@@ -1010,8 +1079,8 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
     return shape_from_dyn_dims(shape_type, dynamic_dims);
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t,
-                              const std::vector<std::size_t>& input_dims) const
+shape onnx_parser::parse_param_shape(const onnx::TypeProto& t,
+                                     const std::vector<std::size_t>& input_dims) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
     if(input_dims.empty())

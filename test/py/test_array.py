@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import migraphx, struct, array, sys
+import migraphx, struct, array, sys, gc, weakref
 try:
     from functools import reduce
 except:
@@ -101,6 +101,21 @@ def test_input():
         assert_eq(a1.tolist(), m.tolist())
 
 
+def test_input_lifetime():
+    # The argument points into the buffer it was created from, so it must keep
+    # that buffer alive even when the caller drops its own reference.
+    data = array.array('f', range(1 << 18))
+    ref = weakref.ref(data)
+    a = migraphx.argument(data)
+    del data
+    gc.collect()
+    assert ref() is not None
+    assert_eq(read_float(a, 1), 1.0)
+    del a
+    gc.collect()
+    assert ref() is None
+
+
 def test_output():
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     p.compile(migraphx.get_target("gpu"))
@@ -121,4 +136,5 @@ def test_output():
 
 
 test_input()
+test_input_lifetime()
 test_output()

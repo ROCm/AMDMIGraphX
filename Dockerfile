@@ -22,11 +22,12 @@
 #   rbuild build -d depend -B build
 #
 
-FROM ubuntu:24.04
+# Base image pinned to ubuntu:24.04 tag digest (sha256 from tag 24.04 as of 2026-08).
+FROM ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
 
 ARG PREFIX=/usr/local
 # ROCm release version (used in versioned package names, e.g. amdrocm-developer-tools7.13)
-ARG ROCM_VERSION="10.0"
+ARG ROCM_VERSION="10.1"
 # GPU architecture family (e.g. gfx942, gfx120x); leave empty for arch-independent packages
 ARG GPU_ARCH=""
 # Install location for the prebuilt MIGraphX dependencies.
@@ -96,12 +97,17 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
+# Hermetic toolchain for every cget/rbuild build against $PREFIX. It is kept in
+# the image because $PREFIX/cget/cget.cmake includes it by absolute path.
+COPY ./cmake/hermetic.cmake ${PREFIX}/share/cmake/hermetic.cmake
+
 COPY ./tools/install_prereqs.sh /
 COPY ./tools/requirements-py.txt /requirements-py.txt
 RUN ./install_prereqs.sh \
         --rocm-version ${ROCM_VERSION} \
         ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
         --index-url ${INDEX_URL} \
+        --toolchain ${PREFIX}/share/cmake/hermetic.cmake \
         ${USE_WHL:+--whl}
 RUN rm /install_prereqs.sh && rm /*.txt
 RUN test -f /usr/local/hash || exit 1
@@ -129,8 +135,8 @@ RUN curl -fsSL -o /tmp/clangd.zip \
 
 # Install pytorch
 RUN pip3 install --index-url "${INDEX_URL}" \
-        "torch==2.11.0+rocm${ROCM_VERSION}.0" \
-        "torchvision==0.26.0+rocm${ROCM_VERSION}.0" \
+        "torch==2.12.0+rocm${ROCM_VERSION}.0" \
+        "torchvision==0.27.0+rocm${ROCM_VERSION}.0" \
         "torchaudio==2.11.0+rocm${ROCM_VERSION}.0"
 
 # Location where onnx unit tests models are cached

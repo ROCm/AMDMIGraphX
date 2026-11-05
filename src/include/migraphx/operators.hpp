@@ -66,6 +66,7 @@
 #include <migraphx/op/gathernd.hpp>
 #include <migraphx/op/get_tuple_elem.hpp>
 #include <migraphx/op/greater.hpp>
+#include <migraphx/op/gridsample.hpp>
 #include <migraphx/op/group.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/if_op.hpp>

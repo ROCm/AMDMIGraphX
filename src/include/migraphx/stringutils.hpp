@@ -26,8 +26,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <numeric>
+#include <optional>
 #include <string>
 #include <sstream>
 #include <type_traits>
@@ -239,6 +241,18 @@ inline auto to_hex_float(const T& x)
     std::stringstream ss;
     ss << std::hexfloat << x;
     return ss.str();
+}
+
+/// Spell a non-finite value for generated source, or nullopt when x is finite.
+/// Streaming one emits a bare `inf`/`nan` identifier instead, and the builtins hold
+/// up when the result is compiled as device code, which lacks <cmath> and <limits>.
+inline std::optional<std::string> nonfinite_cpp_literal(double x)
+{
+    if(std::isnan(x))
+        return "__builtin_nan(\"0\")";
+    if(std::isinf(x))
+        return std::signbit(x) ? "-__builtin_huge_val()" : "__builtin_huge_val()";
+    return std::nullopt;
 }
 
 /// Concatenate the lowercase hex representation of each integer in a range.

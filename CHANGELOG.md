@@ -13,6 +13,7 @@ Full documentation for MIGraphX is available at
 ### Changed
 
 * Changed the ONNX `NonMaxSuppression` parser to trim its zero-padded indices output down to the number of selected boxes with a `dyn_slice`, so a parsed model now returns the ONNX specification's `[num_selected_indices, 3]` output instead of a fixed padded size. This removes the `MIGRAPHX_USE_DYNAMIC_NMS` environment variable that previously gated the trim (#5150).
+* Enabled MLIR attention fusion by default on every GPU, not just gfx94x/gfx95x, gated per attention block on profitability: blocks whose head dim exceeds `attn_max_head_dim` (512 on wave64 devices, 256 on wave32) at kv lengths past `attn_wide_head_kv_len` (1024 on wave64, none on wave32), or with fewer than `attn_min_q_rows` total query rows (24 per CU), run as separate gemm and softmax kernels instead. The thresholds are configurable through the matching backend options, requesting `attention` in `MIGRAPHX_MLIR_USE_SPECIFIC_OPS` or the `mlir_use_specific_ops` backend option fuses every block regardless of the gate, and `!attention` in the backend option now disables the fusion on every device (#5405).
 
 ### Resolved issues
 

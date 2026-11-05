@@ -437,6 +437,25 @@ static void set_bypass(module_ref recipe)
         smod->set_bypass();
 }
 
+// Add a parameter named x0, x1, ... to m for each shape
+static std::vector<instruction_ref> add_parameters(module& m, const std::vector<shape>& inputs)
+{
+    std::vector<instruction_ref> params;
+    transform(range(inputs.size()), std::back_inserter(params), [&](auto i) {
+        return m.add_parameter("x" + std::to_string(i), inputs[i]);
+    });
+    return params;
+}
+
+// The only gpu::code_object in [first, last), or nothing when there are none or several
+static optional<instruction_ref> single_code_object(instruction_ref first, instruction_ref last)
+{
+    auto is_code_object = [](const instruction& i) { return i.name() == "gpu::code_object"; };
+    if(std::count_if(first, last, is_code_object) != 1)
+        return nullopt;
+    return std::find_if(first, last, is_code_object);
+}
+
 /// One compilation and its result, shared by every result slot whose key matches. Each cell is
 /// written by exactly one worker during the parallel compile; sharers read it after the join.
 struct compile_cell
@@ -747,16 +766,15 @@ struct compile_plan
     /// The solution that produced cr, which is one of the results
     value solution_of(const compiler_replace& cr) const
     {
-        for(auto i : range(results.size()))
-        {
-            if(not results[i]->result.has_value() or &*results[i]->result != &cr)
-                continue;
-            // A shared cell may belong to another plan, so take the solution of this plan
-            if(config.has_value() and results.size() == config->solutions.size())
-                return config->solutions[i];
-            return results[i]->solution;
-        }
-        return value{};
+        auto it = std::find_if(results.begin(), results.end(), [&](const auto& cell) {
+            return cell->result.has_value() and &*cell->result == &cr;
+        });
+        if(it == results.end())
+            return value{};
+        // A shared cell may belong to another plan, so take the solution of this plan
+        if(config.has_value() and results.size() == config->solutions.size())
+            return config->solutions[std::distance(results.begin(), it)];
+        return (*it)->solution;
     }
 
     /// Replace the precompile op with its compiled kernel. When make_recipe_module is set, the
@@ -776,30 +794,21 @@ struct compile_plan
         auto mods   = ins->module_inputs();
         cr.replace(m, ins);
 
-        // The replacement inserts its instructions before ins, or rewrites it in place
-        std::vector<instruction_ref> cos;
-        for(auto it = std::next(start); it != std::next(ins); ++it)
+        // The replacement inserts its instructions before ins, or rewrites it in place. Only a
+        // single kernel can be swapped in place by recompile.
+        auto co_ins = single_code_object(std::next(start), std::next(ins));
+        if(not co_ins.has_value())
         {
-            if(it->name() == "gpu::code_object")
-                cos.push_back(it);
-        }
-        // Only a single kernel can be swapped in place by recompile
-        if(cos.size() != 1)
-        {
-            log::debug() << "No recipe for " << preop.name() << ": compiled to " << cos.size()
-                         << " kernels";
+            log::debug() << "No recipe for " << preop.name() << ": not compiled to one kernel";
             return;
         }
-        auto co_ins = cos.front();
 
         auto* recipe = make_recipe_module();
-        std::vector<instruction_ref> params;
-        for(auto i : range(inputs.size()))
-            params.push_back(recipe->add_parameter("x" + std::to_string(i), inputs[i]));
-        recipe->add_return({recipe->add_instruction(pre_op, params, mods)});
+        recipe->add_return(
+            {recipe->add_instruction(pre_op, add_parameters(*recipe, inputs), mods)});
         // Later passes such as write_literals must not rewrite the recipe
         set_bypass(recipe);
-        m.replace_instruction(co_ins, co_ins->get_operator(), co_ins->inputs(), {recipe});
+        m.replace_instruction(*co_ins, (*co_ins)->get_operator(), (*co_ins)->inputs(), {recipe});
     }
 
     std::size_t save_binaries(const fs::path& mxr_dir) const
@@ -1125,7 +1134,9 @@ void compile_ops::apply(module_pass_manager& mpm) const
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
     cm.mxr_dir        = dump_mxr_dir;
-    // One counter for every batch, since each recipe module needs a unique name
+    // One counter for every batch, since each recipe module needs a unique name. It must outlive
+    // the if below, because make_recipe_module refers to it.
+    // cppcheck-suppress variableScope
     std::size_t recipes = 0;
     if(recompilable)
     {
@@ -1285,23 +1296,16 @@ optional<std::pair<code_object_op, kernel_signature>> candidate_kernel(const com
                                                                        instruction_ref pre_ins)
 {
     module m{"recompile_candidate"};
-    std::vector<instruction_ref> params;
-    for(auto i : range(pre_ins->inputs().size()))
-        params.push_back(
-            m.add_parameter("x" + std::to_string(i), pre_ins->inputs()[i]->get_shape()));
-    auto ins = m.add_instruction(pre_ins->get_operator(), params, pre_ins->module_inputs());
+    auto ins = m.add_instruction(pre_ins->get_operator(),
+                                 add_parameters(m, to_shapes(pre_ins->inputs())),
+                                 pre_ins->module_inputs());
     m.add_return({ins});
     cr.replace(m, ins);
-    std::vector<instruction_ref> cos;
-    for(auto it : iterator_for(m))
-    {
-        if(it->name() == "gpu::code_object")
-            cos.push_back(it);
-    }
-    if(cos.size() != 1)
+    auto co_ins = single_code_object(m.begin(), m.end());
+    if(not co_ins.has_value())
         return nullopt;
-    auto co  = any_cast<code_object_op>(cos.front()->get_operator());
-    auto sig = make_signature(cos.front(), co, [](instruction_ref i) -> optional<double> {
+    auto co  = any_cast<code_object_op>((*co_ins)->get_operator());
+    auto sig = make_signature(*co_ins, co, [](instruction_ref i) -> optional<double> {
         if(i->name() != "hip::fill")
             return nullopt;
         return i->get_operator().to_value().at("value").to<double>();
@@ -1392,12 +1396,12 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
             if(std::none_of(cp.results.begin(), cp.results.end(), &has_result))
                 MIGRAPHX_THROW("recompile: no candidate for kernel " + olds[i].symbol_name +
                                " keeps its signature; compile the model again");
-            const auto& best      = cp.benchmark();
-            auto j                = static_cast<std::size_t>(std::distance(
+            const auto& best = cp.benchmark();
+            std::size_t j    = std::distance(
                 cp.results.begin(),
                 std::find_if(cp.results.begin(), cp.results.end(), [&](const auto& c) {
                     return has_result(c) and &*c->result == &best;
-                })));
+                }));
             result[i].code_object = *kernels.at(j);
             result[i].tunable     = cp.config.has_value();
             result[i].solution    = cp.solution_of(best);
@@ -1406,11 +1410,10 @@ std::vector<recompiled_kernel> recompile_kernels(context& ctx,
             done[i]               = true;
         }
     }
-    for(auto i : range(n))
-    {
-        if(not done[i])
-            MIGRAPHX_THROW("recompile: no valid compilation for kernel " + olds[i].symbol_name);
-    }
+    auto missing = std::find(done.begin(), done.end(), false);
+    if(missing != done.end())
+        MIGRAPHX_THROW("recompile: no valid compilation for kernel " +
+                       olds[std::distance(done.begin(), missing)].symbol_name);
     return result;
 }
 

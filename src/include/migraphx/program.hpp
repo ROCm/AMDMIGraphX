@@ -122,9 +122,7 @@ struct MIGRAPHX_EXPORT program
      * `options.exhaustive_tune` is set. The program is unchanged if recompiling fails. Throws if
      * `t` does not support recompiling.
      */
-    void recompile(const target& t,
-                   compile_options options                 = compile_options{},
-                   const recompile_options& recompile_opts = recompile_options{});
+    void recompile(const target& t, compile_options options = compile_options{});
 
     bool is_compiled() const;
 

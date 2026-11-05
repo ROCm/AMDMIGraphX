@@ -61,13 +61,6 @@ struct compile_options
     tracer trace{};
 };
 
-/// Options for program::recompile
-struct recompile_options
-{
-    /// Recompile kernels that are already at the requested tuning level on the same device
-    bool force = false;
-};
-
 /**
  * Merge the backend options from an object value into the compile options.
  * Each top-level key of the object becomes an entry in backend_options.

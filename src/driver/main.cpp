@@ -1005,7 +1005,6 @@ struct recompile_cmd : command<recompile_cmd>
     loader l;
     compiler_target ct;
     bool exhaustive_tune = false;
-    bool force           = false;
     std::string backend_options;
 
     void parse(argument_parser& ap)
@@ -1016,11 +1015,6 @@ struct recompile_cmd : command<recompile_cmd>
            {"--exhaustive-tune"},
            ap.help("Recompile with exhaustive tuning. Without it, each kernel keeps the tuning "
                    "level recorded in the program"),
-           ap.set_value(true));
-        ap(force,
-           {"--force"},
-           ap.help("Recompile kernels even when they are already at the requested tuning level "
-                   "on the same GPU"),
            ap.set_value(true));
         ap(backend_options,
            {"--backend-options"},
@@ -1046,11 +1040,9 @@ struct recompile_cmd : command<recompile_cmd>
                 MIGRAPHX_THROW("--backend-options must be a JSON object");
             migraphx::set_backend_options(co, v);
         }
-        recompile_options ro;
-        ro.force = force;
         log::info() << "Recompiling ...";
         timer t{};
-        p.recompile(ct.get_target(), co, ro);
+        p.recompile(ct.get_target(), co);
         log::info() << "Recompile time: " << t.record<std::chrono::milliseconds>() << "ms";
         l.save(p);
     }

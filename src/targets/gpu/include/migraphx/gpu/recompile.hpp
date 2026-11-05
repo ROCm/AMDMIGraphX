@@ -41,12 +41,11 @@ struct context;
  * device of ctx, in place. The graph, literals, memory plan and schedule are not changed.
  *
  * The device the program was compiled for is read from the comment that compile_ops records
- * with recompilable. force recompiles kernels that are already at the requested tuning level.
+ * with recompilable. Every kernel with a recipe is recompiled, also for the same device.
  */
 struct MIGRAPHX_GPU_EXPORT recompile_ops
 {
     context* ctx         = nullptr;
-    bool force           = false;
     bool exhaustive_tune = false;
     std::string name() const { return "gpu::recompile_ops"; }
     void apply(program& p) const;

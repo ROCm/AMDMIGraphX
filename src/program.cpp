@@ -248,9 +248,7 @@ void program::clear_context()
     impl->targets.clear();
 }
 
-void program::recompile(const target& t,
-                        compile_options options,
-                        const recompile_options& recompile_opts)
+void program::recompile(const target& t, compile_options options)
 {
     if(not this->is_compiled())
         MIGRAPHX_THROW("recompile: the program is not compiled");
@@ -263,7 +261,7 @@ void program::recompile(const target& t,
     // Recompile a copy so the program is unchanged when recompiling fails
     program p                     = *this;
     std::vector<context> contexts = {t.get_context()};
-    auto passes = t.get_recompile_passes(contexts.front(), options, recompile_opts);
+    auto passes                   = t.get_recompile_passes(contexts.front(), options);
     run_passes(p, passes, options.trace);
     for(const auto& mod : p.get_modules())
     {

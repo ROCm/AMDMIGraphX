@@ -5464,6 +5464,85 @@ TEST_CASE(kv_flash_decoding_score_scale_param)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// Head width equals the cache length, so this query broadcast has the score shape.
+// Flash decoding leaves the module unchanged.
+TEST_CASE(kv_flash_decoding_query_score_shape)
+{
+    migraphx::shape s_q{migraphx::shape::half_type, {1, 2, 1, 8}};
+    migraphx::shape s_kv{migraphx::shape::half_type, {1, 2, 8, 8}};
+    migraphx::shape s_cos{migraphx::shape::half_type, {8}};
+
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_kv);
+        auto v     = mm->add_parameter("v", s_kv);
+        auto cos   = mm->add_parameter("cos", s_cos);
+        auto group = add_group(
+            p1, "attn0", "kv_cache_attention", {q, k, v, cos}, [=](auto* gm, const auto& inputs) {
+                auto bc_q = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s_q.lens()}}), inputs.at(3));
+                auto rot   = gm->add_instruction(migraphx::make_op("mul"), inputs.at(0), bc_q);
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), rot, inputs.at(1));
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), gemm1, inputs.at(2));
+                return std::vector<migraphx::instruction_ref>{gemm2};
+            });
+        mm->add_return({group});
+    }
+    migraphx::program p2 = p1;
+    run_pass(
+        p1,
+        {.attn_enabled = false, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The range is {1, N} and is compared before it is broadcast to the scores.
+// Flash decoding leaves the module unchanged.
+TEST_CASE(kv_flash_decoding_range_before_scores)
+{
+    migraphx::shape s_q{migraphx::shape::half_type, {1, 2, 1, 8}};
+    migraphx::shape s_kv{migraphx::shape::half_type, {1, 2, 8, 8}};
+    migraphx::shape s_range{migraphx::shape::int32_type, {1, 8}};
+    migraphx::shape s_sl{migraphx::shape::int32_type, {1}};
+    migraphx::shape s_half{migraphx::shape::half_type, {1}};
+
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto q     = mm->add_parameter("q", s_q);
+        auto k     = mm->add_parameter("k", s_kv);
+        auto v     = mm->add_parameter("v", s_kv);
+        auto sl    = mm->add_parameter("sl", s_sl);
+        auto group = add_group(
+            p1, "attn0", "kv_cache_attention", {q, k, v, sl}, [=](auto* gm, const auto& inputs) {
+                auto range = gm->add_literal(
+                    migraphx::literal{s_range, {0, 1, 2, 3, 4, 5, 6, 7}});
+                auto ninf = gm->add_literal(
+                    migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
+                auto bc_ninf = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s_q.lens()}}), ninf);
+                auto gemm1 =
+                    gm->add_instruction(migraphx::make_op("dot"), inputs.at(0), inputs.at(1));
+                auto bc_sl = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 8}}}), inputs.at(3));
+                auto grtr = gm->add_instruction(migraphx::make_op("greater"), range, bc_sl);
+                auto bc_grtr = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s_q.lens()}}), grtr);
+                auto mask =
+                    gm->add_instruction(migraphx::make_op("where"), bc_grtr, bc_ninf, gemm1);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), mask, inputs.at(2));
+                return std::vector<migraphx::instruction_ref>{gemm2};
+            });
+        mm->add_return({group});
+    }
+    migraphx::program p2 = p1;
+    run_pass(
+        p1,
+        {.attn_enabled = false, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[])
 {
     test::run(argc, argv);

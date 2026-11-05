@@ -137,6 +137,37 @@ std::pair<instruction_ref, instruction_ref> get_gemms(module_ref submod)
     return {gemms[0], gemms[1]};
 }
 
+instruction_ref first_dot(const module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "dot")
+            return ins;
+    }
+    return m.end();
+}
+
+// True when every consumer is the score tensor or a broadcast to it.
+bool consumed_as_scores(instruction_ref ins, const std::vector<std::size_t>& scores_lens)
+{
+    const auto& outputs = ins->outputs();
+    if(outputs.empty())
+        return false;
+    return std::all_of(outputs.begin(), outputs.end(), [&](instruction_ref out) {
+        if(out->name() == "multibroadcast" or out->name() == "broadcast")
+        {
+            return out->get_operator().to_value()["out_lens"].to_vector<std::size_t>() ==
+                   scores_lens;
+        }
+        return out->get_shape().lens() == scores_lens;
+    });
+}
+
+bool feeds_first_dot(instruction_ref ins, instruction_ref dot, instruction_ref mod_end)
+{
+    return dot != mod_end and ins != mod_end and reaches(ins, dot);
+}
+
 bool attention_submodule_rebuild_blocked(const module& source_mod,
                                          const std::vector<std::size_t>& scores_lens)
 {
@@ -378,6 +409,33 @@ struct flash_decoding_split
         return result;
     }
 
+    // Query and mask preprocessing can share the score shape when the head width
+    // equals the cache length. The rewrites below key off that shape, so skip them.
+    bool preprocessing_uses_score_shape(const module& source_mod) const
+    {
+        const auto gemm1 = first_dot(source_mod);
+        const auto end   = source_mod.end();
+        for(auto ins : iterator_for(source_mod))
+        {
+            if(ins->name() == "multibroadcast")
+            {
+                const auto out_lens =
+                    ins->get_operator().to_value()["out_lens"].to_vector<std::size_t>();
+                if(out_lens == scores_lens and feeds_first_dot(ins, gemm1, end))
+                    return true;
+            }
+            else if(ins->name() == "@literal" and
+                    split_literal(ins->get_literal()).get_shape().lens() !=
+                        ins->get_literal().get_shape().lens() and
+                    (feeds_first_dot(ins, gemm1, end) or
+                     not consumed_as_scores(ins, scores_lens)))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Both fd matchers copy the same softmax body. The KV fd also wraps the query,
     // skips the key/value layout it already rebuilt, and drops the views that
     // follow the second gemm
@@ -390,7 +448,8 @@ struct flash_decoding_split
     {
         const auto split = split_lens(scores_lens);
 
-        if(attention_submodule_rebuild_blocked(source_mod, scores_lens))
+        if(attention_submodule_rebuild_blocked(source_mod, scores_lens) or
+           preprocessing_uses_score_shape(source_mod))
             return false;
 
         // map from instructions in the old module to the new ones in the target module

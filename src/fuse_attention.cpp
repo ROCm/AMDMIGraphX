@@ -1792,6 +1792,22 @@ struct find_kv_cache_flash_decoding
                         operands->sequence_length,
                         actual_groups);
 
+        // Score-shaped parameters stay on the group interface. Split their uses
+        // here; query and cache parameters were remapped above, and a parameter
+        // that feeds those inputs keeps its original shape.
+        for(auto param : submod->get_parameters())
+        {
+            if(param->get_shape().lens() != operands->scores_lens)
+                continue;
+            auto& mapped = map_old_params_to_new.at(param);
+            if(mapped->name() != "@param")
+                continue;
+            if(reaches(param, operands->q) or reaches(param, operands->k) or
+               reaches(param, operands->v))
+                continue;
+            mapped = decoding.split_scores(m_flash_decode, mapped, m_flash_decode.end());
+        }
+
         if(not decoding.rebuild(m_flash_decode,
                                 *submod,
                                 map_old_params_to_new,

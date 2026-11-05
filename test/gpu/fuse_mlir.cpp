@@ -3113,16 +3113,27 @@ TEST_CASE(kv_flash_decoding_group)
     }
     run_pass(p);
 
-    const auto* mm = p.get_main_module();
-    const bool group_left =
-        std::any_of(mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "group"; });
-    const bool mlir_kv = std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
-        if(ins.name() != "gpu::mlir_op" or ins.module_inputs().empty())
-            return false;
-        return ins.module_inputs().front()->name() == "attn0_kv_flash_decoding";
-    });
-    EXPECT(not group_left);
-    EXPECT(mlir_kv);
+    migraphx::program expected;
+    {
+        auto* mm = expected.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto fused = add_mlir(
+            expected,
+            "attn0_kv_flash_decoding",
+            {x},
+            [](auto* gm, const auto& inputs) {
+                auto reduced = gm->add_instruction(
+                    migraphx::make_op("reduce_max", {{"axes", {2}}}), inputs[0]);
+                return std::make_tuple(
+                    migraphx::make_op("group", {{"tag", "kv_cache_attention"}}),
+                    std::vector<migraphx::instruction_ref>{inputs[0], reduced});
+            });
+        auto output =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        mm->add_return({output, lse});
+    }
+    EXPECT(p.sort() == expected.sort());
 }
 
 int main(int argc, const char* argv[])

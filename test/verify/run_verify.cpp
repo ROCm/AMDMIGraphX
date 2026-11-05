@@ -35,6 +35,7 @@
 
 #include <set>
 #include <future>
+#include <iterator>
 #include <thread>
 #include <utility>
 
@@ -171,6 +172,19 @@ static auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
+// Copying a parameter_map copies each argument's handle, not its buffer, so tasks that
+// share one map still alias the same memory. An op that mutates its input in place
+// (e.g. concat_past_present writing into the kv cache) then races between the ref task
+// and the target tasks evaluating concurrently. Give each task its own deep copy.
+static migraphx::parameter_map copy_params(const migraphx::parameter_map& m)
+{
+    migraphx::parameter_map result;
+    migraphx::transform(m, std::inserter(result, result.end()), [](auto&& p) {
+        return std::make_pair(p.first, p.second.copy());
+    });
+    return result;
+}
+
 void run_verify::verify(const program_info& pi) const
 {
     const std::string name    = pi.name;
@@ -218,7 +232,10 @@ void run_verify::verify(const program_info& pi) const
             m[input.first] = input.second;
         }
         const migraphx::compile_options& c_opts = pi.compile_options;
-        auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
+        // Each init-capture below deep-copies m on this thread, before the task that
+        // owns the copy starts, so no two tasks ever read or write the same buffer.
+        auto ref_f = detach_async(
+            [this, p, inputs = copy_params(m), c_opts] { return run_ref(p, inputs, c_opts); });
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);
@@ -229,7 +246,11 @@ void run_verify::verify(const program_info& pi) const
                 mode_opts.compile_mode              = mode;
                 results.emplace_back(
                     auto_print::make_name(tname, mode),
-                    detach_async([=] { return run_target(t, p, m, mode_opts); }, ti.parallel));
+                    detach_async(
+                        [this, t, p, inputs = copy_params(m), mode_opts] {
+                            return run_target(t, p, inputs, mode_opts);
+                        },
+                        ti.parallel));
             }
         }
 

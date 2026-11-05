@@ -333,6 +333,7 @@ struct rewrite_reshapes
             auto input_ins = r.instructions["input"];
 
             common_rewrite cr{ins, input_ins, chain_descriptor(x_ins, input_ins)};
+            // cppcheck-suppress knownConditionTrueFalse
             if(not cr.supported())
                 return;
             // The source is read through views that keep the broadcasts of
@@ -452,6 +453,7 @@ struct rewrite_reshapes
             if(not supports(x_ins, desc.common_dims(dims2), desc.common_axes_map_from_src()))
                 return;
             common_rewrite cr{ins, input_ins, std::move(desc)};
+            // cppcheck-suppress knownConditionTrueFalse
             if(not cr.supported())
                 return;
 

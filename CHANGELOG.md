@@ -38,6 +38,8 @@ Full documentation for MIGraphX is available at
 
 ### Removed
 
+* Removed the GPU layernorm fusion, including the `gpu::prelayernorm` and `gpu::preadd_layernorm` operators, their JIT compiler and kernel, the `find_layernorm_pointwise` fusion, and the `MIGRAPHX_ENABLE_LAYERNORM_FUSION` environment variable. Layernorms now compile through the generic pointwise and reduce fusions (#3465).
+
 ## MIGraphX 2.18 for ROCm 10.1.0
 
 ### Added

@@ -92,10 +92,10 @@ struct conv3x3s2_compiler : compiler<conv3x3s2_compiler>
         // One workgroup per (image, block of TK output channels, run of 32 groups), NW waves
         // each. Example: output [1,256,15,20], TK=8, TP=2: groups = 15*10 = 150,
         // 5 runs of 32 x 32 channel blocks = 160 workgroups.
-        const auto& out_lens  = out_s.lens();
-        const auto groups     = out_lens[2] * integer_divide_ceil(out_lens[3], tp);
-        const auto num_blocks = out_lens[0] * integer_divide_ceil(out_lens[1], tk) *
-                                integer_divide_ceil(groups, 32);
+        const auto& out_lens = out_s.lens();
+        const auto groups    = out_lens[2] * integer_divide_ceil(out_lens[3], tp);
+        const auto num_blocks =
+            out_lens[0] * integer_divide_ceil(out_lens[1], tk) * integer_divide_ceil(groups, 32);
         const auto block_size = nw * 32;
         options.set_launch_params(v, num_blocks * block_size, block_size);
 

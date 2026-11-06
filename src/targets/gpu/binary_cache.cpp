@@ -32,6 +32,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx_kernels.hpp>
 #include <algorithm>
+#include <cassert>
 #include <sstream>
 
 namespace migraphx {
@@ -107,7 +108,7 @@ static std::string device_dir(const context& ctx)
 
 // A path sqlite::is_database_path accepts is a SQLite database; anything else is a directory of
 // entries. A directory is named with the short version id to keep paths short; a database records
-// the full id. Nothing is persisted when the compiler cannot be identified, since entries from
+// the full id. No storage is used when the compiler cannot be identified, since entries from
 // different toolchains would be indistinguishable.
 binary_cache_backend* binary_cache::storage::open()
 {
@@ -123,7 +124,7 @@ binary_cache_backend* binary_cache::storage::open()
     if(version.empty())
         return nullptr;
     if(not database)
-        backend = binary_cache_backend{file_binary_cache{path, read_only}};
+        backend = binary_cache_backend{file_binary_cache{path}};
     else if(auto db = sqlite_binary_cache::open(path, read_only))
         backend = binary_cache_backend{std::move(*db)};
     return backend.has_value() ? &*backend : nullptr;
@@ -135,6 +136,23 @@ optional<binary_cache_entry> binary_cache::storage::load(const context& ctx, con
     if(b == nullptr)
         return nullopt;
     return b->load(version, device_dir(ctx), key);
+}
+
+void binary_cache::storage::store(const context& ctx, const std::vector<binary_cache_entry>& es)
+{
+    assert(not read_only);
+    auto* b = open();
+    if(b == nullptr)
+        return;
+    try
+    {
+        // A failure to store is a warning, not a failed compile.
+        b->store(version, device_dir(ctx), es);
+    }
+    catch(const std::exception& ex)
+    {
+        log::warn() << "Failed to store " << es.size() << " binary cache entries: " << ex.what();
+    }
 }
 
 binary_cache::binary_cache(binary_cache_settings s)
@@ -177,20 +195,7 @@ void binary_cache::insert(const context& ctx, std::vector<binary_cache_entry> es
     if(es.empty())
         return;
     counters.compiled += es.size();
-    // Only the writable tier is stored to; what the read-only one lacks stays in memory.
-    if(auto* b = writable.open())
-    {
-        try
-        {
-            // A failure to store is a warning, not a failed compile.
-            b->store(writable.version, device_dir(ctx), es);
-        }
-        catch(const std::exception& ex)
-        {
-            log::warn() << "Failed to store " << es.size()
-                        << " binary cache entries: " << ex.what();
-        }
-    }
+    writable.store(ctx, es);
     for(auto& e : es)
         memo[std::move(e.key)] = std::move(e.code);
 }

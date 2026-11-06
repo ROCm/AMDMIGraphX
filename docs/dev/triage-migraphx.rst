@@ -203,11 +203,9 @@ precedence over the environment. An empty ``binary_cache`` turns the writable ca
 the environment variable is set.
 
 An application that ships a prebuilt cache to its users names it with the
-``read_only_binary_cache`` backend option, which works like ``read_only_problem_cache_files`` for
-the problem cache. That cache is **only read**: it is searched after the writable cache, kernels
-already in it are reused, and kernels it lacks are compiled and stored in the writable cache, if
-there is one, or else kept in memory for the process. A read-only cache that does not exist is
-never created.
+``read_only_binary_cache`` backend option. That cache is **only read**: it is searched after the
+writable cache, and kernels it lacks are compiled and stored in the writable cache, if there is
+one, or else kept in memory. A read-only cache that does not exist is never created.
 
 .. code-block:: python
 

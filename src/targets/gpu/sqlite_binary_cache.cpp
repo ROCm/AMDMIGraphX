@@ -99,7 +99,6 @@ constexpr const char* rollback_sql = "ROLLBACK;";
 
 } // namespace
 
-/// Nullopt when nothing can be opened, which the caller reports as a disabled cache.
 static optional<sqlite> open_database(const std::string& path, bool read_only)
 {
     // Opening for writing would create a missing file and take write locks.

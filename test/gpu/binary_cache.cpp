@@ -72,14 +72,11 @@ static migraphx::program pointwise_program(const std::vector<std::size_t>& lens 
     return p;
 }
 
-static migraphx::compile_options
-cache_options(const std::string& path, bool verify = false, const std::string& read_only_path = "")
+static migraphx::compile_options cache_options(const std::string& path, bool verify = false)
 {
     migraphx::compile_options options;
     migraphx::set_backend_options(options,
-                                  {{"binary_cache", path},
-                                   {"binary_cache_verify", verify},
-                                   {"read_only_binary_cache", read_only_path}});
+                                  {{"binary_cache", path}, {"binary_cache_verify", verify}});
     return options;
 }
 
@@ -613,9 +610,11 @@ static void read_only_backend_option_is_not_written()
     EXPECT(stored > 0);
 
     // Different lens make every kernel of this program new to the cache.
+    migraphx::compile_options options;
+    migraphx::set_backend_options(options,
+                                  {{"binary_cache", ""}, {"read_only_binary_cache", path}});
     auto p = pointwise_program({2, 3});
-    p.compile(migraphx::make_target("gpu"),
-              cache_options("", /* verify */ false, /* read_only */ path));
+    p.compile(migraphx::make_target("gpu"), options);
     EXPECT(Backend::stored(path) == stored);
 }
 

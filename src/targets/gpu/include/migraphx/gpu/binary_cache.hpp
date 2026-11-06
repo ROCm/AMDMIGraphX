@@ -92,8 +92,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     optional<compiled_code> get(const context& ctx, const std::string& key);
 
     /// Record compiled results under their keys. They are handed to the writable cache together,
-    /// so it can commit them at once rather than one at a time; the read-only cache never sees
-    /// them.
+    /// so it can commit them at once rather than one at a time.
     void insert(const context& ctx, std::vector<binary_cache_entry> es);
 
     /// True when reused results should be checked against a fresh compile.
@@ -121,10 +120,13 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         /// Whether open has already tried to open the backend, successfully or not.
         bool opened = false;
 
+        optional<binary_cache_entry> load(const context& ctx, const std::string& key);
+        /// Only the writable tier is stored to.
+        void store(const context& ctx, const std::vector<binary_cache_entry>& es);
+
+        private:
         /// The backend, or null when there is no usable storage.
         binary_cache_backend* open();
-        /// Look a key up in this tier's storage.
-        optional<binary_cache_entry> load(const context& ctx, const std::string& key);
     };
 
     std::unordered_map<std::string, compiled_code> memo;

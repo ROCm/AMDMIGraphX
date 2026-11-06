@@ -80,16 +80,16 @@ __device__ void conv3x3s2_fp32(F f, Output output, Input x, Weights weights, Inp
     static_assert(MIGRAPHX_WAVEFRONTSIZE == 32, "conv3x3s2_fp32 requires wave32");
 
     // Shapes: x is [N, C, H, W], output is [N, K, OH, OW], weights are [C, 9, KPAD].
-    constexpr auto x_lens       = get_shape_c<Input>{}.lens;
-    constexpr auto x_strides    = get_shape_c<Input>{}.strides;
-    constexpr auto out_lens     = get_shape_c<Output>{}.lens;
-    constexpr auto w_lens       = get_shape_c<Weights>{}.lens;
-    constexpr index_int in_c    = x_lens[1];   // input channels C
-    constexpr index_int in_w    = x_lens[3];   // input width W
-    constexpr index_int out_c   = out_lens[1]; // output channels K
-    constexpr index_int out_h   = out_lens[2]; // output height OH
-    constexpr index_int out_w   = out_lens[3]; // output width OW
-    constexpr index_int kpad    = w_lens[2];   // K rounded up to a multiple of TK
+    constexpr auto x_lens     = get_shape_c<Input>{}.lens;
+    constexpr auto x_strides  = get_shape_c<Input>{}.strides;
+    constexpr auto out_lens   = get_shape_c<Output>{}.lens;
+    constexpr auto w_lens     = get_shape_c<Weights>{}.lens;
+    constexpr index_int in_c  = x_lens[1];   // input channels C
+    constexpr index_int in_w  = x_lens[3];   // input width W
+    constexpr index_int out_c = out_lens[1]; // output channels K
+    constexpr index_int out_h = out_lens[2]; // output height OH
+    constexpr index_int out_w = out_lens[3]; // output width OW
+    constexpr index_int kpad  = w_lens[2];   // K rounded up to a multiple of TK
     // The loads below assume dense NCHW rows, even H and W, and the transposed weights.
     static_assert(x_strides[3] == 1 and x_strides[2] == in_w, "input rows must be contiguous");
     static_assert(x_lens[2] == 2 * out_h and in_w == 2 * out_w, "needs even H and W");

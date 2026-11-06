@@ -277,9 +277,8 @@ __device__ void conv3x3s2_fp32(F f, Output output, Input x, Weights weights, Inp
             // Sum channel k over the NW waves, then store it.
             array<float, TP> sum{};
             repeat_c<TP>([&](auto t) {
-                repeat_c<NW>([&](auto s) {
-                    sum[t] += partials[array<index_int, 3>{s, k * TP + t, lane}];
-                });
+                repeat_c<NW>(
+                    [&](auto s) { sum[t] += partials[array<index_int, 3>{s, k * TP + t, lane}]; });
             });
             store(k0 + k, sum);
         });

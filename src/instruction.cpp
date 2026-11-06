@@ -604,25 +604,37 @@ void instruction::debug_print() const
     std::cout << std::endl;
 }
 
+static std::vector<instruction_ref> direct_output_aliases(instruction_ref cur)
+{
+    auto alias_indices = cur->get_operator().output_alias(to_shapes(cur->inputs()));
+    std::vector<instruction_ref> aliases;
+    std::transform(alias_indices.begin(),
+                   alias_indices.end(),
+                   std::back_inserter(aliases),
+                   [&](auto i) { return cur->inputs().at(i); });
+    return aliases;
+}
+
 std::vector<instruction_ref> instruction::get_output_alias(instruction_ref ins, bool shallow)
 {
-    auto alias_indices = ins->get_operator().output_alias(to_shapes(ins->inputs()));
-    if(alias_indices.empty())
+    auto aliases = direct_output_aliases(ins);
+    if(aliases.empty())
         return {ins};
-    std::vector<instruction_ref> result;
-    for(auto i : alias_indices)
-    {
-        if(shallow)
-        {
-            result.push_back(ins->inputs().at(i));
-        }
-        else
-        {
-            auto nested = get_output_alias(ins->inputs().at(i));
-            result.insert(result.end(), nested.begin(), nested.end());
-        }
-    }
-    return result;
+    if(shallow)
+        return aliases;
+    return fix<std::vector<instruction_ref>>(
+        [&](auto self, instruction_ref cur) -> std::vector<instruction_ref> {
+            auto next = direct_output_aliases(cur);
+            if(next.empty())
+                return {cur};
+            std::vector<instruction_ref> result;
+            for(auto alias : next)
+            {
+                auto nested = self(alias);
+                result.insert(result.end(), nested.begin(), nested.end());
+            }
+            return result;
+        })(ins);
 }
 
 void instruction::set_normalized(bool value) { normalized = value; }

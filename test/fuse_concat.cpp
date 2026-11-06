@@ -873,4 +873,34 @@ TEST_CASE(pointwise_concat_of_slices_single_input)
     EXPECT(p1 == p2);
 }
 
+// A chain longer than any kernel limit still flattens to one concat. The input
+// count is not capped here: later passes change arity, and the limit belongs
+// after fuse_ops.
+TEST_CASE(long_concat_chain_flattens)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    std::vector<migraphx::instruction_ref> inputs;
+    auto cat = mm->add_parameter("x0", s);
+    inputs.push_back(cat);
+    for(int i = 1; i < 40; ++i)
+    {
+        auto x = mm->add_parameter("x" + std::to_string(i), s);
+        inputs.push_back(x);
+        cat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), cat, x);
+    }
+    mm->add_return({cat});
+    run_pass(p);
+
+    migraphx::program p2;
+    auto* mm2 = p2.get_main_module();
+    std::vector<migraphx::instruction_ref> inputs2;
+    for(int i = 0; i < 40; ++i)
+        inputs2.push_back(mm2->add_parameter("x" + std::to_string(i), s));
+    auto cat2 = mm2->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inputs2);
+    mm2->add_return({cat2});
+    EXPECT(p == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

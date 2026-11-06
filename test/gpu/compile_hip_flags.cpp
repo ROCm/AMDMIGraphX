@@ -24,31 +24,20 @@
 
 #include <test.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
-#include <cstdlib>
 #include <string>
 
-// MIGRAPHX_GPU_HIP_FLAGS is read once, on the first call in this process.
+// MIGRAPHX_GPU_HIP_FLAGS is set by ctest. It is read once, on the first call in this process.
 TEST_CASE(quoted_hip_flag_stays_one_argument)
 {
-    constexpr const char* name = "MIGRAPHX_GPU_HIP_FLAGS";
-#ifdef _WIN32
-    _putenv_s(name, R"(-I"/opt/custom headers" -DNAME=1 -I/opt/third\ headers)");
-#else
-    setenv(name, R"(-I"/opt/custom headers" -DNAME=1 -I/opt/third\ headers)", 1);
-#endif
-
-    auto options = migraphx::gpu::compile_hip_options({}, "gfx908");
-
-#ifdef _WIN32
-    _putenv_s(name, "");
-#else
-    unsetenv(name);
-#endif
-
-    EXPECT(options.size() >= 3);
-    EXPECT(options[options.size() - 3] == "-I/opt/custom headers");
-    EXPECT(options[options.size() - 2] == "-DNAME=1");
-    EXPECT(options.back() == "-I/opt/third headers");
+    auto options                            = migraphx::gpu::compile_hip_options({}, "gfx908");
+    const std::vector<std::string> expected = {"-I/opt/custom headers",
+                                               "-DNAME=1",
+                                               "-I/opt/third headers",
+                                               "-DSTR=\"a b\"",
+                                               "-DX=\"q\"",
+                                               ""};
+    EXPECT(options.size() >= expected.size());
+    EXPECT(std::vector<std::string>(options.end() - expected.size(), options.end()) == expected);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

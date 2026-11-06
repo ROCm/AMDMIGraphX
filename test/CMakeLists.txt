@@ -82,6 +82,10 @@ if(MIGRAPHX_ENABLE_GPU)
         endif()
         target_link_libraries(test_gpu_${BASE_NAME} migraphx_lazy_ref migraphx_gpu register_targets)
     endforeach()
+    # Shell-style quoting that compile_hip_options must split into whole arguments.
+    set_tests_properties(test_gpu_compile_hip_flags PROPERTIES
+        ENVIRONMENT [=[MIGRAPHX_GPU_HIP_FLAGS=-I"/opt/custom headers" -DNAME=1 -I/opt/third\ headers '-DSTR="a b"' "-DX=\"q\"" ""]=]
+    )
     add_subdirectory(gpu/kernels)
 endif()
 

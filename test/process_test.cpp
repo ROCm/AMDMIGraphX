@@ -175,8 +175,7 @@ static void set_test_environment_variable(const char* value)
 #endif
 }
 
-// A variable we already have must be replaced, not shadowed: an environment holding both NAME=0 and
-// NAME=1 resolves to whichever comes first, which is the inherited one.
+// Replace, not append: getenv returns the first match, which would be the inherited NAME=0.
 TEST_CASE(environment_variable_overrides_inherited)
 {
     set_test_environment_variable("0");
@@ -199,41 +198,9 @@ TEST_CASE(environment_variable_without_value_throws)
     }));
 }
 
-// A bare name is resolved on the PATH the child receives. The parent PATH has no such command.
+// On glibc before 2.29, cwd goes through /bin/sh, and -p must stop bash from importing a cd
+// function. Newer glibc chdirs with a file action and never starts a shell.
 #ifndef _WIN32
-TEST_CASE(bare_command_uses_child_path)
-{
-    auto tmp = migraphx::tmp_dir{};
-    auto bin = tmp.path / "bin";
-    migraphx::fs::create_directories(bin);
-    migraphx::fs::create_symlink("/bin/echo", bin / "migraphx-child-path-echo");
-
-    std::string buffer;
-    migraphx::process{std::string{"migraphx-child-path-echo"}, {"hello"}}
-        .env({"PATH=" + bin.string()})
-        .read([&](const char* buf, std::size_t n) { buffer.assign(buf, n); });
-    EXPECT(buffer == "hello\n");
-}
-
-// A relative PATH entry is against the child's cwd. The parent's cwd has no bin/ directory.
-TEST_CASE(relative_path_entry_uses_child_cwd)
-{
-    auto tmp  = migraphx::tmp_dir{};
-    auto work = tmp.path / "work";
-    auto bin  = work / "bin";
-    migraphx::fs::create_directories(bin);
-    migraphx::fs::create_symlink("/bin/echo", bin / "migraphx-child-path-echo");
-
-    std::string buffer;
-    migraphx::process{std::string{"migraphx-child-path-echo"}, {"hello"}}
-        .cwd(work)
-        .env({"PATH=bin"})
-        .read([&](const char* buf, std::size_t n) { buffer.assign(buf, n); });
-    EXPECT(buffer == "hello\n");
-}
-
-// On glibc before 2.29, cwd runs this script under /bin/sh. -p must stop bash from importing a
-// cd function and running it. Newer glibc chdirs with a file action and never starts the shell.
 TEST_CASE(cwd_ignores_imported_shell_cd_function)
 {
     auto tmp    = migraphx::tmp_dir{};
@@ -634,8 +601,8 @@ int main(int argc, const char* argv[])
             return 0;
         }
     }
-    // Anything else is for test::run. An absolute path is still required: a child whose cwd was
-    // changed would not find a bare name, and CreateProcessA does not search PATH.
+    // Anything else is for test::run. An absolute path is still required: a relative argv[0]
+    // would resolve against a changed cwd, and CreateProcessA does not search PATH.
     executable = migraphx::fs::absolute(argv[0]);
     test::run(argc, argv);
     return 0;

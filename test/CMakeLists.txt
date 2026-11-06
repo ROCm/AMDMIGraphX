@@ -62,6 +62,17 @@ foreach(TEST ${TESTS})
     rocm_clang_tidy_check(test_${BASE_NAME})
 endforeach()
 
+if(MIGRAPHX_ENABLE_CPU)
+    file(GLOB CPU_TESTS CONFIGURE_DEPENDS cpu/*.cpp)
+
+    foreach(TEST ${CPU_TESTS})
+        get_filename_component(BASE_NAME ${TEST} NAME_WE)
+        rocm_add_test_executable(test_cpu_${BASE_NAME} ${TEST})
+        rocm_clang_tidy_check(test_cpu_${BASE_NAME})
+        target_link_libraries(test_cpu_${BASE_NAME} migraphx_lazy_ref migraphx_cpu register_targets)
+    endforeach()
+endif()
+
 if(MIGRAPHX_ENABLE_GPU)
     # gpu tests
     file(GLOB GPU_TESTS CONFIGURE_DEPENDS gpu/*.cpp)

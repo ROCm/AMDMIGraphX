@@ -21,78 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/errors.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/register_target.hpp>
 #include <test.hpp>
 
-#include <numeric>
-
-static void run_lowering(migraphx::module& m)
+TEST_CASE(two_input_reshape_is_rejected)
 {
+    migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {6, 4}};
+
+    migraphx::module m;
+    auto input  = m.add_parameter("input", input_shape);
+    auto output = m.add_parameter("output", output_shape);
+    auto result = m.add_instruction(migraphx::make_op("reshape"), input, output);
+    m.add_return({result});
+
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(m,
-                         {migraphx::gpu::lowering{&ctx, false}, migraphx::dead_code_elimination{}});
-}
-
-TEST_CASE(two_input_reshape_stays_on_host)
-{
-    migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}};
-    migraphx::shape output_shape{migraphx::shape::float_type, {6, 4}};
-
-    migraphx::module m1;
-    {
-        auto input  = m1.add_parameter("input", input_shape);
-        auto output = m1.add_parameter("output", output_shape);
-        auto result = m1.add_instruction(migraphx::make_op("reshape"), input, output);
-        m1.add_return({result});
-    }
-    run_lowering(m1);
-
-    migraphx::module m2;
-    {
-        auto input       = m2.add_parameter("input", input_shape);
-        auto output      = m2.add_parameter("output", output_shape);
-        auto host_input  = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), input);
-        auto host_output = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), output);
-        auto synced_input =
-            m2.add_instruction(migraphx::make_op("hip::sync_stream"), host_input, host_output);
-        auto host_result =
-            m2.add_instruction(migraphx::make_op("reshape"), synced_input, host_output);
-        auto gpu_result =
-            m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_result, output);
-        m2.add_return({gpu_result});
-    }
-    EXPECT(m1 == m2);
-}
-
-TEST_CASE(two_input_reshape_runs_on_host)
-{
-    migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}};
-    migraphx::shape output_shape{migraphx::shape::float_type, {6, 4}};
-    migraphx::program p;
-    auto* mm    = p.get_main_module();
-    auto input  = mm->add_parameter("input", input_shape);
-    auto output = mm->add_parameter("output", output_shape);
-    mm->add_return({mm->add_instruction(migraphx::make_op("reshape"), input, output)});
-
-    migraphx::compile_options options;
-    options.offload_copy = true;
-    p.compile(migraphx::make_target("gpu"), options);
-
-    std::vector<float> input_data(input_shape.elements());
-    std::iota(input_data.begin(), input_data.end(), 0.0f);
-    std::vector<float> output_data(output_shape.elements());
-    auto result = p.eval({{"input", migraphx::argument{input_shape, input_data.data()}},
-                          {"output", migraphx::argument{output_shape, output_data.data()}}})
-                      .back();
-    EXPECT(result.get_shape() == output_shape);
-    EXPECT(result.to_vector<float>() == input_data);
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::run_passes(m, {migraphx::gpu::lowering{&ctx, false}}); },
+        "gpu::lowering: two-input reshape must be eliminated before lowering"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

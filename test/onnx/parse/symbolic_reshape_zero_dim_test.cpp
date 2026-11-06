@@ -129,3 +129,21 @@ TEST_CASE(symbolic_reshape_invalid_elements_test)
         },
         "PARSE_RESHAPE: Wrong number of elements"));
 }
+
+TEST_CASE(symbolic_reshape_missing_source_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto n = var("n", {1, 4});
+    const migraphx::shape input_shape{migraphx::shape::float_type,
+                                      sym_dims({n * 2, lit(int64_t{3})})};
+
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            check_parse("symbolic_reshape_missing_source_test.onnx",
+                        {{"x", input_shape}},
+                        [](migraphx::module&, const std::vector<migraphx::instruction_ref>&) {});
+        },
+        "PARSE_RESHAPE: symbolic dimension has no shape source"));
+}

@@ -105,7 +105,7 @@ struct miopen_apply
 
         add_extend_op("fixed_pad");
         add_generic_op("contiguous");
-        add_2in_reshape_op();
+        add_two_input_reshape_op();
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
@@ -345,13 +345,13 @@ struct miopen_apply
         });
     }
 
-    void add_2in_reshape_op()
+    void add_two_input_reshape_op()
     {
         apply_map.emplace("reshape", [=](instruction_ref ins) {
-            // One-input reshape is handled by lower_reshape; the two-input copy runs on host data.
-            if(ins->inputs().size() != 2)
-                return ins;
-            return lower_to_host(ins);
+            if(ins->inputs().size() == 2)
+                MIGRAPHX_THROW(
+                    "gpu::lowering: two-input reshape must be eliminated before lowering");
+            return ins;
         });
     }
 

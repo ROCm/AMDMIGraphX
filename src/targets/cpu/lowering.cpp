@@ -448,8 +448,11 @@ struct cpu_apply
                 apply_convolution_backwards(it);
             }
 #endif
-            else if(it->name() == "reshape" and it->inputs().size() == 1)
+            else if(it->name() == "reshape")
             {
+                if(it->inputs().size() == 2)
+                    MIGRAPHX_THROW(
+                        "cpu::lowering: two-input reshape must be eliminated before lowering");
                 apply_reshape(it);
             }
             else if(apply_map.count(it->name()) > 0)

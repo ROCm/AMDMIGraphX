@@ -17196,6 +17196,19 @@ def symbolic_reshape_invalid_elements_test():
 
 
 @onnx_test()
+def symbolic_reshape_missing_source_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      ['output_batch', 6])
+    target = from_array(np.array([-1, 6], dtype=np.int64), 'target_value')
+    nodes = [
+        helper.make_node('Constant', [], ['target_shape'], value=target),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
+@onnx_test()
 def symbolic_reshape_negative_one_dim_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])

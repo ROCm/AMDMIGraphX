@@ -120,7 +120,7 @@ struct parse_reshape : op_parser<parse_reshape>
                 auto result = add_evaluated_reshape(info, args[0], dims);
                 if(result.has_value())
                     return *result;
-                return add_shape_tensor_reshape(info, args[0], args[1]);
+                MIGRAPHX_THROW("PARSE_RESHAPE: symbolic dimension has no shape source");
             }
         }
     }

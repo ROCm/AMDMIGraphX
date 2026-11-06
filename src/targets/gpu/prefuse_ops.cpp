@@ -968,8 +968,7 @@ MIGRAPHX_PRED_MATCHER(conv_3x3s2_fp32, instruction_ref ins)
     auto all_equal = [&](const char* key, std::size_t x) {
         return all_of(v.at(key), [&](const value& e) { return e.to<std::size_t>() == x; });
     };
-    if(not all_equal("stride", 2) or not all_equal("dilation", 1) or
-       not all_equal("padding", 1))
+    if(not all_equal("stride", 2) or not all_equal("dilation", 1) or not all_equal("padding", 1))
         return false;
     const auto& x_s = ins->inputs().front()->get_shape();
     const auto& w_s = ins->inputs().back()->get_shape();

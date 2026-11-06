@@ -648,4 +648,43 @@ TEST_CASE(channelwise_conv_stride_tuning)
     }));
 }
 
+// Dilation and padding of 16 keep the shapes of dilation and padding of 1 but grow the
+// halo past shared memory, so the tuning key must tell them apart. Symmetric padding
+// written once or per side is the same problem and keeps the same key.
+TEST_CASE(channelwise_conv_tuning_key_attributes)
+{
+    std::vector<int64_t> perm = {0, 2, 3, 1};
+    auto x_shape =
+        migraphx::shape::from_permutation(migraphx::shape::half_type, {1, 96, 257, 257}, perm);
+    auto w_shape =
+        migraphx::shape::from_permutation(migraphx::shape::half_type, {96, 1, 3, 3}, perm);
+    conv_attrs attrs1{{1, 1, 1, 1}, {1, 1}, {1, 1}};
+    conv_attrs attrs1_symmetric{{1, 1}, {1, 1}, {1, 1}};
+    conv_attrs attrs16{{16, 16, 16, 16}, {1, 1}, {16, 16}};
+    auto out_shape = conv_output(x_shape, w_shape, attrs1);
+    EXPECT(conv_output(x_shape, w_shape, attrs16) == out_shape);
+    auto op1           = migraphx::make_op("gpu::channelwise_conv", attrs1.to_value());
+    auto op1_symmetric = migraphx::make_op("gpu::channelwise_conv", attrs1_symmetric.to_value());
+    auto op16          = migraphx::make_op("gpu::channelwise_conv", attrs16.to_value());
+    migraphx::program p;
+    auto* mm            = p.get_main_module();
+    auto x              = mm->add_parameter("x", x_shape);
+    auto w              = mm->add_parameter("w", w_shape);
+    auto alloc          = mm->add_parameter("output", out_shape);
+    auto ins1           = mm->add_instruction(make_precompile_op(op1), x, w, alloc);
+    auto ins1_symmetric = mm->add_instruction(make_precompile_op(op1_symmetric), x, w, alloc);
+    auto ins16          = mm->add_instruction(make_precompile_op(op16), x, w, alloc);
+    migraphx::gpu::context ctx;
+    auto tc1 = migraphx::gpu::get_tuning_config(ctx, ins1, op1, false);
+    auto tc1_symmetric =
+        migraphx::gpu::get_tuning_config(ctx, ins1_symmetric, op1_symmetric, false);
+    auto tc16 = migraphx::gpu::get_tuning_config(ctx, ins16, op16, false);
+    EXPECT(tc1.has_value());
+    EXPECT(tc1_symmetric.has_value());
+    EXPECT(tc16.has_value());
+    EXPECT(tc1->problem != tc16->problem);
+    EXPECT(tc1->problem == tc1_symmetric->problem);
+    EXPECT(not tc16->solutions.empty());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

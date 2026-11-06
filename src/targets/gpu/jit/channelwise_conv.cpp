@@ -130,6 +130,16 @@ struct channelwise_conv_problem
                 max_lds_bytes};
     }
 
+    // Tuning cache key. Stride, dilation and padding change the halo and the indexing, so
+    // convolutions with equal shapes can still need different solutions.
+    value key() const
+    {
+        return {{"inputs", to_value(inputs)},
+                {"padding", padding},
+                {"stride", stride},
+                {"dilation", dilation}};
+    }
+
     std::size_t channels() const { return inputs.back().lens()[1]; }
     // Input extent one output reads along spatial dim i: the dilated filter
     std::size_t reach(std::size_t i) const
@@ -478,13 +488,14 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
                                               const operation& op,
                                               bool exhaustive) const
     {
-        tuning_config tc;
-        auto shapes = to_shapes(ins->inputs());
-        tc.problem  = to_value(shapes);
         channelwise_conv_solutions solutions{
             channelwise_conv_problem::from_value(
-                shapes, op.to_value(), ctx.get_current_device().get_max_shared_memory_per_block()),
+                to_shapes(ins->inputs()),
+                op.to_value(),
+                ctx.get_current_device().get_max_shared_memory_per_block()),
             ctx.get_current_device().get_wavefront_size()};
+        tuning_config tc;
+        tc.problem = solutions.problem.key();
         if(exhaustive)
             solutions.add_exhaustive();
         else if(solutions.problem.channels_last())

@@ -59,6 +59,9 @@ struct onnx_parser
         // "<module_name>_<op_type>_<instruction_number>", so it is unique across modules.
         std::string name = "";
         module* mod      = nullptr;
+        // ONNX node domain. Empty for the default domain. MatMulNBits uses this to
+        // choose the com.microsoft input layout versus com.ryzenai.
+        std::string domain{};
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,

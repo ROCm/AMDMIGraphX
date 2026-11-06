@@ -7230,7 +7230,7 @@ TEST_CASE(layout_passthrough_pad_pointwise)
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
         auto l =
             m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), t);
-        auto r  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), l);
+        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), l);
         auto mb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 15}}}), b);
         auto sl = m2.add_instruction(

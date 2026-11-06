@@ -26,21 +26,10 @@
 #include <migraphx/kernels/reduce.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/vec.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/print.hpp>
 
 namespace migraphx {
-
-template <typename T>
-struct acc_type
-{
-    using type = float;
-};
-
-template <>
-struct acc_type<double>
-{
-    using type = double;
-};
 
 template <class T, index_int N, class Op>
 constexpr auto vec_reduce(const array<T, N>& a, Op op)

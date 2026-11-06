@@ -30,28 +30,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <test.hpp>
-
-// The kernels launched by the program, without the output copies
-static std::vector<std::string> get_kernel_names(migraphx::program& p)
-{
-    std::vector<std::string> result;
-    auto im = migraphx::iterator_for(*p.get_main_module());
-    migraphx::transform_if(
-        im.begin(),
-        im.end(),
-        std::back_inserter(result),
-        [](auto ins) {
-            if(ins->name() != "gpu::code_object")
-                return false;
-            const auto& op = migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator());
-            return op.symbol_name != "hip_copy_kernel";
-        },
-        [](auto ins) {
-            return migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator())
-                .symbol_name;
-        });
-    return result;
-}
+#include "kernel_names.hpp"
 
 // MoE router: softmax -> topk -> values / sum(values) compiles to a single kernel
 TEST_CASE(softmax_topk_normalize_single_kernel)

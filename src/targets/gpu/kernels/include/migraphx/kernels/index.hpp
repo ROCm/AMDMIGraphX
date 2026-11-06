@@ -59,7 +59,7 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
 
 #ifdef MIGRAPHX_NGROUP
 // If global is divisible by local then local can be a const
-#if(MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL == 0) || (MIGRAPHX_NGROUP == 1)
+#if (MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL == 0) || (MIGRAPHX_NGROUP == 1)
 #define MIGRAPHX_HAS_CONST_LOCAL 1
 #endif
 #endif
@@ -295,6 +295,13 @@ struct index
     __device__ void local_wave_stride(N n, F f) const
     {
         for_stride<true>(local_wave(), n, nlocal_wave(), f);
+    }
+
+    // f(i) over the waves of the group, each wave taking every nwave()-th i
+    template <class F, class N>
+    __device__ void wave_stride(N n, F f) const
+    {
+        for_stride<false>(wave(), n, nwave(), f);
     }
 };
 

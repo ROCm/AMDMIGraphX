@@ -265,23 +265,23 @@ struct test_manager
 
     __device__ void report_failure() const { (*failures)++; }
 
+    // The wave fails when any lane does; the first failing lane reports with
+    // its own values
     template <class T, class F>
     __device__ void
     failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
     {
-        // TODO: Check failures across multiple lanes
-        if(not bool(x.value()))
+        const auto failing = __ballot(not bool(x.value()));
+        if(failing == 0)
+            return;
+        if(__lane_id() == __builtin_ctzll(failing))
         {
-            // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-            if(threadIdx.x == 0)
-            {
-                migraphx::cout() << func << '\n';
-                migraphx::cout() << file << ':' << line << ':' << '\n';
-                migraphx::cout() << "    FAILED: " << msg << " [ " << x << " ]" << '\n';
-                report_failure();
-            }
-            f();
+            migraphx::cout() << func << '\n';
+            migraphx::cout() << file << ':' << line << ':' << '\n';
+            migraphx::cout() << "    FAILED: " << msg << " [ " << x << " ]" << '\n';
+            report_failure();
         }
+        f();
     }
 };
 
@@ -347,6 +347,11 @@ struct test_manager
 
 // NOLINTNEXTLINE
 #define TEST_CASE_REGISTER(...)
+
+// TEST_LAUNCH(global, local) sets the launch size of the file's cases, with
+// MIGRAPHX_WAVEFRONTSIZE bound in the expressions; the default is one lane
+// NOLINTNEXTLINE
+#define TEST_LAUNCH(...)
 
 } // namespace test
 } // namespace migraphx

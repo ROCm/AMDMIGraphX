@@ -26,7 +26,9 @@
 #include <tuple>
 #include <migraphx/dfor.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
@@ -293,10 +295,33 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
     return group == 1 or group == c_in;
 }
 
+// Shared memory the channelwise kernel stages for one channel of an output tile spanning
+// `rows` outputs along the first spatial dim and `cols` along the last: per dim, the tile
+// stepped by the stride plus the dilated filter
+std::size_t channelwise_halo_bytes(instruction_ref conv, std::size_t rows, std::size_t cols)
+{
+    auto v             = conv->get_operator().to_value();
+    auto stride        = v.at("stride").to_vector<std::size_t>();
+    auto dilation      = v.at("dilation").to_vector<std::size_t>();
+    const auto& w_lens = conv->inputs().back()->get_shape().lens();
+    std::vector<std::size_t> tile(stride.size(), 1);
+    tile.front() = rows;
+    tile.back()  = cols;
+    auto dims    = range(tile.size());
+    return transform_accumulate(
+        dims.begin(),
+        dims.end(),
+        conv->inputs().front()->get_shape().type_size(),
+        std::multiplies<>{},
+        [&](auto i) { return (tile[i] - 1) * stride[i] + (w_lens[i + 2] - 1) * dilation[i] + 1; });
+}
+
 struct find_channelwise_convolution
 {
     // Minimum C*H*W for half_type to use channelwise kernel instead of MLIR
     std::size_t channelwise_half_min_chw = 48 * 1024;
+    // Shared memory one thread block may use
+    std::size_t max_lds_bytes = 0;
 
     auto matcher() const { return conv_channelwise(); }
 
@@ -318,6 +343,12 @@ struct find_channelwise_convolution
             if(chw < channelwise_half_min_chw)
                 return;
         }
+
+        // Strides, dilations and large filters grow the halo a block stages in shared
+        // memory. Conservatively require one channel of an 8x128 output tile to fit: the
+        // kernel's smaller tiles then fit too, and bigger halos lose to MLIR anyway.
+        if(channelwise_halo_bytes(ins, 8, 128) > max_lds_bytes)
+            return;
 
         auto v = ins->get_operator().to_value();
         m.replace_instruction(ins,
@@ -935,7 +966,10 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
     if(is_navi)
-        match::find_matches(mpm.get_module(), find_channelwise_convolution{});
+        match::find_matches(
+            mpm.get_module(),
+            find_channelwise_convolution{
+                .max_lds_bytes = ctx->get_current_device().get_max_shared_memory_per_block()});
     if(supports_winograd)
     {
         match::find_matches(mpm.get_module(), find_winograd_f23{});

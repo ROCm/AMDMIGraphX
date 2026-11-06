@@ -23,6 +23,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed the GPU `rewrite_reduce` pass's `mean(x^2) - mean(x)^2` rewrite of `LayerNormalization`-style variance reductions producing `NaN` outputs from catastrophic cancellation at large input magnitude, by clamping the computed variance to zero before it reaches `rsqrt` (AIMIGRAPHX-1376).
 * Fixed `migraphx.argument` created from a Python buffer (for example a NumPy array) not keeping that buffer alive, which left a dangling pointer when the buffer was a temporary (ROCm/TheRock#8939).
 * Fixed `simplify_reshapes` generating invalid inverse shape transforms when moving an element-expanding shape-transform chain through a shared reduction (#5360).
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).

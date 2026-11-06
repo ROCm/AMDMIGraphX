@@ -184,7 +184,7 @@ __device__ void conv3x3s2_fp32(F f, Output output, Input x, Weights weights, Inp
                 bit_cast<float>(__builtin_amdgcn_raw_buffer_load_b32(x_rsrc, left_off[r], soff, 0));
             repeat_c<TP>([&](auto j) {
                 // Columns 2*ow0 + 2j and 2*ow0 + 2j + 1 are an 8-byte aligned pair: one b64.
-                auto v = bit_cast<vec<float, 2>>(__builtin_amdgcn_raw_buffer_load_b64(
+                auto v           = bit_cast<vec<float, 2>>(__builtin_amdgcn_raw_buffer_load_b64(
                     x_rsrc, row_off[r] + static_cast<int32_t>(j * 8), soff, 0));
                 xr[r][1 + 2 * j] = v[0];
                 xr[r][2 + 2 * j] = v[1];

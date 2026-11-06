@@ -22,9 +22,16 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/sync_device.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <test.hpp>
+
+static void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::gpu::sync_device{}, migraphx::dead_code_elimination{}});
+}
 
 TEST_CASE(inserts_sync_after_copy_from_gpu)
 {
@@ -34,7 +41,7 @@ TEST_CASE(inserts_sync_after_copy_from_gpu)
     auto input  = m1.add_parameter("input", s);
     auto output = m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), input);
     m1.add_return({output});
-    migraphx::gpu::sync_device{}.apply(m1);
+    run_pass(m1);
 
     migraphx::module m2;
     auto expected_input = m2.add_parameter("input", s);
@@ -45,7 +52,7 @@ TEST_CASE(inserts_sync_after_copy_from_gpu)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(inserts_independent_syncs_after_multiple_copies)
+TEST_CASE(removes_redundant_syncs_after_multiple_copies)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};
 
@@ -56,7 +63,34 @@ TEST_CASE(inserts_independent_syncs_after_multiple_copies)
     auto copy_y = m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), y);
     auto sum    = m1.add_instruction(migraphx::make_op("add"), copy_x, copy_y);
     m1.add_return({sum});
-    migraphx::gpu::sync_device{}.apply(m1);
+    run_pass(m1);
+
+    migraphx::module m2;
+    auto expected_x      = m2.add_parameter("x", s);
+    auto expected_y      = m2.add_parameter("y", s);
+    auto expected_copy_x = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_x);
+    auto expected_copy_y = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_y);
+    auto expected_sync_y =
+        m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_copy_y);
+    auto expected_sum =
+        m2.add_instruction(migraphx::make_op("add"), expected_copy_x, expected_sync_y);
+    m2.add_return({expected_sum});
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(preserves_syncs_separated_by_contextful_instructions)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+
+    migraphx::module m1;
+    auto x      = m1.add_parameter("x", s);
+    auto y      = m1.add_parameter("y", s);
+    auto copy_x = m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), x);
+    auto fill_y = m1.add_instruction(migraphx::make_op("hip::fill"), y);
+    auto copy_y = m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), fill_y);
+    auto sum    = m1.add_instruction(migraphx::make_op("add"), copy_x, copy_y);
+    m1.add_return({sum});
+    run_pass(m1);
 
     migraphx::module m2;
     auto expected_x      = m2.add_parameter("x", s);
@@ -64,7 +98,9 @@ TEST_CASE(inserts_independent_syncs_after_multiple_copies)
     auto expected_copy_x = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_x);
     auto expected_sync_x =
         m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_copy_x);
-    auto expected_copy_y = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_y);
+    auto expected_fill_y = m2.add_instruction(migraphx::make_op("hip::fill"), expected_y);
+    auto expected_copy_y =
+        m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), expected_fill_y);
     auto expected_sync_y =
         m2.add_instruction(migraphx::make_op("hip::sync_stream"), expected_copy_y);
     auto expected_sum =
@@ -80,7 +116,7 @@ TEST_CASE(preserves_implicit_copy_return)
     migraphx::module m1;
     auto input = m1.add_parameter("input", s);
     m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), input);
-    migraphx::gpu::sync_device{}.apply(m1);
+    run_pass(m1);
 
     migraphx::module m2;
     auto expected_input = m2.add_parameter("input", s);
@@ -99,9 +135,9 @@ TEST_CASE(sync_device_is_idempotent)
     auto input  = m.add_parameter("input", s);
     auto output = m.add_instruction(migraphx::make_op("hip::copy_from_gpu"), input);
     m.add_return({output});
-    migraphx::gpu::sync_device{}.apply(m);
+    run_pass(m);
     auto expected = m;
-    migraphx::gpu::sync_device{}.apply(m);
+    run_pass(m);
     EXPECT(m == expected);
 }
 

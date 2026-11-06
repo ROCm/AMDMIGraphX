@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
@@ -43,8 +44,6 @@ struct find_copy_from_gpu : match::supports_dynamic_shapes
         auto pos = std::next(r.result);
         if(pos == m.end())
             pos = m.add_return({r.result});
-        if(pos != m.end() and pos->name() == "hip::sync_stream")
-            return;
         auto sync = m.insert_instruction(pos, make_op("hip::sync_stream"), r.result);
         m.replace_instruction(r.result, sync);
     }
@@ -52,7 +51,27 @@ struct find_copy_from_gpu : match::supports_dynamic_shapes
 
 } // namespace
 
-void sync_device::apply(module& m) const { match::find_matches(m, find_copy_from_gpu{}); }
+void sync_device::apply(module& m) const
+{
+    match::find_matches(m, find_copy_from_gpu{});
+
+    bool covered = false;
+    for(auto ins : reverse_iterator_for(m))
+    {
+        if(ins->name() == "hip::copy_from_gpu")
+            continue;
+        if(is_context_free(ins->get_operator()))
+            continue;
+        if(ins->name() != "hip::sync_stream")
+        {
+            covered = false;
+            continue;
+        }
+        if(covered and not ins->inputs().empty())
+            m.replace_instruction(ins, ins->inputs().front());
+        covered = true;
+    }
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

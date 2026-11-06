@@ -181,6 +181,27 @@ TEST_CASE(dimension_len)
     EXPECT(dim.len() == 20);
 }
 
+TEST_CASE(record_multibroadcast_lower_rank)
+{
+    auto desc = make_descriptor({1, 1, 1, 2}, make_op("multibroadcast", {{"out_lens", {1, 3, 2}}}));
+    EXPECT(get_final_lens(desc) == final_lens{1, 3, 2});
+}
+
+// The unit axis an unsqueeze adds next to a rebased axis does not block it
+TEST_CASE(rebase_unsqueeze_next_to_axis)
+{
+    auto desc    = make_descriptor({1, 2, 3, 6}, make_op("unsqueeze", {{"axes", {3}}}));
+    auto rebased = desc.rebase({1, 2, 3, 4});
+    EXPECT(not rebased.empty());
+    EXPECT(get_final_lens(rebased) == final_lens{1, 2, 3, 1, 4});
+}
+
+TEST_CASE(record_multibroadcast_lower_rank_nonunit)
+{
+    shape_transform_descriptor desc{std::vector<std::size_t>{2, 1, 1, 2}};
+    EXPECT(not desc.apply({make_op("multibroadcast", {{"out_lens", {1, 3, 2}}})}));
+}
+
 TEST_CASE(record_reshape)
 {
     auto desc = make_descriptor({256, 3, 16, 16}, make_op("reshape", {{"dims", {16, 16, 48, 16}}}));

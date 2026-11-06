@@ -22,6 +22,8 @@
  * THE SOFTWARE.
  */
 #include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/context.hpp>
@@ -30,6 +32,7 @@
 #include <migraphx/optional.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/manage_ptr.hpp>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -216,6 +219,71 @@ static parameter_map make_benchmark_arguments(std::vector<migraphx::context>& ct
     return make_parameter_map(mm, args);
 }
 
+// Timing host-issued evals of p leaves the GPU idle between few-microsecond kernels, so every
+// candidate measures the host overhead and the winner is noise. Replaying bundle evals captured
+// as one HIP graph keeps the GPU busy. Returns nullopt when p cannot be captured.
+static optional<double> time_benchmark_graph(std::vector<migraphx::context>& ctx_vec,
+                                             const program& p,
+                                             const parameter_map& param_map,
+                                             int bundle,
+                                             int nruns,
+                                             bool warmup)
+{
+    auto& gctx  = any_cast<migraphx::gpu::context>(ctx_vec.front());
+    auto stream = gctx.get_stream().get();
+    if(warmup)
+        p.eval_with_context(ctx_vec, param_map);
+    gctx.finish();
+    if(hipStreamBeginCapture(stream, hipStreamCaptureModeThreadLocal) != hipSuccess)
+        return nullopt;
+    bool captured = true;
+    try
+    {
+        for(auto i : range(bundle))
+        {
+            (void)i;
+            p.eval_with_context(ctx_vec, param_map);
+        }
+    }
+    catch(...)
+    {
+        captured = false;
+    }
+    hipGraph_t raw_graph = nullptr;
+    auto status          = hipStreamEndCapture(stream, &raw_graph);
+    MIGRAPHX_MANAGE_PTR(hipGraph_t, hipGraphDestroy) graph{raw_graph};
+    if(not captured or status != hipSuccess or raw_graph == nullptr)
+    {
+        (void)hipGetLastError();
+        return nullopt;
+    }
+    hipGraphExec_t raw_exec = nullptr;
+    if(hipGraphInstantiate(&raw_exec, graph.get(), nullptr, nullptr, 0) != hipSuccess)
+    {
+        (void)hipGetLastError();
+        return nullopt;
+    }
+    MIGRAPHX_MANAGE_PTR(hipGraphExec_t, hipGraphExecDestroy) exec{raw_exec};
+    auto t = time_loop(gctx, 1, nruns, [&] {
+        auto launch = hipGraphLaunch(exec.get(), stream);
+        if(launch != hipSuccess)
+            MIGRAPHX_THROW("Graph benchmarking failed: " + hip_error(launch));
+    });
+    return t / bundle;
+}
+
+// Graph timing measures GPU work only, so it is used when the candidate just launches kernels
+// (hip::fill zeroes split-K outputs on the stream); anything else (e.g. ops that also work on the
+// host) keeps host-launch timing.
+static bool only_launches_kernels(const program& p)
+{
+    const auto* mm = p.get_main_module();
+    return std::all_of(mm->begin(), mm->end(), [](const instruction& ins) {
+        return starts_with(ins.name(), "@") or
+               contains({"gpu::code_object", "load", "hip::fill"}, ins.name());
+    });
+}
+
 static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
                              const program& p,
                              const parameter_map& param_map,
@@ -223,6 +291,13 @@ static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
                              int nruns,
                              bool warmup = true)
 {
+    if(only_launches_kernels(p))
+    {
+        if(auto t = time_benchmark_graph(ctx_vec, p, param_map, bundle, nruns, warmup))
+            return *t;
+        warmup = false;
+    }
+    // Host launches only add overhead, so a candidate that cannot be captured is never favored
     auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
     return time_loop(gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); }, warmup);
 }

@@ -198,27 +198,29 @@ for lookups, and newly compiled kernels are kept in memory only. A database that
 opened, or whose cache table has an unexpected layout, is skipped with a warning and the compile
 proceeds without a disk cache.
 
-The cache path can also be set with the ``binary_cache`` backend option, which takes precedence
-over the environment. This is how an application ships a prebuilt cache to its users, so a cache
-named this way is **read-only** by default: kernels already in it are reused, and kernels it lacks
-are compiled and kept in memory for the process but never written back. Set ``binary_cache_dev``
-to fill it as the environment variable does, for example when building the cache to ship. A cache
-named by ``MIGRAPHX_BINARY_CACHE`` alone is written to. An empty ``binary_cache`` turns the
-disk cache off even when the environment variable is set.
+The writable cache path can also be set with the ``binary_cache`` backend option, which takes
+precedence over the environment. An empty ``binary_cache`` turns the writable cache off even when
+the environment variable is set.
+
+An application that ships a prebuilt cache to its users names it with the
+``read_only_binary_cache`` backend option, which works like ``read_only_problem_cache_files`` for
+the problem cache. That cache is **only read**: it is searched after the writable cache, kernels
+already in it are reused, and kernels it lacks are compiled and stored in the writable cache, if
+there is one, or else kept in memory for the process. A read-only cache that does not exist is
+never created.
 
 .. code-block:: python
 
    # Build the cache once, storing every kernel compiled.
    model.compile(migraphx.get_target("gpu"),
-                 advance_backend_options={"binary_cache": "/opt/app/kernels.db",
-                                          "binary_cache_dev": True})
+                 advance_backend_options={"binary_cache": "/opt/app/kernels.db"})
 
    # Consumers only read it.
    model.compile(migraphx.get_target("gpu"),
-                 advance_backend_options={"binary_cache": "/opt/app/kernels.db"})
+                 advance_backend_options={"read_only_binary_cache": "/opt/app/kernels.db"})
 
 The same applies when the options come from ``MIGRAPHX_GPU_OPTIONS``, for example
-``MIGRAPHX_GPU_OPTIONS='{"binary_cache": "/tmp/cache", "binary_cache_dev": true}'``.
+``MIGRAPHX_GPU_OPTIONS='{"read_only_binary_cache": "/opt/app/kernels.db"}'``.
 
 Entries are keyed on everything handed to the backend compiler. If a kernel is suspected of
 being reused when it should not be, set the ``binary_cache_verify`` backend option. That compiles

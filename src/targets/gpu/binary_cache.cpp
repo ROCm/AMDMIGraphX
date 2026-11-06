@@ -109,25 +109,42 @@ static std::string device_dir(const context& ctx)
 // entries. A directory is named with the short version id to keep paths short; a database records
 // the full id. Nothing is persisted when the compiler cannot be identified, since entries from
 // different toolchains would be indistinguishable.
-binary_cache_backend* binary_cache::get_backend()
+binary_cache_backend* binary_cache::storage::open()
 {
-    if(backend_opened)
+    if(opened)
         return backend.has_value() ? &*backend : nullptr;
-    backend_opened   = true;
-    const auto& path = settings.path;
+    opened = true;
     // Checked first so that a memory-only cache never compiles the version probe. Missing
-    // read-only storage can never gain entries, so it is a memory-only cache too.
-    if(path.empty() or (settings.read_only and not fs::exists(path)))
+    // read-only storage can never gain entries, so there is nothing to open.
+    if(path.empty() or (read_only and not fs::exists(path)))
         return nullptr;
     const bool database = sqlite::is_database_path(path);
     version             = version_id(not database);
     if(version.empty())
         return nullptr;
     if(not database)
-        backend = binary_cache_backend{file_binary_cache{path, settings.read_only}};
-    else if(auto db = sqlite_binary_cache::open(path, settings.read_only))
+        backend = binary_cache_backend{file_binary_cache{path, read_only}};
+    else if(auto db = sqlite_binary_cache::open(path, read_only))
         backend = binary_cache_backend{std::move(*db)};
     return backend.has_value() ? &*backend : nullptr;
+}
+
+optional<binary_cache_entry> binary_cache::storage::load(const context& ctx, const std::string& key)
+{
+    auto* b = open();
+    if(b == nullptr)
+        return nullopt;
+    return b->load(version, device_dir(ctx), key);
+}
+
+binary_cache::binary_cache(binary_cache_settings s)
+    : verify_reuse(s.verify),
+      writable{.path = std::move(s.path)},
+      read_only{.path = std::move(s.read_only_path), .read_only = true}
+{
+    // The same storage named twice is the writable cache; searching it again finds nothing new.
+    if(read_only.path == writable.path)
+        read_only.path.clear();
 }
 
 optional<compiled_code> binary_cache::get(const context& ctx, const std::string& key)
@@ -140,14 +157,13 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
         counters.reused++;
         return it->second;
     }
-    if(auto* b = get_backend())
+    auto e = writable.load(ctx, key);
+    if(not e.has_value())
+        e = read_only.load(ctx, key);
+    if(e.has_value())
     {
-        auto e = b->load(version, device_dir(ctx), key);
-        if(e.has_value())
-        {
-            counters.hits++;
-            return memo.emplace(key, std::move(e->code)).first->second;
-        }
+        counters.hits++;
+        return memo.emplace(key, std::move(e->code)).first->second;
     }
     counters.misses++;
     return nullopt;
@@ -161,12 +177,13 @@ void binary_cache::insert(const context& ctx, std::vector<binary_cache_entry> es
     if(es.empty())
         return;
     counters.compiled += es.size();
-    if(auto* b = get_backend())
+    // Only the writable tier is stored to; what the read-only one lacks stays in memory.
+    if(auto* b = writable.open())
     {
         try
         {
             // A failure to store is a warning, not a failed compile.
-            b->store(version, device_dir(ctx), es);
+            b->store(writable.version, device_dir(ctx), es);
         }
         catch(const std::exception& ex)
         {

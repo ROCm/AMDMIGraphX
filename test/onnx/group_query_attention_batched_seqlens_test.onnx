@@ -1,0 +1,63 @@
+*group_query_attention_batched_seqlens_test:Ç
+Î
+qkv
+key
+value
+past_key_values_key
+past_key_values_value
+	seqlens_k
+total_sequence_lengthoutputpresent_keypresent_value"GroupQueryAttention*
+kv_num_heads *
+	num_heads :com.microsoft*group_query_attention_batched_seqlens_test**Btotal_sequence_lengthZ
+qkv
+
+
+
+
+Z
+key
+
+
+Z
+value
+
+
+Z-
+past_key_values_key
+
+
+
+
+
+Z/
+past_key_values_value
+
+
+
+
+
+Z
+	seqlens_k
+
+
+b
+output
+
+
+
+
+b%
+present_key
+
+
+
+
+
+b'
+present_value
+
+
+
+
+
+B

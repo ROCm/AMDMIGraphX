@@ -80,6 +80,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
@@ -314,6 +315,7 @@ struct pipeline_factory
             auto_contiguous{.standardize_outputs = backend_opts.standardize_outputs},
             dead_code_elimination{},
             lowering{get_context(), options.offload_copy},
+            eliminate_device_copy{},
             eliminate_contiguous{"gpu::contiguous"},
             dead_code_elimination{},
             lower_reshape{},

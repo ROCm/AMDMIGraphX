@@ -37,6 +37,7 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <test.hpp>
 #include <reduce.hpp>
 #include <algorithm>
@@ -68,6 +69,7 @@ static int dump_benchmarks(const migraphx::fs::path& dir)
     migraphx::run_passes(
         p,
         {migraphx::gpu::lowering{&ctx, false},
+         migraphx::gpu::eliminate_device_copy{},
          migraphx::gpu::compile_ops{.ctx = &ctx, .exhaustive_tune = true, .dump_mxr_dir = dir}});
     return 1;
 }
@@ -115,7 +117,8 @@ TEST_CASE(dumps_one_mxr_per_candidate)
 {
     migraphx::gpu::context ctx{0, 1};
     auto p = reduce_program();
-    migraphx::run_passes(p, {migraphx::gpu::lowering{&ctx, false}});
+    migraphx::run_passes(
+        p, {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::eliminate_device_copy{}});
     auto ins   = find_precompile_op(*p.get_main_module());
     auto preop = migraphx::from_value<migraphx::operation>(ins->get_operator().to_value().at("op"));
     auto config = migraphx::gpu::get_tuning_config(ctx, ins, preop, true);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
@@ -38,7 +39,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 static void run_lowering(migraphx::module& m, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(m, {migraphx::gpu::lowering{&ctx, offload_copy}});
+    migraphx::run_passes(
+        m, {migraphx::gpu::lowering{&ctx, offload_copy}, migraphx::gpu::eliminate_device_copy{}});
 }
 
 TEST_CASE(hipblaslt_op)

@@ -131,7 +131,7 @@ struct match_find_quantizable_ops
     static auto
     qparam_broadcast_op(instruction_ref qparam, std::vector<std::size_t> lens, std::size_t axis)
     {
-        if(qparam->get_shape().elements() == 1)
+        if(qparam->get_shape().scalar() or qparam->get_shape().elements() == 1)
         {
             return migraphx::make_op("multibroadcast", {{"out_lens", lens}});
         }
@@ -417,6 +417,15 @@ struct match_find_quantizable_add_concat
         if(not std::all_of(branches.begin(), branches.end(), [](const auto& b) {
                return is_int8(b.instructions["dq"]->inputs().front()->get_shape().type());
            }))
+            return;
+        if(not std::equal(branches.begin(), branches.end(), op->inputs().begin(),
+                          [](const auto& b, auto arg) {
+                              auto between = get_between_ins(b.instructions["dq"], arg);
+                              return std::none_of(between.begin(), between.end(), [](auto ins) {
+                                  return ins->name() == "convert" and
+                                         shape::is_integral(ins->get_shape().type());
+                              });
+                          }))
             return;
 
         std::vector<instruction_ref> scales;

@@ -51,6 +51,8 @@ struct MIGRAPHX_GPU_EXPORT device_description
     std::size_t max_threads_per_cu    = 2048;
     std::size_t max_threads_per_block = 1024;
     std::size_t wavefront_size        = 0;
+    /// Size in bytes of the last-level data cache, 0 when unknown
+    std::size_t last_level_cache_size = 0;
 };
 
 } // namespace gpu

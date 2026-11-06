@@ -29,14 +29,6 @@
 #include <migraphx/make_op.hpp>
 #include <layernorm.hpp>
 
-// Regression test for find_reduce_mean_variance (src/rewrite_reduce.cpp). That pass rewrites the
-// numerically safe reduce_mean(sqdiff(x, mean)) variance used by LayerNormalization into the
-// single-pass mean(x^2) - mean(x)^2 form, for every GPU-compiled reduce_mean-based norm,
-// regardless of any kernel-fusion setting. At this row length and offset/scale, the two terms
-// nearly cancel, so the subtraction rounds negative and the subsequent rsqrt(variance + eps) is a
-// NaN without the clamp this pass now applies. Confirmed empirically: this exact shape reliably
-// reproduces the NaN with the clamp removed, and reliably passes (finite and within tolerance of
-// ref, which does not go through this rewrite) with it restored.
 struct test_layernorm_large_magnitude : verify_program<test_layernorm_large_magnitude>
 {
     migraphx::program create_program() const

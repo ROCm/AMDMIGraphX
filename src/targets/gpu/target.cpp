@@ -119,6 +119,9 @@ struct backend_options
     std::vector<std::string> mlss_use_specific_ops = {};
     /// Where compiled kernels are cached between runs. Defaults to ``MIGRAPHX_BINARY_CACHE``.
     std::string binary_cache = binary_cache_settings{}.path;
+    /// A kernel cache searched after ``binary_cache`` and never written, such as one shipped
+    /// with an application.
+    std::string read_only_binary_cache = {};
     /// Compile even when a kernel could be reused, and fail if the two disagree.
     bool binary_cache_verify = false;
     // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
@@ -165,6 +168,7 @@ struct backend_options
     {
         return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
                     f(self.binary_cache, "binary_cache"),
+                    f(self.read_only_binary_cache, "read_only_binary_cache"),
                     f(self.binary_cache_verify, "binary_cache_verify"),
                     f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
                     f(self.attn_max_head_dim, "attn_max_head_dim"),
@@ -447,7 +451,9 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     auto& ctx         = any_cast<context>(gctx);
     // The context predates the compile options, so the cache they configure is installed here.
     ctx.set_binary_cache(std::make_shared<binary_cache>(
-        binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
+        binary_cache_settings{.path           = backend_opts.binary_cache,
+                              .verify         = backend_opts.binary_cache_verify,
+                              .read_only_path = backend_opts.read_only_binary_cache}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
 

@@ -1969,7 +1969,6 @@ TEST_CASE(flash_decoding_4d_with_query_key_mask)
         size_t g_axis = 2;
 
         const std::vector<size_t> q_split = {1, 2, num_splits, 3, 4};
-        const std::vector<size_t> k_split = {1, 2, num_splits, 4, 4};
         const std::vector<size_t> v_split = {1, 2, num_splits, 4, 4};
         const std::vector<size_t> scores  = {1, 2, num_splits, 3, 4};
         const std::vector<size_t> o_split = {1, 2, num_splits, 3, 4};

@@ -415,24 +415,20 @@ struct flash_decoding_split
     {
         const auto gemm1 = first_dot(source_mod);
         const auto end   = source_mod.end();
-        for(auto ins : iterator_for(source_mod))
-        {
-            if(ins->name() == "multibroadcast")
+        const auto range = iterator_for(source_mod);
+        return std::any_of(range.begin(), range.end(), [&](instruction_ref ins) {
+            const auto name = ins->name();
+            if(name == "multibroadcast")
             {
                 const auto out_lens =
                     ins->get_operator().to_value()["out_lens"].to_vector<std::size_t>();
-                if(out_lens == scores_lens and feeds_first_dot(ins, gemm1, end))
-                    return true;
+                return out_lens == scores_lens and feeds_first_dot(ins, gemm1, end);
             }
-            else if(ins->name() == "@literal" and
-                    split_literal(ins->get_literal()).get_shape().lens() !=
-                        ins->get_literal().get_shape().lens() and
-                    (feeds_first_dot(ins, gemm1, end) or not consumed_as_scores(ins, scores_lens)))
-            {
-                return true;
-            }
-        }
-        return false;
+            return name == "@literal" and
+                   split_literal(ins->get_literal()).get_shape().lens() !=
+                       ins->get_literal().get_shape().lens() and
+                   (feeds_first_dot(ins, gemm1, end) or not consumed_as_scores(ins, scores_lens));
+        });
     }
 
     // Both fd matchers copy the same softmax body. The KV fd also wraps the query,

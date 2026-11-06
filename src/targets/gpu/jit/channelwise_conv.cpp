@@ -162,23 +162,31 @@ struct channelwise_conv_problem
     }
 
     // The largest channel tile whose halo for a 4-row, 128-column output tile fits in
-    // shared memory, plus the next smaller one when strides or dilations grew the halo
-    // past the largest tile, so the tuner can trade channels for wider tiles
-    std::vector<std::size_t> default_channel_tiles() const
+    // shared memory
+    std::size_t default_channel_tile() const
     {
         auto tiles = channel_tiles(32);
         auto it    = std::find_if(tiles.rbegin(), tiles.rend(), [&](auto tile_c) {
             return halo_bytes(4, 32, 4, tile_c, 1) <= max_lds_bytes;
         });
-        if(it == tiles.rend())
-            return {tiles.front()};
-        std::vector<std::size_t> result = {*it};
-        if(it != tiles.rbegin() and std::next(it) != tiles.rend())
-            result.push_back(*std::next(it));
-        return result;
+        return it == tiles.rend() ? tiles.front() : *it;
     }
 
-    std::size_t default_channel_tile() const { return default_channel_tiles().front(); }
+    // Channel tiles for the default search. When the reference halo does not fit with the
+    // largest tile, the next smaller tile lets the tuner trade channels for wider tiles,
+    // and the largest tile keeps its smaller lane tiles whose own halo still fits.
+    std::vector<std::size_t> default_channel_tiles() const
+    {
+        auto tiles = channel_tiles(32);
+        auto it    = std::find(tiles.rbegin(), tiles.rend(), default_channel_tile());
+        std::vector<std::size_t> result = {*it};
+        if(it == tiles.rbegin())
+            return result;
+        if(std::next(it) != tiles.rend())
+            result.push_back(*std::next(it));
+        result.push_back(tiles.back());
+        return result;
+    }
 
     // Filter taps per channel
     std::size_t taps() const

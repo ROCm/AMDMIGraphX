@@ -594,6 +594,17 @@ static bool unique_solutions(const std::vector<migraphx::value>& solutions)
     });
 }
 
+// Whether some solution matches every field of `fields`, whatever its other fields
+static bool has_solution(const std::vector<migraphx::value>& solutions,
+                         const migraphx::value& fields)
+{
+    return std::any_of(solutions.begin(), solutions.end(), [&](const migraphx::value& s) {
+        return std::all_of(fields.begin(), fields.end(), [&](const migraphx::value& f) {
+            return s.at(f.get_key()).to<std::size_t>() == f.to<std::size_t>();
+        });
+    });
+}
+
 // Tuning for 1-D only proposes tile_h=1 and sizes blocks by the threads it launches
 TEST_CASE(channelwise_conv_1d_tuning)
 {
@@ -646,6 +657,36 @@ TEST_CASE(channelwise_conv_stride_tuning)
     EXPECT(std::any_of(tc->solutions.begin(), tc->solutions.end(), [](const migraphx::value& s) {
         return s.at("tile_c").to<std::size_t>() <= 16 and s.at("tile_w").to<std::size_t>() >= 32;
     }));
+}
+
+// A stride-1 channels-last float problem keeps the 32-channel lane tiles whose own halo
+// fits, even on a 64-KiB device where a 4-row, 128-column output tile only fits 16 channels
+TEST_CASE(channelwise_conv_float_tuning_keeps_largest_channel_tile)
+{
+    std::vector<int64_t> perm = {0, 2, 3, 1};
+    auto x_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 96, 257, 257}, perm);
+    auto w_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {96, 1, 3, 3}, perm);
+    conv_attrs attrs{{1, 1, 1, 1}};
+    auto out_shape = conv_output(x_shape, w_shape, attrs);
+    auto op        = migraphx::make_op("gpu::channelwise_conv", attrs.to_value());
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", x_shape);
+    auto w     = mm->add_parameter("w", w_shape);
+    auto alloc = mm->add_parameter("output", out_shape);
+    auto ins   = mm->add_instruction(make_precompile_op(op), x, w, alloc);
+    migraphx::gpu::context ctx;
+    auto tc = migraphx::gpu::get_tuning_config(ctx, ins, op, false);
+    EXPECT(tc.has_value());
+    EXPECT(unique_solutions(tc->solutions));
+    EXPECT(has_solution(
+        tc->solutions,
+        {{"tile_h", 2}, {"tile_w", 16}, {"noutputs", 4}, {"tile_c", 32}, {"nrows", 1}}));
+    EXPECT(has_solution(
+        tc->solutions,
+        {{"tile_h", 4}, {"tile_w", 16}, {"noutputs", 4}, {"tile_c", 32}, {"nrows", 1}}));
 }
 
 // Dilation and padding of 16 keep the shapes of dilation and padding of 1 but grow the

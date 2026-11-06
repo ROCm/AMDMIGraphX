@@ -974,8 +974,7 @@ MIGRAPHX_PRED_MATCHER(conv_3x3s2_fp32, instruction_ref ins)
     const auto& w_s = ins->inputs().back()->get_shape();
     if(x_s.dynamic() or w_s.dynamic() or x_s.type() != shape::float_type)
         return false;
-    if(x_s.lens().size() != 4 or w_s.lens().size() != 4 or w_s.lens()[2] != 3 or
-       w_s.lens()[3] != 3)
+    if(x_s.lens().size() != 4 or w_s.lens().size() != 4 or w_s.lens()[2] != 3 or w_s.lens()[3] != 3)
         return false;
     const auto& xl = x_s.lens();
     const auto& xs = x_s.strides();

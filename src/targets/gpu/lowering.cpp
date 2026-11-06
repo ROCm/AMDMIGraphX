@@ -784,7 +784,9 @@ struct miopen_apply
             auto host_out = mod->insert_instruction(ins, ins->get_operator(), ins->inputs());
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
-            return mod->replace_instruction(ins, gpu_out);
+            auto synced_gpu_out =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), gpu_out);
+            return mod->replace_instruction(ins, synced_gpu_out);
         });
     }
 };

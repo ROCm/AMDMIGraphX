@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -38,4 +38,16 @@ file(GLOB ONNX_VERIFY_TESTS CONFIGURE_DEPENDS verify/*.cpp)
 add_onnx_test(test_onnx_test ${ONNX_PARSE_TESTS})
 add_onnx_test(test_onnx_rnn_test onnx_rnn_test.cpp)
 add_onnx_test(test_verify_onnx ${ONNX_VERIFY_TESTS})
+
+if(MIGRAPHX_ENABLE_GPU)
+    rocm_add_test_executable(test_gpu_matmulinteger_overflow_gpu gpu/matmulinteger_overflow_gpu.cpp)
+    rocm_clang_tidy_check(test_gpu_matmulinteger_overflow_gpu)
+    set_tests_properties(test_gpu_matmulinteger_overflow_gpu PROPERTIES
+        COST 10
+        RESOURCE_LOCK gpu
+    )
+    target_link_libraries(test_gpu_matmulinteger_overflow_gpu
+        migraphx_onnx migraphx_gpu onnx_files register_targets migraphx_lazy_ref)
+    target_include_directories(test_gpu_matmulinteger_overflow_gpu PUBLIC ../include include)
+endif()
 

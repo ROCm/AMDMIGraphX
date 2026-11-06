@@ -26,19 +26,16 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/time_op.hpp>
+#include <migraphx/gpu/record_compiled_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/serialize.hpp>
 #include <migraphx/stringutils.hpp>
 #include <algorithm>
-#include <iomanip>
 #include <iterator>
 #include <set>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -95,16 +92,6 @@ std::string join_names(const std::vector<std::string>& names, std::size_t max_na
     if(names.size() > max_names)
         result += ", ... (" + std::to_string(names.size() - max_names) + " more)";
     return result;
-}
-
-std::string solution_string(const value& v)
-{
-    auto s = v.without_key();
-    if(s.is_null())
-        return "-";
-    if(s.is_string())
-        return s.to<std::string>().empty() ? "-" : s.to<std::string>();
-    return to_string(s);
 }
 
 bool has_type(const shape& s, const std::set<shape::type_t>& types)
@@ -221,32 +208,57 @@ void check_retarget(const program& p,
                        join_names(scan.unsupported));
 }
 
-// Only tuned kernels are timed: time_op feeds random inputs, which can drive kernels that take
-// indices (gather, scatter) out of bounds and fault the whole device.
-std::string kernel_time(const context& ctx, const operation& op, bool benchmarked, bool tunable)
+// Uses the instructions of a compiled module that nothing uses, so that the dead code
+// elimination in compile_ops keeps them. A compiled module has such instructions on purpose: a
+// kernel that writes its result into part of a buffer, such as an input of an eliminated
+// concat, is not used by the instruction that reads the buffer.
+struct recompile_anchor
 {
-    if(not tunable)
-        return "not timed";
-    if(not benchmarked)
-        return "not benchmarked";
-    try
+    std::string name() const { return "gpu::recompile_anchor"; }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
+};
+
+void anchor_unused_instructions(module& m)
+{
+    if(m.begin() == m.end())
+        return;
+    auto last = std::prev(m.end());
+    std::vector<instruction_ref> unused;
+    for(auto ins : iterator_for(m))
     {
-        std::stringstream ss;
-        ss << std::fixed << std::setprecision(1) << time_op(ctx, op, 1, 20) * 1000.0 << " us";
-        return ss.str();
+        if(ins == last or not ins->outputs().empty() or ins->get_shape().ndim() == 0 or
+           contains({"@param", "@literal", "@return"}, ins->name()))
+            continue;
+        unused.push_back(ins);
     }
-    catch(const std::exception& e)
+    if(unused.empty())
+        return;
+    if(last->name() == "@return")
+        m.insert_instruction(last, recompile_anchor{}, unused);
+    else
+        m.add_instruction(recompile_anchor{}, unused);
+}
+
+// The anchors, and the precompile ops that compile_ops replaced after its own dead code
+// elimination, such as those of the fills it inserts for split-K
+std::vector<instruction_ref> find_leftovers(module& m)
+{
+    std::vector<instruction_ref> result;
+    for(auto ins : iterator_for(m))
     {
-        return std::string{"time unavailable: "} + e.what();
+        if(ins->name() == recompile_anchor{}.name() or
+           (ins->name() == "gpu::precompile_op" and ins->outputs().empty()))
+            result.push_back(ins);
     }
+    return result;
 }
 
 } // namespace
 
-void recompile_ops::apply(program& p) const
+void restore_recipes::apply(program& p) const
 {
     assert(ctx != nullptr);
-    auto* mm           = p.get_main_module();
+    const auto* mm     = p.get_main_module();
     const auto from_rd = get_compiled_for(*mm);
     if(not from_rd.has_value())
         MIGRAPHX_THROW("recompile: the program does not record the device it was compiled for; "
@@ -257,49 +269,68 @@ void recompile_ops::apply(program& p) const
     auto scan = scan_kernels(p);
     if(from != to)
         check_retarget(p, *ctx, scan, from, to);
-    const auto from_gfx = get_gfx_name(from.arch);
-    const auto to_gfx   = get_gfx_name(to.arch);
+    if(is_exhaustive(merge_compile_options(get_compile_options(*mm), options)))
+        ctx->set_exhaustive_tune_flag(true);
 
-    // The program keeps its recorded tuning level unless exhaustive tuning is requested
-    const bool exhaustive   = ctx->get_exhaustive_tune_flag() or is_exhaustive_tuned(*mm);
-    const std::string level = exhaustive ? "exhaustive" : "quick";
-    std::vector<recompile_request> requests;
-    std::transform(scan.kernels.begin(),
-                   scan.kernels.end(),
-                   std::back_inserter(requests),
-                   [&](const kernel_ref& k) -> recompile_request { return {k.ins, exhaustive}; });
+    // Find every input before changing the program, since inputs are found through other kernels
+    std::vector<std::vector<instruction_ref>> inputs;
+    for(const auto& k : scan.kernels)
+    {
+        auto found = recipe_inputs(k.ins);
+        if(not found.has_value())
+            MIGRAPHX_THROW("recompile: the recipe of " + describe(k.ins) +
+                           " is from an older build; compile the model again with "
+                           "recompilable (--recompilable)");
+        inputs.push_back(*found);
+    }
 
-    // Compile everything before changing the program, so a failure leaves it unchanged
-    auto recompiled = recompile_kernels(*ctx, requests);
-
-    std::stringstream report;
+    for(auto* mod : p.get_modules())
+    {
+        if(not mod->bypass())
+            anchor_unused_instructions(*mod);
+    }
     for(auto i : range(scan.kernels.size()))
     {
-        const auto& k   = scan.kernels[i];
-        const auto& nop = recompiled[i].code_object;
-        const auto& nco = any_cast<code_object_op>(nop);
-        k.mod->replace_instruction(k.ins, nop, k.ins->inputs(), k.ins->module_inputs());
-
-        const bool tunable = recompiled[i].tunable;
-        auto time          = kernel_time(*ctx, nop, recompiled[i].benchmarked, tunable);
-        report << "  " << nco.symbol_name << "  " << from_gfx << " -> " << to_gfx << "  "
-               << solution_string(recompiled[i].solution) << "  " << (tunable ? level : "-") << "  "
-               << time;
-        if(recompiled[i].excluded > 0)
-            report << "  (" << recompiled[i].excluded << " signature-changing candidates excluded)";
-        report << "\n";
+        const auto& k = scan.kernels[i];
+        auto pre      = *find_recipe(k.ins);
+        k.mod->replace_instruction(k.ins, pre->get_operator(), inputs[i], pre->module_inputs());
     }
-    assign_module_ids(*mm);
-    set_compiled_for(*mm, to);
-    set_exhaustive_tuned(*mm, exhaustive);
-    log::info() << "recompile: recompiled " << scan.kernels.size() << " kernels for " << to_gfx
-                << "\n"
-                << report.str();
+    // compile_ops makes new recipe modules with the names of the old ones
+    p.remove_unused_modules();
+
+    const auto from_gfx = get_gfx_name(from.arch);
+    const auto to_gfx   = get_gfx_name(to.arch);
+    log::info() << "recompile: recompiling " << scan.kernels.size() << " kernels for " << to_gfx
+                << (ctx->get_exhaustive_tune_flag() ? " with exhaustive tuning" : "");
     if(not scan.unsupported.empty())
         log::info() << "recompile: left as compiled: " << join_names(scan.unsupported);
     if(get_gfx_generation(from.arch) != get_gfx_generation(to.arch))
         log::info() << "note: graph decisions were made for " << from_gfx
                     << "; compile the model again for best performance on " << to_gfx << ".";
+}
+
+void remove_recompile_leftovers::apply(module& m) const
+{
+    for(auto ins : find_leftovers(m))
+        m.remove_instruction(ins);
+}
+
+void check_recompiled_memory::apply(const module& m) const
+{
+    std::vector<std::string> users;
+    for(const auto& ins : m)
+    {
+        if(ins.name() != "hip::allocate")
+            continue;
+        std::transform(ins.outputs().begin(),
+                       ins.outputs().end(),
+                       std::back_inserter(users),
+                       [](instruction_ref out) { return describe(out); });
+    }
+    if(not users.empty())
+        MIGRAPHX_THROW("recompile: the recompiled kernels need memory that the compiled program "
+                       "does not have (used by " +
+                       join_names(users) + "); compile the model again");
 }
 
 } // namespace gpu

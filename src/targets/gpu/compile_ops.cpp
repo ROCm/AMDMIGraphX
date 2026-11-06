@@ -53,6 +53,7 @@
 #include <algorithm>
 #include <map>
 #include <iterator>
+#include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <exception>
@@ -60,6 +61,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
@@ -437,13 +439,58 @@ static void set_bypass(module_ref recipe)
         smod->set_bypass();
 }
 
-// Add a parameter named x0, x1, ... to m for each shape
-static std::vector<instruction_ref> add_parameters(module& m, const std::vector<shape>& inputs)
+// Where input is found from kernel: "j" for its j-th input, or "j.k" for the k-th input of its
+// j-th input. Compilers can move an input of the precompile op behind an instruction they insert
+// before the kernel, such as the hip::copy of scatter or the hip::fill of split-K.
+static optional<std::string> input_path(instruction_ref kernel, instruction_ref input)
 {
-    std::vector<instruction_ref> params;
-    transform(range(inputs.size()), std::back_inserter(params), [&](auto i) {
-        return m.add_parameter("x" + std::to_string(i), inputs[i]);
+    const auto& args = kernel->inputs();
+    auto direct      = std::find(args.begin(), args.end(), input);
+    if(direct != args.end())
+        return std::to_string(std::distance(args.begin(), direct));
+    auto outer = std::find_if(args.begin(), args.end(), [&](instruction_ref arg) {
+        return contains(arg->inputs(), input);
     });
+    if(outer == args.end())
+        return nullopt;
+    const auto& inner = (*outer)->inputs();
+    return std::to_string(std::distance(args.begin(), outer)) + "." +
+           std::to_string(
+               std::distance(inner.begin(), std::find(inner.begin(), inner.end(), input)));
+}
+
+// The input_path of each input, or nothing when an input cannot be found from kernel
+static optional<std::vector<std::string>> input_paths(instruction_ref kernel,
+                                                      const std::vector<instruction_ref>& inputs)
+{
+    std::vector<std::string> paths;
+    for(auto input : inputs)
+    {
+        auto path = input_path(kernel, input);
+        if(not path.has_value())
+            return nullopt;
+        paths.push_back(*path);
+    }
+    return paths;
+}
+
+// A parameter of recipe for each input, named by its path
+static std::vector<instruction_ref>
+add_recipe_parameters(module& recipe,
+                      const std::vector<std::string>& paths,
+                      const std::vector<instruction_ref>& inputs)
+{
+    std::unordered_map<std::string, instruction_ref> by_path;
+    std::vector<instruction_ref> params;
+    for(auto i : range(inputs.size()))
+    {
+        // The same input can be passed twice, but a parameter is added only once
+        auto it = by_path.find(paths[i]);
+        if(it == by_path.end())
+            it = by_path.emplace(paths[i], recipe.add_parameter(paths[i], inputs[i]->get_shape()))
+                     .first;
+        params.push_back(it->second);
+    }
     return params;
 }
 
@@ -790,12 +837,12 @@ struct compile_plan
         }
         auto start  = std::prev(ins);
         auto pre_op = ins->get_operator();
-        auto inputs = to_shapes(ins->inputs());
+        auto inputs = ins->inputs();
         auto mods   = ins->module_inputs();
         cr.replace(m, ins);
 
         // The replacement inserts its instructions before ins, or rewrites it in place. Only a
-        // single kernel can be swapped in place by recompile.
+        // single kernel can be put back to its precompile op by recompile.
         auto co_ins = single_code_object(std::next(start), std::next(ins));
         if(not co_ins.has_value())
         {
@@ -803,9 +850,16 @@ struct compile_plan
             return;
         }
 
+        auto paths = input_paths(*co_ins, inputs);
+        if(not paths.has_value())
+        {
+            log::debug() << "No recipe for " << preop.name()
+                         << ": its inputs cannot be found from the kernel";
+            return;
+        }
         auto* recipe = make_recipe_module();
-        recipe->add_return(
-            {recipe->add_instruction(pre_op, add_parameters(*recipe, inputs), mods)});
+        auto params  = add_recipe_parameters(*recipe, *paths, inputs);
+        recipe->add_return({recipe->add_instruction(pre_op, params, mods)});
         // Later passes such as write_literals must not rewrite the recipe
         set_bypass(recipe);
         m.replace_instruction(*co_ins, (*co_ins)->get_operator(), (*co_ins)->inputs(), {recipe});
@@ -1121,8 +1175,6 @@ static void assign_module_ids(const std::vector<module_ref>& mods)
     }
 }
 
-void assign_module_ids(module& root) { assign_module_ids(collect_modules(&root)); }
-
 void compile_ops::apply(module_pass_manager& mpm) const
 {
     // Compile from the root only, so one batch covers every module and identical kernels in
@@ -1131,7 +1183,8 @@ void compile_ops::apply(module_pass_manager& mpm) const
         return;
     auto mods = collect_modules(mpm.get_root_module());
     compile_manager cm;
-    cm.exhaustive     = exhaustive_tune;
+    cm.exhaustive =
+        exhaustive_tune or (exhaustive_from_context and ctx->get_exhaustive_tune_flag());
     cm.skip_benchmark = skip_benchmark;
     cm.mxr_dir        = dump_mxr_dir;
     // One counter for every batch, since each recipe module needs a unique name. It must outlive
@@ -1160,64 +1213,6 @@ void compile_ops::apply(module_pass_manager& mpm) const
     assign_module_ids(mods);
 }
 
-void record_compiled_for::apply(module_pass_manager& mpm) const
-{
-    if(&mpm.get_module() != mpm.get_root_module())
-        return;
-    auto& m = mpm.get_module();
-    set_compiled_for(m, ctx->get_current_device().get_device_description());
-    set_exhaustive_tuned(m, ctx->get_exhaustive_tune_flag());
-}
-
-static instruction_ref find_tagged_comment(const module& m, const std::string& tag)
-{
-    return std::find_if(m.begin(), m.end(), [&](const instruction& ins) {
-        return ins.name() == "@comment" and
-               any_cast<builtin::comment>(ins.get_operator()).tag == tag;
-    });
-}
-
-// Comments are written at the start of m, replacing the one with the same tag
-static void set_tagged_comment(module& m, const std::string& tag, const std::string& text)
-{
-    auto it = find_tagged_comment(m, tag);
-    // A builtin op cannot replace an instruction, so insert the new comment and remove the old
-    m.insert_instruction(it == m.end() ? m.begin() : it, builtin::comment{text, tag});
-    if(it != m.end())
-        m.remove_instruction(it);
-}
-
-static optional<std::string> get_tagged_comment(const module& m, const std::string& tag)
-{
-    auto it = find_tagged_comment(m, tag);
-    if(it == m.end())
-        return nullopt;
-    return any_cast<builtin::comment>(it->get_operator()).text;
-}
-
-void set_compiled_for(module& m, const device_description& device)
-{
-    set_tagged_comment(m, "gpu_target", to_json_string(to_value(device)));
-}
-
-optional<device_description> get_compiled_for(const module& m)
-{
-    auto text = get_tagged_comment(m, "gpu_target");
-    if(not text.has_value())
-        return nullopt;
-    return from_value<device_description>(from_json_string(*text));
-}
-
-void set_exhaustive_tuned(module& m, bool exhaustive)
-{
-    set_tagged_comment(m, "gpu_tuning", exhaustive ? "exhaustive" : "quick");
-}
-
-bool is_exhaustive_tuned(const module& m)
-{
-    return get_tagged_comment(m, "gpu_tuning") == std::string{"exhaustive"};
-}
-
 optional<instruction_ref> find_recipe(instruction_ref ins)
 {
     if(ins->name() != "gpu::code_object" or ins->module_inputs().size() != 1)
@@ -1234,187 +1229,45 @@ optional<instruction_ref> find_recipe(instruction_ref ins)
     return pre;
 }
 
-std::string recipe_op_name(instruction_ref recipe)
+// The instruction a path made by input_path leads to from kernel, or nothing
+static optional<instruction_ref> follow_path(instruction_ref kernel, const std::string& path)
 {
-    return any_cast<precompile_op>(recipe->get_operator()).op.name();
+    auto ins = kernel;
+    for(const auto& part : split_string(path, '.'))
+    {
+        if(part.empty() or not std::all_of(part.begin(), part.end(), [](unsigned char c) {
+               return std::isdigit(c) != 0;
+           }))
+            return nullopt;
+        auto i = std::stoul(part);
+        if(i >= ins->inputs().size())
+            return nullopt;
+        ins = ins->inputs()[i];
+    }
+    return ins;
 }
 
-namespace {
-
-// The arguments of a kernel and the fills of its arguments, as (argument index, fill value)
-struct kernel_signature
-{
-    std::vector<shape> inputs;
-    shape output;
-    std::int64_t output_arg = -1;
-    std::vector<std::pair<std::size_t, double>> prefills;
-};
-
-// A candidate can replace a kernel in place when it takes the same arguments and every fill it
-// needs is already in the program. The fills stay when the kernel is swapped, so the program can
-// have fills the candidate does not need: one from a split-K config the candidate does not use,
-// or one inserted by lowering (nms_compact), which a candidate compiled alone does not see.
-bool fits_in_place(const kernel_signature& kernel, const kernel_signature& candidate)
-{
-    return kernel.inputs == candidate.inputs and kernel.output == candidate.output and
-           kernel.output_arg == candidate.output_arg and
-           std::all_of(candidate.prefills.begin(), candidate.prefills.end(), [&](const auto& f) {
-               return contains(kernel.prefills, f);
-           });
-}
-
-// The fill value of a kernel compiled from hip::fill, read from its recipe
-optional<double> compiled_fill_value(instruction_ref ins)
+optional<std::vector<instruction_ref>> recipe_inputs(instruction_ref ins)
 {
     auto recipe = find_recipe(ins);
     if(not recipe.has_value())
         return nullopt;
-    auto op = any_cast<precompile_op>((*recipe)->get_operator()).op;
-    if(op.name() != "hip::fill")
-        return nullopt;
-    return op.to_value().at("value").to<double>();
-}
-
-template <class F>
-kernel_signature make_signature(instruction_ref ins, const code_object_op& co, F get_fill_value)
-{
-    kernel_signature sig;
-    sig.inputs     = co.expected_inputs;
-    sig.output     = co.output;
-    sig.output_arg = co.get_output_arg(co.expected_inputs.size());
-    for(auto i : range(ins->inputs().size()))
+    std::vector<instruction_ref> result;
+    for(auto param : (*recipe)->inputs())
     {
-        if(auto fill = get_fill_value(ins->inputs()[i]))
-            sig.prefills.emplace_back(i, *fill);
-    }
-    return sig;
-}
-
-// Insert a compiled candidate into its own module and return its kernel, or nothing when the
-// replacement is not a single kernel
-optional<std::pair<code_object_op, kernel_signature>> candidate_kernel(const compiler_replace& cr,
-                                                                       instruction_ref pre_ins)
-{
-    module m{"recompile_candidate"};
-    auto ins = m.add_instruction(pre_ins->get_operator(),
-                                 add_parameters(m, to_shapes(pre_ins->inputs())),
-                                 pre_ins->module_inputs());
-    m.add_return({ins});
-    cr.replace(m, ins);
-    auto co_ins = single_code_object(m.begin(), m.end());
-    if(not co_ins.has_value())
-        return nullopt;
-    auto co  = any_cast<code_object_op>((*co_ins)->get_operator());
-    auto sig = make_signature(*co_ins, co, [](instruction_ref i) -> optional<double> {
-        if(i->name() != "hip::fill")
+        if(param->name() != "@param")
             return nullopt;
-        return i->get_operator().to_value().at("value").to<double>();
-    });
-    return std::make_pair(co, sig);
+        auto input = follow_path(ins, any_cast<builtin::param>(param->get_operator()).parameter);
+        if(not input.has_value())
+            return nullopt;
+        result.push_back(*input);
+    }
+    return result;
 }
 
-bool has_result(const std::shared_ptr<compile_cell>& cell) { return cell->result.has_value(); }
-
-} // namespace
-
-std::vector<recompiled_kernel> recompile_kernels(context& ctx,
-                                                 const std::vector<recompile_request>& requests)
+std::string recipe_op_name(instruction_ref recipe)
 {
-    const auto n = requests.size();
-    std::vector<compile_plan> plans;
-    std::vector<code_object_op> olds;
-    std::vector<kernel_signature> sigs;
-    plans.reserve(n);
-    for(const auto& req : requests)
-    {
-        auto old    = any_cast<code_object_op>(req.ins->get_operator());
-        auto recipe = find_recipe(req.ins);
-        if(not recipe.has_value())
-            MIGRAPHX_THROW("recompile: no recipe for kernel " + old.symbol_name);
-        // Compile from the precompile op in the recipe module, which the plan does not change
-        auto pre = *recipe;
-        plans.push_back({&ctx,
-                         any_cast<precompile_op>(pre->get_operator()).op,
-                         pre,
-                         req.ins->module_inputs().front()});
-        sigs.push_back(make_signature(req.ins, old, &compiled_fill_value));
-        olds.push_back(std::move(old));
-    }
-    par_compile(n, [&](auto i) { plans[i].update_config(requests[i].exhaustive); });
-
-    std::vector<recompiled_kernel> result(n);
-    std::vector<bool> done(n, false);
-    // A second pass picks up kernels whose problem was being benchmarked by another kernel
-    for(int pass = 0; pass < 2; pass++)
-    {
-        compile_manager cm;
-        std::vector<std::size_t> batch;
-        for(auto i : range(n))
-        {
-            if(done[i])
-                continue;
-            plans[i].results.clear();
-            plans[i].add_cells(false, false);
-            if(plans[i].results.empty())
-                continue;
-            batch.push_back(i);
-            cm.cps.push_back(plans[i]);
-        }
-        cm.compile_cells();
-
-        for(auto b : range(batch.size()))
-        {
-            auto i     = batch[b];
-            auto& cp   = plans[i];
-            cp.results = cm.cps[b].results;
-            std::vector<optional<code_object_op>> kernels(cp.results.size());
-            std::size_t excluded = 0;
-            if(std::none_of(cp.results.begin(), cp.results.end(), &has_result))
-                MIGRAPHX_THROW("recompile: kernel " + olds[i].symbol_name +
-                               " failed to compile for " +
-                               ctx.get_current_device().get_device_name() +
-                               " (set MIGRAPHX_TRACE_BENCHMARKING=1 to see the compiler errors)");
-            for(auto j : range(cp.results.size()))
-            {
-                if(not has_result(cp.results[j]))
-                    continue;
-                auto k = candidate_kernel(*cp.results[j]->result, cp.ins);
-                if(k.has_value() and fits_in_place(sigs[i], k->second))
-                {
-                    kernels[j] = k->first;
-                    continue;
-                }
-                // Cells can be shared with other kernels, so drop this slot, not the cell
-                cp.results[j] = std::make_shared<compile_cell>(cp.results[j]->solution);
-                excluded++;
-            }
-            if(excluded > 0)
-                log::info() << "recompile: excluded " << excluded << " candidates for "
-                            << olds[i].symbol_name
-                            << " that take different arguments or need a fill the program does "
-                               "not have (for example split-K)";
-            if(std::none_of(cp.results.begin(), cp.results.end(), &has_result))
-                MIGRAPHX_THROW("recompile: no candidate for kernel " + olds[i].symbol_name +
-                               " keeps its signature; compile the model again");
-            const auto& best = cp.benchmark();
-            std::size_t j    = std::distance(
-                cp.results.begin(),
-                std::find_if(cp.results.begin(), cp.results.end(), [&](const auto& c) {
-                    return has_result(c) and &*c->result == &best;
-                }));
-            result[i].code_object = *kernels.at(j);
-            result[i].tunable     = cp.config.has_value();
-            result[i].solution    = cp.solution_of(best);
-            result[i].excluded    = excluded;
-            result[i].benchmarked = not ctx.is_cross_compile();
-            done[i]               = true;
-        }
-    }
-    auto missing = std::find(done.begin(), done.end(), false);
-    if(missing != done.end())
-        MIGRAPHX_THROW("recompile: no valid compilation for kernel " +
-                       olds[std::distance(done.begin(), missing)].symbol_name);
-    return result;
+    return any_cast<precompile_op>(recipe->get_operator()).op.name();
 }
 
 } // namespace gpu

@@ -26,6 +26,7 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/reflect.hpp>
 #include <cstddef>
 #include <string>
 
@@ -36,7 +37,7 @@ namespace gpu {
 /// The properties of a GPU that are needed to compile for it. It can either be
 /// queried from a local device or filled in by the user to compile for a device
 /// that is not present.
-struct MIGRAPHX_GPU_EXPORT device_description
+struct MIGRAPHX_GPU_EXPORT device_description : reflect_equality<device_description>
 {
     /// Query the properties of the device with the given hip device id.
     static device_description from_device(std::size_t device);
@@ -62,18 +63,6 @@ struct MIGRAPHX_GPU_EXPORT device_description
                     f(self.max_threads_per_cu, "max_threads_per_cu"),
                     f(self.max_threads_per_block, "max_threads_per_block"),
                     f(self.wavefront_size, "wavefront_size"));
-    }
-
-    friend bool operator==(const device_description& x, const device_description& y)
-    {
-        return x.arch == y.arch and x.num_cu == y.num_cu and x.num_chiplets == y.num_chiplets and
-               x.max_threads_per_cu == y.max_threads_per_cu and
-               x.max_threads_per_block == y.max_threads_per_block and
-               x.wavefront_size == y.wavefront_size;
-    }
-    friend bool operator!=(const device_description& x, const device_description& y)
-    {
-        return not(x == y);
     }
 };
 

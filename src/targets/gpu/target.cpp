@@ -87,6 +87,7 @@
 #include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/recompile.hpp>
+#include <migraphx/gpu/record_compiled_for.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -186,7 +187,7 @@ struct backend_options
 
 // The backend options passed to compile, with any key set by MIGRAPHX_GPU_OPTIONS (a json-like
 // object such as "{convolution_layout:channels_last}") overriding it.
-backend_options get_backend_options(const compile_options& options)
+value backend_options_value(const compile_options& options)
 {
     auto opts = options.backend_options;
     auto env  = string_value_of(MIGRAPHX_GPU_OPTIONS{});
@@ -198,7 +199,18 @@ backend_options get_backend_options(const compile_options& options)
         for(const auto& opt : v)
             opts[opt.get_key()] = opt.without_key();
     }
-    return from_value<backend_options>(value(opts));
+    return opts;
+}
+
+backend_options get_backend_options(const compile_options& options)
+{
+    return from_value<backend_options>(backend_options_value(options));
+}
+
+// The options recorded with a recompilable program
+value recorded_options(const compile_options& options)
+{
+    return compile_options_value(options, backend_options_value(options));
 }
 
 // Wave64 devices (accvgprs double the per-lane register budget) fuse head dims up to 512
@@ -431,7 +443,8 @@ struct pipeline_factory
             normalize_ops{},
             dead_code_elimination{},
             eliminate_identity{},
-            enable_pass(options.recompilable, record_compiled_for{get_context()}),
+            enable_pass(options.recompilable,
+                        record_compiled_for{get_context(), recorded_options(options)}),
         };
     }
 };
@@ -466,7 +479,18 @@ std::vector<pass> target::get_recompile_passes(migraphx::context& gctx,
 {
     auto& ctx = any_cast<context>(gctx);
     setup_context(ctx, options, get_backend_options(options));
-    return {recompile_ops{&ctx}};
+    auto user_options = recorded_options(options);
+    // Dead code elimination must not run on a compiled program: kernels that write into part of a
+    // buffer are not used by anything
+    return {restore_recipes{&ctx, user_options},
+            compile_ops{.ctx                     = &ctx,
+                        .exhaustive_tune         = options.exhaustive_tune,
+                        .skip_benchmark          = options.compile_mode == compile_modes::eager,
+                        .recompilable            = true,
+                        .exhaustive_from_context = true},
+            remove_recompile_leftovers{},
+            check_recompiled_memory{},
+            record_compiled_for{&ctx, user_options}};
 }
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const

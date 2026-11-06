@@ -37,6 +37,8 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_description.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/recompile.hpp>
+#include <migraphx/gpu/record_compiled_for.hpp>
 #include <test.hpp>
 
 #include <algorithm>
@@ -227,16 +229,82 @@ TEST_CASE(gfx_generation)
     EXPECT(migraphx::gpu::get_gfx_generation("sm_80") == 0);
 }
 
-TEST_CASE(tuning_level_recorded_as_comment)
+static migraphx::compile_options options_with_staging(std::size_t percent)
 {
-    auto p   = compile_program(migraphx::make_target("gpu"));
-    auto* mm = p.get_main_module();
-    EXPECT(count_comments(p, "gpu_tuning") == 1);
-    EXPECT(not migraphx::gpu::is_exhaustive_tuned(*mm));
-    migraphx::gpu::set_exhaustive_tuned(*mm, true);
-    EXPECT(count_comments(p, "gpu_tuning") == 1);
-    auto q = migraphx::load_buffer(migraphx::save_buffer(p));
-    EXPECT(migraphx::gpu::is_exhaustive_tuned(*q.get_main_module()));
+    auto options                                            = recipe_options();
+    options.backend_options["literal_staging_peak_percent"] = percent;
+    return options;
+}
+
+static migraphx::value recorded_options(const migraphx::program& p)
+{
+    return migraphx::gpu::get_compile_options(*p.get_main_module());
+}
+
+static std::size_t recorded_staging(const migraphx::program& p)
+{
+    return recorded_options(p)
+        .at("backend_options")
+        .at("literal_staging_peak_percent")
+        .to<std::size_t>();
+}
+
+TEST_CASE(compile_options_recorded_as_comment)
+{
+    auto p   = compile_program(migraphx::make_target("gpu"), options_with_staging(7));
+    auto rec = recorded_options(p);
+    EXPECT(count_comments(p, "gpu_compile_options") == 1);
+    EXPECT(rec.at("offload_copy").to<bool>());
+    EXPECT(rec.at("recompilable").to<bool>());
+    EXPECT(not rec.at("exhaustive_tune").to<bool>());
+    EXPECT(rec.at("compile_mode").to<std::string>() == "balanced");
+    EXPECT(recorded_staging(p) == 7);
+    migraphx::file_options fo;
+    fo.finalize = false;
+    auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
+    EXPECT(recorded_options(q) == rec);
+}
+
+TEST_CASE(merge_compile_options_rules)
+{
+    migraphx::value recorded = {{"exhaustive_tune", false},
+                                {"compile_mode", "balanced"},
+                                {"fast_math", true},
+                                {"backend_options", {{"a", 1}, {"b", 2}}}};
+    migraphx::value user     = {{"exhaustive_tune", false},
+                                {"compile_mode", "max"},
+                                {"fast_math", false},
+                                {"backend_options", {{"b", 3}}}};
+    auto merged              = migraphx::gpu::merge_compile_options(recorded, user);
+    // compile_mode max asks for exhaustive tuning, but the recorded mode is kept
+    EXPECT(migraphx::gpu::is_exhaustive(merged));
+    EXPECT(merged.at("compile_mode").to<std::string>() == "balanced");
+    EXPECT(merged.at("fast_math").to<bool>());
+    EXPECT(merged.at("backend_options").at("a").to<int>() == 1);
+    EXPECT(merged.at("backend_options").at("b").to<int>() == 3);
+
+    // Exhaustive tuning that was recorded is not lowered
+    recorded["exhaustive_tune"] = true;
+    user["compile_mode"]        = "balanced";
+    EXPECT(migraphx::gpu::is_exhaustive(migraphx::gpu::merge_compile_options(recorded, user)));
+
+    // Without a record the user's options are used
+    EXPECT(migraphx::gpu::merge_compile_options({}, user) == user);
+}
+
+TEST_CASE(check_recompiled_memory_refuses_allocation)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    auto x = m.add_parameter("x", s);
+    m.add_return({m.add_instruction(migraphx::make_op("relu"), x)});
+    migraphx::gpu::check_recompiled_memory{}.apply(m);
+
+    auto alloc =
+        m.add_instruction(migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s)}}));
+    m.add_instruction(migraphx::make_op("identity"), alloc);
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::gpu::check_recompiled_memory{}.apply(m); }, "need memory"));
 }
 
 TEST_CASE(recipes_kept)
@@ -275,7 +343,7 @@ TEST_CASE(no_recipes_by_default)
         EXPECT(ins->module_inputs().empty());
     }
     EXPECT(count_comments(p, "gpu_target") == 0);
-    EXPECT(count_comments(p, "gpu_tuning") == 0);
+    EXPECT(count_comments(p, "gpu_compile_options") == 0);
 }
 
 TEST_CASE(compiled_for_recorded_as_comment)
@@ -336,15 +404,19 @@ TEST_CASE(recompile_shares_modules)
 
 TEST_CASE(recompile_exhaustive_level)
 {
-    auto p = compile_program(migraphx::make_target("gpu"));
+    auto p = compile_program(migraphx::make_target("gpu"), options_with_staging(7));
+    EXPECT(not migraphx::gpu::is_exhaustive(recorded_options(p)));
     migraphx::compile_options options;
-    options.exhaustive_tune = true;
+    options.exhaustive_tune                                 = true;
+    options.backend_options["literal_staging_peak_percent"] = 9;
     p.recompile(migraphx::make_target("gpu"), options);
-    EXPECT(migraphx::gpu::is_exhaustive_tuned(*p.get_main_module()));
-    EXPECT(count_comments(p, "gpu_tuning") == 1);
-    // A later recompile keeps the recorded level
+    EXPECT(migraphx::gpu::is_exhaustive(recorded_options(p)));
+    EXPECT(recorded_staging(p) == 9);
+    EXPECT(count_comments(p, "gpu_compile_options") == 1);
+    // A later recompile without options keeps the recorded ones
     p.recompile(migraphx::make_target("gpu"));
-    EXPECT(migraphx::gpu::is_exhaustive_tuned(*p.get_main_module()));
+    EXPECT(migraphx::gpu::is_exhaustive(recorded_options(p)));
+    EXPECT(recorded_staging(p) == 9);
     expect_matches_ref(p);
 }
 
@@ -430,6 +502,93 @@ TEST_CASE(retarget_kernel_with_lowering_fill)
     p.recompile(cross_target("gfx1100"));
     EXPECT(compiled_arch(p) == "gfx1100");
     EXPECT(has_kernel(p, "nms_compact_kernel"));
+}
+
+static void expect_same_as_ref(const migraphx::program& p,
+                               migraphx::program ref,
+                               const migraphx::parameter_map& params)
+{
+    ref.compile(migraphx::make_target("ref"));
+    auto expected = run_program(ref, params);
+    auto results  = run_program(p, params);
+    EXPECT(results.size() == expected.size());
+    for(std::size_t i = 0; i < results.size(); i++)
+        EXPECT(migraphx::verify::verify_rms_range(to_vector(results[i]), to_vector(expected[i])));
+}
+
+// The compiler of scatter copies the data into the output before the kernel, so the kernel does
+// not take the data as an argument
+static migraphx::program make_scatter_program()
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape data_s{migraphx::shape::float_type, {4, 4}};
+    migraphx::shape indices_s{migraphx::shape::int64_type, {2, 1}};
+    migraphx::shape updates_s{migraphx::shape::float_type, {2, 4}};
+    auto data    = mm->add_parameter("data", data_s);
+    auto indices = mm->add_literal(migraphx::literal{indices_s, std::vector<std::int64_t>{0, 2}});
+    auto updates = mm->add_parameter("updates", updates_s);
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates)});
+    return p;
+}
+
+TEST_CASE(recompile_scatter)
+{
+    auto p =
+        compile_program(migraphx::make_target("gpu"), recipe_options(), make_scatter_program());
+    auto kernels = kernel_instructions(p);
+    // The recipe finds the data through the copy
+    EXPECT(std::any_of(kernels.begin(), kernels.end(), [](auto ins) {
+        auto inputs = migraphx::gpu::recipe_inputs(ins);
+        return inputs.has_value() and inputs->size() == 4 and ins->inputs().size() == 3;
+    }));
+    p.recompile(migraphx::make_target("gpu"));
+    EXPECT(all_have_recipes(p));
+    expect_same_as_ref(
+        p,
+        make_scatter_program(),
+        {{"data", migraphx::generate_argument({migraphx::shape::float_type, {4, 4}}, 0)},
+         {"updates", migraphx::generate_argument({migraphx::shape::float_type, {2, 4}}, 1)}});
+}
+
+// Instructions of the main module that nothing uses, other than the last one
+static std::size_t count_unused(const migraphx::program& p)
+{
+    const auto* mm = p.get_main_module();
+    auto last      = std::prev(mm->end());
+    return static_cast<std::size_t>(std::count_if(mm->begin(), last, [](const auto& ins) {
+        return ins.outputs().empty() and ins.get_shape().ndim() != 0 and ins.name() != "@param" and
+               ins.name() != "@literal";
+    }));
+}
+
+// The concat is eliminated, so the reductions write into parts of its buffer and nothing uses
+// them
+static migraphx::program make_concat_program()
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+    auto a = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), x);
+    auto b = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), y);
+    auto c = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), a, b);
+    mm->add_return({mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), c)});
+    return p;
+}
+
+TEST_CASE(recompile_keeps_unused_writers)
+{
+    auto p = compile_program(migraphx::make_target("gpu"), recipe_options(), make_concat_program());
+    auto unused = count_unused(p);
+    EXPECT(unused > 0);
+    auto kernels = get_kernels(p).size();
+    p.recompile(migraphx::make_target("gpu"));
+    EXPECT(count_unused(p) == unused);
+    EXPECT(get_kernels(p).size() == kernels);
+    expect_same_as_ref(p, make_concat_program(), make_params());
 }
 
 TEST_CASE(recompile_requires_compiled_program)

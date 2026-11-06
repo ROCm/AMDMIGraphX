@@ -117,11 +117,11 @@ __device__ void conv3x3s2_fp32(F f, Output output, Input x, Weights weights, Inp
     auto idx                = make_index();
     const index_int lane    = idx.local % 32;                                 // lane in the wave
     const index_int wave    = __builtin_amdgcn_readfirstlane(idx.local / 32); // wave in the group
-    const index_int p_block = idx.group % p_blocks;                // which run of 32 groups
-    const index_int k_block = (idx.group / p_blocks) % k_blocks;   // which block of TK channels
-    const index_int batch   = idx.group / (p_blocks * k_blocks);   // which image
-    const index_int g       = p_block * 32 + lane;                 // this lane's group number
-    const bool valid        = g < groups;                          // false for idle tail lanes
+    const index_int p_block = idx.group % p_blocks;              // which run of 32 groups
+    const index_int k_block = (idx.group / p_blocks) % k_blocks; // which block of TK channels
+    const index_int batch   = idx.group / (p_blocks * k_blocks); // which image
+    const index_int g       = p_block * 32 + lane;               // this lane's group number
+    const bool valid        = g < groups;                        // false for idle tail lanes
     // Idle lanes still run the loop (a wave runs in lockstep); oh = ow0 = 0 keeps their loads
     // in range and they never store.
     const index_int oh      = valid ? g / groups_w : 0;            // output row

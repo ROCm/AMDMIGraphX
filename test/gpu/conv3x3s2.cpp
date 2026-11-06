@@ -237,8 +237,8 @@ TEST_CASE(conv3x3s2_fp32_all_tiles)
         auto wt = transpose_weights(w);
         for(const auto& tile : tiles)
         {
-            auto co =
-                migraphx::gpu::compile_op("gpu::conv3x3s2", ctx, {x_s, wt.get_shape(), out_s}, tile);
+            auto co = migraphx::gpu::compile_op(
+                "gpu::conv3x3s2", ctx, {x_s, wt.get_shape(), out_s}, tile);
             migraphx::program p;
             auto* mm = p.get_main_module();
             mm->add_instruction(co,

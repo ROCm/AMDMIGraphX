@@ -115,7 +115,7 @@ __device__ void conv3x3s2_fp32(F f, Output output, Input x, Weights weights, Inp
     // The workgroup index is a mixed-radix number with p_block fastest:
     //   idx.group = (batch * k_blocks + k_block) * p_blocks + p_block
     auto idx                = make_index();
-    const index_int lane    = idx.local % 32;                                  // lane in the wave
+    const index_int lane    = idx.local % 32;                                 // lane in the wave
     const index_int wave    = __builtin_amdgcn_readfirstlane(idx.local / 32); // wave in the group
     const index_int p_block = idx.group % p_blocks;                // which run of 32 groups
     const index_int k_block = (idx.group / p_blocks) % k_blocks;   // which block of TK channels

@@ -7124,4 +7124,161 @@ TEST_CASE(layout_reshape_lazy_unchanged)
     EXPECT(m1 == m2);
 }
 
+// A slice between a copying reshape and the layout moves below the layout so
+// the two copies fold into one layout that the reshape and slice view
+TEST_CASE(layout_slice_reshape_transposed)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto r  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), t);
+        auto sl = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), r);
+        auto l = m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1, 2}}}), sl);
+        m1.add_instruction(pass_op{}, l);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto t =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto l =
+            m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1, 2, 3}}}), t);
+        auto r  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), l);
+        auto sl = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), r);
+        m2.add_instruction(pass_op{}, sl);
+    }
+    EXPECT(m1 == m2);
+}
+
+// A slice of an aliasing reshape stays where it is
+TEST_CASE(layout_slice_lazy_reshape_unchanged)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto r  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 12, 5}}}), x);
+        auto sl = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), r);
+        auto l = m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1, 2}}}), sl);
+        m1.add_instruction(pass_op{}, l);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// A slice with another consumer keeps its packed layout output
+TEST_CASE(layout_slice_shared_unchanged)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto r  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), t);
+        auto sl = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), r);
+        auto l = m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 1, 2}}}), sl);
+        m1.add_instruction(pass_op{}, l, sl);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// A pad and pointwise ops with broadcast operands keep their input's layout, so
+// the layout moves above them to fold into the copying reshape
+TEST_CASE(layout_passthrough_pad_pointwise)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::shape bs{migraphx::shape::float_type, {15}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto b = m1.add_parameter("b", bs);
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto r  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), t);
+        auto sl = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), r);
+        auto p = m1.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 1, 0, 0, 1, 0}}, {"mode", 2}}), sl);
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 15}}}), b);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), mb, p);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        auto l =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 1}}}), relu);
+        m1.add_instruction(pass_op{}, l);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto b = m2.add_parameter("b", bs);
+        auto t =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto l =
+            m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), t);
+        auto r  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), l);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 15}}}), b);
+        auto sl = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), r);
+        auto p = m2.add_instruction(
+            migraphx::make_op("pad", {{"pads", {0, 1, 0, 0, 1, 0}}, {"mode", 2}}), sl);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), mb, p);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+        m2.add_instruction(pass_op{}, relu);
+    }
+    EXPECT(m1 == m2);
+}
+
+// A pointwise op with two full operands would need two layouts, so it is left alone
+TEST_CASE(layout_passthrough_two_inputs_unchanged)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 15}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto y   = m1.add_parameter("y", s);
+        auto add = m1.add_instruction(migraphx::make_op("add"), x, y);
+        auto l = m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 1}}}), add);
+        m1.add_instruction(pass_op{}, l);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// A pointwise op with another consumer keeps its own output
+TEST_CASE(layout_passthrough_shared_unchanged)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto r    = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 15}}}), t);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), r);
+        auto l =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 1}}}), relu);
+        m1.add_instruction(pass_op{}, l, relu);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

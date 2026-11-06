@@ -2520,6 +2520,106 @@ struct find_layout_reshape
     }
 };
 
+// Move a layout above the ops that carry their input's layout unchanged (pad and
+// pointwise ops with one non-broadcast input), and above a slice of a copying
+// reshape, so the layout reaches that reshape for find_layout_reshape to fold
+// into a single copy. The whole chain is walked in one step since each
+// simplify_reshapes iteration visits an instruction once.
+struct find_layout_passthrough
+{
+    static bool keeps_input_layout(instruction_ref ins)
+    {
+        if(ins->name() == "pad")
+            return true;
+        if(contains({"layout", "contiguous"}, ins->name()) or not ins->module_inputs().empty())
+            return false;
+        return ins->get_operator().attributes().get("pointwise", false);
+    }
+
+    static bool is_data_input(instruction_ref ins)
+    {
+        const auto& s = ins->get_shape();
+        return not s.dynamic() and not s.broadcasted() and s.elements() > 1;
+    }
+
+    static bool slices_copying_reshape(instruction_ref ins)
+    {
+        if(ins->name() != "slice" or ins->inputs().size() != 1)
+            return false;
+        auto reshape = ins->inputs().front();
+        return reshape->name() == "reshape" and reshape->inputs().size() == 1 and
+               find_layout_reshape::is_copying_reshape(reshape);
+    }
+
+    static bool is_passthrough(instruction_ref ins)
+    {
+        return keeps_input_layout(ins) or slices_copying_reshape(ins);
+    }
+
+    auto matcher() const
+    {
+        return match::name("layout")(match::args(
+            match::any(match::used_once(), match::make_basic_pred_matcher(&is_passthrough))));
+    }
+
+    // The input whose layout the op carries to its output
+    static std::optional<instruction_ref> data_input(instruction_ref ins)
+    {
+        const auto& args = ins->inputs();
+        if(slices_copying_reshape(ins))
+            return args.front();
+        if(std::count_if(args.begin(), args.end(), &is_data_input) != 1)
+            return std::nullopt;
+        return *std::find_if(args.begin(), args.end(), &is_data_input);
+    }
+
+    // Whether applying the layout to x before op yields the same shape as after it
+    static bool carries_layout(const operation& layout_op, instruction_ref op, instruction_ref x)
+    {
+        if(slices_copying_reshape(op))
+            return true;
+        std::vector<shape> shapes;
+        std::transform(op->inputs().begin(),
+                       op->inputs().end(),
+                       std::back_inserter(shapes),
+                       [&](instruction_ref in) {
+                           return in == x ? layout_op.compute_shape({x->get_shape()})
+                                          : in->get_shape();
+                       });
+        return op->get_operator().compute_shape(shapes) ==
+               layout_op.compute_shape({op->get_shape()});
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto layout    = r.result;
+        auto layout_op = layout->get_operator();
+        // Collect the ops the layout moves above, nearest first
+        std::vector<instruction_ref> chain;
+        auto x = layout->inputs().front();
+        while(x->outputs().size() == 1 and is_passthrough(x))
+        {
+            auto input = data_input(x);
+            if(not input.has_value() or not carries_layout(layout_op, x, *input))
+                break;
+            chain.push_back(x);
+            x = *input;
+        }
+        if(chain.empty())
+            return;
+        // Rebuild the chain on top of the moved layout
+        auto y = m.insert_instruction(chain.back(), layout_op, x);
+        for(auto op : reverse(chain))
+        {
+            auto args = op->inputs();
+            std::replace(args.begin(), args.end(), x, y);
+            x = op;
+            y = m.insert_instruction(layout, op->get_operator(), args);
+        }
+        m.replace_instruction(layout, y);
+    }
+};
+
 // Rewrite layout(multibroadcast|broadcast(x)) to broadcast(layout(x)), skipping
 // the inner layout when it would be a no-op, so only the unique data is
 // materialized instead of a full copy per broadcast output.
@@ -2659,6 +2759,7 @@ void simplify_reshapes::apply(module& m) const
                             find_mul_add_shape_op_dot{},
                             find_op_shape_transform_op{.enable = enable_op_shape_transform_op},
                             find_entry_shape_transform_op{.enable = enable_op_shape_transform_op},
+                            find_layout_passthrough{},
                             find_layout_reshape{});
         dead_code_elimination{}.apply(m);
     });

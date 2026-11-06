@@ -127,7 +127,9 @@ struct matmulnbits : op_builder<matmulnbits>
             MIGRAPHX_THROW("MatMulNBits: bits only supported for value of 4, actual value " +
                            std::to_string(bits));
 
-        if(block_size < 16 or (block_size & (block_size - 1)) != 0)
+        const unsigned int unsigned_block_size = block_size;
+        if(block_size < 16 or
+           (unsigned_block_size & (unsigned_block_size - 1u)) != 0u)
             MIGRAPHX_THROW("MatMulNBits: block_size must be a power of 2 and >=16, actual value " +
                            std::to_string(block_size));
 

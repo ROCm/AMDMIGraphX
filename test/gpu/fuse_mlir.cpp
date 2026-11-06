@@ -3087,6 +3087,51 @@ TEST_CASE(dyn_conv)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// A kv-cache flash-decoding group keeps its tag and returns {O', LSE}. The MLIR
+// matcher has to take that group and leave the tuple elements on main.
+TEST_CASE(kv_flash_decoding_group)
+{
+    migraphx::shape s{migraphx::shape::half_type, {1, 2, 2, 1, 4}};
+    migraphx::program p;
+    {
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto group =
+            add_group(p,
+                      "attn0_kv_flash_decoding",
+                      "kv_cache_attention",
+                      {x},
+                      [=](auto* gm, const auto& inputs) {
+                          auto reduced = gm->add_instruction(
+                              migraphx::make_op("reduce_max", {{"axes", {2}}}), inputs[0]);
+                          return std::vector<migraphx::instruction_ref>{inputs[0], reduced};
+                      });
+        auto output =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
+        auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        mm->add_return({output, lse});
+    }
+    run_pass(p);
+
+    migraphx::program expected;
+    {
+        auto* mm = expected.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto fused =
+            add_mlir(expected, "attn0_kv_flash_decoding", {x}, [](auto* gm, const auto& inputs) {
+                auto reduced = gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}),
+                                                   inputs[0]);
+                return std::make_tuple(migraphx::make_op("group", {{"tag", "kv_cache_attention"}}),
+                                       std::vector<migraphx::instruction_ref>{inputs[0], reduced});
+            });
+        auto output =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        mm->add_return({output, lse});
+    }
+    EXPECT(p.sort() == expected.sort());
+}
+
 int main(int argc, const char* argv[])
 {
     if(migraphx::gpu::mlir_enabled())

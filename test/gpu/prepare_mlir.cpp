@@ -60,6 +60,34 @@ TEST_CASE(nonstandard_literal_normalized)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// A unit-axis reduction cannot be collapsed into an empty-axes reduction. Keep it
+// intact because reduce_any/all normalize values and reduce_max has an initializer.
+TEST_CASE(reduce_unit_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 32, 128, 1, 1}};
+
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto max = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), x);
+        auto any = m1.add_instruction(migraphx::make_op("reduce_any", {{"axes", {4}}}), x);
+        auto all = m1.add_instruction(migraphx::make_op("reduce_all", {{"axes", {4}}}), x);
+        m1.add_return({max, any, all});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto max = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), x);
+        auto any = m2.add_instruction(migraphx::make_op("reduce_any", {{"axes", {4}}}), x);
+        auto all = m2.add_instruction(migraphx::make_op("reduce_all", {{"axes", {4}}}), x);
+        m2.add_return({max, any, all});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // An already-standard literal is left untouched.
 TEST_CASE(standard_literal_unchanged)
 {

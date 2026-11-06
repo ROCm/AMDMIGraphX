@@ -63,8 +63,7 @@ static migraphx::program make_program(const lens_t& x_lens,
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto x   = mm->add_parameter("x", {type, x_lens});
-    auto w =
-        mm->add_literal(migraphx::generate_literal({type, {k, x_lens[1] / group, 3, 3}}, 4));
+    auto w   = mm->add_literal(migraphx::generate_literal({type, {k, x_lens[1] / group, 3, 3}}, 4));
     auto attrs = migraphx::value{{"padding", {1, 1}}, {"stride", {2, 2}}, {"group", group}};
     for(const auto& a : conv_attrs)
         attrs[a.get_key()] = a.without_key();

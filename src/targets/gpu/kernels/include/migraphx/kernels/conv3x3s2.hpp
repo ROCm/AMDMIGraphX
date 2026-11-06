@@ -124,9 +124,9 @@ __device__ void conv3x3s2_fp32(F f, Output output, Input x, Weights weights, Inp
     const bool valid        = g < groups;                        // false for idle tail lanes
     // Idle lanes still run the loop (a wave runs in lockstep); oh = ow0 = 0 keeps their loads
     // in range and they never store.
-    const index_int oh      = valid ? g / groups_w : 0;            // output row
-    const index_int ow0     = valid ? (g % groups_w) * TP : 0;     // first output column
-    const index_int k0      = k_block * TK;                        // first output channel
+    const index_int oh  = valid ? g / groups_w : 0;        // output row
+    const index_int ow0 = valid ? (g % groups_w) * TP : 0; // first output column
+    const index_int k0  = k_block * TK;                    // first output channel
 
     // Step 2: byte offsets of the lane's window, computed once and reused for every channel.
     // Zero padding needs no branch: the top padding row and the left padding column get an

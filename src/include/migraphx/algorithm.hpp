@@ -164,6 +164,16 @@ void group_unique(Iterator start, Iterator last, Output out, Predicate pred)
     }
 }
 
+/// Like std::find for a sequence that ends with a sentinel value instead of an end iterator, such
+/// as a C string or environ. Returns the iterator at the sentinel.
+template <class Iterator, class T>
+Iterator find_sentinel(Iterator first, const T& sentinel)
+{
+    while(*first != sentinel)
+        ++first;
+    return first;
+}
+
 template <class Iterator, class Predicate, class Output>
 void group_find(Iterator start, Iterator last, Predicate pred, Output out)
 {

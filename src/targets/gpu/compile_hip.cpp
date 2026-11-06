@@ -22,14 +22,17 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/lexing.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
 #include <migraphx/logger.hpp>
 #include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <iostream>
 #include <deque>
 #include <string_view>
@@ -58,6 +61,97 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
 
+namespace {
+
+// isspace itself is often a macro, and a negative char is not a valid argument.
+bool is_flag_space(char c) { return std::isspace(static_cast<unsigned char>(c)) != 0; }
+
+// A quoted segment with its quotes. Inside double quotes a backslash protects the next character;
+// inside single quotes nothing does.
+lexer lex_quoted(char quote)
+{
+    return [=](const char* start, const char* end) {
+        if(*start != quote)
+            return start;
+        const auto* it = start + 1;
+        while(it != end and *it != quote)
+        {
+            if(quote == '"' and *it == '\\' and it + 1 != end)
+                ++it;
+            ++it;
+        }
+        if(it == end)
+            MIGRAPHX_THROW("Unterminated quote in compiler flags");
+        return it + 1;
+    };
+}
+
+// A backslash and the character it protects.
+const char* lex_escape(const char* start, const char* end)
+{
+    if(*start != '\\')
+        return start;
+    if(start + 1 == end)
+        MIGRAPHX_THROW("Unterminated escape in compiler flags");
+    return start + 2;
+}
+
+// A run that no whitespace, quote, or backslash interrupts.
+const char* lex_plain(const char* start, const char* end)
+{
+    return std::find_if(
+        start, end, [](char c) { return is_flag_space(c) or contains({'\'', '"', '\\'}, c); });
+}
+
+// The inside of a double-quoted segment with its escapes resolved.
+std::string unquote_double(std::string_view inner)
+{
+    static const std::vector<lexer> lexers = {&lex_escape,
+                                              lex_while([](char c) { return c != '\\'; })};
+    auto parts = tokenize(inner.data(), inner.data() + inner.size(), lexers);
+    return transform_accumulate(
+        parts.begin(), parts.end(), std::string{}, std::plus<>{}, [](std::string_view part) {
+            // POSIX double quotes: only these escapes drop the backslash. Anything else keeps it.
+            if(part.front() == '\\' and contains({'"', '\\', '$', '`', '\n'}, part[1]))
+                return std::string{part.substr(1)};
+            return std::string{part};
+        });
+}
+
+// The text a token contributes to its argument: quotes removed and escapes resolved.
+std::string unquote(std::string_view token)
+{
+    if(token.front() == '\\')
+        return std::string{token.substr(1)};
+    if(token.front() == '\'')
+        return std::string{token.substr(1, token.size() - 2)};
+    if(token.front() == '"')
+        return unquote_double(token.substr(1, token.size() - 2));
+    return std::string{token};
+}
+
+// Quotes and backslashes group arguments the way a shell would, without expanding or running
+// anything. Repeated spaces still produce no argument. An explicit "" is one empty argument.
+std::vector<std::string> split_flags(const std::string& flags)
+{
+    static const std::vector<lexer> lexers = {
+        lex_while(&is_flag_space), lex_quoted('\''), lex_quoted('"'), &lex_escape, &lex_plain};
+    auto tokens = tokenize(flags.data(), flags.data() + flags.size(), lexers);
+    std::vector<std::string> result;
+    // Adjacent tokens with no whitespace between them are one argument.
+    group_find(
+        tokens.begin(),
+        tokens.end(),
+        [](std::string_view token) { return not is_flag_space(token.front()); },
+        [&](auto first, auto last) {
+            result.push_back(
+                transform_accumulate(first, last, std::string{}, std::plus<>{}, &unquote));
+        });
+    return result;
+}
+
+} // namespace
+
 std::vector<std::string> compile_hip_options(const std::vector<std::string>& params,
                                              const std::string& arch)
 {
@@ -77,8 +171,7 @@ std::vector<std::string> compile_hip_options(const std::vector<std::string>& par
     options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
     options.push_back("--offload-arch=" + arch);
-    std::vector<std::string> extra_flags =
-        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
+    static const auto extra_flags = split_flags(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""));
     options.insert(options.end(), extra_flags.begin(), extra_flags.end());
 
     return options;
@@ -356,7 +449,9 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     compiler.flags.emplace_back("-c");
     compiler.flags.emplace_back("--cuda-device-only");
     compiler.flags.emplace_back("-Wno-unused-command-line-argument");
-    compiler.flags.emplace_back(MIGRAPHX_HIP_COMPILER_FLAGS);
+    static const auto hip_compiler_flags = split_flags(MIGRAPHX_HIP_COMPILER_FLAGS);
+    compiler.flags.insert(
+        compiler.flags.end(), hip_compiler_flags.begin(), hip_compiler_flags.end());
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {

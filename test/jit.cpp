@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ static std::function<F> compile_function(std::string_view src, const std::string
     compiler.flags.emplace_back("-std=c++14");
 #ifndef _WIN32
     compiler.flags.emplace_back("-fPIC");
-    compiler.flags.emplace_back("-DEXPORT=\"\"");
+    compiler.flags.emplace_back("-DEXPORT=");
 #else
     compiler.flags.emplace_back("-DEXPORT=__declspec(dllexport)");
 #endif

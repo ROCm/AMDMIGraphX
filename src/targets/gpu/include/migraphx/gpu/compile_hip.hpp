@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,17 +54,47 @@ struct hiprtc_src_file
     }
 };
 
+/// What the compiler that turns kernel source into code objects reports about itself.
+struct hip_compiler_info
+{
+    /// __clang_major__ and __clang_minor__, kept separate so the cache directory stays readable.
+    std::string major = {};
+    std::string minor = {};
+    /// The full __clang_version__ string, which also names the source revision.
+    std::string version = {};
+
+    bool empty() const { return version.empty(); }
+};
+
+std::vector<std::string> compile_hip_options(const std::vector<std::string>& params,
+                                             const std::string& arch);
+
+/**
+ * Ask the device compiler what version it is.
+ *
+ * It need not be the compiler this library was built with, so the answer comes from compiling a
+ * probe and reading back what it recorded. The result is determined once and reused; it is
+ * empty if the compiler could not be asked.
+ */
+MIGRAPHX_GPU_EXPORT const hip_compiler_info& hip_compiler_version();
+
+MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
+                                         const std::vector<std::string>& flags);
+
 MIGRAPHX_GPU_EXPORT bool hip_has_flags(const std::vector<std::string>& flags);
 
 MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
 compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
                             const std::vector<std::string>& params,
-                            const std::string& arch);
+                            const std::string& arch,
+                            bool quiet = false);
 
 MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs,
                 const std::vector<std::string>& params,
-                const std::string& arch);
+                const std::string& arch,
+                bool disable_processes = false,
+                bool quiet             = false);
 
 MIGRAPHX_GPU_EXPORT std::string enum_params(std::size_t count, std::string param);
 

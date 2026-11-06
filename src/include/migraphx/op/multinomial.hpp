@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -97,14 +97,15 @@ struct multinomial
 
         // Output takes one dimension from each of the two input shapes.  If they are both fixed,
         // return a static shape
-        if((not inputs.front().dynamic()) or (inputs.front().dyn_dims().front().is_fixed()))
+        const bool batch_fixed =
+            not inputs.front().dynamic() or inputs.front().dyn_dims().front().is_fixed();
+        const bool sample_size_fixed =
+            not inputs.back().dynamic() or inputs.back().dyn_dims().back().is_fixed();
+        if(batch_fixed and sample_size_fixed)
         {
-            if((not inputs.back().dynamic()) or (inputs.back().dyn_dims().back().is_fixed()))
-            {
-                size_t batch = {inputs.front().max_lens().front()};
-                size_t sample_size{inputs.back().max_lens().back()};
-                return {dtype, {batch, sample_size}};
-            }
+            size_t batch = {inputs.front().max_lens().front()};
+            size_t sample_size{inputs.back().max_lens().back()};
+            return {dtype, {batch, sample_size}};
         }
         return {dtype,
                 {inputs.front().to_dynamic().dyn_dims().front(),
@@ -118,7 +119,7 @@ struct multinomial
         size_t class_size  = args[0].get_shape().lens().back();
         size_t sample_size = dyn_out.computed_shape.lens().back();
 
-        visit_all(args[0], args[1])([&](auto cdf, auto dist) {
+        get_all<double>(args[0], args[1])([&](auto cdf, auto dist) {
             result.visit([&](auto output) {
                 par_for(batch_size * sample_size, [&](auto i) {
                     auto idx       = args[1].get_shape().multi(i);

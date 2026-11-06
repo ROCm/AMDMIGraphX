@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/op/identity.hpp>
-#include <migraphx/register_op.hpp>
+#include <migraphx/operation.hpp>
 #include <string>
 
 namespace migraphx {
@@ -35,7 +35,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 struct context;
-struct operation;
 
 namespace gpu {
 
@@ -57,16 +56,15 @@ struct hipblaslt_op
         return op.compute_shape(inputs);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
-MIGRAPHX_REGISTER_OP(hipblaslt_op);
 
 struct compile_hipblaslt
 {
-    context* ctx = nullptr;
+    migraphx::context* ctx = nullptr;
     std::string name() const { return "gpu::compile_hipblaslt"; }
     void apply(module& m) const;
 };

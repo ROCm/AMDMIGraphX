@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,9 @@
  * THE SOFTWARE.
  */
 #include <migraphx/simplify_qdq.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
@@ -34,23 +36,78 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/concat.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/fp8_types.hpp>
+#include <migraphx/match/dq_helpers.hpp>
+#include <algorithm>
+#include <numeric>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 
-template <class... Ms>
-auto skip_post_dq_ops(Ms... ms)
-{
-    return match::skip(match::name(
-        "broadcast", "multibroadcast", "contiguous", "transpose", "reshape", "convert"))(ms...);
-}
-
 std::unordered_set<std::string> get_quantizable_op_names()
 {
     static std::unordered_set<std::string> s = {"convolution", "dot"};
     return s;
+}
+
+std::vector<instruction_ref> get_between_ins(const instruction_ref dqins,
+                                             const instruction_ref qop_arg)
+{
+    auto prev_ins = qop_arg;
+    std::vector<instruction_ref> ins_between;
+    while(prev_ins != dqins)
+    {
+        ins_between.push_back(prev_ins);
+        prev_ins = prev_ins->inputs().front();
+    }
+    return ins_between;
+}
+
+// Helper function to insert quantized versions of any broadcasts and transpose ops that
+// occur between dequantizelinear and the quantized op
+auto propagate_quantized_ins(module& m,
+                             const instruction_ref dqins,
+                             instruction_ref input_ins,
+                             std::vector<instruction_ref> ins_between,
+                             bool skip_converts = false)
+{
+    for(auto ins : reverse_iterator_for(ins_between))
+    {
+        if((*ins)->name() == "convert" and skip_converts)
+        {
+            continue;
+        }
+        input_ins = m.insert_instruction(dqins, (*ins)->get_operator(), {input_ins});
+    }
+    return input_ins;
+}
+
+// helper function to subtract 128 from a uint8 or int8 operand
+instruction_ref subtract_128(module& m, instruction_ref pos, instruction_ref x)
+{
+    auto x_i32 = m.insert_instruction(
+        pos, make_op("convert", {{"target_type", migraphx::shape::int32_type}}), x);
+    auto lit   = m.add_literal(literal{shape{migraphx::shape::int32_type}, {128}});
+    auto lit_b = m.insert_instruction(
+        pos, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lit);
+    auto diff = m.insert_instruction(pos, make_op("sub"), x_i32, lit_b);
+    return m.insert_instruction(
+        pos, make_op("convert", {{"target_type", migraphx::shape::int8_type}}), diff);
+}
+
+// Rebias a uint8 operand and its zero point to int8 by subtracting 128 from both: (q - 128) -
+// (zp - 128) == q - zp, so the dequantized value is unchanged. Done via int32 to avoid wrap-around.
+instruction_ref
+rebias_uint8_to_int8(module& m, instruction_ref pos, instruction_ref qdata, instruction_ref& zp)
+{
+    if(qdata->get_shape().type() != migraphx::shape::uint8_type)
+        return qdata;
+    zp = subtract_128(m, pos, zp);
+    return subtract_128(m, pos, qdata);
 }
 
 struct match_find_quantizable_ops
@@ -88,48 +145,12 @@ struct match_find_quantizable_ops
         }
     }
 
-    // Helper function to insert quantized versions of any broadcasts and transpose ops that
-    // occur between dequantizelinear and the quantized op
-    static auto propagate_quantized_ins(module& m,
-                                        const instruction_ref dqins,
-                                        const instruction_ref qop_arg,
-                                        bool is_fp16_model = false)
-    {
-        auto prev_ins = qop_arg;
-        std::vector<instruction_ref> ins_inbetween;
-        // matcher skips continguous, multi/broadcasts and transposes, collect all those
-        // instructions
-        while(prev_ins != dqins)
-        {
-            ins_inbetween.push_back(prev_ins);
-            prev_ins = prev_ins->inputs().front();
-        }
-        auto qinp = dqins->inputs().front();
-        for(auto ins : reverse_iterator_for(ins_inbetween))
-        {
-            if((*ins)->name() == "convert" and is_fp16_model)
-            {
-                continue;
-            }
-            qinp = m.insert_instruction(dqins, (*ins)->get_operator(), {qinp});
-        }
-        return qinp;
-    }
-
-    static auto dequantizelinear_op(const std::string& scale, const std::string& zp)
-    {
-        return match::name("dequantizelinear")(
-            match::arg(0)(match::skip(match::name("quantizelinear"))(match::any())),
-            match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))),
-            match::arg(2)(match::skip_broadcasts(match::is_constant().bind(zp))));
-    }
-
     auto matcher() const
     {
-        auto dq1 =
-            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1")));
-        auto dq2 =
-            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
+        auto dq1 = match::arg(0)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale1", "zp1").bind("dq1")));
+        auto dq2 = match::arg(1)(
+            skip_post_dq_ops(match::dequantizelinear_op("scale2", "zp2").bind("dq2")));
         return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
@@ -142,14 +163,6 @@ struct match_find_quantizable_ops
         auto scale2 = r.instructions["scale2"];
         auto zp1    = r.instructions["zp1"];
         auto zp2    = r.instructions["zp2"];
-        // Only INT8 or FP8 type currently supported
-        std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp8e4m3fnuz_type,
-                                                             migraphx::shape::fp8e4m3fn_type,
-                                                             migraphx::shape::fp8e5m2_type,
-                                                             migraphx::shape::int8_type};
-        if(not contains(supported_types, dq1->inputs().front()->get_shape().type()) or
-           not contains(supported_types, dq2->inputs().front()->get_shape().type()))
-            return;
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         auto qop_args      = qop->inputs();
@@ -160,13 +173,38 @@ struct match_find_quantizable_ops
             assert(dq1->get_shape().type() == migraphx::shape::float_type);
             is_fp16_model = true;
         }
-        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop_args[0], is_fp16_model);
-        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop_args[1], is_fp16_model);
+
+        auto qop_between_arg0 = get_between_ins(dq1, qop_args[0]);
+        auto qop_between_arg1 = get_between_ins(dq2, qop_args[1]);
+        qop_args.at(0) =
+            propagate_quantized_ins(m, dq1, dq1->inputs().front(), qop_between_arg0, is_fp16_model);
+        qop_args.at(1) =
+            propagate_quantized_ins(m, dq2, dq2->inputs().front(), qop_between_arg1, is_fp16_model);
         auto arg1_lens = qop_args[0]->get_shape().lens();
         auto arg2_lens = qop_args[1]->get_shape().lens();
+
+        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(migraphx::shape::int8_type);
+        supported_types.insert(migraphx::shape::uint8_type);
+        auto in1 = dq1->inputs().front();
+        auto in2 = dq2->inputs().front();
+        if(not contains(supported_types, in1->get_shape().type()) or
+           not contains(supported_types, in2->get_shape().type()))
+        {
+            return;
+        }
+
+        // quant_convolution/quant_dot need both operands to share a type, so rebias uint8 to int8.
+        qop_args.at(0) = rebias_uint8_to_int8(m, qop, qop_args.at(0), zp1);
+        qop_args.at(1) = rebias_uint8_to_int8(m, qop, qop_args.at(1), zp2);
+
+        if(qop_args.at(0)->get_shape().type() != qop_args.at(1)->get_shape().type())
+            return;
+
         instruction_ref dq;
         instruction_ref out_scale;
         instruction_ref out_zp;
+
         if(qop->name() == "convolution")
         {
             auto conv_val = qop->get_operator().to_value();
@@ -174,7 +212,7 @@ struct match_find_quantizable_ops
                 qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
             auto out_lens = dq->get_shape().lens();
 
-            // Ensure input and weight quantization paramaters are of a proper form
+            // Ensure input and weight quantization parameters are of a proper form
             // Input is of shape [n, c, x1, ..., xn]. Only scalar quantization allowed
             // Weight is of shape [k, c, y1, ... , yn]. Valid quantization axis is k
 
@@ -232,7 +270,9 @@ struct match_find_quantizable_ops
                    is_valid_qparam(zp1, out_lens, out_lens.size() - 2) and
                    is_valid_qparam(scale2, out_lens, out_lens.size() - 1) and
                    is_valid_qparam(zp2, out_lens, out_lens.size() - 1)))
+            {
                 return;
+            }
 
             // This implementation supports both arguments being per-axis affine quantized
             // In practice, inputs are per-tensor affine and weights are per-axis symmetric
@@ -286,6 +326,167 @@ struct match_find_quantizable_ops
     }
 };
 
+// Rewrites the QLinearAdd pattern quantizelinear(add(dq(x1, s1, z1), dq(x2, s2, z2)), s, z) to
+// quantizelinear(add(dq(x1, s1/s, z1), dq(x2, s2/s, z2)), 1, z), the form used by the onnxruntime
+// kernel. The folded scales also keep remove_qdq_pairs from dropping the rounding around the add.
+struct match_find_quantizable_add
+{
+    static bool is_int8(shape::type_t t) { return t == shape::int8_type or t == shape::uint8_type; }
+
+    static bool is_unit_scale(instruction_ref scale)
+    {
+        bool result = false;
+        scale->eval().visit([&](auto v) {
+            result = std::all_of(v.begin(), v.end(), [](auto x) { return float_equal(x, 1); });
+        });
+        return result;
+    }
+
+    static instruction_ref
+    convert_to(module& m, instruction_ref pos, instruction_ref x, shape::type_t type)
+    {
+        if(x->get_shape().type() == type)
+            return x;
+        return m.insert_instruction(pos, make_op("convert", {{"target_type", type}}), x);
+    }
+
+    // Copy dq with its scale divided by out_scale and replay the ops between dq and the add. The
+    // math runs in the common scale type: converts between dq and the add are dropped, since
+    // narrowing the folded scale to fp16 could overflow intermediates finite in the original.
+    static instruction_ref requantize_input(module& m,
+                                            instruction_ref dq,
+                                            instruction_ref scale,
+                                            instruction_ref out_scale,
+                                            instruction_ref add_arg,
+                                            shape::type_t type)
+    {
+        auto scale_lens = scale->get_shape().lens();
+        auto scale_t    = convert_to(m, dq, scale, type);
+        auto out_t      = convert_to(m, dq, out_scale, type);
+        if(out_t->get_shape().lens() != scale_lens)
+            out_t = m.insert_instruction(
+                dq, make_op("multibroadcast", {{"out_lens", scale_lens}}), out_t);
+        auto ratio  = m.insert_instruction(dq, make_op("div"), scale_t, out_t);
+        auto inputs = dq->inputs();
+        inputs[1]   = propagate_quantized_ins(m, dq, ratio, get_between_ins(scale, inputs[1]));
+        auto new_dq = m.insert_instruction(dq, dq->get_operator(), inputs);
+        return propagate_quantized_ins(m, dq, new_dq, get_between_ins(dq, add_arg), true);
+    }
+
+    static auto dequantizelinear_scale(const std::string& scale)
+    {
+        return match::name("dequantizelinear")(
+            match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))));
+    }
+
+    auto matcher() const
+    {
+        auto dq1 = match::arg(0)(skip_post_dq_ops(dequantizelinear_scale("scale1").bind("dq1")));
+        auto dq2 = match::arg(1)(skip_post_dq_ops(dequantizelinear_scale("scale2").bind("dq2")));
+        auto add = match::name("add")(dq1, dq2).bind("add");
+        auto out_scale =
+            match::arg(1)(match::skip_broadcasts(match::is_constant().bind("out_scale")));
+        return match::name("quantizelinear")(match::arg(0)(add), out_scale);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto q         = r.result;
+        auto add       = r.instructions["add"];
+        auto dq1       = r.instructions["dq1"];
+        auto dq2       = r.instructions["dq2"];
+        auto scale1    = r.instructions["scale1"];
+        auto scale2    = r.instructions["scale2"];
+        auto out_scale = r.instructions["out_scale"];
+
+        if(not is_int8(dq1->inputs().front()->get_shape().type()) or
+           not is_int8(dq2->inputs().front()->get_shape().type()))
+            return;
+        if(out_scale->get_shape().elements() != 1 or is_unit_scale(out_scale))
+            return;
+
+        auto type   = compute_common_type(scale1->get_shape().type(), scale2->get_shape().type());
+        auto x1     = requantize_input(m, dq1, scale1, out_scale, add->inputs().at(0), type);
+        auto x2     = requantize_input(m, dq2, scale2, out_scale, add->inputs().at(1), type);
+        auto sum    = m.insert_instruction(q, make_op("add"), x1, x2);
+        auto one    = m.add_literal(literal{shape{sum->get_shape().type()}, {1}});
+        auto inputs = q->inputs();
+        inputs[0]   = sum;
+        inputs[1]   = m.insert_instruction(
+            q, make_op("multibroadcast", {{"out_lens", sum->get_shape().lens()}}), one);
+        m.replace_instruction(q, q->get_operator(), inputs);
+    }
+};
+
+// Checks for block quantized scales by checking scales are not scalar or 1D.
+inline auto block_dq(const std::string& scale)
+{
+    // clang-format off
+    return match::name("dequantizelinear")(
+        match::nargs(2),
+        match::arg(1)(match::skip_broadcasts(match::none_of(
+            match::scalar_shape,
+            match::ndim(1)
+        ).bind(scale))));
+    // clang-format on
+}
+
+/**
+ * Handles block quantization for MX types.
+ * Matcher checks that dequantizelinear has no zero point and that
+ * the scales are block quantized.
+ * TODO: quant_convolution disabled until rocMLIR support
+ */
+struct match_find_mx_quantizable_ops
+{
+    auto matcher() const
+    {
+        auto dq1 = match::arg(0)(skip_post_dq_ops(block_dq("scale1").bind("dq1")));
+        auto dq2 = match::arg(1)(skip_post_dq_ops(block_dq("scale2").bind("dq2")));
+        return match::name("dot")(dq1, dq2);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto qop    = r.result;
+        auto dq1    = r.instructions["dq1"];
+        auto dq2    = r.instructions["dq2"];
+        auto scale1 = r.instructions["scale1"];
+        auto scale2 = r.instructions["scale2"];
+
+        // Propagate q1 and q2 through any broadcasts and transposes before qop
+        // Construct 4 arguments for block quantized op
+        auto qop_args      = qop->inputs();
+        bool is_fp16_model = false;
+        if(dq1->get_shape().type() != qop->get_shape().type() and
+           qop->get_shape().type() == migraphx::shape::half_type)
+        {
+            assert(dq1->get_shape().type() == migraphx::shape::float_type);
+            is_fp16_model = true;
+        }
+        auto qop_between_arg0 = get_between_ins(dq1, qop_args[0]);
+        qop_args.at(0) =
+            propagate_quantized_ins(m, dq1, dq1->inputs().front(), qop_between_arg0, is_fp16_model);
+        auto qop_between_arg1 = get_between_ins(dq2, qop_args[1]);
+        qop_args.at(1) =
+            propagate_quantized_ins(m, dq2, dq2->inputs().front(), qop_between_arg1, is_fp16_model);
+        qop_args.push_back(
+            propagate_quantized_ins(m, dq1, scale1, qop_between_arg0, is_fp16_model));
+        qop_args.push_back(
+            propagate_quantized_ins(m, dq2, scale2, qop_between_arg1, is_fp16_model));
+
+        if(qop->name() == "convolution")
+        {
+            auto conv_val = qop->get_operator().to_value();
+            m.replace_instruction(qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
+        }
+        else if(qop->name() == "dot")
+        {
+            m.replace_instruction(qop, migraphx::make_op("quant_dot"), qop_args);
+        }
+    }
+};
+
 bool compare_literals(instruction_ref ins1, instruction_ref ins2)
 {
     if(ins1->name() == "broadcast" or ins1->name() == "multibroadcast")
@@ -293,16 +494,14 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     auto x = ins1->eval();
     if(x.empty())
         return false;
-    auto literal1 = ins1->get_literal();
     if(ins2->name() == "broadcast" or ins2->name() == "multibroadcast")
         ins2 = ins2->inputs().front();
     auto y = ins2->eval();
     if(y.empty())
         return false;
-    auto literal2 = ins2->get_literal();
 
     bool diff_shapes_equal_vals = false;
-    visit_all(ins1->get_literal(), ins2->get_literal())([&](const auto l1, const auto l2) {
+    visit_all(x, y)([&](const auto l1, const auto l2) {
         diff_shapes_equal_vals =
             std::all_of(l1.begin() + 1,
                         l1.end(),
@@ -361,6 +560,75 @@ struct match_qlinear_reused
     }
 };
 
+struct match_concat_qlinear
+{
+    auto matcher() const
+    {
+        auto any_pointwise_input = match::any_of[match::inputs()](match::pointwise());
+        return match::name("quantizelinear")(match::arg(0)(
+            match::name("concat")(match::used_once(), any_pointwise_input).bind("cat")));
+    }
+    auto get_slices(instruction_ref cat_ins) const
+    {
+        std::vector<std::vector<std::pair<std::string, value>>> slices;
+        auto axis    = cat_ins->normalized_operator().to_value().at("axis").to<std::size_t>();
+        size_t start = 0;
+        for(auto cat_inp : cat_ins->inputs())
+        {
+            auto end = start + cat_inp->get_shape().lens()[axis];
+            slices.push_back({{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}});
+            start = end;
+        }
+        return slices;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto cat_ins = r.instructions["cat"];
+
+        assert(ins->inputs().size() == 3);
+        auto scale = ins->inputs()[1];
+        auto zp    = ins->inputs()[2];
+
+        if(not shape::same_lens(scale->get_shape(), ins->get_shape()) or
+           not shape::same_lens(zp->get_shape(), ins->get_shape()))
+        {
+            return;
+        }
+
+        auto slices     = get_slices(cat_ins);
+        auto cat_inputs = cat_ins->inputs();
+        // Each sliced scale and zero point must match the concat input it quantizes, so
+        // check the shapes before inserting anything.
+        auto slice_matches = [&](instruction_ref cat_inp, const auto& slc) {
+            auto slice_op = make_op("slice", slc);
+            return shape::same_lens(slice_op.compute_shape({scale->get_shape()}),
+                                    cat_inp->get_shape()) and
+                   shape::same_lens(slice_op.compute_shape({zp->get_shape()}),
+                                    cat_inp->get_shape());
+        };
+        if(not std::equal(cat_inputs.begin(), cat_inputs.end(), slices.begin(), slice_matches))
+        {
+            return;
+        }
+
+        std::vector<instruction_ref> new_cat_inputs;
+        std::transform(
+            cat_inputs.begin(),
+            cat_inputs.end(),
+            slices.begin(),
+            std::back_inserter(new_cat_inputs),
+            [&](auto i, const auto& slc) {
+                auto scale_slc = m.insert_instruction(ins, make_op("slice", slc), {scale});
+                auto zp_slc    = m.insert_instruction(ins, make_op("slice", slc), {zp});
+                return m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc});
+            });
+
+        m.replace_instruction(ins, cat_ins->get_operator(), new_cat_inputs);
+    }
+};
+
 bool is_same_value(instruction_ref a, instruction_ref b)
 {
     if(a == b)
@@ -397,24 +665,128 @@ bool is_any_input_int4(instruction_ref a)
     });
 }
 
-void remove_qdq_pairs(module& m)
+/** Used to remove fake quantization pairs quantizelinear -> dequantizelinear.
+ *
+ * Extended to remove the fake quantization pattern for MXFP4:
+ *      quantizelinear
+ *              ▼
+ *       pad (optional)
+ *              ▼
+ *          pack_fp4
+ *              ▼
+ *           unpack_fp4
+ *              ▼
+ *        slice (optional)
+ *              ▼
+ *      dequantizelinear
+ *
+ *  Doesn't match the pack/unpack and reshapes explicitly, instead skips instructions
+ *  that match the name with one input recursively.
+ *  Use this after selected quantizations have been made into real quantized instructions.
+ */
+struct remove_qdq_pairs
 {
-    for(auto ins : iterator_for(m))
+    struct qdq_replacement
     {
-        auto args = ins->inputs();
-        for(auto&& arg : args)
+        instruction_ref input;
+        std::vector<operation> ops;
+    };
+
+    static bool is_pack_unpack_op(instruction_ref ins)
+    {
+        return contains({"pack_fp4", "unpack_fp4"}, ins->name());
+    }
+
+    static bool is_replay_op(instruction_ref ins)
+    {
+        return contains({"broadcast", "slice", "reshape", "reshape_lazy"}, ins->name());
+    }
+
+    static bool is_skip_op(instruction_ref ins)
+    {
+        return is_pack_unpack_op(ins) or is_replay_op(ins) or ins->name() == "pad";
+    }
+
+    // pad is only skipped as part of an MXFP4 pack/unpack path.
+    static bool is_supported_qdq_path_op(instruction_ref ins, bool has_pack_unpack)
+    {
+        return is_pack_unpack_op(ins) or is_replay_op(ins) or
+               (has_pack_unpack and ins->name() == "pad");
+    }
+
+    static std::optional<qdq_replacement> find_replacement(instruction_ref dq_ins,
+                                                           instruction_ref q_ins)
+    {
+        qdq_replacement replacement{q_ins->inputs().front(), {}};
+        auto input_path = get_input_path(dq_ins->inputs().front());
+        auto q_pos      = std::find(input_path.begin(), input_path.end(), q_ins);
+        if(q_pos == input_path.end())
+            return std::nullopt;
+
+        auto path_to_q           = range(input_path.begin(), q_pos);
+        const bool pack_fp4_path = std::any_of(input_path.begin(), q_pos, &is_pack_unpack_op);
+        if(not std::all_of(path_to_q.begin(), path_to_q.end(), [&](auto x) {
+               return is_supported_qdq_path_op(x, pack_fp4_path);
+           }))
         {
-            if(arg->name() == "dequantizelinear")
-            {
-                auto q = arg->inputs().front();
-                if((q->name() == "quantizelinear") and is_same_scale_zero(arg, q))
-                {
-                    instruction::replace_argument(ins, arg, q->inputs().front());
-                }
-            }
+            return std::nullopt;
+        }
+
+        if(not pack_fp4_path)
+        {
+            std::vector<instruction_ref> replay_instructions;
+            std::copy_if(
+                input_path.begin(), q_pos, std::back_inserter(replay_instructions), is_replay_op);
+            // The input path runs from DQ to Q, so replay it from Q to DQ.
+            std::transform(replay_instructions.rbegin(),
+                           replay_instructions.rend(),
+                           std::back_inserter(replacement.ops),
+                           [](auto ins) { return ins->get_operator(); });
+        }
+
+        auto replacement_shape =
+            std::accumulate(replacement.ops.begin(),
+                            replacement.ops.end(),
+                            replacement.input->get_shape(),
+                            [](const auto& s, const auto& op) { return op.compute_shape({s}); });
+        if(replacement_shape != dq_ins->get_shape())
+            return std::nullopt;
+        return replacement;
+    }
+
+    auto matcher() const
+    {
+        auto q_ins = match::skip(match::make_basic_pred_matcher(&is_skip_op))(
+            match::name("quantizelinear").bind("q_ins"));
+        return match::name("dequantizelinear")(match::arg(0)(q_ins));
+    }
+
+    auto apply(module& m, const match::matcher_result& r) const
+    {
+        auto dq_ins = r.result;
+        auto q_ins  = r.instructions["q_ins"];
+        if(not is_same_scale_zero(dq_ins, q_ins))
+        {
+            return;
+        }
+        auto replacement = find_replacement(dq_ins, q_ins);
+        if(not replacement.has_value())
+        {
+            return;
+        }
+        auto replacement_ins = replacement->input;
+        for(const auto& op : replacement->ops)
+        {
+            replacement_ins = m.insert_instruction(dq_ins, op, replacement_ins);
+        }
+        // Need to copy outputs since will be modifying dq_ins outputs
+        std::vector<instruction_ref> dq_outputs = dq_ins->outputs();
+        for(auto out : dq_outputs)
+        {
+            instruction::replace_argument(out, dq_ins, replacement_ins);
         }
     }
-}
+};
 
 void remove_zero_point(module& m)
 {
@@ -435,6 +807,33 @@ void remove_zero_point(module& m)
         if(not is_zero)
             continue;
         m.replace_instruction(ins, ins->get_operator(), ins->inputs().at(0), ins->inputs().at(1));
+    }
+}
+
+void remove_zero_scales(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "dequantizelinear")
+            continue;
+        if(ins->inputs().size() < 2)
+            continue;
+        auto scale = ins->inputs().at(1);
+        if(not scale->can_eval())
+            continue;
+        auto a         = scale->eval();
+        bool all_zeros = false;
+        a.visit([&](auto t) {
+            all_zeros = std::all_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });
+        });
+        if(not all_zeros)
+            continue;
+
+        // Replace entire dequantizelinear with zero literal
+        auto zero_lit       = m.add_literal(literal{shape{ins->get_shape().type()}, {0}});
+        auto zero_broadcast = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), zero_lit);
+        m.replace_instruction(ins, zero_broadcast);
     }
 }
 
@@ -461,15 +860,33 @@ void add_int4_pack_unpack_pair(module& m)
 
 void simplify_qdq::apply(module& m) const
 {
-    // first step: add pack/unpack pair between qdq for int4 weights
-    add_int4_pack_unpack_pair(m);
-    match::find_matches(m, match_find_quantizable_ops{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    remove_qdq_pairs(m);
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    match::find_matches(m, match_qlinear_reused{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    remove_zero_point(m);
+    remove_zero_scales(m);
+    if(remove_qdq_only)
+    {
+        match::find_matches(m, remove_qdq_pairs{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    }
+    else
+    {
+        // first step: add pack/unpack pair between qdq for int4 weights
+        add_int4_pack_unpack_pair(m);
+        match::find_matches(m, match_find_quantizable_ops{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        match::find_matches(m, match_find_quantizable_add{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        if(use_mx_quant)
+        {
+            match::find_matches(m, match_find_mx_quantizable_ops{});
+            migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        }
+        match::find_matches(m, remove_qdq_pairs{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        match::find_matches(m, match_qlinear_reused{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        match::find_matches(m, match_concat_qlinear{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        remove_zero_point(m);
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

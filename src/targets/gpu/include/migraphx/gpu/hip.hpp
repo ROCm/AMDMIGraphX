@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/value.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -52,6 +53,9 @@ MIGRAPHX_GPU_EXPORT void set_device(std::size_t id);
 
 MIGRAPHX_GPU_EXPORT void gpu_sync();
 MIGRAPHX_GPU_EXPORT void gpu_sync(const context& ctx);
+// Spin until the stream is idle to avoid the scheduler wake latency of a
+// blocking synchronize
+MIGRAPHX_GPU_EXPORT void gpu_spin_sync(context& ctx);
 
 MIGRAPHX_GPU_EXPORT void gpu_copy(context& ctx, const argument& src, const argument& dst);
 MIGRAPHX_GPU_EXPORT void copy_to_gpu(context& ctx, const argument& src, const argument& dst);
@@ -60,6 +64,17 @@ MIGRAPHX_GPU_EXPORT void copy_from_gpu(context& ctx, const argument& src, const 
 MIGRAPHX_GPU_EXPORT argument get_preallocation(context& ctx, const std::string& id);
 
 MIGRAPHX_GPU_EXPORT void gpu_fill(context& ctx, const argument& dst, int value = 0);
+
+MIGRAPHX_GPU_EXPORT argument gpu_generate_random(context& ctx, const shape& s, unsigned long seed);
+
+MIGRAPHX_GPU_EXPORT std::shared_ptr<void>
+write_to_gpu(const void* x, std::size_t sz, bool host = false);
+
+template <class T>
+std::shared_ptr<T> write_to_gpu(const T& x, bool host = false)
+{
+    return std::static_pointer_cast<T>(write_to_gpu(&x, sizeof(T), host));
+}
 
 struct hip_allocate
 {
@@ -72,6 +87,8 @@ struct hip_allocate
     }
 
     std::string name() const { return "hip::allocate"; }
+    value attributes() const { return {{"side_effect", true}}; }
+
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(0);
@@ -104,7 +121,7 @@ struct hip_fill
         gpu_fill(ctx, args.front(), value);
         return args.front();
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 struct hip_sync_stream
@@ -126,11 +143,42 @@ struct hip_sync_stream
         return args.front();
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& args) const
     {
         if(args.empty())
-            return -1;
-        return 0;
+            return {};
+        return {0};
+    }
+};
+
+// Copy a single scalar from the gpu to the host and wait for it so later
+// host-side view ops (e.g. gpu::slice_at) can read it during eval
+struct hip_load_scalar
+{
+    // Pinned host buffer allocated in finalize(); not reflected
+    argument result{};
+
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "hip::load_scalar"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1).elements(1);
+        return {inputs.front().type(), inputs.front().lens()};
+    }
+    void finalize(context&, const shape& output_shape, const std::vector<shape>&)
+    {
+        result = allocate_gpu(output_shape, true);
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        copy_from_gpu(ctx, args.front(), result);
+        gpu_spin_sync(ctx);
+        return result;
     }
 };
 
@@ -156,11 +204,11 @@ struct hip_copy_to_gpu
         // Associate the input since it was registered with hip
         return {result.get_shape(), [input, result]() mutable { return result.data(); }};
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& args) const
     {
         if(args.size() == 1)
-            return -1;
-        return 1;
+            return {};
+        return {1};
     }
 };
 
@@ -189,11 +237,11 @@ struct hip_copy_from_gpu
         copy_from_gpu(ctx, input, args[1]);
         return args[1];
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& args) const
     {
         if(args.size() == 1)
-            return -1;
-        return 1;
+            return {};
+        return {1};
     }
 };
 
@@ -202,15 +250,20 @@ struct hip_copy
     std::string name() const { return "hip::copy"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type();
+        check_shapes{inputs, *this, true}.has(2).same_type();
         return inputs.at(1);
     }
     argument compute(context& ctx, const shape&, std::vector<argument> args) const
     {
-        gpu_copy(ctx, args[0], args[1]);
+        argument result = args[1].share();
+        if(result.get_shape().dynamic())
+        {
+            result = result.reshape(args[0].get_shape());
+        }
+        gpu_copy(ctx, args[0], result);
         return args[1];
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {1}; }
 };
 
 MIGRAPHX_GPU_EXPORT void

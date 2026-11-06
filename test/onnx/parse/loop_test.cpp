@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@ TEST_CASE(loop_test)
     auto a = mm->add_parameter("a", su);
     auto b = mm->add_parameter("b", su);
 
-    auto* body = p.create_module("Loop_4_loop");
+    auto* body = p.create_module("main_Loop_4_loop");
     body->add_parameter("iteration_num", si);
     body->add_parameter("keep_going_inp", sc);
     auto var = body->add_parameter("b_in", su);

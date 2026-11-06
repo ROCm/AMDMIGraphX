@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 #include <migraphx/tf/tf_parser.hpp>
 #include <migraphx/tf/op_parser.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
@@ -38,7 +39,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class... Ts>
-program parse_tf_from(const tf_options& options, Ts&&... xs)
+static program parse_tf_from(const tf_options& options, Ts&&... xs)
 {
     tf::tf_parser parser;
     parser.is_nhwc           = options.is_nhwc;
@@ -54,7 +55,7 @@ program parse_tf_from(const tf_options& options, Ts&&... xs)
     }
     catch(...)
     {
-        std::cerr << parser.prog << std::endl;
+        log::error() << parser.prog;
         throw;
     }
 #else

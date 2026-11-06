@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/requires.hpp>
+#include <migraphx/byte.hpp>
 #include <migraphx/config.hpp>
 #include <sstream>
 
@@ -52,15 +53,15 @@ struct raw_data : raw_data_base
     friend Stream& operator<<(Stream& os, const Derived& d)
     {
         if(not d.empty())
-            d.visit([&](auto x) { os << x; },
-                    [&](auto&& xs) {
-                        for(auto&& x : xs)
-                        {
-                            os << "{ ";
-                            os << x;
-                            os << " }, ";
-                        }
-                    });
+            d.fallback_visit([&](auto x) { os << x; },
+                             [&](auto&& xs) {
+                                 for(auto&& x : xs)
+                                 {
+                                     os << "{ ";
+                                     os << x;
+                                     os << " }, ";
+                                 }
+                             });
         return os;
     }
 
@@ -70,8 +71,8 @@ struct raw_data : raw_data_base
      * @param v A function which will be called with the type of data
      * @param n The index to read from
      */
-    template <class Visitor>
-    void visit_at(Visitor v, std::size_t n = 0) const
+    template <class Visitor, class Index = std::size_t>
+    void visit_at(Visitor v, Index n = 0) const
     {
         auto&& derived = static_cast<const Derived&>(*this);
         if(derived.empty())
@@ -104,6 +105,40 @@ struct raw_data : raw_data_base
         visit(v, [&](const auto&) { MIGRAPHX_THROW("Invalid tuple type"); });
     }
 
+    /**
+     * Visit the data using the normal visit function for computable types.
+     * For non-computable types, use a tensor_view<byte> with shape = {type = uint8_type, lens =
+     * {num bytes}};
+     */
+    template <class Visitor, class TupleVisitor>
+    void fallback_visit(Visitor v, TupleVisitor tv) const
+    {
+        auto&& derived = static_cast<const Derived&>(*this);
+        if(derived.empty())
+            MIGRAPHX_THROW("Visiting empty data!");
+        auto&& s = derived.get_shape();
+        if(s.computable())
+        {
+            visit(v, tv);
+        }
+        else
+        {
+            auto* buffer     = static_cast<const Derived&>(*this).data();
+            shape view_shape = {shape::uint8_type, {s.bytes()}};
+            using byte_type =
+                std::conditional_t<std::is_const<std::remove_pointer_t<decltype(buffer)>>{},
+                                   const byte*,
+                                   byte*>;
+            v(make_view(view_shape, reinterpret_cast<byte_type>(buffer)));
+        }
+    }
+
+    template <class Visitor>
+    void fallback_visit(Visitor v) const
+    {
+        fallback_visit(v, [&](const auto&) { MIGRAPHX_THROW("Invalid tuple type"); });
+    }
+
     /// Returns true if the raw data is only one element
     bool single() const
     {
@@ -118,11 +153,11 @@ struct raw_data : raw_data_base
      * @tparam T The type of data to be retrieved
      * @return The element as `T`
      */
-    template <class T>
-    T at(std::size_t n = 0) const
+    template <class T, class Index = std::size_t>
+    T at(Index n = 0) const
     {
         T result;
-        this->visit_at([&](auto x) { result = x; }, n);
+        this->visit_at([&](auto x) { result = x; }, std::move(n));
         return result;
     }
 
@@ -163,18 +198,26 @@ struct raw_data : raw_data_base
     /// Implicit conversion of raw data pointer
     auto_cast implicit() const { return {static_cast<const Derived*>(this)}; }
 
-    /// Get a tensor_view to the data
+    /// Get a tensor_view to the data.
+    /// For get<byte>() returns a 1D tensor_view<const byte*>.
     template <class T>
     tensor_view<T> get() const
     {
         auto&& s      = static_cast<const Derived&>(*this).get_shape();
         auto&& buffer = static_cast<const Derived&>(*this).data();
-        if(s.type() != migraphx::shape::get_type<T>{})
-            MIGRAPHX_THROW("Incorrect data type for raw data");
-        return make_view(s, reinterpret_cast<T*>(buffer));
+        if constexpr(std::is_same<std::remove_cv_t<T>, migraphx::byte>{})
+        {
+            shape view_shape = {shape::uint8_type, {s.bytes()}};
+            return make_view(view_shape, reinterpret_cast<const migraphx::byte*>(buffer));
+        }
+        else
+        {
+            if(s.computable() and s.type() != migraphx::shape::get_type<T>{})
+                MIGRAPHX_THROW("Incorrect data type for raw data");
+            return make_view(s, reinterpret_cast<T*>(buffer));
+        }
     }
 
-    /// Cast the data pointer
     template <class T>
     T* cast() const
     {
@@ -203,18 +246,18 @@ struct raw_data : raw_data_base
 
 namespace detail {
 template <class V1, class V2, class... Ts>
-void visit_all_flatten(const shape& s, V1&& v1, V2&& v2, Ts&&... xs)
+void visit_all_flatten(const shape& s, V1&& v1, V2 v2, Ts&&... xs)
 {
     s.visit_type([&](auto as) { v1(make_view(xs.get_shape(), as.from(xs.data()))...); },
                  [&] { v2(xs.get_sub_objects()...); });
 }
 
 template <class V1, class V2, class... Ts>
-auto visit_all_pack(const shape& s, V1&& v1, V2&& v2)
+auto visit_all_pack(const shape& s, V1&& v1, V2 v2)
 {
-    return [&](auto&&... xs) {
+    return [=](auto&&... xs) {
         // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
-        visit_all_flatten(s, v1, v2, xs...);
+        visit_all_flatten(s, v1, std::move(v2), xs...);
     };
 }
 
@@ -275,7 +318,7 @@ auto visit_all(const std::vector<T>& x)
 
 template <class T,
           class U,
-          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} and
                             std::is_base_of<raw_data_base, U>{})>
 bool operator==(const T& x, const U& y)
 {
@@ -284,17 +327,24 @@ bool operator==(const T& x, const U& y)
     bool result   = x.empty() and y.empty();
     if(not result and xshape == yshape)
     {
-        visit_all(x, y)([&](auto xview, auto yview) { result = xview == yview; },
-                        [&](auto&& xs, auto&& ys) {
-                            result = std::equal(xs.begin(), xs.end(), ys.begin(), ys.end());
-                        });
+        if(xshape.computable())
+        {
+            visit_all(x, y)([&](auto xview, auto yview) { result = xview == yview; },
+                            [&](auto&& xs, auto&& ys) {
+                                result = std::equal(xs.begin(), xs.end(), ys.begin(), ys.end());
+                            });
+        }
+        else
+        {
+            result = x.template get<const byte>() == y.template get<const byte>();
+        }
     }
     return result;
 }
 
 template <class T,
           class U,
-          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} and
                             std::is_base_of<raw_data_base, U>{})>
 bool operator!=(const T& x, const U& y)
 {

@@ -24,7 +24,7 @@ version.
 
 You have three options for building from source:
 
-* [ROCm build tool](#use-the-rocm-build-tool-rbuild): Uses
+* [ROCm build tool](#compile-using-the-rocm-build-tool-rbuild): Uses
   [rbuild](https://github.com/RadeonOpenCompute/rbuild) to install prerequisites, then you can build
   the libraries with a single command.
 
@@ -50,7 +50,7 @@ The following is a list of prerequisites for building MIGraphX.
 * [MessagePack](https://msgpack.org/index.html) for model serialization to binary format
 * [SQLite3](https://www.sqlite.org/index.html) to create database of kernels' tuning information or run queries on existing database
 
-### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+### Installing the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 
 1. Install `rocm-cmake`, `pip3`, `rocblas`, and `miopen-hip`:
 
@@ -58,17 +58,32 @@ The following is a list of prerequisites for building MIGraphX.
     sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
     ```
 
-2. Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) (sudo may be required):
-
+2. Set up and activate python venv for rbuild:
     ```bash
-    pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+    python3 -m venv venv_rbuild
+    source venv_rbuild/bin/activate
     ```
 
-3. Build MIGraphX source code:
+3. Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) in the python venv:
+
+    ```bash
+    pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+    ```
+
+> [!NOTE]
+> You can deactivate the python virtual environment with `deactivate`.
+
+
+### Compile using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+
+1. Follow instructions in [installing rbuild](#installing-the-rocm-build-tool-rbuild)
+
+2. Build MIGraphX source code:
 
     ```bash
     rbuild build -d depend -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
     ```
+
 
 Once completed, all prerequisites are in the `depend` folder and MIGraphX is in the `build` directory.
 
@@ -79,7 +94,9 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
 ### Use CMake to build MIGraphX
 
-1. Install the prerequisites:
+1. Follow instructions in [installing rbuild](#installing-the-rocm-build-tool)
+
+2. Install the prerequisites:
 
     ```bash
     rbuild prepare -d depend
@@ -95,14 +112,14 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
     users. For the default location, `sudo` is required to run the script. You can also specify a different
     location using `./tools/install_prereqs.sh $custom_location`.
 
-2. Go to the project folder and create a `build` directory:
+3. Go to the project folder and create a `build` directory:
 
     ```bash
     mkdir build
     cd build
     ```
 
-3. Configure CMake. If the prerequisites are installed at the default location `/usr/local`, use:
+4. Configure CMake. If the prerequisites are installed at the default location `/usr/local`, use:
 
     ```bash
     CXX=/opt/rocm/llvm/bin/clang++ cmake .. -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
@@ -110,7 +127,18 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
     Otherwise, you need to set `-DCMAKE_PREFIX_PATH=$your_loc` to configure CMake.
 
-4. Build MIGraphX source code:
+    The default build type is `Release`. To build MIGraphX in debug mode, pass
+    `-DCMAKE_BUILD_TYPE=Debug` when configuring CMake:
+
+    ```bash
+    CXX=/opt/rocm/llvm/bin/clang++ cmake .. \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+    ```
+
+    For optimized binaries with debug symbols, use `-DCMAKE_BUILD_TYPE=RelWithDebInfo`.
+
+5. Build MIGraphX source code:
 
     ```cpp
     make -j$(nproc)
@@ -122,7 +150,7 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
     make -j$(nproc) check
     ```
 
-5. Install MIGraphX libraries:
+6. Install MIGraphX libraries:
 
     ```cpp
     make install
@@ -130,12 +158,23 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
 ### Use Docker
 
-The easiest way to set up the development environment is to use Docker.
+The easiest way to set up the development environment is to use Docker. ROCm's
+underlying drivers and libraries, known as "TheRock", now support multi-arch
+packaging, meaning it only installs device-code packages for the GPU architecture
+present on the system. Setting `GPU_ARCH` reduces the image size; leaving it
+unset installs device code for all supported architectures, which is useful when
+the same Docker image needs to run on different ROCm-supported GPUs.
 
 1. With the Dockerfile, build a Docker image:
 
     ```bash
         docker build -t migraphx .
+    ```
+
+    or
+
+    ```bash
+        docker build -t migraphx --build-arg GPU_ARCH=$(rocminfo | grep -o -m1 'gfx.*') .
     ```
 
 2. Enter the development environment using `docker run`:
@@ -184,6 +223,31 @@ target_link_libraries(myApp migraphx::c)
 
 Where `myApp` is the CMake target in your project.
 
+## Other Dockerfiles
+
+The default `Dockerfile` builds against ROCm 7.13 and newer using TheRock
+(`amdrocm-*`) packages.  To build against ROCm 7.2.x and older, use the legacy
+dockerfile instead:
+
+```bash
+docker build -t migraphx:legacy -f tools/docker/legacy.dockerfile .
+```
+
+Alternative Dockerfiles are available under `tools/docker/`:
+
+* `tools/docker/legacy.dockerfile` — ROCm 7.2.x and older (Ubuntu 22.04); use this when building against ROCm releases that predate TheRock packages
+* `tools/docker/ubuntu_2404.dockerfile` — Ubuntu 24.04 with ROCm 7.1.1
+* `tools/docker/ubuntu_2204.dockerfile` — Ubuntu 22.04 with ROCm 6.4.2
+
+To build with one of these, use the `-f` flag. For example:
+
+```bash
+docker build -t migraphx:2404 -f tools/docker/ubuntu_2404.dockerfile .
+```
+
+Then follow the same `docker run` and build steps described in the
+[Use Docker](#use-docker) section.
+
 ## Building for development
 
 Using `rbuild`, you can install the dependencies for development with:
@@ -210,7 +274,7 @@ This will build a local searchable web site inside the docs/html folder.
 
 Documentation is built using [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html) and [rocm-docs-core](https://github.com/RadeonOpenCompute/rocm-docs-core)
 
-Run the steps below to build documentation locally.
+Run the steps below to build documentation locally. You can reuse the same venv from [installing rbuild](#installing-the-rocm-build-tool-rbuild).
 
 ```bash
 cd docs
@@ -235,3 +299,7 @@ Also, githooks can be installed to format the code per-commit:
 ```bash
 ./.githooks/install
 ```
+
+## AI Tool Use Policy
+
+Follow the [LLVM AI Tool Use Policy](https://llvm.org/docs/AIToolPolicy.html) for contributions that use AI.

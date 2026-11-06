@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,27 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/convolution.hpp>
 
-struct test_group_conv : verify_program<test_group_conv>
+struct test_group_conv1d : verify_program<test_group_conv1d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16}});
+        auto weights =
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3}});
+        migraphx::op::convolution op;
+        op.padding  = {0, 0};
+        op.stride   = {1};
+        op.dilation = {1};
+        op.group    = 4;
+        mm->add_instruction(op, input, weights);
+        return p;
+    }
+};
+
+struct test_group_conv2d : verify_program<test_group_conv2d>
 {
     migraphx::program create_program() const
     {
@@ -39,6 +59,26 @@ struct test_group_conv : verify_program<test_group_conv>
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3}});
         migraphx::op::convolution op;
         op.group = 4;
+        mm->add_instruction(op, input, weights);
+        return p;
+    }
+};
+
+struct test_group_conv3d : verify_program<test_group_conv3d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto input = mm->add_parameter(
+            "x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16, 16}});
+        auto weights =
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3, 3}});
+        migraphx::op::convolution op;
+        op.padding  = {0, 0, 0};
+        op.stride   = {1, 1, 1};
+        op.dilation = {1, 1, 1};
+        op.group    = 4;
         mm->add_instruction(op, input, weights);
         return p;
     }

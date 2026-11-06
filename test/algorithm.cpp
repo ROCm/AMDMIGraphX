@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@
 // NOLINTNEXTLINE
 #define MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(name, type) \
     template <class Container>                           \
-    void name();                                         \
+    static void name();                                  \
     TEST_CASE_REGISTER(name<std::vector<type>>);         \
     TEST_CASE_REGISTER(name<std::list<type>>);           \
     TEST_CASE_REGISTER(name<std::forward_list<type>>);   \
@@ -39,7 +39,8 @@
     void name()
 
 template <class Container, class Iterator>
-auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase_after(pos, last))
+static auto
+erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase_after(pos, last))
 {
     auto n  = std::distance(c.begin(), pos);
     auto it = n == 0 ? c.before_begin() : std::next(c.begin(), n - 1);
@@ -47,7 +48,8 @@ auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.era
 }
 
 template <class Container, class Iterator>
-auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase(pos, last))
+static auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase(pos,
+                                                                                          last))
 {
     return c.erase(pos, last);
 }
@@ -79,6 +81,151 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_remove_if_non_equivalence, int)
     auto pred   = [](int a, int b) { return (b - a) == 1; };
     erase_iterator(v, migraphx::adjacent_remove_if(v.begin(), v.end(), pred), v.end());
     EXPECT(v == Container{1, 1, 1, 4, 2, 4, 2, 5, 6});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_transform_basic, int)
+{
+    Container v = {1, 3, 6, 10, 15};
+    std::vector<int> result;
+    migraphx::adjacent_transform(
+        v.begin(), v.end(), std::back_inserter(result), [](int a, int b) { return b - a; });
+    EXPECT(result == std::vector<int>{2, 3, 4, 5});
+}
+
+// Unlike std::adjacent_difference the output can have a different type than the input
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_transform_different_type, int)
+{
+    Container v = {1, 2, 4, 4};
+    std::vector<bool> result;
+    migraphx::adjacent_transform(v.begin(), v.end(), std::back_inserter(result), std::less<>{});
+    EXPECT(result == std::vector<bool>{true, true, false});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_transform_single, int)
+{
+    Container v = {1};
+    std::vector<int> result;
+    migraphx::adjacent_transform(
+        v.begin(), v.end(), std::back_inserter(result), [](int a, int b) { return b - a; });
+    EXPECT(result.empty());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_transform_empty, int)
+{
+    Container v;
+    std::vector<int> result;
+    migraphx::adjacent_transform(
+        v.begin(), v.end(), std::back_inserter(result), [](int a, int b) { return b - a; });
+    EXPECT(result.empty());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_basic, int)
+{
+    Container v  = {5, 3, 7, 1, 9, 2};
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_no_valid, int)
+{
+    Container v  = {5, 3, 7, 1, 9};
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it == v.end());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_all_valid, int)
+{
+    Container v  = {6, 2, 8, 4, 10};
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_custom_compare, int)
+{
+    Container v  = {5, 3, 7, 1, 9, 2, 8};
+    auto is_even = [](int x) { return x % 2 == 0; };
+    // Find the largest even number
+    auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::greater<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 8);
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_empty, int)
+{
+    Container v;
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it == v.end());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_first_element, int)
+{
+    Container v  = {2, 5, 3, 7, 1, 9};
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+    EXPECT(it == v.begin());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_complex_predicate, int)
+{
+    Container v = {15, 3, 20, 1, 9, 25, 8, 12};
+    // Find the smallest number greater than 10
+    auto greater_than_10 = [](int x) { return x > 10; };
+    auto it = migraphx::min_element_if(v.begin(), v.end(), greater_than_10, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 12);
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_if_two_range_basic, int)
+{
+    Container v            = {1, 2, 3, 4, 5};
+    std::vector<int> flags = {1, 0, 1, 0, 1};
+    std::vector<int> result;
+    migraphx::transform_if(
+        v.begin(),
+        v.end(),
+        flags.begin(),
+        std::back_inserter(result),
+        [](int, int flag) { return flag != 0; },
+        [](int x, int flag) { return x + flag; });
+    EXPECT(result == std::vector<int>{2, 4, 6});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_if_two_range_none, int)
+{
+    Container v            = {1, 2, 3};
+    std::vector<int> flags = {0, 0, 0};
+    std::vector<int> result;
+    migraphx::transform_if(
+        v.begin(),
+        v.end(),
+        flags.begin(),
+        std::back_inserter(result),
+        [](int, int flag) { return flag != 0; },
+        [](int x, int) { return x; });
+    EXPECT(result.empty());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_if_two_range_empty, int)
+{
+    Container v;
+    std::vector<int> flags;
+    std::vector<int> result;
+    migraphx::transform_if(
+        v.begin(),
+        v.end(),
+        flags.begin(),
+        std::back_inserter(result),
+        [](int, int flag) { return flag != 0; },
+        [](int x, int) { return x; });
+    EXPECT(result.empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

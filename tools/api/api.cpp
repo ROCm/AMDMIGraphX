@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,10 +26,11 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/onnx.hpp>
-#include <migraphx/tf.hpp>
+#include <migraphx/program_verify.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
@@ -38,9 +39,19 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <migraphx/source_location.hpp>
+#include <migraphx/trace_info.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
+#include <sstream>
+
+#ifdef MIGRAPHX_ENABLE_ONNX
+#include <migraphx/onnx.hpp>
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+#include <migraphx/tf.hpp>
+#endif
 
 namespace migraphx {
 
@@ -54,7 +65,8 @@ extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(
 #endif
 
 template <class F>
-migraphx_status try_(F f, bool output = true) // NOLINT
+migraphx_status
+try_(F f, bool output = true, source_location llc = source_location::current()) // NOLINT
 {
 #ifdef MIGRAPHX_BUILD_TESTING
     if(disable_exception_catch)
@@ -71,7 +83,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const migraphx::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -80,7 +92,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const std::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)
@@ -93,11 +105,12 @@ migraphx_status try_(F f, bool output = true) // NOLINT
     return migraphx_status_success;
 }
 
-shape::type_t to_shape_type(migraphx_shape_datatype_t t)
+static shape::type_t to_shape_type(migraphx_shape_datatype_t t)
 {
     switch(t)
     {
     case migraphx_shape_tuple_type: return shape::tuple_type;
+    case migraphx_shape_fp4x2_type: return shape::fp4x2_type;
 #define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case migraphx_shape_##x: return shape::x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
@@ -106,11 +119,12 @@ shape::type_t to_shape_type(migraphx_shape_datatype_t t)
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 
-migraphx_shape_datatype_t to_shape_type(shape::type_t t)
+static migraphx_shape_datatype_t to_shape_type(shape::type_t t)
 {
     switch(t)
     {
     case shape::tuple_type: return migraphx_shape_tuple_type;
+    case shape::fp4x2_type: return migraphx_shape_fp4x2_type;
 #define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case shape::x: return migraphx_shape_##x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
@@ -119,8 +133,46 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 
+static verify::program_mode to_program_verify_mode(migraphx_program_verify_mode_t mode)
+{
+    switch(mode)
+    {
+    case migraphx_program_verify_mode_outputs: return verify::program_mode::outputs;
+    case migraphx_program_verify_mode_instructions: return verify::program_mode::instructions;
+    case migraphx_program_verify_mode_reduce: return verify::program_mode::reduce;
+    case migraphx_program_verify_mode_bisect: return verify::program_mode::bisect;
+    case migraphx_program_verify_mode_layerwise: return verify::program_mode::layerwise;
+    }
+    MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown program verification mode");
+}
+
+static migraphx_program_verify_mode_t to_program_verify_mode(verify::program_mode mode)
+{
+    switch(mode)
+    {
+    case verify::program_mode::outputs: return migraphx_program_verify_mode_outputs;
+    case verify::program_mode::instructions: return migraphx_program_verify_mode_instructions;
+    case verify::program_mode::reduce: return migraphx_program_verify_mode_reduce;
+    case verify::program_mode::bisect: return migraphx_program_verify_mode_bisect;
+    case verify::program_mode::layerwise: return migraphx_program_verify_mode_layerwise;
+    }
+    MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown program verification mode");
+}
+
+static verify::program_precision
+to_program_verify_precision(migraphx_program_verify_precision_t precision)
+{
+    switch(precision)
+    {
+    case migraphx_program_verify_precision_fp32: return verify::program_precision::fp32;
+    case migraphx_program_verify_precision_fp16: return verify::program_precision::fp16;
+    case migraphx_program_verify_precision_bf16: return verify::program_precision::bf16;
+    }
+    MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown program verification precision");
+}
+
 template <class T>
-auto to_obj_vector(const T* x, std::size_t n)
+static auto to_obj_vector(const T* x, std::size_t n)
 {
     std::vector<decltype((*x)->object)> result;
     std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return y->object; });
@@ -128,7 +180,7 @@ auto to_obj_vector(const T* x, std::size_t n)
 }
 
 template <class T, class U>
-auto to_objptr_vector(const U* x, std::size_t n)
+static auto to_objptr_vector(const U* x, std::size_t n)
 {
     std::vector<T> result;
     std::transform(
@@ -136,73 +188,201 @@ auto to_objptr_vector(const U* x, std::size_t n)
     return result;
 }
 
-target get_target(const std::string& name) { return make_target(name); }
+static target get_target(const std::string& name) { return make_target(name); }
 
-void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
 
-void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
+// Format `options_json` as a printf-style string using `vlist` and parse the
+// result into a value. `options_json` accepts a relaxed JSON object where bare
+// identifiers are treated as strings (see convert_to_json).
+static value parse_json_options(const char* options_json, va_list vlist)
+{
+    va_list vlist_copy;
+    va_copy(vlist_copy, vlist);
+    const int len = std::vsnprintf(nullptr, 0, options_json, vlist_copy);
+    va_end(vlist_copy);
+    if(len < 0)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Invalid format string for options_json");
+    std::vector<char> buffer(len + 1);
+    va_copy(vlist_copy, vlist);
+    std::vsnprintf(buffer.data(), buffer.size(), options_json, vlist_copy);
+    va_end(vlist_copy);
+    return from_json_string(convert_to_json(std::string(buffer.data())));
+}
 
-void set_exhaustive_tune_flag(compile_options& options, bool value)
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
+static target
+get_target_with_options(const std::string& name, const char* options_json, va_list vlist)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return make_target(name);
+    return make_target(name, parse_json_options(options_json, vlist));
+}
+
+static void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
+
+static void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
+
+static void set_exhaustive_tune_flag(compile_options& options, bool value)
 {
     options.exhaustive_tune = value;
 }
 
-void set_file_format(file_options& options, const char* format) { options.format = format; }
+static void set_compile_mode(compile_options& options, int8_t value)
+{
+    options.compile_mode = convert_to_compile_mode(value);
+}
 
-void set_default_dim_value(onnx_options& options, size_t value)
+static void set_program_verify_compiled_model(verify::program_options& options, const char* value)
+{
+    if(value == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Compiled model path cannot be null");
+    options.compiled_model = value;
+}
+
+static void set_program_verify_name(verify::program_options& options, const char* value)
+{
+    if(value == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Verification name cannot be null");
+    options.name = value;
+}
+
+// Parse the backend options from `options_json` and merge them into the
+// compile options. See migraphx::set_backend_options for the merge semantics.
+static void set_backend_options(compile_options& options, const char* options_json, va_list vlist)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return;
+    set_backend_options(options, parse_json_options(options_json, vlist));
+}
+
+static void set_file_format(file_options& options, const char* format) { options.format = format; }
+
+// Parse an expression string and bind each provided symbol name to the bounds/optimals
+// carried by its range dynamic_dimension, producing a symbolic dynamic_dimension.
+static shape::dynamic_dimension make_symbolic_dynamic_dimension(
+    const char* expression,
+    const std::unordered_map<std::string, shape::dynamic_dimension>& symbols)
+{
+    return shape::make_symbolic_dynamic_dimension(expression, symbols);
+}
+
+// Build a symbolic shape from self-contained expression strings. The C API takes explicit string
+// arrays and sizes because declaring std::vector<std::string> in the API generator would select
+// its global migraphx_quantize_op_names_t mapping and expose that unrelated opaque handle here.
+static std::vector<std::string>
+make_expression_strings(const char* const* expressions, std::size_t size, const std::string& name)
+{
+    if(size == 0)
+        return {};
+    if(expressions == nullptr or
+       std::any_of(expressions, expressions + size, [](const char* expression) {
+           return expression == nullptr;
+       }))
+        MIGRAPHX_THROW("CREATE_SYMBOLIC_SHAPE: Null " + name + " expression");
+    return {expressions, expressions + size};
+}
+
+static shape create_symbolic_shape(shape::type_t t,
+                                   const char* const* dims,
+                                   std::size_t ndims,
+                                   const char* const* strides,
+                                   std::size_t nstrides)
+{
+    return shape::make_symbolic_shape(t,
+                                      make_expression_strings(dims, ndims, "dimension"),
+                                      make_expression_strings(strides, nstrides, "stride"));
+}
+
+#ifdef MIGRAPHX_ENABLE_ONNX
+
+static void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
+    options.default_set       = true;
 }
 
-void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimension& dd)
+static void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimension& dd)
 {
     options.default_dyn_dim_value = dd;
+    options.default_set           = true;
 }
 
-void set_default_loop_iterations(onnx_options& options, int64_t value)
+static void set_default_loop_iterations(onnx_options& options, int64_t value)
 {
     options.max_loop_iterations = value;
 }
 
-void set_external_data_path(onnx_options& options, const char* external_data_path)
+static void set_external_data_path(onnx_options& options, const char* external_data_path)
 {
     options.external_data_path = std::string(external_data_path);
 }
 
-void set_limit_loop_iterations(onnx_options& options, int64_t value)
+static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 {
     options.limit_max_iterations = value;
 }
 
-void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
+static void set_use_debug_symbols(onnx_options& options, bool value)
+{
+    options.use_debug_symbols = value;
+}
 
-void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
+static void
+set_dim_param(onnx_options& options, const char* name, const shape::dynamic_dimension& dd)
+{
+    options.dim_params[std::string(name)] = dd;
+}
 
-void set_input_parameter_shape(onnx_options& options,
-                               const char* name,
-                               std::vector<std::size_t> dims)
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
+static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
+
+static void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
+
+#endif
+
+#ifdef MIGRAPHX_ENABLE_ONNX
+
+static void
+set_input_parameter_shape(onnx_options& options, const char* name, std::vector<std::size_t> dims)
 {
     options.map_input_dims[std::string(name)] = std::move(dims);
 }
 
-void set_dyn_input_parameter_shape(onnx_options& options,
-                                   const char* name,
-                                   std::vector<shape::dynamic_dimension> dyn_dims)
+static void set_dyn_input_parameter_shape(onnx_options& options,
+                                          const char* name,
+                                          std::vector<shape::dynamic_dimension> dyn_dims)
 {
     options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
-void set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
+static void
+set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
 {
     options.map_input_dims[std::string(name)] = std::move(dims);
 }
 
-void set_output_names(tf_options& options, std::vector<const char*> names)
+static void set_output_names(tf_options& options, std::vector<const char*> names)
 {
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
 
-std::vector<argument>
+#endif
+
+static std::vector<argument>
 run_async(program& p, const parameter_map& params, void* s, std::string_view name)
 {
     execution_environment exec_env{any_ptr(s, name), true};
@@ -210,7 +390,7 @@ run_async(program& p, const parameter_map& params, void* s, std::string_view nam
 }
 
 template <class Value>
-std::vector<const char*> get_names(const std::unordered_map<std::string, Value>& m)
+static std::vector<const char*> get_names(const std::unordered_map<std::string, Value>& m)
 {
     std::vector<const char*> result;
     std::transform(
@@ -219,12 +399,12 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
 }
 
 template <class T>
-std::set<T> make_set(const T* x, std::size_t n)
+static std::set<T> make_set(const T* x, std::size_t n)
 {
     return {x, x + n};
 }
 
-void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
+static void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
 {
     if(names.empty())
     {
@@ -234,23 +414,33 @@ void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
     migraphx::quantize_fp16(prog, names);
 }
 
+static void quantize_bf16_with_op_names(program& prog, std::vector<std::string>& names)
+{
+    if(names.empty())
+    {
+        names = {"all"};
+    }
+
+    migraphx::quantize_bf16(prog, names);
+}
+
 struct quantize_int8_options
 {
     std::vector<parameter_map> calibration   = {};
     std::unordered_set<std::string> op_names = {};
 };
 
-void add_op_name(quantize_int8_options& options, const char* name)
+static void add_op_name(quantize_int8_options& options, const char* name)
 {
     options.op_names.insert(name);
 }
 
-void add_calibration_data(quantize_int8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_int8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }
 
-void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& options)
+static void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& options)
 {
     if(options.op_names.empty())
     {
@@ -260,12 +450,38 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
+struct quantize_fp8_options
+{
+    std::vector<parameter_map> calibration = {};
+};
+
+static void add_calibration_data(quantize_fp8_options& options, const parameter_map& data)
+{
+    options.calibration.push_back(data);
+}
+
+static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_options& options)
+{
+    migraphx::quantize_fp8(prog, t, options.calibration);
+}
+
+#ifdef MIGRAPHX_ENABLE_ONNX
+
+static size_t get_onnx_operators_size() { return migraphx::get_onnx_operators().size(); }
+
+static char* get_onnx_operator_name_at_index(std::size_t index)
+{
+    return const_cast<char*>(get_onnx_operators().at(index).c_str()); // NOLINT
+}
+
+#endif
+
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
 #endif
 
-operation create_op(const char* name, const char* attributes, va_list vlist)
+static operation create_op(const char* name, const char* attributes, va_list vlist)
 {
     std::string sattributes = attributes == nullptr ? "" : attributes;
     std::vector<char> buffer(sattributes.size() * 2);
@@ -285,22 +501,28 @@ operation create_op(const char* name, const char* attributes, va_list vlist)
 #endif
 
 template <class T>
-bool equal(const T& x, const T& y)
+static bool equal(const T& x, const T& y)
 {
     return x == y;
 }
 
-std::vector<argument> run(program& p, const parameter_map& params) { return p.eval(params); }
+static std::vector<argument> run(program& p, const parameter_map& params) { return p.eval(params); }
 
-std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
+static std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
-void print_program(const program& p) { std::cout << p << std::endl; }
+static void print_program(const program& p) { std::cout << p << std::endl; }
 
-void print_module(const module& m) { std::cout << m << std::endl; }
+static void print_module(const module& m) { std::cout << m << std::endl; }
 
-migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s)
+static migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s)
 {
     return m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}), {});
+}
+
+static migraphx::instruction_ref
+add_literal(module& m, const migraphx::shape& s, const char* buffer)
+{
+    return m.add_literal(migraphx::literal::from_raw_buffer(s, buffer));
 }
 
 struct experimental_custom_op
@@ -341,32 +563,38 @@ struct custom_operation
         return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
     }
 
-    std::ptrdiff_t output_alias(std::vector<shape> inputs) const
+    std::vector<std::size_t> output_alias(std::vector<shape> inputs) const
     {
-        auto alias_vec = op.output_alias(std::move(inputs));
-        // TODO: For now, only support one output alias
-        if(alias_vec.empty())
-        {
-            return -1;
-        }
-        if(alias_vec.size() > 1)
-        {
-            MIGRAPHX_THROW("Currently, CustomOps in MIGraphX only supports one output_alias");
-        }
-        return alias_vec.front();
+        return op.output_alias(std::move(inputs));
     }
 
     bool runs_on_offload_target() const { return op.runs_on_offload_target(); }
 };
 
 template <class CustomOp>
-void register_custom_op(const CustomOp& op)
+static void register_custom_op(const CustomOp& op)
 {
     register_op(custom_operation<CustomOp>{op});
 }
 
-migraphx::context get_context(const program& p) { return p.get_context(); }
+static migraphx::context get_context(const program& p) { return p.get_context(); }
+
+static std::vector<argument>
+run_trace(program& p, const parameter_map& params, const std::function<void(trace_info)>& callback)
+{
+    execution_environment exec_env;
+    const auto* mm = p.get_main_module();
+    exec_env.trace = [&, mm](instruction_ref ins, const argument& output) {
+        auto idx = std::distance(mm->begin(), ins);
+        std::ostringstream oss;
+        oss << ins->get_operator();
+        callback(trace_info{static_cast<std::size_t>(idx), oss.str(), output});
+    };
+    return p.eval(params, exec_env);
+}
 
 } // namespace migraphx
 
-<% generate_c_api_body() %>
+<%
+    generate_c_api_body()
+%>

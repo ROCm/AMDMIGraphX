@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -154,7 +154,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->ndim() != n)
-                MIGRAPHX_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
+                MIGRAPHX_THROW(prefix() + "Only " + to_string(n) + "d supported but given " +
+                               to_string(begin->ndim()) + "d");
         }
         return *this;
     }
@@ -169,8 +170,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->ndim() > n)
-                MIGRAPHX_THROW(prefix() + "Shape must have at most " + std::to_string(n) +
-                               " dimensions");
+                MIGRAPHX_THROW(prefix() + "Shape must have at most " + to_string(n) +
+                               " dimensions but has " + to_string(begin->ndim()));
         }
         return *this;
     }
@@ -185,8 +186,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->ndim() < n)
-                MIGRAPHX_THROW(prefix() + "Shape must have at least " + std::to_string(n) +
-                               " dimensions");
+                MIGRAPHX_THROW(prefix() + "Shape must have at least " + to_string(n) +
+                               " dimensions but has " + to_string(begin->ndim()));
         }
         return *this;
     }
@@ -212,10 +213,34 @@ struct check_shapes
     }
 
     /*!
-     * Check all shapes have the same lens.
+     * Check all shapes have the same dimensions.
+     *
+     * Corresponding dimensions in fully symbolic shapes may have different non-literal expressions.
+     * Assuming that the operation requires that their runtime extents are equal.
+     * Any literal dimension must match exactly.
      */
     const check_shapes& same_dims() const
     {
+        if(begin != end and this->all_of([](const shape& s) { return s.symbolic(); }))
+        {
+            if(not this->same([](const shape& s) { return s.ndim(); }))
+                MIGRAPHX_THROW(prefix() + "Dimensions do not match");
+            if(not this->all_of([&](const shape& x_shape) {
+                   return this->all_of([&](const shape& y_shape) {
+                       return std::equal(x_shape.dyn_dims().begin(),
+                                         x_shape.dyn_dims().end(),
+                                         y_shape.dyn_dims().begin(),
+                                         [](const auto& x, const auto& y) {
+                                             if(x == y)
+                                                 return true;
+                                             return x.sym_expr.name() != "literal" and
+                                                    y.sym_expr.name() != "literal";
+                                         });
+                   });
+               }))
+                MIGRAPHX_THROW(prefix() + "Dimensions do not match");
+            return *this;
+        }
         if(not this->same([](const shape& s) { return s.max_lens(); }))
             MIGRAPHX_THROW(prefix() + "Dimensions do not match");
         if(this->any_of([&](const shape& s) { return s.dynamic(); }))

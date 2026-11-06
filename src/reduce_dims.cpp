@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,11 +22,12 @@
  * THE SOFTWARE.
  */
 #include <migraphx/reduce_dims.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
+static bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
 {
     std::vector<std::size_t> new_lens;
     for(const auto& s : shapes)
@@ -58,7 +59,7 @@ bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
     return true;
 }
 
-void reduce_dim1(std::vector<shape>& shapes)
+static void reduce_dim1(std::vector<shape>& shapes)
 {
     if(std::any_of(shapes.begin(), shapes.end(), [&](const auto& s) {
            return s.lens().size() < 2 or s.lens().back() != 1;
@@ -74,7 +75,7 @@ void reduce_dim1(std::vector<shape>& shapes)
     }
 }
 
-std::size_t reduce_dim_all(std::vector<shape>& shapes, std::size_t n)
+static std::size_t reduce_dim_all(std::vector<shape>& shapes, std::size_t n)
 {
     while(reduce_dim(shapes, n) and n < shapes.size())
     {
@@ -82,7 +83,7 @@ std::size_t reduce_dim_all(std::vector<shape>& shapes, std::size_t n)
     }
     return n + 1;
 }
-void reduce_dim_all(std::vector<shape>& shapes)
+static void reduce_dim_all(std::vector<shape>& shapes)
 {
     std::size_t n = 0;
     while(n < shapes.front().lens().size() - 1)
@@ -90,7 +91,7 @@ void reduce_dim_all(std::vector<shape>& shapes)
     reduce_dim1(shapes);
 }
 
-std::vector<std::size_t> base_lens(const std::vector<shape>& shapes)
+static std::vector<std::size_t> base_lens(const std::vector<shape>& shapes)
 {
     return std::accumulate(
         shapes.begin() + 1, shapes.end(), shapes.front().lens(), [](auto&& lens, auto&& s) {
@@ -107,23 +108,33 @@ std::vector<std::size_t> base_lens(const std::vector<shape>& shapes)
         });
 }
 
-shape mask_shape(const shape& s, const std::vector<std::size_t>& lens)
+static shape mask_shape(const shape& s, const std::vector<std::size_t>& lens)
 {
     assert(s.lens().size() == lens.size());
+
+    std::vector<std::size_t> mlens;
+    std::transform(s.lens().begin(),
+                   s.lens().end(),
+                   lens.begin(),
+                   std::back_inserter(mlens),
+                   [](auto x, auto y) -> std::size_t { return x == y ? x : 1; });
+    shape base{s.type(), mlens};
     std::vector<std::size_t> rstrides(lens.size());
-    std::size_t stride = 1;
-    for(std::size_t i = lens.size() - 1; i < lens.size(); i--)
-    {
+    auto is = range(lens.size());
+    std::transform(is.begin(), is.end(), rstrides.begin(), [&](auto i) -> std::size_t {
         if(lens[i] == s.lens()[i])
-        {
-            rstrides[i] = stride;
-            stride *= lens[i];
-        }
-        else if(lens[i] != 1 and s.lens()[i] != 1)
-        {
-            return shape{};
-        }
-    }
+            return base.strides()[i];
+        return 0;
+    });
+    // Adjacent stride-0 axes are allowed to merge, which is only valid when both
+    // are broadcasts; a mask cant keep an adjacent incompatible axis unmerged, so
+    // give up on masking
+    auto pairs = range(lens.size() - 1);
+    if(std::any_of(pairs.begin(), pairs.end(), [&](auto i) {
+           return rstrides[i] == 0 and rstrides[i + 1] == 0 and
+                  (s.lens()[i] != 1 or s.lens()[i + 1] != 1);
+       }))
+        return {};
     return shape{s.type(), lens, rstrides};
 }
 
@@ -131,6 +142,10 @@ std::vector<shape> reduce_dims(const std::vector<shape>& shapes)
 {
     if(shapes.empty())
         return {};
+    if(std::any_of(shapes.begin(), shapes.end(), [](const auto& s) { return s.dynamic(); }))
+    {
+        return shapes;
+    }
     auto result = shapes;
     auto base   = base_lens(shapes);
     for(auto&& s : shapes)

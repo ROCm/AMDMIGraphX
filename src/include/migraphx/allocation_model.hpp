@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,7 +75,7 @@ struct MIGRAPHX_EXPORT allocation_model
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct allocation_model
 {
     private:
@@ -130,7 +130,7 @@ struct allocation_model
         typename = private_te_constraints<PrivateDetailTypeErasedT>,
         typename = typename std::enable_if<
             not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, allocation_model>{}>::type>
-    allocation_model& operator=(PrivateDetailTypeErasedT&& value)
+    allocation_model& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -234,8 +234,7 @@ struct allocation_model
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>::value>::type* =
-                nullptr)
+            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>{}>::type* = nullptr)
             : private_detail_te_value(value)
         {
         }
@@ -243,8 +242,8 @@ struct allocation_model
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
-                                    int>::type* = nullptr) noexcept
+            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>{}, int>::type* =
+                nullptr) noexcept
             : private_detail_te_value(std::move(value))
         {
         }
@@ -278,6 +277,8 @@ struct allocation_model
             return private_detail_te_value.needs_out_params();
         }
 
+        // A reference when type-erasing a std::reference_wrapper for reference semantics.
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
         PrivateDetailTypeErasedT private_detail_te_value;
     };
 
@@ -342,6 +343,7 @@ inline const ValueType& any_cast(const allocation_model& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 #endif

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
+static void run_pass(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
 {
     migraphx::run_passes(
         m, {migraphx::propagate_constant{skip_ops}, migraphx::dead_code_elimination{}});
@@ -111,8 +111,8 @@ TEST_CASE(const_add_scalar)
     run_pass(m1);
 
     migraphx::module m2;
-    auto total =
-        m2.add_literal(migraphx::literal{{migraphx::shape::int32_type, {2, 2}}, {3, 3, 3, 3}});
+    auto total = m2.add_literal(
+        migraphx::literal{{migraphx::shape::int32_type, {2, 2}, {0, 0}}, {3, 3, 3, 3}});
     m2.add_instruction(non_const_pass_op{}, total);
     EXPECT(m1 == m2);
 }
@@ -387,7 +387,7 @@ TEST_CASE(skip_ops)
         auto scale = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}),
                                         m1.add_literal(0.5f));
         auto zp    = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}),
-                                     m1.add_literal(0));
+                                        m1.add_literal(0));
         auto q     = m1.add_instruction(migraphx::make_op("quantizelinear"), l, scale, zp);
         m1.add_instruction(migraphx::make_op("dequantizelinear"), q, scale, zp);
     }
@@ -531,6 +531,102 @@ TEST_CASE(block_dequantize_int4)
 
         auto dot = m2.add_instruction(migraphx::make_op("dot"), x, transpose);
         m2.add_return({dot});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pack_unpack_fp4)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4}};
+    migraphx::shape s2{migraphx::shape::fp4x2_type, {2}};
+    migraphx::module m1;
+    {
+        const std::vector<float> vec = {1.f, 0.f, 2.f, 0.f};
+        auto l                       = m1.add_literal(migraphx::literal(s1, vec));
+        auto pack                    = m1.add_instruction(migraphx::make_op("pack_fp4"), l);
+        auto unpack                  = m1.add_instruction(migraphx::make_op("unpack_fp4"), pack);
+        m1.add_return({unpack});
+    }
+
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        using migraphx::shape;
+        const std::vector<uint8_t> vec = {0x2, 0x4};
+        auto l      = m2.add_literal(migraphx::literal::from_raw_buffer(s2, vec.data()));
+        auto unpack = m2.add_instruction(migraphx::make_op("unpack_fp4"), l);
+        m2.add_return({unpack});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+// Test that propagate_constant correctly handles multi-alias operations
+// when one of the aliases should be skipped (e.g., broadcasted)
+TEST_CASE(skip_propagate_multi_alias)
+{
+    // When an instruction has multiple aliases and one should be skipped,
+    // propagation should be skipped for the entire instruction
+    migraphx::module m1;
+    {
+        // Create a broadcasted literal (should skip propagation)
+        auto broadcasted = m1.add_literal(
+            migraphx::literal{{migraphx::shape::float_type, {2, 1}, {1, 0}}, {1.0f, 2.0f}});
+        // Create a normal literal
+        auto normal =
+            m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {2}}, {3.0f, 4.0f}});
+        // multi_alias_op aliases both inputs
+        auto ma = m1.add_instruction(multi_alias_op{}, broadcasted, normal);
+        // Add an operation that uses ma
+        auto neg = m1.add_instruction(migraphx::make_op("neg"), ma);
+        m1.add_return({neg});
+    }
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    // Since one alias (broadcasted) should skip propagation,
+    // the multi_alias instruction should not be propagated
+    // The modules should be equivalent (no propagation happened)
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(skip_widening_convert_of_broadcast)
+{
+    // Folding the convert would materialize the broadcast as a full float
+    // tensor, losing the smaller storage type
+    migraphx::module m1;
+    {
+        auto lit = m1.add_literal(
+            migraphx::literal{{migraphx::shape::bf16_type, {4}}, {1.0f, 2.0f, 3.0f, 4.0f}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), lit);
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mb);
+        m1.add_instruction(non_const_pass_op{}, conv);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(propagate_narrowing_convert)
+{
+    migraphx::module m1;
+    {
+        auto lit = m1.add_literal(
+            migraphx::literal{{migraphx::shape::float_type, {4}}, {1.0f, 2.0f, 3.0f, 4.0f}});
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), lit);
+        m1.add_instruction(non_const_pass_op{}, conv);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto lit = m2.add_literal(
+            migraphx::literal{{migraphx::shape::bf16_type, {4}}, {1.0f, 2.0f, 3.0f, 4.0f}});
+        m2.add_instruction(non_const_pass_op{}, lit);
     }
     EXPECT(m1.sort() == m2.sort());
 }

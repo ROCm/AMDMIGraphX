@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,10 +29,13 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::auto_contiguous{}}); }
+static void run_pass(migraphx::module& m, migraphx::auto_contiguous pass = {})
+{
+    migraphx::run_passes(m, {pass});
+}
 
 // TODO: Add this test case
-void literal_broadcast()
+[[maybe_unused]] static void literal_broadcast()
 {
     migraphx::module m;
 
@@ -104,6 +107,55 @@ TEST_CASE(after_param_transpose)
     run_pass(m);
     EXPECT(m.get_output_shapes().back().standard());
     EXPECT(not m.get_output_shapes().back().transposed());
+}
+
+TEST_CASE(standardize_external_output)
+{
+    migraphx::module m1;
+    auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    auto layout =
+        m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+    m1.add_return({layout});
+    migraphx::module m2 = m1;
+
+    run_pass(m1);
+    EXPECT(not m1.get_output_shapes().back().standard());
+
+    run_pass(m2, migraphx::auto_contiguous{.standardize_outputs = true});
+    EXPECT(m2.get_output_shapes().back().standard());
+    EXPECT(m2.get_returns().front()->name() == "contiguous");
+
+    migraphx::module m3;
+    auto y = m3.add_parameter("y", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    m3.add_return({y});
+    auto m4 = m3;
+    run_pass(m3, migraphx::auto_contiguous{.standardize_outputs = true});
+    EXPECT(m3 == m4);
+}
+
+TEST_CASE(standardize_module_without_return)
+{
+    migraphx::module m1;
+    auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+    auto m2 = m1;
+
+    run_pass(m1, migraphx::auto_contiguous{.standardize_outputs = true});
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(standardize_only_nonstandard_outputs)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    auto layout =
+        m.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+    m.add_return({x, layout});
+
+    run_pass(m, migraphx::auto_contiguous{.standardize_outputs = true});
+    const auto outputs = m.get_returns();
+    EXPECT(outputs.front() == x);
+    EXPECT(outputs.back()->name() == "contiguous");
 }
 
 TEST_CASE(after_param_broadcast)
@@ -263,6 +315,100 @@ TEST_CASE(dead_instruction)
                                     data);
         auto cr = m2.add_instruction(migraphx::make_op("contiguous"), r);
         m2.add_return({cr});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(reshape_nonstandard_input)
+{
+    // A reshape whose input is non-standard (here a layout, which the pass above does
+    // not standardize) gets a contiguous inserted before it so the reshape output is a
+    // standard shape. The trailing contiguous comes from the loop above and is removed
+    // later by eliminate_contiguous.
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto l =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 20}}}), l);
+        m1.add_return({r});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto l =
+            m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto cl = m2.add_instruction(migraphx::make_op("contiguous"), l);
+        auto r  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 20}}}), cl);
+        auto cr = m2.add_instruction(migraphx::make_op("contiguous"), r);
+        m2.add_return({cr});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(mixed_layout_contiguous_input)
+{
+    // The add has a contiguous input and a non-standard (layout) input, so the
+    // non-standard one is made contiguous to match.
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto l =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto c = m1.add_instruction(migraphx::make_op("contiguous"), y);
+        auto a = m1.add_instruction(migraphx::make_op("add"), l, c);
+        m1.add_return({a});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto y = m2.add_parameter("y", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto l =
+            m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto c  = m2.add_instruction(migraphx::make_op("contiguous"), y);
+        auto cl = m2.add_instruction(migraphx::make_op("contiguous"), l);
+        auto a  = m2.add_instruction(migraphx::make_op("add"), cl, c);
+        m2.add_return({a});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(mixed_layout_no_contiguous_input)
+{
+    // Both inputs share a layout and neither is a contiguous op, so the inputs are left
+    // as-is (only the non-standard add output is standardized by the loop above).
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto l1 =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto l2 =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), y);
+        auto a = m1.add_instruction(migraphx::make_op("add"), l1, l2);
+        m1.add_return({a});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto y = m2.add_parameter("y", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto l1 =
+            m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto l2 =
+            m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), y);
+        auto a = m2.add_instruction(migraphx::make_op("add"), l1, l2);
+        auto c = m2.add_instruction(migraphx::make_op("contiguous"), a);
+        m2.add_return({c});
     }
 
     EXPECT(m1 == m2);

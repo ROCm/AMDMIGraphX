@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,11 +27,15 @@
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/sym.hpp>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <onnx.pb.h>
-#include <unordered_map>
 #include <functional>
+#include <limits>
+#include <optional>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -51,8 +55,13 @@ struct onnx_parser
     {
         attribute_map attributes{};
         std::size_t num_outputs = 1;
-        std::string name        = "";
-        module* mod             = nullptr;
+        // Unique identifier for MIGX, not the given ONNX node name. Formatted as
+        // "<module_name>_<op_type>_<instruction_number>", so it is unique across modules.
+        std::string name = "";
+        module* mod      = nullptr;
+        // ONNX node domain. Empty for the default domain. MatMulNBits uses this to
+        // choose the com.microsoft input layout versus com.ryzenai.
+        std::string domain{};
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,
@@ -94,21 +103,29 @@ struct onnx_parser
     using op_func  = std::function<std::vector<instruction_ref>(
         onnx_parser&, const node_info&, std::vector<instruction_ref>)>;
     node_map nodes;
+    std::unordered_set<std::string> parent_input_nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                                   = program();
     shape::dynamic_dimension default_dyn_dim_value = {1, 1};
+    bool default_set                               = false;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     std::unordered_map<std::string, shape::dynamic_dimension> dim_params;
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
-    bool use_dyn_output          = false;
     bool skip_unknown_operators  = false;
+    bool use_debug_symbols       = false;
+    bool use_symbolic_shapes     = false;
     int64_t max_loop_iterations  = 10;
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     int64_t opset_version        = 13;
 
+    // Keep sanitized ONNX symbols stable and collision-free across every module in this model.
+    sym::symbol_name_registry symbol_names;
+
     std::unordered_map<std::string, op_func> ops;
 
     onnx_parser();
+    value
+    load_to_value(const std::string& name, const node_info& info, bool use_operation = true) const;
     operation load(const std::string& name, const node_info& info) const;
 
     void parse_undefined(module* mod, const std::string& name);
@@ -121,8 +138,13 @@ struct onnx_parser
     parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining = false);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
-    shape parse_type(const onnx::TypeProto& t) const;
-    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
+    shape parse_param_shape(const onnx::TypeProto& t, const std::string& name);
+    shape parse_param_shape(const onnx::TypeProto& t,
+                            const std::string& name,
+                            const std::vector<shape::dynamic_dimension>& override_dims);
+    shape parse_param_shape(const onnx::TypeProto& t,
+                            const std::vector<std::size_t>& input_dims) const;
+    std::string to_string(const onnx::AttributeProto& attr) const;
 };
 
 shape::type_t get_type(int dtype);

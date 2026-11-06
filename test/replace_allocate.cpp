@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,11 +28,34 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/register_op.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
+
+struct test_copy : migraphx::auto_register_op<test_copy>
+{
+    std::string name() const { return "test_copy"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+    {
+        migraphx::check_shapes{inputs, *this, true}.has(2);
+        return inputs.back();
+    }
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>& inputs) const
+    {
+        inputs.at(0).visit([&](auto x) {
+            inputs.at(1).visit([&](auto y) { std::copy(x.begin(), x.end(), y.begin()); });
+        });
+        return inputs.back();
+    }
+
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {1}; }
+};
 
 struct allocate_no_out : migraphx::auto_register_op<allocate_no_out>
 {
@@ -91,7 +114,7 @@ struct allocation_no_out_model
         return migraphx::make_op(name(), {{"shape", to_value(s)}});
     }
     migraphx::operation preallocate(const migraphx::shape&, const std::string&) const { return {}; }
-    std::string copy() const { return {}; }
+    std::string copy() const { return "test_copy"; }
     bool needs_out_params() const { return false; }
 };
 
@@ -104,25 +127,27 @@ struct allocation_with_out_model
         return migraphx::make_op(name(), {{"shape", to_value(s)}});
     }
     migraphx::operation preallocate(const migraphx::shape&, const std::string&) const { return {}; }
-    std::string copy() const { return {}; }
+    std::string copy() const { return "test_copy"; }
     bool needs_out_params() const { return true; }
 };
 
-void run_pass(migraphx::module& m, migraphx::allocation_model model, bool offload_copy = false)
+static void
+run_pass(migraphx::module& m, migraphx::allocation_model model, bool offload_copy = false)
 {
     migraphx::run_passes(m,
                          {migraphx::replace_allocate{std::move(model), offload_copy},
                           migraphx::dead_code_elimination{}});
 }
 
-void run_pass(migraphx::program& p, migraphx::allocation_model model, bool offload_copy = false)
+static void
+run_pass(migraphx::program& p, migraphx::allocation_model model, bool offload_copy = false)
 {
     migraphx::run_passes(p,
                          {migraphx::replace_allocate{std::move(model), offload_copy},
                           migraphx::dead_code_elimination{}});
 }
 
-migraphx::module create_simple_program()
+static migraphx::module create_simple_program()
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {5}};
@@ -213,6 +238,820 @@ TEST_CASE(if_allocate)
     EXPECT(std::any_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
         return migraphx::contains(ins.name(), "allocate_with_out");
     }));
+}
+
+TEST_CASE(allocate_copy_with_out)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s);
+        auto y     = m1.add_parameter("y", s);
+        auto pass  = m1.add_instruction(tuple_op{}, x, y);
+        auto elem1 = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
+        m1.add_return({elem1});
+    }
+    run_pass(m1, allocation_with_out_model{});
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto output = m2.add_parameter("output", s);
+        auto pass   = m2.add_instruction(tuple_op{}, x, y);
+        auto elem1  = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
+        auto copy   = m2.add_instruction(migraphx::make_op("test_copy"), elem1, output);
+        m2.add_return({copy});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_repeated_return_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1("sub");
+    auto alloc =
+        m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    auto p1 = m1.add_instruction(pass_op{}, alloc);
+    m1.add_return({p1, p1});
+
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2("sub");
+    auto output0 = m2.add_parameter("sub:#output_0", s);
+    auto output1 = m2.add_parameter("sub:#output_1", s);
+    auto p2      = m2.add_instruction(pass_op{}, output0);
+    auto copy    = m2.add_instruction(migraphx::make_op("test_copy"), p2, output1);
+    m2.add_return({p2, copy});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_parameter_return_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1("sub");
+    auto input = m1.add_parameter("input", s);
+    m1.add_return({input});
+
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2("sub");
+    auto expected_input = m2.add_parameter("input", s);
+    auto output         = m2.add_parameter("sub:#output_0", s);
+    auto copy = m2.add_instruction(migraphx::make_op("test_copy"), expected_input, output);
+    m2.add_return({copy});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_implicit_parameter_return_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1("sub");
+    m1.add_parameter("input", s);
+
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2("sub");
+    auto input  = m2.add_parameter("input", s);
+    auto output = m2.add_parameter("sub:#output_0", s);
+    auto copy   = m2.add_instruction(migraphx::make_op("test_copy"), input, output);
+    m2.add_return({copy});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_dynamic_parameter_return_copy)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape s{migraphx::shape::float_type, {dd{1, 4}, dd{2, 2}}};
+    migraphx::shape capacity_s{migraphx::shape::float_type, {4, 2}};
+    migraphx::module m1("sub");
+    auto input = m1.add_parameter("input", s);
+    m1.add_return({input});
+
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2("sub");
+    auto expected_input = m2.add_parameter("input", s);
+    auto output         = m2.add_parameter("sub:#output_0", capacity_s);
+    auto dims =
+        m2.add_instruction(migraphx::make_op("dimensions_of", {{"end", 2}}), expected_input);
+    auto output_view = m2.add_instruction(
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}}), output, dims);
+    auto copy = m2.add_instruction(migraphx::make_op("test_copy"), expected_input, output_view);
+    m2.add_return({copy});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_select_module_dynamic_parameter_return)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape s{migraphx::shape::float_type, {dd{1, 4}, dd{2, 2}}};
+    migraphx::shape capacity_s{migraphx::shape::float_type, {4, 2}};
+    migraphx::shape output_shape{std::vector<migraphx::shape>{s}};
+
+    migraphx::program p;
+    auto* branch      = p.create_module("branch");
+    auto branch_input = branch->add_parameter("data", s);
+    branch->add_return({branch_input});
+
+    auto* mm    = p.get_main_module();
+    auto input  = mm->add_parameter("data", s);
+    auto buffer = mm->add_parameter("buffer", capacity_s);
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
+        {input, buffer},
+        {branch});
+    auto output = mm->add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", std::size_t{0}}}), select);
+    mm->add_return({output});
+
+    run_pass(p, allocation_with_out_model{}, true);
+
+    migraphx::shape input_shape{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> input_values{1, 2, 3, 4};
+    std::vector<float> buffer_values(capacity_s.elements(), -1);
+    migraphx::parameter_map params;
+    params["data"]   = migraphx::argument{input_shape, input_values.data()};
+    params["buffer"] = migraphx::argument{capacity_s, buffer_values.data()};
+    std::vector<migraphx::context> contexts(1);
+    p.get_main_module()->finalize(contexts);
+    auto result = p.eval_with_context(contexts, params).front();
+
+    EXPECT(result.get_shape() == input_shape);
+    EXPECT(result.to_vector<float>() == input_values);
+    EXPECT(buffer_values == std::vector<float>{1, 2, 3, 4, -1, -1, -1, -1});
+}
+
+TEST_CASE(allocate_out_pointwise_module_parameter_return)
+{
+    migraphx::program p;
+    auto* pointwise = p.create_module("pointwise");
+    auto px =
+        pointwise->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
+    pointwise->add_return({px});
+
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 4}});
+    auto pw  = mm->add_instruction(migraphx::make_op("pointwise"), {x}, {pointwise});
+    mm->add_return({pw});
+
+    run_pass(p, allocation_with_out_model{});
+
+    EXPECT(pointwise->get_returns() == std::vector<migraphx::instruction_ref>{px});
+}
+
+TEST_CASE(allocate_out_select_module_parameter_return)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p;
+    auto* branch = p.create_module("branch");
+    auto bx      = branch->add_parameter("x", s);
+    branch->add_return({bx});
+
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", s);
+    auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s)}}));
+    migraphx::shape output_shape{std::vector<migraphx::shape>{s}};
+    auto select = mm->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape)}}),
+        {x, alloc},
+        {branch});
+    mm->add_return(
+        {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select)});
+
+    run_pass(p, allocation_with_out_model{});
+
+    EXPECT(migraphx::any_of(migraphx::iterator_for(*branch), [](migraphx::instruction_ref ins) {
+        return ins->name() == "test_copy";
+    }));
+}
+
+TEST_CASE(allocate_out_select_module_dynamic_tuple_views)
+{
+    using dd  = migraphx::shape::dynamic_dimension;
+    auto n    = migraphx::sym::var("N", {1, 4});
+    auto zero = migraphx::sym::lit(0);
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{migraphx::sym::lit(2)}}};
+    migraphx::shape capacity_s{migraphx::shape::float_type, {4, 2}};
+    migraphx::shape tuple_s{std::vector<migraphx::shape>{s, s}};
+    const std::vector<std::string> symbols = {"@output_0:first", "@output_1:second"};
+    auto make_program                      = [&](bool use_output_param) {
+        migraphx::program p;
+        auto* branch = p.create_module("branch");
+        auto x       = branch->add_parameter("x", capacity_s);
+        std::vector<migraphx::instruction_ref> branch_outputs;
+        for(std::size_t i = 0; i < tuple_s.sub_shapes().size(); ++i)
+        {
+            migraphx::instruction_ref output;
+            if(use_output_param)
+            {
+                output = branch->add_parameter("branch:#output_" + std::to_string(i), capacity_s);
+            }
+            else
+            {
+                output = branch->add_instruction(
+                    migraphx::make_op("allocate", {{"shape", migraphx::to_value(capacity_s)}}));
+            }
+            branch_outputs.push_back(branch->add_instruction(test_copy{}, x, output));
+        }
+        branch->add_return(branch_outputs);
+
+        auto* mm    = p.get_main_module();
+        auto source = mm->add_parameter("x", capacity_s);
+        auto end    = mm->add_parameter("end", migraphx::shape{migraphx::shape::int64_type, {1}});
+        std::vector<migraphx::instruction_ref> buffers;
+        for(std::size_t i = 0; i < tuple_s.sub_shapes().size(); ++i)
+        {
+            if(use_output_param)
+            {
+                auto output = mm->add_parameter("main:#output_" + std::to_string(i), capacity_s);
+                mm->add_debug_symbols(output, {symbols.at(i)});
+                buffers.push_back(output);
+            }
+            else
+            {
+                buffers.push_back(mm->add_instruction(
+                    migraphx::make_op("allocate", {{"shape", migraphx::to_value(capacity_s)}})));
+            }
+        }
+        std::vector<migraphx::instruction_ref> select_inputs = {source};
+        select_inputs.insert(select_inputs.end(), buffers.begin(), buffers.end());
+        auto select = mm->add_instruction(
+            migraphx::make_op("select_module",
+                              {{"output_dyn_shapes", migraphx::to_value(tuple_s)}}),
+            select_inputs,
+            {branch});
+        auto start = mm->add_literal(migraphx::literal{migraphx::shape::int64_type, {0}});
+        std::vector<migraphx::instruction_ref> outputs;
+        for(std::size_t i = 0; i < tuple_s.sub_shapes().size(); ++i)
+        {
+            auto elem =
+                mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", i}}), select);
+            outputs.push_back(mm->add_instruction(
+                migraphx::make_op(
+                    "dyn_slice",
+                    {{"axes", {0}},
+                     {"starts", migraphx::to_value(std::vector<migraphx::sym::expr>{zero})},
+                     {"ends", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}}),
+                elem,
+                start,
+                end));
+        }
+        auto ret = mm->add_return(outputs);
+        mm->add_debug_symbols(ret, {symbols.begin(), symbols.end()});
+        return p;
+    };
+
+    auto p1 = make_program(false);
+    run_pass(p1, allocation_with_out_model{});
+    auto p2 = make_program(true);
+
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(allocate_out_squeeze)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 1}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto sq = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
+        m1.add_return({sq});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output", out_s);
+        auto us     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), output);
+        auto p1     = m2.add_instruction(pass_op{}, us);
+        auto sq     = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_reshape_lazy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 3}};
+    migraphx::shape out_s{migraphx::shape::float_type, {8, 3}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1  = m1.add_instruction(pass_op{}, alloc);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {8, 3}}}), p1);
+        m1.add_return({rsp});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output", out_s);
+        auto rsp1 =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 4, 3}}}), output);
+        auto p1   = m2.add_instruction(pass_op{}, rsp1);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {8, 3}}}), p1);
+        m2.add_return({rsp2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_transpose)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape out_s{migraphx::shape::float_type, {4, 2}, {1, 4}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto t  = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), p1);
+        m1.add_return({t});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output", out_s);
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), output);
+        auto p1 = m2.add_instruction(pass_op{}, t1);
+        auto t2 = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), p1);
+        m2.add_return({t2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// An allocation shared by two return values cannot become the output parameter for both of them
+TEST_CASE(allocate_out_shared_alloc_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 1}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto sq = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
+        m1.add_return({sq, p1});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output0 = m2.add_parameter("output_0", out_s);
+        auto output1 = m2.add_parameter("output_1", s);
+        auto p1      = m2.add_instruction(pass_op{}, output1);
+        auto sq      = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), p1);
+        auto copy    = m2.add_instruction(migraphx::make_op("test_copy"), sq, output0);
+        m2.add_return({copy, p1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A broadcast is not a bijection, so the output buffer still needs a copy
+TEST_CASE(allocate_out_broadcast_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 1}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 4}, {1, 0}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), p1);
+        m1.add_return({mb});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output", out_s);
+        auto alloc =
+            m2.add_instruction(migraphx::make_op("allocate_with_out", {{"shape", to_value(s)}}));
+        auto p1 = m2.add_instruction(pass_op{}, alloc);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), p1);
+        auto copy = m2.add_instruction(migraphx::make_op("test_copy"), mb, output);
+        m2.add_return({copy});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A slice does not cover the whole allocation, so the output buffer still needs a copy
+TEST_CASE(allocate_out_slice_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 2}, {4, 1}};
+    migraphx::module m1;
+    {
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        auto sl = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), p1);
+        m1.add_return({sl});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto output = m2.add_parameter("output", out_s);
+        auto alloc =
+            m2.add_instruction(migraphx::make_op("allocate_with_out", {{"shape", to_value(s)}}));
+        auto p1 = m2.add_instruction(pass_op{}, alloc);
+        auto sl = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), p1);
+        auto copy = m2.add_instruction(migraphx::make_op("test_copy"), sl, output);
+        m2.add_return({copy});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_copy_with_no_out)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s);
+        auto y     = m1.add_parameter("y", s);
+        auto pass  = m1.add_instruction(tuple_op{}, x, y);
+        auto elem1 = m1.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pass);
+        m1.add_return({elem1});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, allocation_no_out_model{});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_multi_return_partial_alloc)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        m1.add_return({x, p1});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", s);
+        auto output0 = m2.add_parameter("output_0", s);
+        auto copy    = m2.add_instruction(migraphx::make_op("test_copy"), x, output0);
+        auto output1 = m2.add_parameter("output_1", s);
+        auto p1      = m2.add_instruction(pass_op{}, output1);
+        m2.add_return({copy, p1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test that replace_allocate handles multi-alias operations correctly
+// when checking for shape matches (insert_copy code path)
+TEST_CASE(multi_alias_shape_check)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
+        // multi_alias_op aliases both x and y (both have same shape)
+        auto ma = m1.add_instruction(multi_alias_op{}, x, y);
+        m1.add_return({ma});
+    }
+
+    // After pass, since the multi_alias aliases inputs with matching shapes,
+    // no copy should be inserted
+    migraphx::module m2 = m1;
+    run_pass(m1, allocation_no_out_model{});
+
+    // The module should remain unchanged since aliases have matching shapes
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test multi-alias with allocation replaced by output parameter
+// When first alias is an allocation, it gets replaced with output parameter
+TEST_CASE(multi_alias_alloc_out_param)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        // Create allocation that is first in multi_alias - this will be used for output naming
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        // Put allocation-based alias first so it gets used for output naming
+        auto ma = m1.add_instruction(multi_alias_op{}, p1, x);
+        m1.add_return({ma});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        // Only the allocation becomes an output parameter (named "output" since single alloc)
+        auto output = m2.add_parameter("output_0", s);
+        auto p1     = m2.add_instruction(pass_op{}, output);
+        auto ma     = m2.add_instruction(multi_alias_op{}, p1, x);
+        m2.add_return({ma});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test multi-alias where both inputs are allocations - both become output parameters
+TEST_CASE(multi_alias_two_allocs_out_param)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        // First allocation will be replaced with output parameter
+        auto alloc1 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc1);
+        // Second allocation will also be replaced with output parameter
+        auto alloc2 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p2 = m1.add_instruction(pass_op{}, alloc2);
+        auto ma = m1.add_instruction(multi_alias_op{}, p1, p2);
+        m1.add_return({ma});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        // Both aliases become output parameters
+        auto output0 = m2.add_parameter("output_0", s);
+        auto p1      = m2.add_instruction(pass_op{}, output0);
+        auto output1 = m2.add_parameter("output_1", s);
+        auto p2      = m2.add_instruction(pass_op{}, output1);
+        auto ma      = m2.add_instruction(multi_alias_op{}, p1, p2);
+        m2.add_return({ma});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test multi-alias with matching shapes - no copy needed when any alias matches
+TEST_CASE(multi_alias_no_copy_when_any_matches)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::shape s2{migraphx::shape::float_type, {10}};
+    migraphx::module m1;
+    {
+        // x has shape {5}, y has shape {10}
+        // multi_alias output has shape {5} (from first input)
+        // Since x's shape matches output shape, no copy is needed
+        auto x  = m1.add_parameter("x", s);
+        auto y  = m1.add_parameter("y", s2);
+        auto ma = m1.add_instruction(multi_alias_op{}, x, y);
+        m1.add_return({ma});
+    }
+
+    // Module should be unchanged - no copy inserted because first alias shape matches
+    migraphx::module m2 = m1;
+    run_pass(m1, allocation_no_out_model{});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test multiple return values where each has a multi-alias with allocation as first alias
+// Both allocations should be replaced with separate output parameters
+TEST_CASE(multi_alias_multiple_outputs_out_params)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
+        // First allocation -> pass -> multi_alias with x
+        auto alloc1 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1  = m1.add_instruction(pass_op{}, alloc1);
+        auto ma1 = m1.add_instruction(multi_alias_op{}, p1, x);
+        // Second allocation -> pass -> multi_alias with y
+        auto alloc2 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p2  = m1.add_instruction(pass_op{}, alloc2);
+        auto ma2 = m1.add_instruction(multi_alias_op{}, p2, y);
+        // Return both multi_alias results - each should get its own output parameter
+        m1.add_return({ma1, ma2});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto y = m2.add_parameter("y", s);
+        // First output parameter replaces first allocation (named output_0)
+        auto output0 = m2.add_parameter("output_0", s);
+        auto p1      = m2.add_instruction(pass_op{}, output0);
+        auto ma1     = m2.add_instruction(multi_alias_op{}, p1, x);
+        // Second output parameter replaces second allocation (named output_1)
+        auto output1 = m2.add_parameter("output_2", s);
+        auto p2      = m2.add_instruction(pass_op{}, output1);
+        auto ma2     = m2.add_instruction(multi_alias_op{}, p2, y);
+        m2.add_return({ma1, ma2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test multi-alias with 3 allocations - all become output parameters
+TEST_CASE(multi_alias_three_allocs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        // Three allocations wrapped in pass_op
+        auto alloc1 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc1);
+        auto alloc2 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p2 = m1.add_instruction(pass_op{}, alloc2);
+        auto alloc3 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p3 = m1.add_instruction(pass_op{}, alloc3);
+        // multi_alias aliases all three allocations
+        auto ma = m1.add_instruction(multi_alias_op{}, p1, p2, p3);
+        m1.add_return({ma});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        // All three aliases become output parameters
+        auto output0 = m2.add_parameter("output_0", s);
+        auto p1      = m2.add_instruction(pass_op{}, output0);
+        auto output1 = m2.add_parameter("output_1", s);
+        auto p2      = m2.add_instruction(pass_op{}, output1);
+        auto output2 = m2.add_parameter("output_2", s);
+        auto p3      = m2.add_instruction(pass_op{}, output2);
+        auto ma      = m2.add_instruction(multi_alias_op{}, p1, p2, p3);
+        m2.add_return({ma});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test where multiple multi_alias ops each contribute an allocation to multiple returns
+// Each allocation becomes a separate output parameter
+TEST_CASE(multi_alias_chain_multiple_out_params)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        // Three allocations
+        auto alloc1 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc1);
+        auto alloc2 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p2 = m1.add_instruction(pass_op{}, alloc2);
+        auto alloc3 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p3 = m1.add_instruction(pass_op{}, alloc3);
+        // Each multi_alias puts an allocation first
+        auto ma1 = m1.add_instruction(multi_alias_op{}, p1, x);
+        auto ma2 = m1.add_instruction(multi_alias_op{}, p2, x);
+        auto ma3 = m1.add_instruction(multi_alias_op{}, p3, x);
+        // Return all three - each should get its own output parameter
+        m1.add_return({ma1, ma2, ma3});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        // Three output parameters - one for each return
+        auto output0 = m2.add_parameter("output_0", s);
+        auto p1      = m2.add_instruction(pass_op{}, output0);
+        auto output1 = m2.add_parameter("output_2", s);
+        auto p2      = m2.add_instruction(pass_op{}, output1);
+        auto output2 = m2.add_parameter("output_4", s);
+        auto p3      = m2.add_instruction(pass_op{}, output2);
+        auto ma1     = m2.add_instruction(multi_alias_op{}, p1, x);
+        auto ma2     = m2.add_instruction(multi_alias_op{}, p2, x);
+        auto ma3     = m2.add_instruction(multi_alias_op{}, p3, x);
+        m2.add_return({ma1, ma2, ma3});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(allocate_out_debug_symbols_single)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    {
+        auto x = m.add_parameter("x", s);
+        auto y = m.add_parameter("y", s);
+        auto alloc =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result = m.add_instruction(pass_op{}, alloc, x, y);
+        auto ret    = m.add_return({result});
+        m.add_debug_symbols(ret, {"@output_0:out"});
+    }
+    run_pass(m, allocation_with_out_model{});
+
+    auto out_param                 = m.get_parameter("output");
+    std::set<std::string> expected = {"@output_0:out"};
+    EXPECT(out_param->get_debug_symbols() == expected);
+}
+
+TEST_CASE(allocate_out_debug_symbols_multi)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    {
+        auto x = m.add_parameter("x", s);
+        auto alloc1 =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result1 = m.add_instruction(pass_op{}, alloc1, x);
+        auto alloc2 =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result2 = m.add_instruction(pass_op{}, alloc2, x);
+        auto ret     = m.add_return({result1, result2});
+        m.add_debug_symbols(ret, {"@output_0:first", "@output_1:second"});
+    }
+    run_pass(m, allocation_with_out_model{});
+
+    auto out0                       = m.get_parameter("output_0");
+    auto out1                       = m.get_parameter("output_1");
+    std::set<std::string> expected0 = {"@output_0:first"};
+    std::set<std::string> expected1 = {"@output_1:second"};
+    EXPECT(out0->get_debug_symbols() == expected0);
+    EXPECT(out1->get_debug_symbols() == expected1);
+}
+
+TEST_CASE(allocate_out_no_debug_symbols)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    {
+        auto x = m.add_parameter("x", s);
+        auto y = m.add_parameter("y", s);
+        auto alloc =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result = m.add_instruction(pass_op{}, alloc, x, y);
+        m.add_return({result});
+    }
+    run_pass(m, allocation_with_out_model{});
+
+    auto out_param = m.get_parameter("output");
+    EXPECT(out_param->get_debug_symbols().empty());
+}
+
+TEST_CASE(allocate_out_debug_symbols_size_mismatch)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    {
+        auto x = m.add_parameter("x", s);
+        auto alloc1 =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result1 = m.add_instruction(pass_op{}, alloc1, x);
+        auto alloc2 =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result2 = m.add_instruction(pass_op{}, alloc2, x);
+        auto ret     = m.add_return({result1, result2});
+        // Only 1 symbol for 2 alloc aliases → size mismatch
+        m.add_debug_symbols(ret, {"@output_0:only_one"});
+    }
+    run_pass(m, allocation_with_out_model{});
+
+    auto out0 = m.get_parameter("output_0");
+    auto out1 = m.get_parameter("output_1");
+    EXPECT(out0->get_debug_symbols().empty());
+    EXPECT(out1->get_debug_symbols().empty());
+}
+
+TEST_CASE(allocate_out_debug_symbols_no_return)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    {
+        auto x = m.add_parameter("x", s);
+        auto y = m.add_parameter("y", s);
+        auto alloc =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        m.add_instruction(pass_op{}, alloc, x, y);
+        m.add_debug_symbols(x, {"some_symbol"});
+    }
+    run_pass(m, allocation_with_out_model{});
+
+    auto out_param = m.get_parameter("output");
+    EXPECT(out_param->get_debug_symbols().empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

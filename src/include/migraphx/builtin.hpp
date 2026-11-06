@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,32 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace builtin {
+
+// Builtin `@comment` op to store problem key and solution for generating a
+// .mxr file for benchmarking.
+struct comment
+{
+    std::string text;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.text, "text"));
+    }
+
+    std::string name() const { return "@comment"; }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
+    argument compute(context&, const shape& output_shape, const std::vector<argument>&) const
+    {
+        return argument{output_shape, nullptr};
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const comment& op)
+    {
+        os << op.name() << ": " << op.text;
+        return os;
+    }
+};
 
 struct literal
 {

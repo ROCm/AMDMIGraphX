@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,7 +33,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::vector<std::string_view> json_tokenize(const std::string& s)
+static std::vector<std::string_view> json_tokenize(const std::string& s)
 {
     std::vector<lexer> lexers;
 
@@ -82,7 +82,7 @@ std::string convert_to_json(const std::string& str)
     auto tokens = json_tokenize(str);
     std::stringstream ss;
 
-    for(auto& token : tokens)
+    for(const auto& token : tokens)
     {
         std::string s(token);
         if(starts_with(s, "#") or starts_with(s, "//"))

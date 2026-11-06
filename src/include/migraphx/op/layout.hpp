@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,14 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Rearrange the memory layout of the input instruction based on the permutation attribute.
+ * This operator changes the order of elements in memory, *not* the order in the tensor.
+ * Therefore, regardless of how the memory layout is changed, the order of elements returned by a
+ * tensor_view will be unchanged.
+ * `permutation`: List with how to rearrange the data buffer of the input instruction. This
+ * permutation is the transpose from the order in the tensor to the order in memory.
+ */
 struct layout : unary<layout>
 {
     std::vector<int64_t> permutation;
@@ -50,10 +58,15 @@ struct layout : unary<layout>
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).only_dims(permutation.size());
-        auto lens = inputs.at(0).lens();
-        auto t    = inputs.at(0).type();
-        return shape::from_permutation(t, lens, permutation);
+        check_shapes{inputs, *this, true}.has(1).only_dims(permutation.size());
+        const auto& input = inputs.at(0);
+        auto t            = input.type();
+        // A range-based dynamic shape has no strides, so a permuted layout is not representable.
+        if(input.symbolic())
+            return shape::from_permutation(t, input.dyn_dims(), permutation);
+        if(input.dynamic())
+            MIGRAPHX_THROW("LAYOUT: non-symbolic dynamic shapes are not supported");
+        return shape::from_permutation(t, input.lens(), permutation);
     }
 
     auto apply() const

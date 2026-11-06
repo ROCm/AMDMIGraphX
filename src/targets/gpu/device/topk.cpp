@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -143,20 +143,20 @@ struct hip_heap_vector
 };
 
 template <class T, class Index, class Compare>
-__device__ hip_heap_vector<T, Index, Compare>
+__device__ static hip_heap_vector<T, Index, Compare>
 make_heap(T* data, index_int n, Index idx, Compare compare)
 {
     return {data, n, idx, compare};
 }
 
 template <class Compare>
-std::vector<argument> topk(hipStream_t stream,
-                           const argument& val_res,
-                           const argument& ind_res,
-                           const argument& arg,
-                           int64_t k,
-                           int64_t axis,
-                           Compare compare)
+static std::vector<argument> topk(hipStream_t stream,
+                                  const argument& val_res,
+                                  const argument& ind_res,
+                                  const argument& arg,
+                                  int64_t k,
+                                  int64_t axis,
+                                  Compare compare)
 {
     auto in_s       = arg.get_shape();
     auto in_lens    = in_s.lens();

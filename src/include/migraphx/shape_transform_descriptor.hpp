@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,15 +26,20 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_SHAPE_TRANSFORM_DESCRIPTOR_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/shape.hpp>
 #include <cstdint>
 #include <iosfwd>
+#include <set>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct operation;
+struct module;
 
 // The shape_transform_descriptor class is data structure to simplify shape
 // transformations like reshape, transpose, broadcast, etc. This is made up
@@ -74,15 +79,66 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     shape_transform_descriptor() = default;
     explicit shape_transform_descriptor(const std::vector<std::size_t>& dims);
 
+    static shape_transform_descriptor create(const std::vector<std::size_t>& dims,
+                                             const std::vector<operation>& ops);
+
+    shape_transform_descriptor rebase(const std::vector<std::size_t>& dims,
+                                      bool broadcast = false) const;
+
     bool apply(const std::vector<operation>& ops);
     bool apply_reshape(const std::vector<std::size_t>& rdims);
     bool apply_reshape_impl(const std::vector<std::size_t>& rdims);
     bool apply_transpose(const std::vector<std::int64_t>& permutation);
     bool apply_broadcast(const std::vector<std::size_t>& out_lens,
                          optional<std::size_t> axis = nullopt);
+    // Restrict the source axis to the range selected by slicing the output
+    // dimensions given by slice_axes/starts/ends. Returns the selected
+    // [start, end) range of the source axis, or nullopt when the slice does
+    // not select one contiguous range of only this axis.
+    optional<std::pair<std::size_t, std::size_t>>
+    slice_axis(std::size_t axis,
+               const std::vector<std::size_t>& slice_axes,
+               const std::vector<std::size_t>& starts,
+               const std::vector<std::size_t>& ends);
+    // Add a new leading axis of length n to both the source and the destination
+    void prepend_axis(std::size_t n);
     void simplify();
     std::size_t elements() const;
-    std::vector<operation> generate() const;
+    std::vector<operation> generate(const std::vector<std::size_t>& input_dims = {},
+                                    bool no_broadcast                          = false) const;
+
+    std::set<std::size_t> find_broadcasted_axes() const;
+    // Returns true if a dimension is broadcasted without a source axis, ie a new dimension
+    bool has_axisless_broadcast() const;
+    bool has_broadcast() const;
+    // Returns true if any non-trivial axes are reordered, requiring a transpose
+    bool is_transposed() const;
+    // Returns true if any dimension merges multiple non-trivial axes together
+    bool is_collapsing() const;
+    void flatten_broadcast();
+
+    std::vector<std::size_t> common_dims(const std::vector<std::size_t>& input_dims = {}) const;
+    std::size_t common_rank() const;
+
+    shape_transform_descriptor to_common_from_src() const;
+    shape_transform_descriptor to_common_from_dst() const;
+    shape_transform_descriptor to_dst_from_common() const;
+    // Transform the common dimensions back into the source dimensions. A dimension broadcasted
+    // from no source axis is squeezed away, so it is hidden and must be 1 to rebase.
+    shape_transform_descriptor to_src_from_common() const;
+
+    // Transform the destination dimensions back into the original dimensions. This is empty when
+    // there is no inverse, such as when a dimension is broadcasted.
+    shape_transform_descriptor invert() const;
+
+    std::vector<std::vector<std::size_t>> common_axes_map_from_src() const;
+    std::vector<std::vector<std::size_t>> common_axes_map_from_dst() const;
+
+    std::vector<std::size_t> get_dst_axes_from_src(std::size_t axis) const;
+    std::vector<std::vector<std::size_t>> axes_map_from_src(bool keep_partial_axes = false) const;
+
+    bool empty() const;
+    std::vector<std::size_t> lens() const;
 
     struct MIGRAPHX_EXPORT dimension
     {
@@ -98,7 +154,15 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
             // the axis. However, it still needs to accounted for. After we
             // generate the broadcast we will set the axis to the hidden
             // axis, and then length to 1.
-            optional<std::size_t> hidden_axis = nullopt;
+            std::vector<std::size_t> hidden_axis = {};
+
+            const std::vector<std::size_t>& origin_axis() const;
+            bool has_hidden_axis() const;
+
+            void add_split_axis(std::size_t i);
+
+            void expose();
+            void hide();
 
             MIGRAPHX_EXPORT friend bool operator==(const sub& x, const sub& y);
             MIGRAPHX_EXPORT friend bool operator!=(const sub& x, const sub& y);
@@ -124,6 +188,16 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
 
 MIGRAPHX_EXPORT std::vector<operation>
 optimize_shape_transforms(const std::vector<std::size_t>& dims, const std::vector<operation>& ops);
+
+// Generate the shape transforms for strided view
+MIGRAPHX_EXPORT optional<std::vector<operation>>
+generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, std::int64_t offset);
+
+// Inserts `ops` before `ins` as a chain starting from `input`, and returns the last one
+MIGRAPHX_EXPORT instruction_ref insert_ops(module& m,
+                                           instruction_ref ins,
+                                           const std::vector<operation>& ops,
+                                           instruction_ref input);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,15 +29,6 @@
 namespace migraphx {
 
 #if defined(MIGRAPHX_USE_HIPRTC)
-using int8_t   = signed char;
-using uint8_t  = unsigned char;
-using int16_t  = signed short;
-using uint16_t = unsigned short;
-using int32_t  = signed int;
-using uint32_t = unsigned int;
-using int64_t  = signed long long;
-using uint64_t = unsigned long long;
-#elif defined(MIGRAPHX_USE_HIPRTC)
 using int8_t   = __hip_int8_t;
 using uint8_t  = __hip_uint8_t;
 using int16_t  = __hip_int16_t;
@@ -71,11 +62,36 @@ static_assert(sizeof(uint64_t) == 8, "uint64_t must be 8 bytes");
 
 #define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__ // NOLINT
 
+#ifdef MIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE
+// NOLINTNEXTLINE
+#define MIGRAPHX_AUTO_DEDUCE(name) \
+    template <class... Ts>         \
+    __host__ __device__ name(Ts...) -> name<Ts...>;
+#else
+// NOLINTNEXTLINE
+#define MIGRAPHX_AUTO_DEDUCE(name) \
+    template <class... Ts>         \
+    name(Ts...) -> name<Ts...>;
+#endif
+
 template <class T, index_int N>
 using vec = T __attribute__((ext_vector_type(N)));
 
 using half  = _Float16;
 using half2 = migraphx::vec<half, 2>;
+using bf16  = __bf16;
+
+// Element type that packs N sub-byte values into one T. The tensor lens
+// count packed elements; the vectorizer unwraps this to T and divides the
+// vector size by N.
+template <class T, index_int N>
+struct packed
+{
+    T data;
+};
+
+using uint4x2_t = packed<uint8_t, 2>;
+using int4x2_t  = packed<int8_t, 2>;
 
 } // namespace migraphx
 

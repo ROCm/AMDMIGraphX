@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,19 +24,31 @@
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/fallthrough.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/checked_ops.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/logger.hpp>
 #include <onnx.pb.h>
+#include <algorithm>
+#include <cctype>
+#include <iomanip>
+#include <iterator>
+#include <set>
+#include <sstream>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -47,15 +59,23 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
 {
-    if(std::all_of(dyn_dims.begin(), dyn_dims.end(), [](auto dd) { return dd.is_fixed(); }))
+    if(std::all_of(dyn_dims.begin(), dyn_dims.end(), [](const auto& dd) { return dd.is_fixed(); }))
     {
         std::vector<std::size_t> dims;
-        std::transform(dyn_dims.cbegin(), dyn_dims.cend(), std::back_inserter(dims), [](auto d) {
-            return d.max;
-        });
+        std::transform(dyn_dims.cbegin(),
+                       dyn_dims.cend(),
+                       std::back_inserter(dims),
+                       [](const auto& d) { return d.get_interval().max; });
         return {shape_type, dims};
     }
     return {shape_type, dyn_dims};
+}
+
+static std::set<sym::scalar> sym_optimals(const shape::dynamic_dimension& dd)
+{
+    if(dd.optimals.has_value())
+        return {dd.optimals->begin(), dd.optimals->end()};
+    return {};
 }
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
@@ -68,12 +88,14 @@ static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
     return result;
 }
 
-static literal
-create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
+static literal create_literal(shape::type_t shape_type,
+                              const std::vector<size_t>& dims,
+                              const char* data,
+                              std::size_t size)
 {
     // empty input
-    auto elem_num =
-        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    auto elem_num = std::accumulate(
+        dims.begin(), dims.end(), std::size_t{1}, [](auto a, auto b) { return checked_mul(a, b); });
     if(elem_num == 0)
     {
         return literal{shape_type};
@@ -81,20 +103,24 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
 
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
     if(dims.empty())
-        return literal{{shape_type}, data};
-    return literal{{shape_type, dims}, data};
+        return literal::from_standard_buffer({shape_type}, data, size);
+    return literal::from_standard_buffer({shape_type, dims}, data, size);
 }
 
 template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
 static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
 {
     // empty input
-    auto elem_num =
-        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    auto elem_num = std::accumulate(
+        dims.begin(), dims.end(), std::size_t{1}, [](auto a, auto b) { return checked_mul(a, b); });
     if(elem_num == 0)
     {
         return literal{shape_type};
     }
+
+    if(data.size() != elem_num)
+        MIGRAPHX_THROW("PARSE_TENSOR: number of values " + std::to_string(data.size()) +
+                       " does not match tensor elements " + std::to_string(elem_num));
 
     // scalar input
     if(dims.empty())
@@ -128,19 +154,24 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
     if(args.size() == 3)
     {
         instruction_ref bias_bcast;
-        // if curr_ins has a dynamic output shape use 2 input broadcast
-        if(curr_ins->get_shape().dynamic())
+        const auto& s = curr_ins->get_shape();
+        if(s.symbolic())
         {
-            bias_bcast =
-                mod->add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
+            bias_bcast = add_instruction(
+                make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", to_value(s.dyn_dims())}}),
+                args[2],
+                curr_ins);
+        }
+        else if(s.dynamic())
+        {
+            bias_bcast = add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
         }
         else
         {
-            bias_bcast = mod->add_instruction(
-                make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
-                args[2]);
+            bias_bcast = add_instruction(
+                make_op("broadcast", {{"axis", axis}, {"out_lens", s.lens()}}), args[2]);
         }
-        return mod->add_instruction(make_op("add"), curr_ins, bias_bcast);
+        return add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
     return curr_ins;
 }
@@ -203,10 +234,20 @@ onnx_parser::onnx_parser()
         ops.emplace(name, get_op_parser(name));
 }
 
-operation onnx_parser::load(const std::string& name, const node_info& info) const
+value onnx_parser::load_to_value(const std::string& name,
+                                 const node_info& info,
+                                 bool use_operation /*= true*/) const
 {
-    auto op = make_op(name);
-    auto v  = op.to_value();
+    value v{};
+    if(use_operation)
+    {
+        v = make_op(name).to_value();
+    }
+    else
+    {
+        v = op::builder::get_op_builder_value(name);
+    }
+
     for(auto&& x : v)
     {
         if(info.attributes.count(x.get_key()) == 0)
@@ -227,7 +268,13 @@ operation onnx_parser::load(const std::string& name, const node_info& info) cons
             s.visit([&](auto y) { x = y.front(); });
         }
     }
-    op.from_value(v);
+    return v;
+}
+
+operation onnx_parser::load(const std::string& name, const node_info& info) const
+{
+    auto op = make_op(name);
+    op.from_value(load_to_value(name, info));
     return op;
 }
 
@@ -238,6 +285,31 @@ void onnx_parser::parse_undefined(module* mod, const std::string& name)
         auto ins           = mod->add_instruction(make_op("undefined"));
         instructions[name] = ins;
     }
+}
+
+static void warn_unresolved_dim_params(const onnx_parser& parser, const onnx::GraphProto& graph)
+{
+    if(parser.default_set)
+        return;
+    std::set<std::string> unresolved;
+    for(const auto& input : graph.input())
+    {
+        if(contains(parser.map_input_dims, input.name()) or
+           contains(parser.map_dyn_input_dims, input.name()))
+            continue;
+        for(const auto& d : input.type().tensor_type().shape().dim())
+        {
+            if(d.has_dim_param() and not contains(parser.dim_params, d.dim_param()))
+                unresolved.insert(d.dim_param());
+        }
+    }
+    if(unresolved.empty())
+        return;
+    log::warn() << "Model has unbound symbolic dimension(s): "
+                << join_strings(std::move(unresolved), ", ") << ". These default to "
+                << parser.default_dyn_dim_value << " and may cause unexpected behavior. "
+                << "Try setting `--dim-param @<name> <value>` or `--input-dim @<input> <dims>` "
+                   "if program compilation fails.";
 }
 
 void onnx_parser::parse_from(std::istream& is, std::string name)
@@ -256,6 +328,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
 
         if(model.has_graph())
         {
+            warn_unresolved_dim_params(*this, model.graph());
             (void)this->parse_graph(mm, model.graph());
         }
     }
@@ -276,6 +349,7 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
 
         if(model.has_graph())
         {
+            warn_unresolved_dim_params(*this, model.graph());
             (void)this->parse_graph(mm, model.graph());
         }
     }
@@ -300,33 +374,13 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-void print_added_instructions(module* mod,
-                              const std::vector<instruction_ref>& args,
-                              const std::vector<instruction_ref>& result)
-{
-    // Print instructions added by the parser not in args
-    std::vector<instruction_ref> added_instructions;
-    fix([&](auto self, auto r) {
-        for(auto ins : r)
-        {
-            if(contains(args, ins))
-                continue;
-            if(contains(added_instructions, ins))
-                continue;
-            self(ins->inputs());
-            added_instructions.push_back(ins);
-        }
-    })(result);
-    mod->debug_print(added_instructions);
-}
-
 static bool is_type_packed_int4(const onnx::TensorProto& t)
 {
     return t.data_type() == onnx::TensorProto::INT4 or t.data_type() == onnx::TensorProto::UINT4;
 }
 
-std::unordered_map<std::string, instruction_ref>
-parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
+static std::unordered_map<std::string, instruction_ref>
+parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
@@ -336,6 +390,8 @@ parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto&
         // backup instructions in parent mod
         auto pt  = parser.parse_tensor(f);
         auto lit = mod->add_literal(pt);
+        if(parser.use_debug_symbols)
+            mod->add_debug_symbols(lit, {f.name()});
 
         if(is_type_packed_int4(f))
             lit = mod->add_instruction(migraphx::make_op("unpack_int4"), lit);
@@ -347,8 +403,8 @@ parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto&
     return mod_insts;
 }
 
-std::unordered_map<std::string, instruction_ref>
-parse_inputs(const onnx_parser& parser,
+static std::unordered_map<std::string, instruction_ref>
+parse_inputs(onnx_parser& parser,
              module* mod,
              const onnx::GraphProto& graph,
              std::unordered_map<std::string, instruction_ref> mod_insts)
@@ -359,10 +415,6 @@ parse_inputs(const onnx_parser& parser,
         // input not in initializer_data, so it is a real input
         if(not contains(mod_insts, name))
         {
-            // ONNX specification does not specify how to deal with the
-            // scenario that a nested subgraph contains a parameter with the
-            // name existed in its parent graph.
-            // In the current implementation, MIGraphX throws an exception for that.
             if(contains(parser.instructions, name))
             {
                 MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +
@@ -373,16 +425,26 @@ parse_inputs(const onnx_parser& parser,
             if(parser.map_input_dims.count(name) > 0)
             {
                 std::vector<std::size_t> dims = parser.map_input_dims.at(name);
-                s                             = parser.parse_type(input.type(), dims);
+                s                             = parser.parse_param_shape(input.type(), dims);
             }
             else if(parser.map_dyn_input_dims.count(name) > 0)
             {
-                shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
-                s = shape_from_dyn_dims(shape_type, parser.map_dyn_input_dims.at(name));
+                const auto& override_dims = parser.map_dyn_input_dims.at(name);
+                if(parser.use_symbolic_shapes)
+                {
+                    // Name each overridden axis from the model's dim_param so it
+                    // becomes a symbol; bounds/optimals come from the override.
+                    s = parser.parse_param_shape(input.type(), name, override_dims);
+                }
+                else
+                {
+                    shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
+                    s                        = shape_from_dyn_dims(shape_type, override_dims);
+                }
             }
             else
             {
-                s = parser.parse_type(input.type());
+                s = parser.parse_param_shape(input.type(), name);
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -390,20 +452,216 @@ parse_inputs(const onnx_parser& parser,
     return mod_insts;
 }
 
+struct node_maps
+{
+    std::unordered_map<std::string, std::vector<size_t>> input_to_node_map;
+    std::unordered_map<size_t, std::vector<std::string>> node_to_output_map;
+};
+
+static node_maps create_node_maps(const onnx::GraphProto& graph)
+{
+    node_maps maps{};
+
+    for(size_t node_index = 0; node_index < graph.node_size(); node_index++)
+    {
+        const onnx::NodeProto& node = graph.node(node_index);
+
+        // To track actual node outputs, a future node will mention the current node's output
+        // in its list of inputs. For example:
+        // node A: outputs ["a_out"]
+        // node B: inputs ["a_out"]
+        // Here the output of node A is node B because "a_out" is the output of node A and
+        // input of node B.
+        // There can be multiple outputs, so if each new node sees an input already
+        // in the map, then append to it.
+        // In the prior example, if we add the following:
+        // node C: inputs ["a_out"]
+        // then we will have something like {"a_out": [node B, node C]} in our map.
+        for(auto&& input : node.input())
+        {
+            if(input.empty())
+                continue;
+            maps.input_to_node_map[input].push_back(node_index);
+        }
+
+        std::vector<std::string> node_outputs;
+        std::transform(node.output().begin(),
+                       node.output().end(),
+                       std::back_inserter(node_outputs),
+                       [](const auto& output) { return output; });
+
+        // Use this second map to keep track of all references of the output names to be used
+        // as inputs to future nodes.
+        maps.node_to_output_map.emplace(node_index, std::move(node_outputs));
+    }
+    return maps;
+}
+
+static void traverse(std::vector<size_t>& sorted_nodes,
+                     std::unordered_set<size_t>& visited_nodes,
+                     const std::unordered_map<std::string, std::vector<size_t>>& input_to_node_map,
+                     const std::unordered_map<size_t, std::vector<std::string>>& node_to_output_map,
+                     size_t curr_node)
+{
+    if(contains(visited_nodes, curr_node))
+        return;
+
+    visited_nodes.insert(curr_node);
+
+    for(const auto& out_node_name : node_to_output_map.at(curr_node))
+    {
+        // check if node output is used in graph
+        if(not out_node_name.empty() and contains(input_to_node_map, out_node_name))
+        {
+            for(const auto& in_node_name : input_to_node_map.at(out_node_name))
+                traverse(sorted_nodes,
+                         visited_nodes,
+                         input_to_node_map,
+                         node_to_output_map,
+                         in_node_name);
+        }
+    }
+    sorted_nodes.insert(sorted_nodes.begin(), curr_node);
+}
+
+static std::vector<size_t> toposort(const onnx::GraphProto& graph)
+{
+    node_maps maps = create_node_maps(graph);
+
+    std::vector<size_t> sorted_nodes;
+    std::unordered_set<size_t> visited_nodes;
+
+    for(size_t node_index = 0; node_index < graph.node_size(); node_index++)
+    {
+        traverse(sorted_nodes,
+                 visited_nodes,
+                 maps.input_to_node_map,
+                 maps.node_to_output_map,
+                 node_index);
+    }
+
+    return sorted_nodes;
+}
+
+static bool check_sorted(const onnx::GraphProto& graph,
+                         std::unordered_set<std::string>& parent_input_nodes)
+{
+    std::unordered_set<std::string> visited_nodes;
+
+    // first visit all graph inputs and initializers,
+    // keep track globally since subgraph nodes may depend on parent inputs
+    for(auto&& input : graph.input())
+    {
+        const std::string& input_name = input.name();
+
+        // ONNX specification does not specify how to deal with the
+        // scenario that a nested subgraph contains a parameter with the
+        // same name in its parent graph.
+        // In the current implementation, MIGraphX throws an exception for that.
+        if(contains(parent_input_nodes, input_name))
+            MIGRAPHX_THROW("subgraph \"" + graph.name() + "\" has parameter name \"" + input_name +
+                           "\" existing in parent graph!");
+        parent_input_nodes.insert(input_name);
+    }
+
+    for(auto&& initializer : graph.initializer())
+    {
+        parent_input_nodes.insert(initializer.name());
+    }
+
+    // propagate parent graph input nodes into visited nodes
+    visited_nodes.insert(parent_input_nodes.begin(), parent_input_nodes.end());
+
+    for(auto&& node : graph.node())
+    {
+        for(auto&& input : node.input())
+        {
+            // operators like resize can use empty strings to skip unused inputs
+            if(not input.empty() and not contains(visited_nodes, input))
+                return false;
+        }
+        // node outputs struct is used to keep track of currently visited nodes
+        visited_nodes.insert(node.output().begin(), node.output().end());
+    }
+    return true;
+}
+
+static void set_return_ins_debug_symbols(module* mod,
+                                         const std::vector<std::string>& prog_output_names,
+                                         instruction_ref ret_ins)
+{
+    int num_width = std::to_string(prog_output_names.size() - 1).size();
+    std::set<std::string> output_symbols;
+    for(auto i : range(prog_output_names.size()))
+    {
+        std::ostringstream oss;
+        oss << "@output_";
+        oss << std::setw(num_width) << std::setfill('0') << i;
+        oss << ":" << prog_output_names[i];
+        output_symbols.insert(oss.str());
+    }
+    mod->add_debug_symbols(ret_ins, output_symbols);
+}
+
+static std::string make_node_debug_symbol(bool use_debug_symbols,
+                                          const onnx::NodeProto& node,
+                                          const std::string& node_name)
+{
+    if(not use_debug_symbols)
+        return {};
+    return node.name().empty() ? "migx_uid:" + node_name : node.name();
+}
+
+static void log_node_parse_exception(const onnx::NodeProto& node,
+                                     const std::string& debug_symbol) noexcept
+{
+    try
+    {
+        if(debug_symbol.empty())
+            return;
+        log::debug() << "Exception thrown while parsing node '" << node.op_type()
+                     << "' with debug symbols: " << debug_symbol;
+    }
+    // cppcheck-suppress migraphx-EmptyCatchStatement
+    catch(...) // logging must not replace the original exception
+    {
+    }
+}
+
 std::vector<instruction_ref>
 onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
+    std::vector<size_t> node_indices(graph.node_size());
+
+    if(check_sorted(graph, parent_input_nodes))
+    {
+        std::iota(node_indices.begin(), node_indices.end(), 0);
+    }
+    else
+    {
+        std::cerr << "Warning: onnx model is not topologically sorted. Attempting to sort..."
+                  << std::endl;
+        node_indices = toposort(graph);
+    }
+
     std::unordered_map<std::string, instruction_ref> mod_insts =
-        parse_intializer(*this, mod, graph);
+        parse_initializer(*this, mod, graph);
 
     mod_insts = parse_inputs(*this, mod, graph, mod_insts);
 
     std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
 
-    for(auto&& node : graph.node())
+    for(auto& node_index : node_indices)
     {
+        const onnx::NodeProto& node = graph.node(node_index);
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
-            std::cout << "operator: " << node.op_type() << std::endl;
+        {
+            std::cout << "operator: " << node.op_type() << '\t' << node.name() << std::endl;
+            for(auto&& attr : node.attribute())
+            {
+                std::cout << "    " << attr.name() << " = " << to_string(attr) << std::endl;
+            }
+        }
 
         std::vector<instruction_ref> args;
         for(auto&& input : node.input())
@@ -422,6 +680,11 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
 
         std::vector<instruction_ref> result;
         std::size_t output_num = node.output().size();
+        std::string node_name =
+            mod->name() + "_" + node.op_type() + "_" + std::to_string(mod->size());
+        std::string debug_symbol = make_node_debug_symbol(this->use_debug_symbols, node, node_name);
+        auto guard =
+            on_scope_fail([&]() noexcept { log_node_parse_exception(node, debug_symbol); });
         if(ops.count(node.op_type()) == 0)
         {
             if(skip_unknown_operators)
@@ -431,21 +694,32 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
         else
         {
-            std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
-            result                = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node_name, mod}, args);
+            result = ops[node.op_type()](
+                *this,
+                {get_attributes(node), output_num, node_name, mod, std::string{node.domain()}},
+                args);
         }
-
         output_num = std::min<std::size_t>(output_num, result.size());
         std::transform(node.output().begin(),
                        node.output().begin() + output_num,
                        result.begin(),
                        std::inserter(instructions, instructions.end()),
                        [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-
+        std::vector<instruction_ref> added_instructions;
+        if(this->use_debug_symbols or enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+        {
+            added_instructions = get_added_instructions(args, result);
+        }
+        if(this->use_debug_symbols)
+        {
+            for(auto ins : added_instructions)
+            {
+                mod->add_debug_symbols(ins, {debug_symbol});
+            }
+        }
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
         {
-            print_added_instructions(mod, args, result);
+            mod->debug_print(added_instructions);
         }
     }
 
@@ -472,8 +746,11 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     if(not inlining)
     {
         // add the return instuction
-        mod->add_return(output_ins);
-
+        auto ret_ins = mod->add_return(output_ins);
+        if(use_debug_symbols)
+        {
+            set_return_ins_debug_symbols(mod, prog_output_names, ret_ins);
+        }
         // Remove instructions added in module (this is turned off for subgraph inlining)
         erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
     }
@@ -504,6 +781,29 @@ literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
     MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
 }
 
+std::string onnx_parser::to_string(const onnx::AttributeProto& attr) const
+{
+    switch(attr.type())
+    {
+    case onnx::AttributeProto::FLOAT:
+    case onnx::AttributeProto::INT:
+    case onnx::AttributeProto::TENSOR:
+    case onnx::AttributeProto::FLOATS:
+    case onnx::AttributeProto::INTS: return migraphx::to_string(parse_value(attr));
+    case onnx::AttributeProto::STRING: return attr.s();
+    case onnx::AttributeProto::STRINGS: return to_string_range(attr.strings());
+    case onnx::AttributeProto::UNDEFINED: return "UNDEFINED";
+    case onnx::AttributeProto::GRAPH: return "GRAPH";
+    case onnx::AttributeProto::TENSORS: return "TENSORS";
+    case onnx::AttributeProto::SPARSE_TENSOR: return "SPARSE_TENSOR";
+    case onnx::AttributeProto::SPARSE_TENSORS: return "SPARSE_TENSORS";
+    case onnx::AttributeProto::TYPE_PROTOS: return "TYPE_PROTOS";
+    case onnx::AttributeProto::TYPE_PROTO: return "TYPE_PROTO";
+    case onnx::AttributeProto::GRAPHS: return "GRAPHS";
+    }
+    MIGRAPHX_THROW("TO_STRING: Invalid attribute type " + std::to_string(attr.type()));
+}
+
 static shape parse_tensor_shape(const onnx::TensorProto& t)
 {
     std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
@@ -518,15 +818,70 @@ static shape parse_tensor_shape(const onnx::TensorProto& t)
     return shape{get_type(t.data_type()), dims};
 }
 
+static std::size_t parse_external_size(const std::string& value, const char* field)
+{
+    if(value.empty() or
+       not std::all_of(value.begin(), value.end(), [](unsigned char c) { return std::isdigit(c); }))
+        MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+    try
+    {
+        std::size_t pos    = 0;
+        std::size_t parsed = std::stoull(value, &pos);
+        if(pos != value.size())
+            MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+        return parsed;
+    }
+    catch(const std::exception&)
+    {
+        MIGRAPHX_THROW(std::string("Invalid ONNX external data ") + field + ": " + value);
+    }
+}
+
+// Lexically resolve '.' and '..' without touching the filesystem. The
+// Filesystem TS (std::experimental::filesystem, used on some older toolchains)
+// lacks weakly_canonical and path::lexically_relative, so normalize by hand.
+static fs::path lexically_normalize(const fs::path& p)
+{
+    auto parts = std::accumulate(
+        p.begin(), p.end(), std::vector<fs::path>{}, [](auto acc, const fs::path& part) {
+            if(part == ".")
+                return acc;
+            if(part == ".." and not acc.empty() and acc.back() != "..")
+                acc.pop_back();
+            else
+                acc.push_back(part);
+            return acc;
+        });
+    return std::accumulate(parts.begin(),
+                           parts.end(),
+                           fs::path{},
+                           [](fs::path acc, const auto& part) { return acc /= part; });
+}
+
+static fs::path resolve_external_data_path(const fs::path& base_dir, const fs::path& relative)
+{
+    const fs::path base     = lexically_normalize(base_dir);
+    const fs::path resolved = lexically_normalize(base_dir / relative);
+    // resolved must stay within base: base's components must be a strict prefix
+    // of resolved's. A '..' that climbs out of base breaks the prefix match.
+    const auto m = std::mismatch(base.begin(), base.end(), resolved.begin(), resolved.end());
+    if(m.first != base.end() or m.second == resolved.end())
+        MIGRAPHX_THROW("ONNX external data path escapes model directory: " + relative.string());
+    return resolved;
+}
+
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
-    auto tensor_shape  = parse_tensor_shape(t);
-    const auto& dims   = tensor_shape.lens();
-    auto type          = tensor_shape.type();
-    auto external_data = t.external_data();
+    auto tensor_shape         = parse_tensor_shape(t);
+    const auto& dims          = tensor_shape.lens();
+    auto type                 = tensor_shape.type();
+    const auto& external_data = t.external_data();
 
     if(not external_data.empty())
     {
+        if(tensor_shape.elements() == 0)
+            return literal{type};
+
         const std::string& data_file = external_data.at(0).value();
         size_t num_data_fields       = external_data.size();
         size_t offset                = 0;
@@ -534,36 +889,35 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
         if(num_data_fields > 1) // if offset field is present
         {
-            offset = std::stoull(t.external_data().at(1).value());
+            offset = parse_external_size(t.external_data().at(1).value(), "offset");
         }
         if(num_data_fields > 2) // if nbytes field is present
         {
-            nbytes = std::stoull(t.external_data().at(2).value());
+            nbytes = parse_external_size(t.external_data().at(2).value(), "length");
         }
-        std::vector<char> raw_buffer;
-        if(not external_data_path.empty())
-        {
-            raw_buffer = read_buffer(fs::path{external_data_path} / data_file, offset, nbytes);
-        }
-        else
-        {
-            raw_buffer = read_buffer(path / data_file, offset, nbytes);
-        }
-        std::string s(raw_buffer.begin(), raw_buffer.end());
-        return create_literal(type, dims, s.data());
+        if(nbytes != tensor_shape.bytes())
+            MIGRAPHX_THROW("PARSE_TENSOR: external data length " + std::to_string(nbytes) + " of " +
+                           t.name() + " does not match tensor bytes " +
+                           std::to_string(tensor_shape.bytes()));
+
+        const fs::path base_dir  = external_data_path.empty() ? path : fs::path{external_data_path};
+        const fs::path data_path = resolve_external_data_path(base_dir, data_file);
+        std::vector<char> raw_buffer = read_buffer(data_path, offset, nbytes);
+        return create_literal(type, dims, raw_buffer.data(), raw_buffer.size());
     }
 
     if(t.has_raw_data())
     {
         const std::string& s = t.raw_data();
-        return create_literal(type, dims, s.data());
+        return create_literal(type, dims, s.data(), s.size());
     }
 
     switch(t.data_type())
     {
-    case onnx::TensorProto::BOOL: return create_literal(shape::bool_type, dims, t.int32_data());
+    case onnx::TensorProto::BOOL:
+        return create_literal(shape::bool_type, dims, t.int32_data());
 
-    // INT4 or UINT4 operate as 8-bit buffers:
+        // INT4 or UINT4 operate as 8-bit buffers:
     case onnx::TensorProto::INT4: return create_literal(shape::int8_type, dims, t.int32_data());
     case onnx::TensorProto::UINT4: return create_literal(shape::uint8_type, dims, t.int32_data());
 
@@ -617,48 +971,116 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t) const
+static shape::dynamic_dimension make_symbol(onnx_parser& parser,
+                                            const std::string& sym_name,
+                                            const shape::dynamic_dimension& bounds)
+{
+    auto iv = bounds.get_interval();
+    return shape::dynamic_dimension{
+        sym::var(parser.symbol_names.resolve(sym_name), {iv.min, iv.max}, sym_optimals(bounds))};
+}
+
+static shape::dynamic_dimension resolve_dim(onnx_parser& parser,
+                                            const shape::dynamic_dimension& bounds,
+                                            const std::string& name,
+                                            int axis)
+{
+    if(not parser.use_symbolic_shapes)
+        return bounds;
+    // A fixed bound is a constant, so emit it as a literal.
+    if(bounds.is_fixed())
+        return shape::dynamic_dimension{sym::lit(bounds.get_interval().min)};
+    // A ranged bound becomes a per-axis symbol "<input>_d<axis>" (onnxruntime's scheme
+    // for unnamed dims).
+    return make_symbol(parser, name + "_d" + std::to_string(axis), bounds);
+}
+
+static shape::dynamic_dimension
+resolve_default_dim(onnx_parser& parser, const std::string& name, int axis)
+{
+    return resolve_dim(parser, parser.default_dyn_dim_value, name, axis);
+}
+
+static shape::dynamic_dimension dim_param_bounds(const onnx_parser& parser,
+                                                 const std::string& dim_param,
+                                                 const shape::dynamic_dimension* override_dim)
+{
+    if(override_dim != nullptr)
+        return *override_dim;
+    if(contains(parser.dim_params, dim_param))
+        return parser.dim_params.at(dim_param);
+    return parser.default_dyn_dim_value;
+}
+
+static shape::dynamic_dimension map_dyn_dim(onnx_parser& parser,
+                                            const onnx::TensorShapeProto::Dimension* model_dim,
+                                            const shape::dynamic_dimension* override_dim,
+                                            const std::string& name,
+                                            int axis)
+{
+    // An already-symbolic override carries its own symbol; keep it.
+    if(override_dim != nullptr and override_dim->is_symbolic())
+        return *override_dim;
+    if(model_dim != nullptr and model_dim->has_dim_param())
+    {
+        const auto& dim_param = model_dim->dim_param();
+        if(parser.use_symbolic_shapes)
+            return make_symbol(
+                parser, dim_param, dim_param_bounds(parser, dim_param, override_dim));
+        if(override_dim != nullptr)
+            return *override_dim;
+        if(contains(parser.dim_params, dim_param))
+            return parser.dim_params.at(dim_param);
+    }
+    // An override replaces a model dim_value entirely.
+    if(override_dim != nullptr)
+        return resolve_dim(parser, *override_dim, name, axis);
+    if(model_dim != nullptr and model_dim->has_dim_value())
+    {
+        // A non-positive dim_value is unspecified, so fall back to the default.
+        if(model_dim->dim_value() <= 0)
+            return resolve_default_dim(parser, name, axis);
+        if(parser.use_symbolic_shapes)
+            return shape::dynamic_dimension{sym::lit(model_dim->dim_value())};
+        std::size_t tmp = model_dim->dim_value();
+        return {tmp, tmp};
+    }
+    return resolve_default_dim(parser, name, axis);
+}
+
+shape onnx_parser::parse_param_shape(const onnx::TypeProto& t, const std::string& name)
+{
+    return parse_param_shape(t, name, {});
+}
+
+// Resolve an input's dims; a map_dyn_input_dims override (if any) supplies bounds while
+// the model supplies the symbol name.
+shape onnx_parser::parse_param_shape(const onnx::TypeProto& t,
+                                     const std::string& name,
+                                     const std::vector<shape::dynamic_dimension>& override_dims)
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
+    auto&& tensor_dims       = t.tensor_type().shape().dim();
+    // An override drives the rank (it may describe a model with no declared shape).
+    std::size_t num_dims = override_dims.empty() ? tensor_dims.size() : override_dims.size();
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
-    auto&& tensor_dims = t.tensor_type().shape().dim();
-    std::transform(tensor_dims.begin(),
-                   tensor_dims.end(),
-                   std::back_inserter(dynamic_dims),
-                   [&](auto&& d) -> shape::dynamic_dimension {
-                       if(d.has_dim_param())
-                       {
-                           const auto& dim_param = d.dim_param();
-                           if(contains(dim_params, dim_param))
-                           {
-                               return dim_params.at(dim_param);
-                           }
-                       }
-                       if(d.has_dim_value())
-                       {
-                           if(static_cast<int>(d.dim_value()) <= 0)
-                           {
-                               return default_dyn_dim_value;
-                           }
-                           std::size_t tmp = d.dim_value();
-                           return {tmp, tmp};
-                       }
-                       else
-                       {
-                           return default_dyn_dim_value;
-                       }
-                   });
+    transform(range(num_dims),
+              std::back_inserter(dynamic_dims),
+              [&](std::size_t axis) -> shape::dynamic_dimension {
+                  const shape::dynamic_dimension* od =
+                      axis < override_dims.size() ? &override_dims[axis] : nullptr;
+                  const auto* d = axis < tensor_dims.size() ? &tensor_dims[axis] : nullptr;
+                  return map_dyn_dim(*this, d, od, name, axis);
+              });
 
     if(dynamic_dims.empty())
-    {
         return {shape_type};
-    }
     return shape_from_dyn_dims(shape_type, dynamic_dims);
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t,
-                              const std::vector<std::size_t>& input_dims) const
+shape onnx_parser::parse_param_shape(const onnx::TypeProto& t,
+                                     const std::vector<std::size_t>& input_dims) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
     if(input_dims.empty())
@@ -685,9 +1107,10 @@ shape::type_t get_type(int dtype)
     case 18: return shape::fp8e4m3fnuz_type;
     case 21: return shape::uint8_type;
     case 22: return shape::int8_type;
+    case 23: return shape::fp4x2_type;
     case 14:
     case 15:
-    case 16:
+    case 16: return shape::bf16_type;
     case 17:
     case 19:
     case 20:
@@ -700,7 +1123,8 @@ shape::type_t get_type(int dtype)
 bool is_type_float(shape::type_t dtype)
 {
     bool r = false;
-    if(dtype == shape::float_type or dtype == shape::double_type or dtype == shape::half_type)
+    if(dtype == shape::float_type or dtype == shape::double_type or dtype == shape::half_type or
+       dtype == shape::bf16_type)
     {
         r = true;
     }

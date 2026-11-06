@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,8 @@
  */
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/msgpack.hpp>
 #include <unordered_map>
 
 namespace migraphx {
@@ -87,6 +89,7 @@ void argument::assign_buffer(std::function<char*()> d)
         data_t result;
         if(ss.sub_shapes().empty())
         {
+            // cppcheck-suppress variableScope
             auto n = offsets[i];
             result = {[d, n]() mutable { return d() + n; }};
             i++;
@@ -151,6 +154,13 @@ argument argument::reshape(const shape& s) const
     return {s, this->m_data};
 }
 
+argument argument::convert(shape::type_t t) const
+{
+    argument result{this->get_shape().with_type(t)};
+    this->visit([&](auto x) { result.fill(x.begin(), x.end()); });
+    return result;
+}
+
 argument::data_t argument::data_t::share() const
 {
     data_t result;
@@ -176,6 +186,13 @@ argument::data_t argument::data_t::from_args(const std::vector<argument>& args)
 
 argument argument::copy() const
 {
+    if(m_shape.type() == shape::tuple_type)
+    {
+        auto subs = this->get_sub_objects();
+        std::transform(
+            subs.begin(), subs.end(), subs.begin(), [](const auto& sub) { return sub.copy(); });
+        return argument{subs};
+    }
     argument result{this->get_shape()};
     auto* src = this->data();
     std::copy(src, src + this->get_shape().bytes(), result.data());
@@ -192,10 +209,14 @@ std::vector<argument> argument::get_sub_objects() const
                    m_shape.sub_shapes().end(),
                    m_data.sub.begin(),
                    std::back_inserter(result),
-                   [](auto&& s, auto&& d) {
-                       return argument{s, d};
-                   });
+                   [](auto&& s, auto&& d) { return argument{s, d}; });
     return result;
+}
+
+argument argument::get_sub_object(std::size_t index) const
+{
+    assert(m_shape.sub_shapes().size() == m_data.sub.size());
+    return {m_shape.sub_shapes().at(index), m_data.sub.at(index)};
 }
 
 argument argument::element(std::size_t i) const
@@ -204,6 +225,16 @@ argument argument::element(std::size_t i) const
     auto idx    = this->get_shape().index(i);
     auto offset = this->get_shape().type_size() * idx;
     return argument{shape{this->get_shape().type()}, this->data() + offset};
+}
+
+void save_argument(const argument& a, const std::string& filename)
+{
+    write_buffer(filename, to_msgpack(to_value(a)));
+}
+
+argument load_argument(const std::string& filename)
+{
+    return from_value<argument>(from_msgpack(read_buffer(filename)));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

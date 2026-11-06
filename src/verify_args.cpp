@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,73 +23,133 @@
  */
 
 #include <migraphx/verify_args.hpp>
+#include <migraphx/logger.hpp>
+#include <limits>
+#include <optional>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VERIFY_DUMP_DIFF);
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace {
+
+void set_rms_error(double* output, double error)
+{
+    if(output != nullptr)
+        *output = error;
+}
+
+std::optional<bool>
+verify_empty_args(const std::string& name, const argument& target_arg, const argument& ref_arg)
+{
+    const auto& target_shape = target_arg.get_shape();
+    const auto& ref_shape    = ref_arg.get_shape();
+    if(target_shape.type() == shape::tuple_type or ref_shape.type() == shape::tuple_type or
+       target_shape.dynamic() or ref_shape.dynamic())
+        return std::nullopt;
+
+    bool target_empty = target_shape.elements() == 0;
+    bool ref_empty    = ref_shape.elements() == 0;
+    if(not target_empty and not ref_empty)
+        return std::nullopt;
+
+    bool passed = target_empty and ref_empty and target_shape.type() == ref_shape.type() and
+                  target_shape.lens() == ref_shape.lens();
+    if(not passed)
+    {
+        log::error() << "FAILED: " << name;
+        log::error() << "Empty tensor mismatch: ref=" << ref_shape << ", target=" << target_shape;
+    }
+    return passed;
+}
+
+} // namespace
+
 bool verify_args(const std::string& name,
                  const argument& target_arg,
                  const verify::expected<argument>& ref_arg,
                  verify::tolerance tols)
 {
-    bool passed = true;
-    visit_all(ref_arg.data(), target_arg)([&](auto ref, auto target) {
+    return verify_args(name, target_arg, ref_arg, tols, nullptr);
+}
+
+bool verify_args(const std::string& name,
+                 const argument& target_arg,
+                 const verify::expected<argument>& ref_arg,
+                 verify::tolerance tols,
+                 double* out_rms_error)
+{
+    bool passed    = true;
+    argument t_arg = target_arg;
+    argument r_arg = ref_arg.data();
+    if(auto empty_result = verify_empty_args(name, t_arg, r_arg))
+    {
+        set_rms_error(out_rms_error, *empty_result ? 0.0 : std::numeric_limits<double>::infinity());
+        return *empty_result;
+    }
+    if(not t_arg.get_shape().computable())
+    {
+        shape o_t_shape = t_arg.get_shape();
+        shape o_r_shape = r_arg.get_shape();
+        assert(o_t_shape.type() == o_r_shape.type());
+        t_arg = t_arg.reshape(shape{shape::uint8_type, o_t_shape.lens(), o_t_shape.strides()});
+        r_arg = r_arg.reshape(shape{shape::uint8_type, o_r_shape.lens(), o_r_shape.strides()});
+    }
+    visit_all(r_arg, t_arg)([&](auto ref, auto target) {
         double rms_error;
         passed =
             verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &rms_error);
+        set_rms_error(out_rms_error, rms_error);
         if(not passed)
         {
             // TODO: Check for nans
-            std::cout << "FAILED: " << name << std::endl;
-            std::cout << "RMS Error: " << rms_error << std::endl;
+            log::error() << "FAILED: " << name;
+            log::error() << "RMS Error: " << rms_error;
             if(ref.size() < 32 or enabled(MIGRAPHX_VERIFY_DUMP_DIFF{}))
-                std::cout << "ref:" << ref << std::endl;
+                log::error() << "ref:" << ref;
             if(target.size() < 32 or enabled(MIGRAPHX_VERIFY_DUMP_DIFF{}))
-                std::cout << "target:" << target << std::endl;
+                log::error() << "target:" << target;
             if(verify::range_zero(ref))
-                std::cout << "Ref data is all zeros" << std::endl;
+                log::error() << "Ref data is all zeros";
             if(verify::range_zero(target))
-                std::cout << "Target data is all zeros" << std::endl;
+                log::error() << "Target data is all zeros";
 
             auto mxdiff = verify::max_diff(ref, target);
-            std::cout << "Max diff: " << mxdiff << std::endl;
+            log::error() << "Max diff: " << mxdiff;
 
             auto idx = verify::mismatch_idx(ref, target, float_equal);
             if(idx < verify::range_distance(ref))
             {
-                std::cout << "Mismatch at " << idx << ": " << ref[idx] << " != " << target[idx]
-                          << std::endl;
+                log::error() << "Mismatch at " << idx << ": " << ref[idx] << " != " << target[idx];
             }
 
             auto ref_nan_idx = find_idx(ref, verify::not_finite);
             if(ref_nan_idx >= 0)
-                std::cout << "Non finite number found in ref at " << ref_nan_idx << ": "
-                          << ref[ref_nan_idx] << std::endl;
+                log::error() << "Non finite number found in ref at " << ref_nan_idx << ": "
+                             << ref[ref_nan_idx];
 
             auto target_nan_idx = find_idx(target, verify::not_finite);
             if(target_nan_idx >= 0)
-                std::cout << "Non finite number found in target at " << target_nan_idx << ": "
-                          << target[target_nan_idx] << std::endl;
-            std::cout << std::endl;
+                log::error() << "Non finite number found in target at " << target_nan_idx << ": "
+                             << target[target_nan_idx];
         }
         else
         {
             if(verify::range_zero(ref))
-                std::cout << "Ref data is all zeros" << std::endl;
+                log::warn() << "Ref data is all zeros";
             if(verify::range_zero(target))
-                std::cout << "Target data is all zeros" << std::endl;
+                log::warn() << "Target data is all zeros";
 
             auto ref_nan_idx = find_idx(ref, verify::not_finite);
             if(ref_nan_idx >= 0)
-                std::cout << "Non finite number found in ref at " << ref_nan_idx << ": "
-                          << ref[ref_nan_idx] << std::endl;
+                log::warn() << "Non finite number found in ref at " << ref_nan_idx << ": "
+                            << ref[ref_nan_idx];
 
             auto target_nan_idx = find_idx(target, verify::not_finite);
             if(target_nan_idx >= 0)
-                std::cout << "Non finite number found in target at " << target_nan_idx << ": "
-                          << target[target_nan_idx] << std::endl;
+                log::warn() << "Non finite number found in target at " << target_nan_idx << ": "
+                            << target[target_nan_idx];
         }
     });
     return passed;
@@ -101,7 +161,15 @@ bool verify_args_with_tolerance(const std::string& name,
                                 std::size_t tolerance)
 {
     double rms_tol = 0.001;
-    target_arg.visit([&](auto ta) { rms_tol = verify::get_rms_tol(ta, tolerance); });
+    argument t_arg = target_arg;
+    if(auto empty_result = verify_empty_args(name, t_arg, ref_arg.data()))
+        return *empty_result;
+    if(not t_arg.get_shape().computable())
+    {
+        shape o_t_shape = t_arg.get_shape();
+        t_arg = t_arg.reshape(shape{shape::uint8_type, o_t_shape.lens(), o_t_shape.strides()});
+    }
+    t_arg.visit([&](auto ta) { rms_tol = verify::get_rms_tol(ta, tolerance); });
     verify::tolerance tols{rms_tol};
     return verify_args(name, target_arg, ref_arg, tols);
 }

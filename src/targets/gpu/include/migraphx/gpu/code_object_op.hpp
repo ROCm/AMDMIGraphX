@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,8 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/gpu/kernel.hpp>
+#include <migraphx/gpu/pack_args.hpp>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,6 +47,18 @@ struct code_object_op
     std::vector<shape> expected_inputs{};
     shape output{};
     std::int64_t output_arg = -1;
+    // Extra attributes merged into attributes(); see hip_compile_options::annotations.
+    value annotations = value::object{};
+
+    std::map<std::size_t, kernel_argument_value> kernel_args{};
+    // Assigned by compile_ops: code objects with the same module_id hold the same binary and
+    // share one loaded module through the context; -1 loads a private module.
+    std::int64_t module_id = -1;
+    // Pre-packed kernarg buffer built in finalize(); not reflected.
+    std::vector<char> packed_kernargs{};
+    // (runtime arg index, byte offset) pairs for pointer patching in compute().
+    std::vector<std::pair<std::size_t, std::size_t>> runtime_arg_offsets{};
+
     kernel k{};
 
     template <class Self, class F>
@@ -56,10 +70,19 @@ struct code_object_op
                     f(self.local, "local"),
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
-                    f(self.output_arg, "output_arg"));
+                    f(self.output_arg, "output_arg"),
+                    f(self.annotations, "annotations"),
+                    f(self.kernel_args, "kernel_args"),
+                    f(self.module_id, "module_id"));
     }
 
-    value attributes() const { return {{"group", group()}}; }
+    value attributes() const
+    {
+        // An empty object does not survive serialization as an object
+        value result    = annotations.is_object() ? annotations : value(value::object{});
+        result["group"] = group();
+        return result;
+    }
 
     std::string group() const { return "gpu::code_object::" + symbol_name; }
 
@@ -72,9 +95,9 @@ struct code_object_op
     {
         return output_arg < 0 ? n + output_arg : output_arg;
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return get_output_arg(shapes.size());
+        return {static_cast<std::size_t>(get_output_arg(shapes.size()))};
     }
 
     friend std::ostream& operator<<(std::ostream& os, const code_object_op& op)
@@ -86,6 +109,10 @@ struct code_object_op
         os << "local=" << op.local << ",";
         if(op.output_arg != -1)
             os << "output_arg=" << op.output_arg << ",";
+        if(not op.annotations.empty())
+            os << "annotations=" << op.annotations << ",";
+        if(op.module_id != -1)
+            os << "module_id=" << op.module_id << ",";
         os << "]";
         return os;
     }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,9 +24,12 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_TARGET_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_TARGET_HPP
 
+#include <string>
 #include <migraphx/program.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/gpu/device_description.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,6 +37,22 @@ namespace gpu {
 
 struct MIGRAPHX_GPU_EXPORT target
 {
+    /// The device to compile for. An empty arch means use the local device.
+    device_description desc = {};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.desc.arch, "gpu_arch"),
+                    f(self.desc.num_cu, "gpu_num_cu"),
+                    f(self.desc.num_chiplets, "gpu_num_chiplets"),
+                    f(self.desc.max_threads_per_cu, "gpu_max_threads_per_cu"),
+                    f(self.desc.max_threads_per_block, "gpu_max_threads_per_block"),
+                    f(self.desc.wavefront_size, "gpu_wavefront_size"));
+    }
+
+    bool is_cross_compile() const { return not desc.arch.empty(); }
+
     std::string name() const;
     std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options) const;
     migraphx::context get_context() const;

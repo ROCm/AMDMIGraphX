@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,21 +31,41 @@
 #include <migraphx/module.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/time.hpp>
+
 #include <array>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #ifndef MIGRAPHX_USE_TYPE_ERASED_MATCHERS
 #define MIGRAPHX_USE_TYPE_ERASED_MATCHERS 0
+#endif
+
+#ifndef MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER
+#if MIGRAPHX_USE_TYPE_ERASED_MATCHERS
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 0
+// Windows and gcc use an excessive amount of memory to compile deeply nested matcher types
+#elif defined(_WIN32) || (defined(__GNUC__) && not defined(__clang__))
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 1
+#else
+#define MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER 0
+#endif
 #endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace match {
+
+struct supports_dynamic_shapes
+{
+};
 
 struct matcher_context
 {
@@ -116,7 +136,7 @@ struct predicate_matcher
 template <class P>
 predicate_matcher<P> make_predicate_matcher(P p)
 {
-    return {p};
+    return {std::move(p)};
 }
 
 /// Convert a function into a matcher
@@ -132,7 +152,7 @@ struct function_matcher
 template <class F>
 function_matcher<F> make_function_matcher(F f)
 {
-    return {f};
+    return {std::move(f)};
 }
 
 /// Converts a matcher to bind the instruction to name
@@ -261,6 +281,16 @@ struct any_matcher : any_matcher_base
     }
 };
 
+template <class M>
+auto opaque(M m)
+{
+#if MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER
+    return any_matcher{m};
+#else
+    return m;
+#endif
+}
+
 /// Create a basic matcher from a matcher
 template <class M>
 typename type_erased_matcher<M>::type make_basic_matcher(M m)
@@ -272,14 +302,14 @@ typename type_erased_matcher<M>::type make_basic_matcher(M m)
 template <class F>
 auto make_basic_fun_matcher(F f)
 {
-    return make_basic_matcher(make_function_matcher(f));
+    return make_basic_matcher(make_function_matcher(std::move(f)));
 }
 
 /// Create a basic matcher from a predicate function
 template <class P>
 auto make_basic_pred_matcher(P p)
 {
-    return make_basic_matcher(make_predicate_matcher(p));
+    return make_basic_matcher(make_predicate_matcher(std::move(p)));
 }
 
 /// This macro takes care of the boilerplate for defining a matcher
@@ -401,15 +431,138 @@ match::matcher_result find_match(module& modl, M&& m)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES_FOR)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_MATCHERS)
+
+MIGRAPHX_PRED_MATCHER(not_dynamic_shape, instruction_ref ins)
+{
+    return not ins->get_shape().dynamic();
+}
+
+template <class Finder>
+auto get_matcher(const Finder& f)
+{
+    if constexpr(std::is_base_of<supports_dynamic_shapes, Finder>{})
+    {
+        return f.matcher();
+    }
+    else
+    {
+        return not_dynamic_shape(f.matcher());
+    }
+}
+
+template <class Finder>
+auto make_match_runner_with_trace(source_location location, Finder& f)
+{
+    auto m                  = get_matcher(f);
+    const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
+    const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+    const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    const auto& finder_name = get_type_name(f);
+    const bool trace_enabled =
+        trace > 0 and
+        (trace_filter.empty() or contains(std::string{location.file_name()}, trace_filter) or
+         contains(std::string{location.function_name()}, trace_filter) or
+         contains(finder_name, trace_filter));
+    return [=, &f](auto& mod, instruction_ref ins) -> bool {
+        using microseconds = std::chrono::duration<double, std::micro>;
+        if(trace > 1 and trace_enabled)
+            std::cout << "Running matcher: " << finder_name << std::endl;
+
+        match::matcher_result r;
+        double match_time = 0.0;
+        if(trace_enabled)
+        {
+            match_time =
+                time<microseconds>([&] { r = match::match_instruction(get_module(mod), ins, m); });
+        }
+        else
+        {
+            r = match::match_instruction(get_module(mod), ins, m);
+        }
+
+        if(trace > 1 and trace_enabled)
+        {
+            std::cout << "Matcher time for " << finder_name << ": " << match_time << "us"
+                      << std::endl;
+        }
+
+        // did not match any instruction
+        if(r.result == get_module(mod).end())
+            return false;
+
+        if(trace_enabled)
+        {
+            std::cout << "Matched by: " << finder_name << std::endl;
+            get_module(mod).debug_print(ins);
+        }
+        // If its already invalid dont validate it again
+        bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
+        if(trace_enabled)
+        {
+            if(trace > 1)
+                std::cout << "Applying matcher: " << finder_name << std::endl;
+            auto apply_time = time<microseconds>([&] { f.apply(mod, r); });
+            std::cout << "Apply time for " << finder_name << ": " << apply_time << "us"
+                      << std::endl;
+        }
+        else
+        {
+            f.apply(mod, r);
+        }
+
+        if(validate and not invalidated)
+        {
+            auto invalid = get_module(mod).validate();
+            if(invalid != get_module(mod).end())
+            {
+                std::cout << "Invalid program from match: " << finder_name << std::endl;
+                std::cout << "Invalid instructions: " << std::endl;
+                get_module(mod).debug_print(invalid->inputs());
+                get_module(mod).debug_print(invalid);
+            }
+        }
+        return true;
+    };
+}
+
+template <class Finder>
+auto make_match_runner(Finder& f)
+{
+    auto m = get_matcher(f);
+    return [=, &f](auto& mod, instruction_ref ins) -> bool {
+        match::matcher_result r = match::match_instruction(get_module(mod), ins, m);
+        if(r.result == get_module(mod).end())
+            return false;
+        f.apply(mod, r);
+        return true;
+    };
+}
+
+template <class Mod, class RunnerPack>
+void find_matches_for(Mod& mod, instruction_ref ins, const RunnerPack& rp)
+{
+    rp([&](auto&&... rs) {
+        bool matched = false;
+        each_args(
+            [&](auto&& r) {
+                if(matched)
+                    return;
+                matched = r(mod, ins);
+            },
+            rs...);
+    });
+}
 
 /// Find matches for an instruction in the module for per section of matchers
 template <class Mod, class... Ms>
 void find_matches_for(source_location location, Mod& mod, instruction_ref ins, Ms&&... ms)
 {
-    const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
-    const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-    const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
-    bool match              = false;
+    const int trace          = value_of(MIGRAPHX_TRACE_MATCHES{});
+    const bool validate      = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+    const auto trace_filter  = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    const bool time_matchers = enabled(MIGRAPHX_TIME_MATCHERS{});
+    bool match               = false;
     each_args(
         [&](auto&& m) {
             const auto& matcher_name = get_type_name(m);
@@ -419,19 +572,44 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                                     contains(matcher_name, trace_filter));
             if(match)
                 return;
+            // print running matcher even if it doesn't match anything
             if(trace > 1 and trace_for)
-                std::cout << "Match: " << matcher_name << std::endl;
-            auto r = match_instruction(get_module(mod), ins, m.matcher());
+                std::cout << "Running matcher: " << matcher_name << std::endl;
+
+            matcher_result r;
+            if(time_matchers or trace_for)
+            {
+                timer match_timer{};
+                r = match_instruction(get_module(mod), ins, m.matcher());
+                const auto match_time =
+                    match_timer.record<std::chrono::duration<double, std::micro>>();
+                std::cout << "Matcher time for " << matcher_name << ": " << match_time << "us"
+                          << std::endl;
+            }
+            else
+            {
+                r = match_instruction(get_module(mod), ins, m.matcher());
+            }
+
+            // did not match any instruction
             if(r.result == get_module(mod).end())
                 return;
+
             if(trace > 0 or trace_for)
             {
-                std::cout << "Matched by " << matcher_name << std::endl;
+                std::cout << "Matched by: " << matcher_name << std::endl;
                 get_module(mod).debug_print(ins);
             }
             // If its already invalid dont validate it again
             bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
-            m.apply(mod, r);
+            auto apply_time =
+                time<std::chrono::duration<double, std::micro>>([&] { m.apply(mod, r); });
+            if(time_matchers or trace_for)
+            {
+                std::cout << "Apply time for " << matcher_name << ": " << apply_time << "us"
+                          << std::endl;
+            }
+
             if(validate and not invalidated)
             {
                 auto invalid = get_module(mod).validate();
@@ -454,9 +632,25 @@ struct find_matches
 {
     find_matches(Mod& mod, Ms&&... ms, source_location location = source_location::current())
     {
-        for(auto ins : iterator_for(get_module(mod)))
+        const int trace       = value_of(MIGRAPHX_TRACE_MATCHES{});
+        const bool validate   = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+        const bool need_trace = trace > 0 or validate;
+
+        if(need_trace)
         {
-            find_matches_for(location, mod, ins, ms...);
+            auto runners = pack(make_match_runner_with_trace(location, ms)...);
+            for(auto ins : iterator_for(get_module(mod)))
+            {
+                find_matches_for(mod, ins, runners);
+            }
+        }
+        else
+        {
+            auto runners = pack(make_match_runner(ms)...);
+            for(auto ins : iterator_for(get_module(mod)))
+            {
+                find_matches_for(mod, ins, runners);
+            }
         }
     }
 };
@@ -477,7 +671,7 @@ struct find_generic_match
 template <class M, class F>
 find_generic_match<M, F> make_match_finder(M m, F f)
 {
-    return {m, f};
+    return {m, std::move(f)};
 }
 
 template <class M>
@@ -498,7 +692,7 @@ find_skip<M> make_find_skip(M m)
 struct lazy_and
 {
     template <class F, class G>
-    auto operator()(F f, G g) const
+    auto operator()(F f, G g) const // NOLINT(performance-unnecessary-value-param)
     {
         return [=] { return f() and g(); };
     }
@@ -507,7 +701,7 @@ struct lazy_and
 struct lazy_or
 {
     template <class F, class G>
-    auto operator()(F f, G g) const
+    auto operator()(F f, G g) const // NOLINT(performance-unnecessary-value-param)
     {
         return [=] { return f() or g(); };
     }
@@ -525,7 +719,7 @@ struct match_fold_f
     }
 
     template <class Pack>
-    static bool fold_matchers_pack(matcher_context& ctx, instruction_ref ins, Pack p)
+    static bool fold_matchers_pack(matcher_context& ctx, instruction_ref ins, const Pack& p)
     {
         return p([&](auto... ms) { return match_fold_f::fold_matchers(ctx, ins, ms...); });
     }
@@ -533,7 +727,7 @@ struct match_fold_f
     template <class... Ts>
     auto operator()(Ts... ms) const
     {
-        return make_bf_matcher(
+        return make_basic_fun_matcher(
             [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
                 bool matches = match_fold_f::fold_matchers(ctx, ins, ms...);
                 if(matches == Matches)
@@ -548,7 +742,7 @@ struct match_fold_f
         return [=](auto... ms) {
             // Workaround ICE on gcc by packing matchers into an object
             auto mpack = pack(ms...);
-            return make_bf_matcher(
+            return make_basic_fun_matcher(
                 [=](matcher_context& ctx, instruction_ref start) -> optional<instruction_ref> {
                     Op op;
                     bool matches = Start;
@@ -645,6 +839,7 @@ MIGRAPHX_PRED_MATCHER(not_standard_shape, instruction_ref ins)
 }
 MIGRAPHX_PRED_MATCHER(dynamic_shape, instruction_ref ins) { return ins->get_shape().dynamic(); }
 MIGRAPHX_PRED_MATCHER(static_shape, instruction_ref ins) { return not ins->get_shape().dynamic(); }
+MIGRAPHX_PRED_MATCHER(symbolic_shape, instruction_ref ins) { return ins->get_shape().symbolic(); }
 MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
 {
     return ins->get_shape().broadcasted();
@@ -657,6 +852,22 @@ MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
     return ins->get_shape().transposed();
 }
 
+inline auto ndim(std::size_t n)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_shape().ndim() == n; });
+}
+
+inline auto nelements(std::size_t n)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_shape().elements() == n; });
+}
+
+MIGRAPHX_PRED_MATCHER(not_tuple, instruction_ref ins)
+{
+    return ins->get_shape().type() != shape::tuple_type;
+}
 MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
 {
     if(ins->inputs().empty())
@@ -718,6 +929,11 @@ MIGRAPHX_PRED_MATCHER(broadcast, instruction_ref ins)
     return contains({"broadcast", "multibroadcast"}, ins->name());
 }
 
+/**
+ * Makes a matcher that recursively traverses over single inputs to an instruction that
+ * match the given matchers. The matcher will then be at the instruction before the `ms`
+ * matched instructions.
+ */
 template <class... Ms>
 auto skip(Ms... ms)
 {
@@ -737,6 +953,12 @@ auto skip(Ms... ms)
     });
 }
 
+/**
+ * Makes a matcher that recursively traverses over single outputs to an instruction that
+ * match the given matchers. The matcher will then return at the instruction after the `ms`
+ * matched instructions. If any instruction matched has more than one output the matcher
+ * returns nullopt.
+ */
 template <class... Ms>
 auto skip_output(Ms... ms)
 {
@@ -786,9 +1008,12 @@ inline auto name_contains(const std::string& name)
 
 inline auto name(std::unordered_set<std::string> names)
 {
-    return make_basic_pred_matcher([=, m_names = std::move(names)](instruction_ref ins) {
-        return m_names.count(ins->name()) > 0;
-    });
+    // Share the set between matcher copies rather than copying it: matchers are copied by value
+    // as they are composed and again for every instruction visited, so copying the set each time
+    // was a measurable compile-time cost. Keep it const so the copies cannot diverge.
+    return make_basic_pred_matcher(
+        [m_names = std::make_shared<const std::unordered_set<std::string>>(std::move(names))](
+            instruction_ref ins) { return contains(*m_names, ins->name()); });
 }
 
 template <class... Ts>
@@ -829,6 +1054,7 @@ auto args(Ms... ms)
 {
     return sequence_c<sizeof...(Ms)>([=](auto... is) {
         // It needs to be written as `decltype(is)::value` for gcc 5
+        // cppcheck-suppress migraphx-AvoidNestedValue
         return args_impl(args_impl_ints<decltype(is)::value...>{}, ms...);
     });
 }
@@ -929,6 +1155,26 @@ auto same_shape(Ms... ms)
     return all_of(same_shape(ms)...);
 }
 
+template <class M>
+auto same_lens(M m)
+{
+    return make_basic_fun_matcher(
+        [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+            auto i = m.match(ctx, ins);
+            if(not i)
+                return nullopt;
+            if(shape::same_lens((*i)->get_shape(), ins->get_shape()))
+                return ins;
+            return nullopt;
+        });
+}
+
+template <class... Ms>
+auto same_lens(Ms... ms)
+{
+    return all_of(same_lens(ms)...);
+}
+
 template <class... Ms>
 auto skip_broadcasts(Ms... ms)
 {
@@ -954,40 +1200,116 @@ inline auto literal_value_checker(F f)
     }));
 }
 
-/**
- * Uses integer multiples of the corresponding floating point epsilon and
- * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(x)).
- * atol_mult controls the absolute tolerance.
- * rtol_mult controls the relative tolerance.
- * Uses no tolerance for integral types.
- */
-template <class T>
-inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 10)
+struct value_tolerance
 {
-    return literal_value_checker([=](migraphx::literal l) {
-        bool b = false;
-        l.visit([&](auto v) {
-            // cast to the literal's data type before comparing
-            using type = typename decltype(v)::value_type;
-            auto tolerance = atol_mult + rtol_mult * std::fabs(x);
-            if(migraphx::float_equal(tolerance, 0) or std::is_integral<type>{})
-            {
-                if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                       return migraphx::float_equal(val, static_cast<type>(x));
-                   }))
-                    b = true;
-            }
-            else
-            {
-                auto eps = std::numeric_limits<type>::epsilon();
-                if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                       return std::fabs(val - static_cast<type>(x)) < (eps * tolerance);
-                   }))
-                    b = true;
-            }
-        });
-        return b;
+    /// Multiples of the literal type's epsilon
+    optional<double> atol;
+    optional<double> rtol;
+
+    /// The window has_value uses when the caller does not name one. Every enumerator is listed so
+    /// that a type added to shape::type_t has to name its own window here rather than silently
+    /// picking up a window sized for float.
+    static value_tolerance get_default_tols(shape::type_t t)
+    {
+        switch(t)
+        {
+        // The historical window, and negligible slack at these widths.
+        case shape::float_type: [[fallthrough]];
+        case shape::double_type: return {10, 10};
+        // Seven rounding steps is a small slice of the values half holds per binade, and about five
+        // percent of a binade in bf16, which still leaves 1.0 and 1.125 apart.
+        case shape::half_type: [[fallthrough]];
+        case shape::bf16_type: return {3, 4};
+        // Under a single rounding step, so the window cannot reach the neighboring constant in
+        // types holding only a handful of values per binade.
+        case shape::fp8e4m3fn_type: [[fallthrough]];
+        case shape::fp8e4m3fnuz_type: [[fallthrough]];
+        case shape::fp8e5m2_type: [[fallthrough]];
+        case shape::fp8e5m2fnuz_type: return {0.25, 0.5};
+        // Integral types compare exactly. literal::visit throws for tuple and fp4x2, so their
+        // window is never reached.
+        case shape::bool_type: [[fallthrough]];
+        case shape::uint8_type: [[fallthrough]];
+        case shape::int8_type: [[fallthrough]];
+        case shape::uint16_type: [[fallthrough]];
+        case shape::int16_type: [[fallthrough]];
+        case shape::uint32_type: [[fallthrough]];
+        case shape::int32_type: [[fallthrough]];
+        case shape::uint64_type: [[fallthrough]];
+        case shape::int64_type: [[fallthrough]];
+        case shape::tuple_type: [[fallthrough]];
+        case shape::fp4x2_type: return {0, 0};
+        }
+        MIGRAPHX_THROW("has_value: invalid literal type");
+    }
+};
+
+namespace detail {
+/// Compares every element of `l` against `x` within eps * (atol + rtol * abs(x)), where eps is the
+/// literal type's epsilon and the multiples default to `value_tolerance::get_default_tols` for that
+/// type. Integral types have an epsilon of zero, so they require an exact match, as does a window
+/// of zero.
+template <class T>
+inline bool literal_has_value(const migraphx::literal& l, T x, value_tolerance tols)
+{
+    auto defaults = value_tolerance::get_default_tols(l.get_shape().type());
+    auto atol     = tols.atol.value_or(defaults.atol.value());
+    auto rtol     = tols.rtol.value_or(defaults.rtol.value());
+    double target = x;
+    bool b        = false;
+    l.visit([&](auto v) {
+        // A literal views const data, so drop the qualifier or numeric_limits will miss the
+        // specialization for the narrow types and report an epsilon of zero.
+        using type = std::remove_cv_t<typename decltype(v)::value_type>;
+        // No unsigned element equals a negative x, which an unsigned common type would
+        // wrap to a large value. Test target, as x < 0 warns when T is unsigned.
+        if(std::is_unsigned<type>{} and target < 0)
+            return;
+        double eps  = std::numeric_limits<type>::epsilon();
+        auto window = eps * (atol + rtol * std::fabs(target));
+        if(migraphx::float_equal(window, 0))
+        {
+            // float_equal compares in the common type of val and x, so a floating x
+            // is never cast to an integral literal type, where it could wrap. A negative
+            // element never equals an unsigned x, which an unsigned common type would
+            // wrap it to.
+            b = std::all_of(v.begin(), v.end(), [&](auto val) {
+                if constexpr(std::is_unsigned<T>{} and std::is_signed<type>{})
+                {
+                    if(val < 0)
+                        return false;
+                }
+                return migraphx::float_equal(val, x);
+            });
+        }
+        else
+        {
+            // Difference taken in double: in a narrow type the subtraction would itself round
+            // before being compared against the window.
+            b = std::all_of(v.begin(), v.end(), [&](auto val) {
+                return std::fabs(static_cast<double>(val) - target) < window;
+            });
+        }
     });
+    return b;
+}
+} // namespace detail
+
+/// Matches a literal holding `x`, using the per-type defaults so that a constant in a narrow type
+/// is held to a window that cannot reach the neighboring representable value.
+template <class T>
+inline auto has_value(T x)
+{
+    return literal_value_checker(
+        [=](migraphx::literal l) { return detail::literal_has_value(l, x, value_tolerance{}); });
+}
+
+/// As above with the epsilon multiples given explicitly. Both zero requires an exact match.
+template <class T>
+inline auto has_value(T x, value_tolerance tols)
+{
+    return literal_value_checker(
+        [=](migraphx::literal l) { return detail::literal_has_value(l, x, tols); });
 }
 
 inline auto has_attribute(const std::string& name)
@@ -996,10 +1318,25 @@ inline auto has_attribute(const std::string& name)
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
+template <class T>
+inline auto has_op_value(const std::string& name, const T& value)
+{
+    return make_basic_pred_matcher([=](instruction_ref ins) {
+        auto op_val = ins->get_operator().to_value();
+        return op_val.contains(name) and op_val[name].to<value::literal_to_string<T>>() == value;
+    });
+}
+
 template <class... Ms>
 auto pointwise(Ms... ms)
 {
     return match::has_attribute("pointwise")(ms...);
+}
+
+MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins)
+{
+    return starts_with(ins->name(), "reduce_") or ins->name() == "argmin" or
+           ins->name() == "argmax";
 }
 
 } // namespace match

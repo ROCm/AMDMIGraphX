@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class RawData>
-void raw_data_to_value(value& v, const RawData& rd)
+static void raw_data_to_value(value& v, const RawData& rd)
 {
     value result;
     result["shape"] = migraphx::to_value(rd.get_shape());
@@ -45,7 +45,18 @@ void migraphx_to_value(value& v, const literal& l) { raw_data_to_value(v, l); }
 void migraphx_from_value(const value& v, literal& l)
 {
     auto s = migraphx::from_value<shape>(v.at("shape"));
-    l      = literal(s, v.at("data").get_binary().data());
+    if(v.contains("data"))
+    {
+        const auto& data = v.at("data").get_binary();
+        if(data.size() != s.bytes())
+            MIGRAPHX_THROW("literal: data size " + std::to_string(data.size()) +
+                           " does not match shape bytes " + std::to_string(s.bytes()));
+        l = literal::from_raw_buffer(s, data.data());
+    }
+    else
+    {
+        l = literal{s.type()};
+    }
 }
 
 void migraphx_to_value(value& v, const argument& a) { raw_data_to_value(v, a); }

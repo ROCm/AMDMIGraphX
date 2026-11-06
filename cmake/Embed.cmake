@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,17 +22,63 @@
 # THE SOFTWARE.
 #####################################################################################
 
-if(WIN32)
-    set(EMBED_USE RC CACHE STRING "Use RC or CArrays to embed data files")
-    set_property(CACHE EMBED_USE PROPERTY STRINGS "RC;CArrays")
-else()
-    if(BUILD_SHARED_LIBS)
-        set(EMBED_USE LD CACHE STRING "Use LD or CArrays to embed data files")
-    else()
-        set(EMBED_USE CArrays CACHE STRING "Use LD or CArrays to embed data files")
+include_guard(GLOBAL)
+
+include(CheckCXXCompilerFlag)
+include(CheckCXXSourceCompiles)
+
+# The #embed directive is only standard in C23 and C++26, but compilers support it as an
+# extension in the earlier standards as well
+function(check_hash_embed VARIABLE)
+    set(DATA_FILE "${CMAKE_BINARY_DIR}/embed-check-data")
+    file(WRITE "${DATA_FILE}" "hash embed")
+    if(NOT MSVC)
+        # Using the directive as an extension is diagnosed, which is fatal with -Werror
+        foreach(_flag -Wno-c23-extensions -Wno-c++26-extensions)
+            string(MAKE_C_IDENTIFIER "HAS_CXX_FLAG${_flag}" _has_flag_var)
+            check_cxx_compiler_flag(${_flag} ${_has_flag_var})
+            if(${_has_flag_var})
+                string(APPEND CMAKE_REQUIRED_FLAGS " ${_flag}")
+            endif()
+        endforeach()
     endif()
-    set_property(CACHE EMBED_USE PROPERTY STRINGS "LD;CArrays")
+    check_cxx_source_compiles("
+#include <cstddef>
+extern const char embed_data[] = {
+#embed \"${DATA_FILE}\"
+};
+extern const size_t embed_length = sizeof(embed_data);
+int main() { return 0; }
+" ${VARIABLE})
+endfunction()
+check_hash_embed(EMBED_HAS_HASH_EMBED)
+
+if(EMBED_HAS_HASH_EMBED)
+    set(EMBED_USE_DEFAULT HASH_EMBED)
+elseif(NOT BUILD_SHARED_LIBS)
+    set(EMBED_USE_DEFAULT CArrays)
+elseif(WIN32)
+    set(EMBED_USE_DEFAULT RC)
+else()
+    set(EMBED_USE_DEFAULT LD)
 endif()
+
+if(WIN32)
+    set(EMBED_USE ${EMBED_USE_DEFAULT} CACHE STRING "Use HASH_EMBED, RC or CArrays to embed data files")
+    set_property(CACHE EMBED_USE PROPERTY STRINGS "HASH_EMBED;RC;CArrays")
+else()
+    set(EMBED_USE ${EMBED_USE_DEFAULT} CACHE STRING "Use HASH_EMBED, LD or CArrays to embed data files")
+    set_property(CACHE EMBED_USE PROPERTY STRINGS "HASH_EMBED;LD;CArrays")
+endif()
+
+if(NOT EMBED_HAS_HASH_EMBED)
+    if(EMBED_USE STREQUAL "HASH_EMBED")
+        message(FATAL_ERROR "EMBED_USE is set to HASH_EMBED, but ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} does not support the #embed directive.")
+    endif()
+    message(STATUS "The compiler does not support #embed, using ${EMBED_USE} to embed data files")
+endif()
+
+option(EMBED_VERBOSE "Show verbose output when creating embed library" OFF)
 
 if(EMBED_USE STREQUAL "LD")
     find_program(EMBED_LD ld REQUIRED)
@@ -66,13 +112,23 @@ function(embed_wrap_string)
     set(${PARSE_VARIABLE} "${lines}" PARENT_SCOPE)
 endfunction()
 
+set(RESOURCE_ID 100 CACHE INTERNAL "" FORCE)
+
+function(reset_resource_id MULTIPLE)
+    if(RESOURCE_ID GREATER 0)
+        math(EXPR _remainder "${RESOURCE_ID} % ${MULTIPLE}")
+        if(_remainder GREATER 0)
+            math(EXPR RESOURCE_ID "${RESOURCE_ID} + ${MULTIPLE} - ${_remainder}")
+        endif()
+    endif()
+    set(RESOURCE_ID ${RESOURCE_ID} CACHE INTERNAL "" FORCE)
+endfunction()
+
 function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
     set(options)
     set(oneValueArgs)
     set(multiValueArgs SYMBOLS FILES)
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-
-    set(RESOURCE_ID 100)
 
     list(LENGTH PARSE_SYMBOLS SYMBOLS_LEN)
     list(LENGTH PARSE_FILES FILES_LEN)
@@ -93,21 +149,22 @@ function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
             string(APPEND RC_FILE_MAPPING "IDR_${SYMBOL} TEXTFILE \"${NATIVE_FILE}\"\n")
             string(APPEND INIT_KERNELS "\n        {\"${BASE_NAME}\", resource::read(IDR_${SYMBOL})},")
             math(EXPR RESOURCE_ID "${RESOURCE_ID} + 1" OUTPUT_FORMAT DECIMAL)
-        else()
+        elseif(EMBED_USE STREQUAL "LD")
+            set(START_SYMBOL "_binary_${SYMBOL}_start")
+            set(END_SYMBOL "_binary_${SYMBOL}_end")
+            string(APPEND EXTERNS "
+extern const char ${START_SYMBOL}[];
+extern const char ${END_SYMBOL}[];
+")
+            string(APPEND INIT_KERNELS "
+        { \"${BASE_NAME}\", { ${START_SYMBOL}, static_cast<size_t>(${END_SYMBOL} - ${START_SYMBOL})} },")
+        else() # CArrays or HASH_EMBED
             set(START_SYMBOL "_binary_${SYMBOL}_start")
             set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
-            if(EMBED_USE STREQUAL "LD")
-                string(APPEND EXTERNS "
-extern const char ${START_SYMBOL}[];
-extern const size_t _binary_${SYMBOL}_size;
-const auto ${LENGTH_SYMBOL} = reinterpret_cast<size_t>(&_binary_${SYMBOL}_size);
-")
-            else()
-                string(APPEND EXTERNS "
+            string(APPEND EXTERNS "
 extern const char ${START_SYMBOL}[];
 extern const size_t ${LENGTH_SYMBOL};
 ")
-            endif()
             string(APPEND INIT_KERNELS "
         { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
         endif()
@@ -128,7 +185,7 @@ ${RC_FILE_MAPPING}
 #include \"resource.h\"
 
 namespace resource {
-std::string_view read(int id)
+static std::string_view read(int id)
 {
     HMODULE handle;
     if(GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
@@ -169,12 +226,16 @@ std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}()
     return result;
 }
 ")
+    reset_resource_id(1000)
+
     list(APPEND EMBED_FILES ${EMBED_DIR}/${EMBED_NAME}.cpp ${EMBED_DIR}/include/${EMBED_NAME}.hpp)
     set(EMBED_FILES ${EMBED_FILES} PARENT_SCOPE)
 endfunction()
 
 function(embed_file FILE BASE_DIRECTORY)
-    message(STATUS "    ${FILE}")
+    if(EMBED_VERBOSE)
+        message(STATUS "    ${FILE}")
+    endif()
     file(RELATIVE_PATH REL_FILE "${BASE_DIRECTORY}" ${FILE})
     string(MAKE_C_IDENTIFIER "${REL_FILE}" OUTPUT_SYMBOL)
     get_filename_component(OUTPUT_FILE_DIR "${REL_FILE}" DIRECTORY)
@@ -189,6 +250,24 @@ function(embed_file FILE BASE_DIRECTORY)
             DEPENDS "${FILE}"
             VERBATIM)
         set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
+    elseif(EMBED_USE STREQUAL "HASH_EMBED")
+        get_filename_component(ABS_FILE "${FILE}" ABSOLUTE)
+        file(TO_CMAKE_PATH "${ABS_FILE}" ABS_FILE_CMAKE)
+        set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
+        # The compiler reads the data file when compiling the #embed directive, so the
+        # generated source is independent of the contents and cmake does not need to
+        # rerun when the file changes
+        file(GENERATE OUTPUT "${OUTPUT_FILE}" CONTENT "
+#include <cstddef>
+extern const char _binary_${OUTPUT_SYMBOL}_start[] = {
+#embed \"${ABS_FILE_CMAKE}\"
+};
+extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SYMBOL}_start);
+")
+        # Not every generator uses the dependencies reported by the compiler, so the data
+        # file is added as an explicit dependency of the object file
+        set_source_files_properties("${OUTPUT_FILE}" PROPERTIES GENERATED TRUE OBJECT_DEPENDS "${ABS_FILE}")
+        set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
     elseif(EMBED_USE STREQUAL "CArrays")
         set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${FILE})
         set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
@@ -197,7 +276,7 @@ function(embed_file FILE BASE_DIRECTORY)
         # wraps the hex string into multiple lines
         embed_wrap_string(VARIABLE HEX_STRING AT_COLUMN 80)
         # adds '0x' prefix and comma suffix before and after every byte respectively
-        string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1, " ARRAY_VALUES ${HEX_STRING})
+        string(REGEX REPLACE "([0-9a-f][0-9a-f])" "static_cast<char>(0x\\1), " ARRAY_VALUES ${HEX_STRING})
         # removes trailing comma
         string(REGEX REPLACE ", $" "" ARRAY_VALUES ${ARRAY_VALUES})
         file(WRITE "${OUTPUT_FILE}" "
@@ -210,6 +289,22 @@ extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SY
     set(OUTPUT_SYMBOL ${OUTPUT_SYMBOL} PARENT_SCOPE)
 endfunction()
 
+# The launcher is only cleared when it is ccache, so other launchers (such as distcc or
+# sccache) are left in place
+function(embed_disable_ccache TARGET)
+    foreach(LANG C CXX)
+        get_target_property(LAUNCHER ${TARGET} ${LANG}_COMPILER_LAUNCHER)
+        if(NOT LAUNCHER)
+            continue()
+        endif()
+        list(GET LAUNCHER 0 PROGRAM)
+        get_filename_component(PROGRAM_NAME "${PROGRAM}" NAME_WE)
+        if(PROGRAM_NAME STREQUAL "ccache")
+            set_target_properties(${TARGET} PROPERTIES ${LANG}_COMPILER_LAUNCHER "")
+        endif()
+    endforeach()
+endfunction()
+
 function(add_embed_library EMBED_NAME)
     set(options)
     set(oneValueArgs RELATIVE)
@@ -218,13 +313,16 @@ function(add_embed_library EMBED_NAME)
 
     set(EMBED_DIR ${CMAKE_CURRENT_BINARY_DIR}/embed/${EMBED_NAME})
     file(MAKE_DIRECTORY ${EMBED_DIR})
-    message(STATUS "Embedding kernel files:")
+    list(LENGTH PARSE_UNPARSED_ARGUMENTS NFILES)
+    message(STATUS "Embedding ${NFILES} files into library '${EMBED_NAME}':")
     foreach(FILE ${PARSE_UNPARSED_ARGUMENTS})
         embed_file(${FILE} ${PARSE_RELATIVE})
         list(APPEND OUTPUT_FILES ${OUTPUT_FILE})
         list(APPEND SYMBOLS ${OUTPUT_SYMBOL})
     endforeach()
-    message(STATUS "Generating embedding library '${EMBED_NAME}'")
+    if(EMBED_VERBOSE)
+        message(STATUS "Generating embedding library '${EMBED_NAME}'")
+    endif()
     generate_embed_source(${EMBED_NAME} ${EMBED_DIR} "${PARSE_RELATIVE}" SYMBOLS ${SYMBOLS} FILES ${PARSE_UNPARSED_ARGUMENTS})
     set(INTERNAL_EMBED_LIB embed_lib_${EMBED_NAME})
     if(EMBED_USE STREQUAL "LD")
@@ -232,12 +330,28 @@ function(add_embed_library EMBED_NAME)
     else()
         add_library(${INTERNAL_EMBED_LIB} OBJECT ${EMBED_FILES})
     endif()
-    if(EMBED_USE STREQUAL "CArrays")
+    if(EMBED_USE STREQUAL "CArrays" OR EMBED_USE STREQUAL "HASH_EMBED")
         target_sources(${INTERNAL_EMBED_LIB} PRIVATE ${OUTPUT_FILES})
     endif()
     target_include_directories(${INTERNAL_EMBED_LIB} PRIVATE "${EMBED_DIR}/include")
-    target_compile_options(${INTERNAL_EMBED_LIB} PRIVATE -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
+    # Disable extra warnings
+    set(COMPILER_WARNINGS -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
+    if(EMBED_USE STREQUAL "HASH_EMBED")
+        list(APPEND COMPILER_WARNINGS -Wno-c23-extensions -Wno-c++26-extensions)
+    endif()
+    foreach(COMPILER_WARNING ${COMPILER_WARNINGS})
+        string(MAKE_C_IDENTIFIER "HAS_CXX_FLAG${COMPILER_WARNING}" HAS_COMPILER_WARNING)
+        check_cxx_compiler_flag(${COMPILER_WARNING} ${HAS_COMPILER_WARNING})
+        if(${HAS_COMPILER_WARNING})
+            target_compile_options(${INTERNAL_EMBED_LIB} PRIVATE ${COMPILER_WARNING})
+        endif()
+    endforeach()
     set_target_properties(${INTERNAL_EMBED_LIB} PROPERTIES POSITION_INDEPENDENT_CODE On)
+    if(EMBED_USE STREQUAL "HASH_EMBED")
+        # ccache does not track the data files read by the #embed directive, so it will
+        # return a stale object when only the data file changes
+        embed_disable_ccache(${INTERNAL_EMBED_LIB})
+    endif()
     add_library(${EMBED_NAME} INTERFACE)
     if(EMBED_USE STREQUAL "RC")
         target_link_libraries(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}>)
@@ -246,6 +360,6 @@ function(add_embed_library EMBED_NAME)
     else()
         target_sources(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}>)
     endif()
-    target_include_directories(${EMBED_NAME} INTERFACE "${EMBED_DIR}/include")
+    target_include_directories(${EMBED_NAME} INTERFACE "$<BUILD_INTERFACE:${EMBED_DIR}/include>")
 endfunction()
 

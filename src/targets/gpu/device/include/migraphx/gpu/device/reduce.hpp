@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,14 @@
 
 #ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_HPP
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_HPP
+
+#if defined(__GFX10__) || defined(__GFX11__) || defined(__GFX12__)
+// NOLINTNEXTLINE
+#define MIGRAPHX_WAVEFRONT_SIZE 32
+#else
+// NOLINTNEXTLINE
+#define MIGRAPHX_WAVEFRONT_SIZE 64
+#endif
 
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/visit.hpp>
@@ -115,7 +123,7 @@ __device__ void dpp_reduce(T& in, Op op)
     in  = op(in, out);
     out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
     in  = op(in, out);
-#if __AMDGCN_WAVEFRONT_SIZE == 64
+#if MIGRAPHX_WAVEFRONT_SIZE == 64
     out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
     in  = op(in, out);
     out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
@@ -136,8 +144,8 @@ __device__ inline void dpp_reduce(float& x, sum)
                      "v_add_f32 %0 %0 %0 row_shr:4 bank_mask:0xe\n"
                      "s_nop 1\n"
                      "v_add_f32 %0 %0 %0 row_shr:8 bank_mask:0xc\n"
+#if MIGRAPHX_WAVEFRONT_SIZE == 64
                      "s_nop 1\n"
-#if __AMDGCN_WAVEFRONT_SIZE == 64
                      "v_add_f32 %0 %0 %0 row_bcast:15 row_mask:0xa\n"
                      "s_nop 1\n"
                      "v_add_f32 %0 %0 %0 row_bcast:31 row_mask:0xc\n"
@@ -157,7 +165,7 @@ template <index_int N,
 __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 {
 
-#if __AMDGCN_WAVEFRONT_SIZE == 32
+#if MIGRAPHX_WAVEFRONT_SIZE == 32
     constexpr index_int nthreads = 16;
 #else
     constexpr index_int nthreads = 64;

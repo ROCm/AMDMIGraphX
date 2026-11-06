@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,9 +56,15 @@ struct marker;
  */
 struct MIGRAPHX_EXPORT program
 {
+
     program();
 
-    explicit program(module m);
+    /// A program of a copy of the module and copies of the submodules it
+    /// references, with cross-module references remapped to the copies
+    explicit program(const module& m);
+
+    /// Same as above, but moves the module rather than copying it
+    explicit program(module&& m);
 
     // move constructor
     program(program&&) noexcept;
@@ -79,10 +85,15 @@ struct MIGRAPHX_EXPORT program
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
-    std::vector<argument> eval(parameter_map params,
+    int get_program_file_version() const;
+
+    std::size_t total_instructions() const;
+
+    std::vector<argument> eval(const parameter_map& params,
                                execution_environment exec_env = execution_environment{}) const;
 
-    std::vector<argument> eval_with_context(std::vector<context>& ctx, parameter_map params) const;
+    std::vector<argument> eval_with_context(std::vector<context>& ctx,
+                                            const parameter_map& params) const;
 
     void finish() const;
 
@@ -91,6 +102,8 @@ struct MIGRAPHX_EXPORT program
     std::vector<shape> get_output_shapes() const;
 
     context& get_context() const;
+
+    void clear_context();
 
     instruction_ref validate() const;
 
@@ -106,13 +119,18 @@ struct MIGRAPHX_EXPORT program
 
     void finalize();
 
+    // Attach `t` and finalize an already-lowered program (e.g. one loaded from
+    // an .mxr) without running compile passes that would mutate the lowered
+    // instructions.
+    void finalize(const target& t);
+
     void perf_report(std::ostream& os,
                      std::size_t n,
                      parameter_map params,
                      std::size_t batch = 1,
                      bool detailed     = false) const;
 
-    void mark(const parameter_map& params, marker&& m);
+    void mark(const parameter_map& params, marker m);
 
     value to_value() const;
     void from_value(const value& v);
@@ -131,7 +149,7 @@ struct MIGRAPHX_EXPORT program
     void print_py(std::ostream& os) const;
     void print_cpp(std::ostream& os) const;
 
-    void dry_run(parameter_map params) const;
+    void dry_run(const parameter_map& params) const;
 
     void annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const;
 
@@ -162,7 +180,16 @@ struct MIGRAPHX_EXPORT program
     private:
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
+    // program file version is for the data structure or format of the MXR
+    // file. Version should be bumped if any changes occur to the format of
+    // the MXR file. This does not apply to changes made to operators.
+    static constexpr int program_file_version = 8;
 };
+
+/// Lets a program be a member of a reflected type, using the same conversion as saving one.
+inline void migraphx_to_value(value& v, const program& p) { v = p.to_value(); }
+inline void migraphx_from_value(const value& v, program& p) { p.from_value(v); }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

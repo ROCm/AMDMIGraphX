@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,15 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * 2 input version:
+ * Standard quantized GEMM operation
+ * inputs = {A_mat, B_mat}
+ *
+ * 4 input version:
+ * Quantized GEMM with two sets of scales for A and B matricies.
+ * inputs = {A_mat, B_mat, scale_A, scale_B}
+ */
 struct quant_dot
 {
     value attributes() const { return {{"general_data_type", "dot"}}; }
@@ -41,49 +50,87 @@ struct quant_dot
     std::string name() const { return "quant_dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.same_type().has(2);
-        const shape& a = inputs.at(0);
-        const shape& b = inputs.at(1);
-        auto t         = a.type();
-        std::set<migraphx::shape::type_t> supported_types = {shape::int8_type,
-                                                             shape::uint8_type,
-                                                             shape::fp8e4m3fnuz_type,
-                                                             shape::fp8e4m3fn_type,
-                                                             shape::fp8e5m2_type};
+        check_shapes{inputs, *this, true}.has(2, 4);
+        check_shapes{{inputs.at(0), inputs.at(1)}, *this, true}.same_type().same_ndims();
+        if(inputs.size() == 4)
+        {
+            check_shapes{{inputs.at(2), inputs.at(3)}, *this, true}.same_type();
+        }
+        const shape& a                                    = inputs.at(0);
+        const shape& b                                    = inputs.at(1);
+        auto t                                            = a.type();
+        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(shape::int8_type);
+        supported_types.insert(shape::uint8_type);
+        // for how mxfp4 is handled with pack/unpack
+        supported_types.insert(shape::float_type);
         if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW("QUANT_DOT: only support data type int8_t, uint8_t and fp8 types");
+            MIGRAPHX_THROW("QUANT_DOT: only supports int8_t, uint8_t, float, and fp8, but given " +
+                           a.type_string());
+        }
+        if(not std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.ndim() >= 2; }))
+        {
+            MIGRAPHX_THROW("QUANT_DOT: dot only accepts >= 2D operands, but given A " +
+                           to_string(a) + " and B " + to_string(b));
         }
 
-        if(not std::all_of(
-               inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
+        auto out_type = (inputs.size() == 4 or contains(fp8_types{}.get(), t)) ? shape::float_type
+                                                                               : shape::int32_type;
+
+        auto aligned   = shape::to_dynamic({a, b});
+        const auto& s0 = aligned[0];
+        const auto& s1 = aligned[1];
+        std::vector<shape::dynamic_dimension> out_dyn_dims;
+
+        bool same_outers = std::equal(s0.dyn_dims().begin(),
+                                      s0.dyn_dims().end() - 2,
+                                      s1.dyn_dims().begin(),
+                                      s1.dyn_dims().end() - 2,
+                                      [&](const auto& x, const auto& y) {
+                                          if(x.is_symbolic() or y.is_symbolic())
+                                          {
+                                              if(x != y)
+                                                  return false;
+                                              out_dyn_dims.push_back(x);
+                                              return true;
+                                          }
+                                          auto intersect = x.intersection(y);
+                                          if(intersect.has_value())
+                                          {
+                                              out_dyn_dims.push_back(intersect.value());
+                                              return true;
+                                          }
+                                          return false;
+                                      });
+        if(not same_outers)
         {
-            MIGRAPHX_THROW("QUANT_DOT: dot only accept 2 or more dims operands");
+            MIGRAPHX_THROW("QUANT_DOT: outer dimensions of A and B mismatch: {" +
+                           to_string_range(s0.dyn_dims()) + "} x {" +
+                           to_string_range(s1.dyn_dims()) + "}");
         }
 
-        // only handle the case that the batch size of a and b are the same
-        if(not std::equal(
-               a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))
+        std::size_t dim_i = s0.ndim() - 2;
+        std::size_t dim_j = s0.ndim() - 1;
+        const auto& inner_dim0      = s0.dyn_dims()[dim_j];
+        const auto& inner_dim1      = s1.dyn_dims()[dim_i];
+        const bool inner_dims_match = (inner_dim0.is_symbolic() or inner_dim1.is_symbolic())
+                                          ? inner_dim0 == inner_dim1
+                                          : inner_dim0.intersection(inner_dim1).has_value();
+        if(not inner_dims_match)
         {
-            MIGRAPHX_THROW("QUANT_DOT: batch size of A and B mismatch: {" +
-                           to_string_range(a.lens()) + "} x {" + to_string_range(b.lens()) + "}");
+            MIGRAPHX_THROW("QUANT_DOT: inner dimensions are not compatible: {" +
+                           to_string_range(s0.dyn_dims()) + "} x {" +
+                           to_string_range(s1.dyn_dims()) + "}");
         }
 
-        std::size_t dim_0 = a.lens().size() - 2;
-        std::size_t dim_1 = a.lens().size() - 1;
-        if(a.lens()[dim_1] != b.lens()[dim_0])
-        {
-            MIGRAPHX_THROW("QUANT_DOT: inner dimensions do not match: {" +
-                           to_string_range(a.lens()) + "} x {" + to_string_range(b.lens()) + "}");
-        }
+        out_dyn_dims.push_back(s0.dyn_dims()[dim_i]);
+        out_dyn_dims.push_back(s1.dyn_dims()[dim_j]);
 
-        auto out_lens   = a.lens();
-        out_lens[dim_1] = b.lens()[dim_1];
-        if(contains(fp8_types{}.get(), t))
-        {
-            return {shape::float_type, out_lens};
-        } // else int8 gemm
-        return {shape::int32_type, out_lens};
+        shape out{out_type, out_dyn_dims};
+        if(a.dynamic() or b.dynamic())
+            return out;
+        return out.to_static();
     }
 };
 

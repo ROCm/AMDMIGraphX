@@ -1,7 +1,7 @@
 # ####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,37 @@
 # ####################################################################################
 
 find_package(hip REQUIRED)
+
+# A short identity for a list of toolchain libraries, used to separate binary cache entries
+# that different toolchains cannot share. Non-file entries (e.g. target names) are skipped.
+function(migraphx_hash_libraries LIB_PATHS OUT_VAR)
+    set(HASH_INPUT "")
+    foreach(LIB_PATH IN LISTS LIB_PATHS)
+        if(EXISTS "${LIB_PATH}" AND NOT IS_DIRECTORY "${LIB_PATH}")
+            file(MD5 "${LIB_PATH}" HASH_FILE_MD5)
+            string(APPEND HASH_INPUT "${HASH_FILE_MD5};")
+        endif()
+    endforeach()
+    if(HASH_INPUT STREQUAL "")
+        set(${OUT_VAR} "unknown" PARENT_SCOPE)
+        return()
+    endif()
+    string(MD5 HASH_RESULT "${HASH_INPUT}")
+    string(SUBSTRING "${HASH_RESULT}" 0 12 HASH_RESULT)
+    set(${OUT_VAR} "${HASH_RESULT}" PARENT_SCOPE)
+endfunction()
+
+# MIGRAPHX_USE_AMDMLSS is resolved to a plain boolean at the top-level CMakeLists.
+if(MIGRAPHX_USE_AMDMLSS)
+    message(STATUS "MIGraphX is using AMDMLSS")
+else()
+    message(STATUS "MIGraphX is not using AMDMLSS")
+endif()
+
+if(NOT WIN32)
+    find_package(hsa-runtime64 REQUIRED CONFIG)
+    message(STATUS "MIGraphX is using HSA runtime for chiplet query")
+endif()
 if(NOT GPU_TARGETS)
     set(fatal_msg "HIP package is broken and has no GPU_TARGETS. Please pass GPU_TARGETS to cmake.")
     if(NOT WIN32)
@@ -57,7 +88,7 @@ else()
 endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
+    find_package(composable_kernel_host 1.0.0 REQUIRED)
 endif()
 
 if(BUILD_DEV)
@@ -66,8 +97,9 @@ else()
     set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "Use hipRTC APIs")
 endif()
 
-file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
-    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
+file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS LIST_DIRECTORIES false
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/*.hpp
+)
 
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
     list(REMOVE_ITEM KERNEL_FILES
@@ -76,12 +108,22 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
 endif()
 
-include(Embed)
 add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
+
+option(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG "Workaround clang-cl HIP multi-arch /Fo bug on Windows" OFF)
+message(STATUS "MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG = ${MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG}")
+
+if(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG AND
+   CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND
+   CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    set(CMAKE_CXX_COMPILE_OBJECT
+        "<CMAKE_CXX_COMPILER> /nologo -TP <DEFINES> <INCLUDES> <FLAGS> -clang:-MD -clang:-MF<OBJECT>.d -o <OBJECT> -c -- <SOURCE>")
+    set(CMAKE_DEPFILE_FLAGS_CXX "")
+endif()
 
 add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
@@ -95,8 +137,39 @@ if(HAS_HIP_LAMBDA_HOST_DEVICE)
     target_compile_options(compile_for_gpu INTERFACE -fhip-lambda-host-device)
 endif()
 
+include(CheckCXXSourceCompiles)
+function(check_hip_deduction_guide VAR)
+    set(CMAKE_REQUIRED_LIBRARIES hip::device)
+    set(CMAKE_REQUIRED_FLAGS "-std=c++17")
+    # check_cxx_source_compiles links an executable, so the probe needs a main().
+    check_cxx_source_compiles("
+template<class T>
+struct S
+{
+    T x;
+};
+
+template<class T>
+S(T) -> S<T>;
+
+__attribute__((device)) auto f()
+{
+    return S{1};
+}
+
+int main() { return 0; }
+    " ${VAR})
+endfunction()
+check_hip_deduction_guide(HIP_HAS_WORKING_DEDUCTION_GUIDE)
+
+if(NOT HIP_HAS_WORKING_DEDUCTION_GUIDE)
+    message(STATUS "Enable deduction guide workaround")
+    target_compile_definitions(compile_for_gpu INTERFACE MIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE=1)
+endif()
+
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
+rocm_add_version_resource(migraphx_device "AMD MIGraphX" "MIGraphX Device Library - GPU Device Operations")
 rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
@@ -104,27 +177,74 @@ if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
     target_link_libraries(migraphx_device INTERFACE hip::host)
 endif()
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
-target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINAR_DIR}/include>)
+target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
 migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
 
-add_library(kernel_file_check EXCLUDE_FROM_ALL)
+function(post_verify_targets TARGET)
+    string(REPLACE ";" "," _archs_csv "${GPU_TARGETS}")
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+                -DOBJDUMP=${LLVM_OBJDUMP}
+                -DOBJCOPY=${LLVM_OBJCOPY}
+                -DBUNDLER=${CLANG_OFFLOAD_BUNDLER}
+                -DREADOBJ=${LLVM_READOBJ}
+                -DTARGET_FILE=$<TARGET_FILE:${TARGET}>
+                -DARCHS=${_archs_csv}
+                -P ${CMAKE_SOURCE_DIR}/cmake/verify_offload_archs.cmake
+        VERBATIM
+        COMMENT "Verifying offload archs in $<TARGET_FILE:${TARGET}>")
+endfunction()
 
-foreach(KERNEL_FILE ${KERNEL_FILES})
-    get_filename_component(KERNEL_BASE_FILE ${KERNEL_FILE} NAME_WE)
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp "#include <migraphx/kernels/${KERNEL_BASE_FILE}.hpp>\n")
-    target_sources(kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
-endforeach()
-
-target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
-target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
-target_link_libraries(kernel_file_check compile_for_gpu)
-if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(kernel_file_check composable_kernel::jit_library)
+if(WIN32)
+    find_program(LLVM_OBJCOPY NAMES llvm-objcopy HINTS ${LLVM_BINARY_DIR} ENV HIP_PATH)
+    find_program(CLANG_OFFLOAD_BUNDLER NAMES clang-offload-bundler HINTS ${LLVM_BINARY_DIR} ENV HIP_PATH)
+    find_program(LLVM_READOBJ NAMES llvm-readobj HINTS ${LLVM_BINARY_DIR} ENV HIP_PATH)
+    if(LLVM_OBJCOPY AND CLANG_OFFLOAD_BUNDLER AND LLVM_READOBJ)
+        post_verify_targets(migraphx_device)
+    else()
+        message(STATUS "llvm-objcopy, clang-offload-bundler or llvm-readobj not found, skipping offload arch verification")
+    endif()
+else()
+    find_program(LLVM_OBJDUMP NAMES llvm-objdump HINTS ${LLVM_BINARY_DIR})
+    if(LLVM_OBJDUMP)
+        post_verify_targets(migraphx_device)
+    else()
+        message(STATUS "llvm-objdump not found, skipping offload arch verification")
+    endif()
 endif()
 
-rocm_clang_tidy_check(kernel_file_check)
+add_library(compile_migraphx_gpu_kernels INTERFACE)
+target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_NLOCAL=256)
+target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_WAVEFRONTSIZE=64)
+target_include_directories(compile_migraphx_gpu_kernels INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
+target_link_libraries(compile_migraphx_gpu_kernels INTERFACE compile_for_gpu)
+if(MIGRAPHX_USE_COMPOSABLEKERNEL)
+    target_link_libraries(compile_migraphx_gpu_kernels INTERFACE composable_kernel::ck_host)
+endif()
+
+add_library(migraphx_gpu_kernel_file_check EXCLUDE_FROM_ALL)
+
+set(CK_TIDY_SKIP_KERNEL_FILES ck ck_gemm ck_gemm_softmax_gemm)
+foreach(KERNEL_FILE ${KERNEL_FILES})
+    file(RELATIVE_PATH KERNEL_FILE_REL ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/ ${KERNEL_FILE})
+    get_filename_component(KERNEL_BASE_FILE ${KERNEL_FILE_REL} NAME_WE)
+    get_filename_component(KERNEL_DIR ${KERNEL_FILE_REL} DIRECTORY)
+    # Temporary workaround for tidy issue that arises from the fact that CK no longer exposes headers to the host code
+    if(${KERNEL_BASE_FILE} IN_LIST CK_TIDY_SKIP_KERNEL_FILES)
+        continue()
+    endif()
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/${KERNEL_DIR})
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/${KERNEL_DIR}/${KERNEL_BASE_FILE}.cpp "#include <${KERNEL_DIR}/${KERNEL_BASE_FILE}.hpp>\n")
+target_sources(migraphx_gpu_kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/${KERNEL_DIR}/${KERNEL_BASE_FILE}.cpp)
+endforeach()
+
+target_link_libraries(migraphx_gpu_kernel_file_check compile_migraphx_gpu_kernels)
+# Copy the .clang-tidy files over
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/rocm/.clang-tidy ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/rocm/.clang-tidy COPYONLY)
+
+rocm_clang_tidy_check(migraphx_gpu_kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 
@@ -134,16 +254,12 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
-if(MIGRAPHX_USE_MIOPEN)
-    set(MIOPEN_SRCS abs.cpp)
-endif()
-
 add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
-    argmax.cpp
-    argmin.cpp
+    binary_cache.cpp
     code_object_op.cpp
+    compiled_code.cpp
     compile_ops.cpp
     compile_gen.cpp
     compile_hip.cpp
@@ -152,41 +268,60 @@ add_library(migraphx_gpu
     compile_miopen.cpp
     compile_pointwise.cpp
     compiler.cpp
+    device_description.cpp
     device_name.cpp
+    eliminate_data_type_for_gpu.cpp
+    file_binary_cache.cpp
+    fixed_pad.cpp
     fuse_ck.cpp
+    fuse_concat_past_present.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gemm_impl.cpp
     hip.cpp
     hipblaslt.cpp
     hip_gemm_impl.cpp
+    hip_graph.cpp
+    hipgraphify.cpp
+    hsa_chiplet.cpp
+    json_problem_cache.cpp
     kernel.cpp
+    lower_device_ops.cpp
+    lower_reshape.cpp
     lowering.cpp
-    logsoftmax.cpp
     loop.cpp
     lrn.cpp
     mlir.cpp
-    multinomial.cpp
+    nms_ops.cpp
     no_device.cpp
-    nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
+    prepare_mlir.cpp
     prepare_reduce.cpp
-    perfdb.cpp
     pooling.cpp
     problem_cache.cpp
-    reverse.cpp
-    rnn_variable_seq_lens.cpp
     rocblas.cpp
     schedule_model.cpp
+    sqlite_binary_cache.cpp
+    sqlite_problem_cache.cpp
     sync_device.cpp
     target.cpp
     time_op.cpp
     topk.cpp
     write_literals.cpp
+    fuse_mlss.cpp
+    mlss_conv_op.cpp
     ${JIT_GPU_SRCS}
-    ${MIOPEN_SRCS}
 )
+
+if(MIGRAPHX_USE_MIOPEN)
+    target_sources(migraphx_gpu
+        PRIVATE
+            abs.cpp
+            perfdb.cpp)
+endif()
+
+enable_static_init(migraphx_gpu)
 
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
@@ -198,14 +333,8 @@ function(register_migraphx_gpu_ops PREFIX)
 endfunction()
 
 register_migraphx_gpu_ops(hip_
-    argmax
-    argmin
-    logsoftmax
+    fixed_pad
     loop
-    multinomial
-    nonzero
-    prefix_scan_sum
-    reverse
     topk
 )
 if (MIGRAPHX_USE_MIOPEN)
@@ -220,10 +349,6 @@ register_migraphx_gpu_ops(miopen_
     contiguous
 )
 endif()
-register_op(migraphx_gpu
-    HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
-    OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
-    INCLUDES migraphx/gpu/context.hpp)
 if(MIGRAPHX_USE_ROCBLAS)
     register_op(migraphx_gpu
         HEADER migraphx/gpu/gemm.hpp
@@ -242,6 +367,7 @@ if (MIGRAPHX_USE_MIOPEN)
         INCLUDES migraphx/gpu/context.hpp)
 endif()
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
+rocm_add_version_resource(migraphx_gpu "AMD MIGraphX" "MIGraphX GPU Target - AMD GPU Acceleration")
 rocm_clang_tidy_check(migraphx_gpu)
 
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
@@ -251,9 +377,38 @@ if(MIGRAPHX_ENABLE_MLIR)
     find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
+
+    # Identify the rocMLIR build for the binary cache by hashing the libraries that get linked.
+    # That covers a locally built or substituted rocMLIR, which a recorded version or commit
+    # would not.
+    get_target_property(MIGRAPHX_ROCKCOMPILER_LIBS rocMLIR::rockCompiler IMPORTED_LOCATION)
+    if(NOT MIGRAPHX_ROCKCOMPILER_LIBS)
+        # rockCompiler is an interface target that names its archives as link dependencies:
+        # the fat librockCompiler.a on Linux, many smaller archives on Windows.
+        get_target_property(MIGRAPHX_ROCKCOMPILER_LIBS rocMLIR::rockCompiler
+                            INTERFACE_LINK_LIBRARIES)
+    endif()
+    # Only rocMLIR's own archives identify the build, so skip the upstream LLVM/MLIR archives
+    # also linked on Windows. Match the file name alone since paths can contain these names.
+    set(MIGRAPHX_ROCMLIR_LIBS "")
+    foreach(MIGRAPHX_ROCKCOMPILER_LIB IN LISTS MIGRAPHX_ROCKCOMPILER_LIBS)
+        get_filename_component(MIGRAPHX_ROCKCOMPILER_LIB_NAME "${MIGRAPHX_ROCKCOMPILER_LIB}"
+                               NAME)
+        string(TOLOWER "${MIGRAPHX_ROCKCOMPILER_LIB_NAME}" MIGRAPHX_ROCKCOMPILER_LIB_NAME)
+        if(MIGRAPHX_ROCKCOMPILER_LIB_NAME MATCHES "rock|roctarget|rocmlir|migraphx|mhal")
+            list(APPEND MIGRAPHX_ROCMLIR_LIBS "${MIGRAPHX_ROCKCOMPILER_LIB}")
+        endif()
+    endforeach()
+    migraphx_hash_libraries("${MIGRAPHX_ROCMLIR_LIBS}" MIGRAPHX_ROCMLIR_ID)
+    message(STATUS "rocMLIR binary cache id: ${MIGRAPHX_ROCMLIR_ID}")
+    target_compile_definitions(migraphx_gpu
+                               PRIVATE "-DMIGRAPHX_ROCMLIR_ID=\"${MIGRAPHX_ROCMLIR_ID}\"")
     # Make this private to avoid multiple inclusions of LLVM symbols.
-    # TODO: Fix rocMLIR's library to hide LLVM internals.
     target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
+    # Hide LLVM internals that come from rocMLIR.
+    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
+        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
+    endif()
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
@@ -318,8 +473,6 @@ if(MIGRAPHX_USE_ROCBLAS)
     target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=1)
     # Beta API for automated GEMM tuning
     check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
-    # rocblas FP8 API
-    check_library_exists(roc::rocblas "rocblas_gemm_strided_batched_ex3" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_FP8_BETA_API)
 else()
     target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=0)
 endif()
@@ -389,10 +542,29 @@ if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
 else()
     target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
 endif()
-target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
+target_link_libraries(migraphx_gpu PRIVATE $<BUILD_INTERFACE:migraphx_kernels>)
+
+# Link HSA runtime for chiplet query (Linux only)
+if(NOT WIN32)
+    target_link_libraries(migraphx_gpu PRIVATE hsa-runtime64::hsa-runtime64)
+endif()
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
+    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::ck_host)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)
+endif()
+
+if(MIGRAPHX_USE_AMDMLSS)
+    target_link_libraries(migraphx_gpu PRIVATE amdmlss::amdmlss)
+    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_AMDMLSS=1)
+    if(WIN32)
+        # Copy amdmlss.dll next to migraphx_gpu after build so executables can find it.
+        add_custom_command(TARGET migraphx_gpu POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:amdmlss::amdmlss>
+                    $<TARGET_FILE_DIR:migraphx_gpu>
+            COMMENT "Copying amdmlss.dll to $<TARGET_FILE_DIR:migraphx_gpu>"
+            VERBATIM)
+    endif()
 endif()
 
 add_subdirectory(driver)
@@ -404,3 +576,4 @@ rocm_install_targets(
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+

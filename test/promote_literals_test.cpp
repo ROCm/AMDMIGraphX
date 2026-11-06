@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,8 @@
  */
 
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
@@ -31,18 +33,35 @@
 #include <migraphx/serialize.hpp>
 #include <test.hpp>
 
-void run_promote(migraphx::program& p)
+static void run_promote(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::promote_literals{}, migraphx::dead_code_elimination{}});
 }
 
-void run_promote_and_ecs(migraphx::program& p)
+static void run_promote_and_ecs(migraphx::program& p)
 {
     migraphx::run_passes(p,
                          {migraphx::promote_literals{},
                           migraphx::dead_code_elimination{},
                           migraphx::eliminate_common_subexpression{},
                           migraphx::dead_code_elimination{}});
+}
+
+TEST_CASE(promote_without_submodules_does_not_run_cse)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto sum1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto sum2 = mm->add_instruction(migraphx::make_op("add"), x, y);
+    mm->add_return({sum1, sum2});
+    auto expected = p;
+
+    run_promote(p);
+
+    EXPECT(p == expected);
 }
 
 TEST_CASE(promote_only)
@@ -90,32 +109,27 @@ TEST_CASE(promote_only)
     {
         auto* mm1 = p1.get_main_module();
         migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-        auto literal_ins3 = mm1->add_literal(migraphx::literal{lit_s, {6}});
-        auto literal_ins2 = mm1->add_literal(migraphx::literal{lit_s, {6}});
-        auto literal_ins1 = mm1->add_literal(migraphx::literal{lit_s, {6}});
-        auto literal_ins0 = mm1->add_literal(migraphx::literal{lit_s, {6}});
+        auto literal_ins = mm1->add_literal(migraphx::literal{lit_s, {6}});
 
         // create batch submodules
-        auto create_submodule = [&](std::size_t batch_size,
-                                    migraphx::instruction_ref lit,
-                                    const std::string& module_name) {
+        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
             auto* submod = p1.create_module(module_name);
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             auto broadcast_lit =
-                submod->add_instruction(migraphx::make_op("multibroadcast"), lit, sm_input);
+                submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
             auto add_ins =
                 submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
             submod->add_return({add_ins});
             return submod;
         };
-        auto* dim1 = create_submodule(1, literal_ins0, "dim_1");
-        auto* dim2 = create_submodule(2, literal_ins1, "dim_2");
-        auto* dim3 = create_submodule(3, literal_ins2, "dim_3");
-        auto* dim4 = create_submodule(4, literal_ins3, "dim_4");
+        auto* dim1 = create_submodule(1, "dim_1");
+        auto* dim2 = create_submodule(2, "dim_2");
+        auto* dim3 = create_submodule(3, "dim_3");
+        auto* dim4 = create_submodule(4, "dim_4");
 
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
-        auto input0 = mm1->insert_parameter(std::next(literal_ins3), "data", s);
+        auto input0 = mm1->insert_parameter(std::next(literal_ins), "data", s);
         std::vector<migraphx::shape> sub_shapes = {};
         sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
         migraphx::shape out_attr = migraphx::shape{sub_shapes};

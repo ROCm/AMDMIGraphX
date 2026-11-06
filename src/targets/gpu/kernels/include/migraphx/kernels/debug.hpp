@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_KERNELS_DEBUG_HPP
 
 #include <migraphx/kernels/hip.hpp>
+#include <migraphx/kernels/pp.hpp>
 
 namespace migraphx {
 
@@ -149,6 +150,25 @@ struct source_location_capture
     // declval is a workaround since default constructor for "U" is not working with rocm-5.6
     template <class U>
     static U&& declval();
+
+    template <class... Us>
+    using convert = decltype(T(declval<Us>()...));
+
+// NOLINTBEGIN(cppcoreguidelines-macro-usage, readability-function-size)
+#define MIGRAPHX_SOURCE_LOCATION_CAPTURE_CONSTRUCTOR(n, ...)                                     \
+    template <class U, MIGRAPHX_PP_ENUM(n, class U), class = convert<U, MIGRAPHX_PP_ENUM(n, U)>> \
+    constexpr source_location_capture(                                                           \
+        U px, MIGRAPHX_PP_ENUM(n, U, px), source_location ploc = source_location{})              \
+        : x(px, MIGRAPHX_PP_ENUM(n, px)), loc(ploc)                                              \
+    {                                                                                            \
+    }
+
+#ifndef CPPCHECK
+    MIGRAPHX_PP_EXPAND(MIGRAPHX_PP_REPEAT(8)(
+        MIGRAPHX_PP_DEFER_UNTIL(MIGRAPHX_SOURCE_LOCATION_CAPTURE_CONSTRUCTOR), ))
+#endif
+    // NOLINTEND(cppcoreguidelines-macro-usage, readability-function-size)
+
     template <class U, class = decltype(T(declval<U>()))>
     constexpr source_location_capture(U px, source_location ploc = source_location{})
         : x(px), loc(ploc)
@@ -206,6 +226,14 @@ MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const source_l
 #define MIGRAPHX_CHECK(cond) \
     MIGRAPHX_ASSERT_FAIL(cond, #cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 
+#ifdef CPPCHECK
+// NOLINTNEXTLINE
+#define MIGRAPHX_CAPTURE_SOURCE_LOCATION(T) T
+#define MIGRAPHX_ASSUME assert(cond)
+#define MIGRAPHX_UNREACHABLE assert(false)
+#define MIGRAPHX_ASSERT(cond) assert(cond)
+#define MIGRAPHX_WARN(cond, ...) assert(cond)
+#else
 #ifdef MIGRAPHX_DEBUG
 // NOLINTNEXTLINE
 #define MIGRAPHX_CAPTURE_SOURCE_LOCATION(T) source_location_capture<T>
@@ -220,6 +248,7 @@ MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const source_l
 #define MIGRAPHX_UNREACHABLE __builtin_unreachable
 #define MIGRAPHX_ASSERT(cond)
 #define MIGRAPHX_WARN(...)
+#endif
 #endif
 
 #define MIGRAPHX_STATIC_ASSERT_FOR(...) \

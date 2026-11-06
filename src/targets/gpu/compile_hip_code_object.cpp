@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,12 +27,18 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/context.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
+#include <algorithm>
+#include <cassert>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS);
 
 std::string generate_make_shape(const shape& s)
 {
@@ -51,21 +57,27 @@ struct make_tensor<${n}>
 };
 )__migraphx__";
 
-std::string generate_make_tensor(std::size_t n, const shape& s)
+static std::string generate_make_tensor(std::size_t n, const shape& s, const std::string& type)
 {
     return interpolate_string(make_tensor_template,
                               {{"n", std::to_string(n)},
-                               {"type", shape::cpp_type(s.type())},
+                               {"type", type},
                                {"lens", generate_index_ints(s.lens())},
                                {"strides", generate_index_ints(s.strides())}});
 }
 
-std::string generate_args_hpp(const std::vector<shape>& inputs)
+static std::string generate_args_hpp(const std::vector<shape>& inputs,
+                                     const std::map<std::size_t, std::string>& type_overrides)
 {
+    assert(std::all_of(type_overrides.begin(), type_overrides.end(), [&](const auto& p) {
+        return p.first < inputs.size();
+    }));
     std::string inner;
     for(std::size_t i = 0; i < inputs.size(); i++)
     {
-        inner += generate_make_tensor(i, inputs[i]);
+        auto it   = type_overrides.find(i);
+        auto type = it == type_overrides.end() ? shape::cpp_type(inputs[i].type()) : it->second;
+        inner += generate_make_tensor(i, inputs[i], type);
     }
     const std::string args_hpp = R"__migraphx__(
 #ifndef MIGRAPHX_GUARD_AUTO_ARGS_HPP
@@ -110,12 +122,22 @@ static std::vector<std::string> get_compiler_warnings()
         "-Wno-c99-extensions",
     };
 
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}))
+        warnings.push_back("-Wno-lifetime-safety-intra-tu-suggestions");
+
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-cross-tu-suggestions"}))
+        warnings.push_back("-Wno-lifetime-safety-cross-tu-suggestions");
+
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
         warnings.push_back("-Wno-unsafe-buffer-usage");
+
+    if(hip_has_flags({"-Werror", "-Wnrvo"}))
+        warnings.push_back("-Wno-nrvo");
+
     return warnings;
 }
 
-const std::vector<std::string>& compiler_warnings()
+const static std::vector<std::string>& compiler_warnings()
 {
     static std::vector<std::string> warnings = get_compiler_warnings();
     return warnings;
@@ -139,8 +161,32 @@ static bool hip_accept_non_uniform_wg()
     return non_uniform_wg;
 }
 
+static bool hip_workaround_broken_deduction_guide()
+{
+    static const char* const test = R"__migraphx__(
+template<class T>
+struct S
+{
+    T x;
+};
+
+template<class T>
+S(T) -> S<T>;
+
+__attribute__((device)) auto f()
+{
+    return S{1};
+}
+
+
+)__migraphx__";
+
+    static bool can_compile = hip_can_compile(test, {"-std=c++17"});
+    return not can_compile;
+}
+
 std::function<std::size_t(std::size_t local)>
-compute_global_for(context& ctx, std::size_t n, std::size_t over)
+compute_global_for(const context& ctx, std::size_t n, std::size_t over)
 {
     assert(over > 0);
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
@@ -158,20 +204,55 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     };
 }
 
-std::size_t compute_block_size(context& ctx, std::size_t n, std::size_t max_block_size)
+// `n`: The amount of parallel work within a block.
+// `max_block_size`: Upper limit on block size.
+std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size)
 {
     const std::size_t min_block_size = ctx.get_current_device().get_wavefront_size();
     auto block_size                  = (((n - 1) / min_block_size + 1)) * min_block_size;
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }
 
-operation compile_hip_code_object(const std::string& content, hip_compile_options options)
+std::size_t compute_topk_block_size(const context& ctx, std::size_t k, std::size_t n)
+{
+    assert(k > 0);
+    // The per-wave candidates are merged through lds, which holds about 8192 pairs
+    auto max_wavefronts = std::max<std::size_t>(1, 8192 / k);
+    auto max_block_size =
+        std::min<std::size_t>(max_wavefronts * ctx.get_current_device().get_wavefront_size(), 1024);
+    return compute_block_size(ctx, n, max_block_size);
+}
+
+// Append the parameters derived from the options and the device rather than set by the caller.
+// Shared with hip_compile_key so the key sees the same final parameter list clang does.
+static void add_derived_params(const context& ctx, hip_compile_options& options)
 {
     assert(options.global > 0);
     assert(options.local > 0);
-    assert(not options.inputs.empty());
-    assert(options.inputs.size() == options.virtual_inputs.size() or
-           options.virtual_inputs.empty());
+    if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
+        options.emplace_param("-fno-offload-uniform-block");
+    else
+        assert(options.global % options.local == 0);
+    if(hip_workaround_broken_deduction_guide())
+        options.emplace_param("-DMIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE");
+    if(enabled(MIGRAPHX_GPU_DISABLE_NONTEMPORAL_LOADS{}))
+        options.emplace_param("-DMIGRAPHX_NONTEMPORAL_LOADS=0");
+
+    options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
+    options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
+    options.emplace_param("-DMIGRAPHX_WAVEFRONTSIZE=" +
+                          std::to_string(ctx.get_current_device().get_wavefront_size()));
+    const auto& warnings = compiler_warnings();
+    options.params.insert(options.params.end(), warnings.begin(), warnings.end());
+    options.emplace_param("-ftemplate-backtrace-limit=0");
+    options.emplace_param("-Werror");
+}
+
+std::vector<char>
+compile_hip_raw(context& ctx, const std::string& content, hip_compile_options options)
+{
+    assert(options.global > 0);
+    assert(options.local > 0);
     std::vector<src_file> srcs = options.additional_src_files;
     static auto kernels{::migraphx_kernels()};
     std::transform(
@@ -179,32 +260,81 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
         kernels.end(),
         std::back_inserter(srcs),
         [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
-    srcs.emplace_back("main.cpp", content);
-    auto args_hpp =
-        generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
-    srcs.emplace_back("args.hpp", args_hpp);
+    srcs.emplace_back(options.src_name, content);
 
-    if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
-        options.emplace_param("-fno-offload-uniform-block");
-    else
-        assert(options.global % options.local == 0);
-
-    options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
-    options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
-    const auto& warnings = compiler_warnings();
-    options.params.insert(options.params.end(), warnings.begin(), warnings.end());
-    options.emplace_param("-ftemplate-backtrace-limit=0");
-    options.emplace_param("-Werror");
-    auto cos = compile_hip_src(srcs, options.params, get_device_name());
+    add_derived_params(ctx, options);
+    auto cos = compile_hip_src(srcs,
+                               options.params,
+                               ctx.get_current_device().get_device_name(),
+                               ctx.get_disable_processes());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
-    return code_object_op{value::binary{cos.front()},
+    return cos.front();
+}
+
+/// Shared between the compile and hip_compile_key so the key cannot drift from what is compiled.
+static std::string make_args_hpp(const hip_compile_options& options)
+{
+    assert(not options.inputs.empty());
+    assert(options.inputs.size() == options.virtual_inputs.size() or
+           options.virtual_inputs.empty());
+    return generate_args_hpp(options.virtual_inputs.empty() ? options.inputs
+                                                            : options.virtual_inputs,
+                             options.type_overrides);
+}
+
+std::string hip_compile_key(const context& ctx, const hip_src& src)
+{
+    auto options = src.options;
+    add_derived_params(ctx, options);
+    options.params =
+        compile_hip_options(options.params, ctx.get_current_device().get_device_name());
+
+    std::stringstream ss;
+    ss << "arch=" << ctx.get_current_device().get_device_name() << "\n";
+    ss << "kernel=" << options.kernel_name << "\n";
+    ss << "global=" << options.global << "\n";
+    ss << "local=" << options.local << "\n";
+    ss << "output_arg=" << options.output_arg << "\n";
+    ss << "annotations=" << options.annotations << "\n";
+    // One param per line so the key keeps the boundaries the compiler command line has.
+    for(const auto& p : options.params)
+        ss << "param=" << p << "\n";
+    // The shapes are recorded because they become fields of the code object, not because they
+    // are part of the source; the source sees them through the generated tensor views below.
+    for(const auto& s : options.inputs)
+        ss << "input=" << s << "\n";
+    ss << "output=" << options.output << "\n";
+    // The sources are length-prefixed so two compiles cannot serialize to the same key by their
+    // contents running together.
+    for(const auto& f : options.additional_src_files)
+        ss << "src=" << f.path << ":" << f.content.size() << "\n" << f.content << "\n";
+    auto args_hpp = make_args_hpp(options);
+    ss << "args.hpp:" << args_hpp.size() << "\n" << args_hpp;
+    ss << options.src_name << ":" << src.content.size() << "\n" << src.content;
+    return ss.str();
+}
+
+operation
+compile_hip_code_object(context& ctx, const std::string& content, hip_compile_options options)
+{
+    // src_file views the string, so args_hpp must outlive the compile below.
+    auto args_hpp = make_args_hpp(options);
+    options.additional_src_files.emplace_back("args.hpp", args_hpp);
+
+    return code_object_op{value::binary{compile_hip_raw(ctx, content, options)},
                           options.kernel_name,
                           options.global,
                           options.local,
                           options.inputs,
                           options.output,
-                          options.output_arg};
+                          options.output_arg,
+                          options.annotations};
+}
+
+operation compile_hip_code_object(context& ctx, hip_src src)
+{
+    return compile_hip_code_object(ctx, src.content, std::move(src.options));
 }
 
 } // namespace gpu

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,8 +22,12 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/ranges.hpp>
+#include <migraphx/op/builder/insert.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/tune_axis.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -72,24 +76,32 @@ struct parse_generic_op : op_parser<parse_generic_op>
         // clang-format on
     }
 
-    bool needs_contiguous(const std::string& op_name) const
-    {
-        return contains({"flatten", "gather", "scatter"}, op_name);
-    }
-
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
     {
-        auto op = parser.load(opd.op_name, info);
-        if(needs_contiguous(opd.op_name))
+        const auto& val = parser.load_to_value(opd.op_name, info, false);
+
+        if(any_of(args, [&](const auto& arg) { return arg->get_shape().dynamic(); }))
         {
-            std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
-                return info.make_contiguous(arg);
-            });
+            return op::builder::add(opd.op_name, *info.mod, args, val).at(0);
         }
-        return info.add_instruction(op, args);
+        // Filter out args that have 0 elements
+        std::vector<instruction_ref> new_args{};
+        std::copy_if(args.begin(),
+                     args.end(),
+                     std::back_inserter(new_args),
+                     [&](const instruction_ref& arg) { return arg->get_shape().elements() > 0; });
+
+        // Return undefined if all args are empty, or a gather/gathernd operand was dropped
+        bool is_gather = contains({"gather", "gathernd"}, opd.op_name);
+        if(new_args.empty() or (is_gather and new_args.size() != args.size()))
+        {
+            return info.add_instruction(make_op("undefined"));
+        }
+
+        return op::builder::add(opd.op_name, *info.mod, new_args, val).at(0);
     }
 };
 

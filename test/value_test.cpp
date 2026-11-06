@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,9 @@
 #include <migraphx/value.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
+#include <cstdint>
+#include <limits>
+#include <unordered_set>
 #include <test.hpp>
 
 enum class enum_type
@@ -110,7 +113,7 @@ TEST_CASE(value_construct_enum1)
     migraphx::value v = enum_type::a;
     EXPECT(v.is_int64());
     EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::a));
-    EXPECT(bool{v.to<enum_type>() == enum_type::a});
+    EXPECT(v.to<enum_type>() == enum_type::a);
     EXPECT(v.get_key().empty());
 }
 
@@ -119,7 +122,7 @@ TEST_CASE(value_construct_enum2)
     migraphx::value v = enum_type::b;
     EXPECT(v.is_int64());
     EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::b));
-    EXPECT(bool{v.to<enum_type>() == enum_type::b});
+    EXPECT(v.to<enum_type>() == enum_type::b);
     EXPECT(v.get_key().empty());
 }
 
@@ -128,7 +131,7 @@ TEST_CASE(value_construct_enum3)
     migraphx::value v = enum_type::c;
     EXPECT(v.is_int64());
     EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::c));
-    EXPECT(bool{v.to<enum_type>() == enum_type::c});
+    EXPECT(v.to<enum_type>() == enum_type::c);
     EXPECT(v.get_key().empty());
 }
 
@@ -564,7 +567,7 @@ TEST_CASE(value_construct_object_string_mixed_value)
 }
 
 template <class Expression>
-auto compare_predicate(const Expression& e)
+static auto compare_predicate(const Expression& e)
 {
     bool result = e.value();
     return test::make_predicate(test::as_string(e) + " => " + test::as_string(result),
@@ -626,6 +629,30 @@ TEST_CASE(value_compare_ordered)
     EXPECT_TOTALLY_ORDERED(migraphx::value(1), migraphx::value());
 }
 
+TEST_CASE(value_compare_object_equal)
+{
+    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
+    migraphx::value v2 = {{"e", 5}, {"f", 6}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
+    EXPECT(v1 == v2);
+    EXPECT_TOTALLY_ORDERED(v1, v2);
+}
+
+TEST_CASE(value_compare_object_not_equal_missing_keys)
+{
+    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
+    migraphx::value v2 = {{"e", 5}, {"f", 6}, {"b", 2}, {"c", 3}, {"d", 4}};
+    EXPECT(v1 != v2);
+    EXPECT_TOTALLY_ORDERED(v1, v2);
+}
+
+TEST_CASE(value_compare_object_not_equal_diff_values)
+{
+    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
+    migraphx::value v2 = {{"e", 1}, {"f", 3}, {"a", 2}, {"b", 2}, {"c", 3}, {"d", 4}};
+    EXPECT(v1 != v2);
+    EXPECT_TOTALLY_ORDERED(v1, v2);
+}
+
 TEST_CASE(value_to_from_string)
 {
     migraphx::value v = "1";
@@ -655,7 +682,7 @@ TEST_CASE(value_to_from_pair)
     migraphx::value v = {"one", 1};
     EXPECT(bool{v.to<std::pair<std::string, std::string>>() ==
                 std::pair<std::string, std::string>("one", "1")});
-    EXPECT(bool{v.to<std::pair<std::string, int>>() == std::pair<std::string, int>("one", 1)});
+    EXPECT(v.to<std::pair<std::string, int>>() == std::pair<std::string, int>("one", 1));
     EXPECT(
         bool{v.to<std::pair<std::string, float>>() == std::pair<std::string, float>("one", 1.0)});
 }
@@ -894,12 +921,12 @@ TEST_CASE(value_binary_object_conv)
 }
 
 template <class T>
-bool is_null_type(T)
+static bool is_null_type(const T&)
 {
     return false;
 }
 
-bool is_null_type(std::nullptr_t) { return true; }
+static bool is_null_type(std::nullptr_t) { return true; }
 
 TEST_CASE(visit_null)
 {
@@ -956,6 +983,93 @@ TEST_CASE(value_get_default_string_literal_vector)
     EXPECT(v.get("key", fallback) == strings);
     EXPECT(v.get("missing", fallback) == fallback);
     EXPECT(v.get("missing", {"none"}) == fallback);
+}
+
+TEST_CASE(value_object_as_hash_key1)
+{
+    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
+    migraphx::value v2 = {{"e", 5}, {"f", 6}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
+    migraphx::value v3 = {{"e", 1}, {"f", 3}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
+    migraphx::value v4 = {{"e", 5}, {"b", 2}, {"c", 3}, {"d", 4}};
+
+    std::unordered_set<migraphx::value> set;
+    set.insert(v1);
+    EXPECT(migraphx::contains(set, v1));
+    EXPECT(migraphx::contains(set, v2));
+    EXPECT(not migraphx::contains(set, v3));
+    EXPECT(not migraphx::contains(set, v4));
+}
+
+TEST_CASE(value_object_as_hash_key2)
+{
+    migraphx::value v1 = {{"a", 1}, {"c", 3}, {"b", 2}, {"d", 4}, {"e", 5}, {"f", 6}};
+    migraphx::value v2 = {{"e", 5}, {"f", 6}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
+    migraphx::value v3 = {{"e", 1}, {"f", 3}, {"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}};
+    migraphx::value v4 = {{"e", 5}, {"b", 2}, {"c", 3}, {"d", 4}};
+
+    std::unordered_set<migraphx::value> set;
+    set.insert(v1);
+    set.insert(v2);
+    set.insert(v3);
+    set.insert(v4);
+    EXPECT(migraphx::contains(set, v1));
+    EXPECT(migraphx::contains(set, v2));
+    EXPECT(migraphx::contains(set, v3));
+    EXPECT(migraphx::contains(set, v4));
+    EXPECT(set.size() == 3);
+}
+
+TEST_CASE(value_normalize_unsigned_to_signed)
+{
+    migraphx::value v = std::uint64_t{5};
+    auto n            = v.normalize();
+    EXPECT(n == migraphx::value(std::int64_t{5}));
+    // Original is unchanged (normalize returns a new value).
+    EXPECT(v.is_uint64());
+    EXPECT(v == migraphx::value(std::uint64_t{5}));
+}
+
+TEST_CASE(value_normalize_large_unsigned_unchanged)
+{
+    // A value that does not fit in int64 stays unsigned.
+    auto big          = std::numeric_limits<std::uint64_t>::max();
+    migraphx::value v = big;
+    auto n            = v.normalize();
+    EXPECT(n == migraphx::value(big));
+    EXPECT(n.is_uint64());
+}
+
+TEST_CASE(value_normalize_signed_unchanged)
+{
+    migraphx::value v = std::int64_t{-3};
+    EXPECT(v.normalize() == v);
+}
+
+TEST_CASE(value_normalize_non_integers_unchanged)
+{
+    migraphx::value d = 1.5;
+    EXPECT(d.normalize() == d);
+    migraphx::value s = "abc";
+    EXPECT(s.normalize() == s);
+}
+
+TEST_CASE(value_normalize_object_preserves_keys)
+{
+    migraphx::value obj;
+    obj["a"] = std::uint64_t{1};
+    obj["b"] = "x";
+    auto n   = obj.normalize();
+    EXPECT(n.at("a").get_key() == "a");
+    EXPECT(n.at("a").without_key() == migraphx::value(std::int64_t{1}));
+    EXPECT(n.at("b").to<std::string>() == "x");
+}
+
+TEST_CASE(value_normalize_nested_array)
+{
+    migraphx::value arr = {std::uint64_t{2}, std::uint64_t{3}};
+    auto n              = arr.normalize();
+    EXPECT(n[0] == migraphx::value(std::int64_t{2}));
+    EXPECT(n[1] == migraphx::value(std::int64_t{3}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

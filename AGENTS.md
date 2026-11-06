@@ -1,0 +1,981 @@
+# Repository Guidelines
+
+This file provides guidance for agents and contributors working with code in this repository.
+
+## Project Overview
+
+MIGraphX is AMD's graph inference engine that accelerates machine learning model inference on ROCm. It uses a three-level IR hierarchy:
+- **Programs** (`migraphx::program`): Top-level containers for entire neural networks
+- **Modules** (`migraphx::module`): DAGs of instructions representing computational subgraphs
+- **Instructions** (`migraphx::instruction`): Atomic operations wrapping an `operation` with inputs
+
+The compilation flow transforms high-level models (ONNX, TensorFlow) through optimization passes into target-specific code (GPU kernels via HIP/MIOpen/rocBLAS, CPU ops, or reference implementations).
+
+## Dependencies
+
+**ROCm ecosystem:** ROCm, MIOpen, rocBLAS, hipBLASLt, HIP (paths under `/opt/rocm`)
+**Core libraries:** Protobuf (ONNX), Half (IEEE 754 fp16), pybind11 (Python), nlohmann/json, MessagePack, SQLite3
+**Build tools:** CMake 3.15+, rbuild (optional but recommended), ccache (via rbuild develop)
+**Language level:** C++17 (set in CMake)
+
+## Project Structure & Module Organization
+
+- `src/include/migraphx/*.hpp` - Public API headers
+- `src/op/` - Operation implementations
+- `src/targets/gpu/` - GPU backend (HIP, MIOpen, rocBLAS lowering)
+- `src/targets/cpu/` - CPU backend
+- `src/targets/ref/` - Reference implementation
+- `src/driver/` - CLI tools (main.cpp, perf.cpp, verify.cpp, passes.cpp)
+- `src/py/` - Python bindings (pybind11)
+- `test/` - Unit and integration tests (mirrors `src/` structure)
+- `test/gpu/` - GPU-specific tests (build as `test_gpu_<topic>`)
+- `test/verify/` - End-to-end verification tests
+- `test/onnx/` - ONNX model parsing/verification
+- `tools/` and `cmake/` - Build helpers, scripts, format scripts, CMake modules
+- `examples/` - Usage examples (C++ API, Python, diffusion, transformers, vision)
+- `docs/` - Sphinx/Doxygen documentation; build artifacts in `docs/_build/`
+- `build/` - Default generated build output
+
+## Build Commands
+
+**Development build (recommended):**
+```bash
+rbuild develop -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+```
+
+**Manual CMake build:**
+```bash
+cmake -S . -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+make -C build -j$(nproc)
+```
+
+**Build with dependencies (rbuild):**
+```bash
+rbuild build -d depend -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+```
+
+**Run all tests:**
+```bash
+make -C build check
+```
+
+**Install:**
+```bash
+make -C build install
+```
+
+**Build documentation:**
+```bash
+make -C build doc
+# Or manually in docs/:
+pip3 install -r sphinx/requirements.txt
+python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+```
+
+**Format code:**
+```bash
+python3 tools/format.py -i origin/develop
+```
+`tools/format.py` runs `git-clang-format` against the given base, so it formats only
+the lines you changed (CI does the same). Do not run `clang-format -i` on a whole
+file: lines committed under an older clang-format get reformatted and show up as
+unrelated hunks in your diff. The script reads the git diff, so stage your work
+first or it reports "No modified cpp files to format".
+
+**Incremental builds:** trust `make`. It tracks kernel-header → embed → relink
+(`cmake/Embed.cmake`), so a kernel-header edit followed by a ~5s `make -C build driver`
+is a real rebuild, not a no-op. Never delete build artifacts to force a rebuild; to
+confirm a header edit landed, grep the string in `build/lib/libmigraphx_gpu.so.*`.
+
+**Before running ctest:** rebuild the test executables with `make -C build -k tests`.
+Building only the library leaves the other test binaries stale against the fresh
+`libmigraphx.so`, and they then fail in ways that look like real regressions.
+
+**Install git hooks:**
+```bash
+./.githooks/install
+```
+
+## Coding Standards
+
+### Naming Conventions
+
+- **Files and symbols**: `snake_case` (e.g., `compute_shape`, `eliminate_concat.cpp`)
+- **Template parameters**: `CamelCase`
+- **Macros**: `UPPER_CASE` with `MIGRAPHX_` prefix
+- Public headers go under `src/include/migraphx/*.hpp`
+- Prefer clear names over abbreviations
+- Use `using type_alias = int` not `typedef int type_alias`
+- Use `nullptr` not `NULL` or `0`
+- Use `or` and `and` instead of `&&` and `||`
+
+### Formatting (.clang-format)
+
+- 4-space indent, no tabs
+- 100 column limit
+- Braces on new line for classes/functions/control structures
+- Align consecutive assignments
+
+### Linting
+
+- `.clang-tidy` runs via CMake; treat warnings seriously (they are enforced in CI)
+- `cppcheck` is enabled with custom rules (`tools/cppcheck/migraphx.py`, e.g.
+  `migraphx-RedundantCast`, `migraphx-RedundantStaticCastOp`, `migraphx-AvoidNestedValue`)
+
+**Running the analyzers:** use `make -C build analyze` (runs both cppcheck and
+clang-tidy with the project's flags and suppressions) rather than hand-assembling a
+cppcheck or clang-tidy command line. It is a whole-repo sweep that takes many minutes:
+run it detached, never kill it mid-run (an interrupted run corrupts the
+`build/cppcheck-build` cache and produces phantom `Failed to execute addon` errors), and
+do not edit files while it runs. Judge the result by the exit code — `analyze` exits
+non-zero on any finding. Greps under-report: cppcheck reports as `style:`, and
+clang-tidy emits ANSI colour escapes between the location and the severity, so strip
+them first (`sed -e 's/\x1b\[[0-9;]*m//g'`). For quick clang-tidy iteration on one file
+use the per-file `make tidy-target-...` targets; there is no per-file cppcheck target.
+
+**Fixing lint findings:**
+- `readability-identifier-naming`: rename to the correct `lower_case` name — never
+  `NOLINT`. Resolve a clash with a loop index by renaming the bound (`out_c`, not `C`),
+  and rename code only, not the `K`/`C`/`N` notation in `static_assert` strings or
+  math/hardware comments.
+- `performance-unnecessary-value-param` on an opaque cheap-to-copy type (e.g.
+  `__amdgpu_buffer_rsrc_t`): append the type to
+  `performance-unnecessary-value-param.AllowedTypes` in the **root** `.clang-tidy`
+  instead of a `NOLINT`.
+- Never redefine a parent `.clang-tidy` key in a child config: clang-tidy merges per
+  key, so the child silently drops the parent's value. Child configs only add genuinely
+  new options; everything else is fixed at the source with `NOLINT(check-name)` /
+  `NOLINTNEXTLINE` / `NOLINTBEGIN…NOLINTEND` or a refactor.
+- `readability-function-size` and `cppcoreguidelines-pro-type-const-cast` on genuinely
+  irreducible kernel code (fixed-arity WMMA unrolls, buffer-intrinsic `const_cast`) may
+  be `NOLINT`ed.
+- For idioms cppcheck misreads, suppress rather than restructure: keep
+  `static_cast<T&&>(x)` moves in the kernel headers (`// cppcheck-suppress
+  migraphx-RedundantCast`), and keep `::value` reads in **tests** (`migraphx-AvoidNestedValue`;
+  use `cppcheck-suppress-begin` / `-end` around a block of `static_assert`s). In `src`
+  headers apply the real fix (`is_void<T>::value` → `is_void<T>{}`).
+- When cppcheck's preprocessor cannot parse code (recursive macros), guard it with
+  `#ifndef CPPCHECK` — never `// cppcheck-suppress syntaxError`, which silently aborts
+  analysis of everything after it.
+- cppcheck and clang-tidy can demand opposite things on one cast
+  (`RedundantStaticCastOp` versus `readability-implicit-bool-conversion`): cast the
+  bool to a type that differs from the other operand, e.g. `sizeof(T) * 8 -
+  static_cast<int>(is_signed)`.
+- `#elifdef` / `#elifndef` are C++23; use `#elif defined(...)`.
+
+### Style Guidelines
+
+- **Avoid raw loops** - Prefer algorithms from `<migraphx/algorithm.hpp>` and STL `<algorithm>`:
+  ```cpp
+  // Good: Declarative, expresses intent clearly
+  std::transform(in.begin(), in.end(), std::back_inserter(out),
+                 [](int i) { return i * 2; });
+
+  // Avoid: Raw loops are error-prone and less optimizable
+  for (int i : in) { out.push_back(i * 2); }
+
+  // Note: std::for_each should NOT be used as it doesn't encapsulate a raw loop
+  // It's just a wrapper around a for loop - use std::transform or other algorithms instead
+  ```
+
+  **MIGraphX-specific algorithms** (`#include <migraphx/algorithm.hpp>`):
+  - `transform_if(start, last, out, pred, f)` - Transform with filtering
+  - `transform_accumulate(first, last, init, binop, unaryop)` - Accumulate with projection
+  - `transform_partial_sum(first, last, out, binop, unaryop)` - Partial sum with projection
+  - `group_by(start, last, out, pred)` - Group elements by predicate
+  - `group_unique(start, last, out, pred)` - Group consecutive unique elements
+  - `group_find(start, last, pred, out)` - Find and group matching ranges
+  - `adjacent_remove_if(first, last, pred)` - Remove based on adjacent pairs
+  - `adjacent_for_each(first, last, f)` - Iterate over adjacent pairs
+  - `for_each(first1, last1, first2, f)` - Two-range iteration (like std::transform)
+
+  **If no suitable algorithm exists:** Add a new algorithm to `migraphx/algorithm.hpp` rather than using raw loops
+
+- **Memory management** - Use `std::make_unique/shared`, avoid raw `new`/`delete`
+- **Non-memory resources** - Use `MIGRAPHX_MANAGE_PTR` for C-style acquire/release APIs:
+  ```cpp
+  using file_ptr = MIGRAPHX_MANAGE_PTR(FILE*, fclose);
+  file_ptr f{fopen(filename, "r")};  // Automatically closed on scope exit
+  ```
+
+- **Type erasure over inheritance** - MIGraphX uses type erasure extensively for `pass`, `operation`, `target`
+  - No need to inherit from base class - just implement required interface methods
+  - Generate boilerplate with `make generate` when interfaces change
+  - Enables value semantics with polymorphism, no virtual inheritance overhead
+
+- **Pass design principles:**
+  - Keep passes idempotent (running twice = running once)
+  - Keep passes deterministic (same input → same output)
+  - Always handle dynamic shapes in `compute_shape` (unknown dimensions)
+
+- **Generic programming** - Write reusable, type-independent code using templates and STL algorithms
+
+- **Avoid Casts** - Don't use a cast unless absolutely necessary. Declare correct types. Casts indicate a type mismatch that should be resolved at the source.
+
+- **Encapsulate Bit Manipulation** - Put bit-twiddling and low-level operations behind well-named utility functions:
+    - Prefer `std::bitset` for bit manipulation
+
+- **Use std::tie for Lexicographical Comparisons** - Use `std::tie` or `std::lexicographical_compare` instead of manually writing lexicographical comparisons.
+
+- **Use shape class to compute offsets and indexing** - The `migraphx::shape` class provides methods for computing offsets, strides, and indexing. Use these instead of manual calculations with mod and division. This applies in kernel code too: `constexpr auto gs = make_shape(index_ints<G, N>{}); auto m = gs.multi(i);` rather than `i / N` and `i % N`.
+
+- **Structured bindings** - Unpack pair/tuple returns with `auto [a, b] = f(...)`, not `auto r = f(...); auto& a = r.first;`. A C++17 lambda cannot capture a structured binding directly (`-Wc++20-extensions`); use an init-capture — `[&, &x = x]` — rather than avoiding the binding.
+
+- **No locally-called named lambdas** - A lambda that is only called from the enclosing function (`auto used_outside = [&](...) {...};`) is a function in disguise with hidden captures. Make it a `static` free function with explicit parameters, or inline it at the single call site. Lambdas that are *passed* to an algorithm or callback are fine.
+
+- **Helpers in headers** - A non-template helper is declared in the header (with the target's export macro, e.g. `MIGRAPHX_GPU_EXPORT`) and implemented in the `.cpp`. Only templates and trivial one-line accessors stay inline; an inline definition pulls its includes into every consumer.
+
+- **Split big functions into a helper struct, not static helpers with long parameter lists** - When `readability-function-size` forces a split and the pieces would each take 5+ parameters, make a (nested) struct whose value members hold the shared state and whose methods add to it (see `tuning_solutions` in `src/targets/gpu/jit/reduce.cpp`). Value members only, never reference members; `context&` and other external state are still passed to the methods that need them.
+
+- **Static member helpers stay where they are** - A `static` member function that uses no member state is still scoped to the class it serves on purpose. Do not hoist it to a file-static free function during cleanup.
+
+- **Comments** - One to three lines stating the non-obvious *why*: the constraint, invariant, or workaround. Do not restate what the code shows or enumerate consequences.
+
+- **Narrow predicates do not go in core headers** - Do not add a GPU- or conv-specific helper such as `is_nhwc(const shape&)` to a widely included header like `permutation.hpp`; write the stride check inline at each site with a comment.
+
+- **JIT kernel source templates stay explicit** - Keep one raw-string template per kernel rather than a shared `${...}` shell; readability of the generated source beats de-duplicating the boilerplate.
+
+- **Rewrites use insert + replace + DCE** - Insert the new instruction, `replace_instruction(ins, new_ref)`, and let `dead_code_elimination` remove the old one. Do not rewrite an instruction in place with `replace_instruction(ins, op, inputs)` to avoid leaving dead code; if a later step of the same pass must not see the stale instruction, run `dead_code_elimination` between the steps.
+
+## Code Quality
+
+- Prefer correct, complete implementations over minimal ones.
+- Use appropriate data structures and algorithms — don't brute-force what has a known better solution.
+- When fixing a bug, fix the root cause, not the symptom.
+- If something I asked for requires error handling or validation to work reliably, include it without asking.
+
+## Code Architecture
+
+### Core IR Components
+
+**Program (`src/include/migraphx/program.hpp`):**
+- Contains one or more modules
+- Manages compilation via `program::compile(target)`
+- Entry point: `get_main_module()` returns main execution module
+
+**Module (`src/include/migraphx/module.hpp`):**
+- DAG of instructions
+- Add instructions via `module::add_instruction(op, inputs...)`
+- Add parameters via `module::add_parameter(name, shape)`
+
+**Instruction (`src/include/migraphx/instruction.hpp`):**
+- References an operation and input instructions
+- Mutable IR node/reference; passes may rewrite instructions in place via APIs such as `replace`, `set_normalized`, and `set_target_id`
+
+**Operation (`src/include/migraphx/operation.hpp`):**
+- Defines computation semantics
+- Must implement: `name()`, `compute_shape(inputs)`
+- Optionally: `compute(ctx, output, inputs)`, `finalize(ctx, shape, inputs)`
+
+### Backends
+
+A `target` provides `get_passes`, `get_context`, and memory ops; see GPU under `src/targets/gpu/` and CPU under `src/targets/cpu/`.
+
+### Compilation Pipeline
+
+1. Parse model (ONNX/TF) → Generic IR
+2. Run optimization passes (`pass_manager.cpp`)
+3. Target lowering (`targets/{gpu,cpu}/`) applies backend-specific transformations
+4. Code generation (GPU: kernel fusion, HIP code objects; CPU: direct ops)
+5. Execution via `program::eval(params)` or `program::run(params)`
+
+## Core Data Structures
+
+### Shape, Literal, Argument, and Tensor View
+
+**`migraphx::shape`** - Describes tensor properties (one of the most important classes):
+- Data type (e.g., `float_type`, `int32_type`)
+- Dimensions/lengths (e.g., `{1, 3, 224, 224}`)
+- Memory layout/strides
+- States: `.packed()`, `.transposed()`, `.broadcasted()`, `.standard()`
+
+**`migraphx::literal`** - Immutable data buffer with a shape (compile-time constants like weights)
+
+**`migraphx::argument`** - Mutable data buffer with a shape (runtime results and inputs)
+
+**`migraphx::tensor_view<T>`** - Type-safe multi-dimensional view combining `T*` pointer with a shape
+
+**Visitor pattern for type-safe data access:**
+```cpp
+migraphx::literal l{migraphx::shape{migraphx::shape::float_type, {2, 2}}, {1.0f, 2.0f, 3.0f, 4.0f}};
+l.visit([](auto view) {
+    // 'view' is a tensor_view<float>
+    std::cout << view(1, 1) << std::endl; // Prints 4.0
+});
+```
+
+### Parameters and Evaluation
+
+Add parameters to modules for runtime inputs:
+```cpp
+migraphx::shape s{migraphx::shape::int32_type, {1}};
+auto x = mm->add_parameter("x", s);  // Creates placeholder instruction
+
+// Later, evaluate with actual data:
+migraphx::parameter_map params;
+std::vector<int> data = {4};
+params["x"] = migraphx::argument(s, data.data());
+auto result = p.eval(params).back();
+```
+
+## Extension Patterns
+
+### Adding an Operation
+
+1. **Create operation struct** in `src/include/migraphx/op/<name>.hpp`:
+```cpp
+struct my_op {
+    std::string name() const { return "my_op"; }
+
+    shape compute_shape(std::vector<shape> inputs) const {
+        // Compute output shape from inputs
+        return inputs[0];
+    }
+
+    // Optional: for reference target
+    argument compute(context& ctx, const shape& output,
+                     std::vector<argument> args) const {
+        // Compute implementation
+    }
+};
+```
+
+2. **Register operation** (automatic via include pattern or explicit):
+```cpp
+MIGRAPHX_REGISTER_OP(my_op)
+```
+
+3. **Add tests** in `test/op_shape_test.cpp` or `test/my_op_test.cpp`
+
+Place headers in `src/include/migraphx/op/` and implementation in `src/` if not header-only. Reflect attributes if needed.
+
+### Adding an Optimization Pass
+
+**Simple implementation:**
+```cpp
+#include <migraphx/pass.hpp>
+
+struct my_pass {
+    std::string name() const { return "my_pass"; }
+
+    void apply(module& m) const {
+        // Transform module instructions
+    }
+    // Or use module_pass_manager:
+    // void apply(module_pass_manager& mpm) const;
+};
+```
+
+**Using matchers (preferred for pattern matching):**
+
+Create a matcher struct with `matcher()` and `apply()` methods:
+```cpp
+namespace {
+struct find_mul_by_one
+{
+    auto matcher() const
+    {
+        // Match: mul(1, x) or mul(x, 1)
+        return match::name("mul")(match::either_arg(0, 1)(
+            match::is_constant(1.0f),
+            match::any().bind("x")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto x = r.instructions["x"];
+        m.replace_instruction(ins, x);
+    }
+};
+} // namespace
+
+void simplify_mul::apply(module& m) const
+{
+    match::find_matches(m, find_mul_by_one{});
+}
+```
+
+**Built-in matchers:**
+- `match::name("op_name")` - Match operation by name
+- `match::any()` - Match any instruction
+- `match::is_constant(value)` - Match literal with specific value
+- `match::args(m1, m2, ...)` - Match positional arguments
+- `match::arg(i)(m)` - Match i-th argument
+- `match::either_arg(0, 1)(m1, m2)` - Match either argument order
+- `.bind("name")` - Bind matched instruction to retrieve later
+
+**Custom matchers:**
+```cpp
+MIGRAPHX_PRED_MATCHER(broadcasted_shape, instruction_ref ins) {
+    return ins->get_shape().broadcasted();
+}
+// Usage: auto m = broadcasted_shape();
+```
+
+**Integration:**
+1. Wire into target's `get_passes()` method
+2. For driver testing: register in `src/driver/passes.cpp`
+3. Add tests mirroring `test/eliminate_concat_test.cpp`
+
+### Adding a Backend Target
+
+1. **Implement target interface** in `src/targets/mytarget/`:
+```cpp
+struct mytarget {
+    std::string name() const { return "mytarget"; }
+
+    std::vector<pass> get_passes(context& ctx,
+                                  const compile_options& options) const {
+        // Return optimization passes
+    }
+
+    context get_context() const {
+        // Return execution context
+    }
+
+    // Memory operations
+    argument allocate(const shape& s) const;
+    argument copy_to(const argument& arg) const;
+    argument copy_from(const argument& arg) const;
+};
+```
+
+2. **Register target:**
+```cpp
+MIGRAPHX_REGISTER_TARGET(mytarget)
+```
+
+3. **Add target-specific tests** in `test/mytarget/`
+
+## Testing Guidelines
+
+### Framework
+
+- CTest-driven executables generated from files in `test/` (see `test/CMakeLists.txt`)
+- Naming: prefer `*_test.cpp`; CMake auto-creates an executable `test_<topic>` and registers it with CTest
+- Colocate helpers under `test/include/` when needed
+- Coverage: CI uploads via Codecov; keep unit tests focused and fast
+
+### Test Directory Organization
+
+- `test/` - Core unit tests (no specific backend), target-independent
+- `test/gpu/` - GPU-specific tests (requires `MIGRAPHX_ENABLE_GPU=On` and a ROCm device); build as `test_gpu_<topic>`
+- `test/ref/` - Reference operator behavior tests
+- `test/verify/` - Multi-target result comparison (GPU vs reference)
+- `test/onnx/parse/` - ONNX model parsing tests (no execution)
+- `test/onnx/verify/` - ONNX model execution + numerical comparison
+- `test/tf/` - TensorFlow parser tests
+- `test/api/` - C/C++ API validation
+- `test/py/` - Python binding tests
+
+### Running Tests
+
+```bash
+# All tests
+make -C build check
+
+# Single test file
+ctest -R '^test_<topic>$'
+
+# Single test case with pattern
+./bin/test_<topic> 'pattern*'
+
+# GPU tests only
+ctest -R '^test_gpu_'
+
+# List all test cases in a file
+./bin/test_<topic> --list
+
+# Run test cases starting from a given name or glob (in registration order),
+# skipping the ones before it
+./bin/test_<topic> --start-from '<name-or-glob>'
+```
+
+### Unit Tests
+
+**Basic test structure:**
+```cpp
+#include "test.hpp"  // From test/include/
+
+TEST_CASE(my_feature) {
+    EXPECT(condition);
+    CHECK(other_condition);
+}
+```
+
+**Module/Program test pattern:**
+```cpp
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include "test.hpp"
+
+// The only helper a test file should define - see "Keep tests self-contained" below
+static void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::my_pass{}, migraphx::dead_code_elimination{}});
+}
+
+TEST_CASE(test_my_pass)
+{
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", {migraphx::shape::float_type, {3, 3}});
+        auto result = m1.add_instruction(migraphx::make_op("relu"), input);
+        m1.add_return({result});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", {migraphx::shape::float_type, {3, 3}});
+        auto result = m2.add_instruction(migraphx::make_op("relu"), input);
+        m2.add_return({result});
+    }
+
+    EXPECT(m1 == m2);
+}
+```
+
+**Keep tests self-contained:**
+
+A unit test should be readable top to bottom without jumping to another function. Prefer duplication inside tests over indirection between them.
+
+- Build graphs inline - call `add_instruction`/`insert_instruction` directly in the `TEST_CASE` (or in the braced block for each module) so the test reads as the literal IR under test
+- No helpers for instruction creation, shape construction, parameter setup, or expected-module construction - write `{migraphx::shape::float_type, {3, 3}}` at the use site rather than behind a `make_shape()` style factory
+- Bar for adding any test-local helper, both conditions must hold: it removes more than 5 instructions/lines of setup, **and** it is reused by at least two test cases. Anything cheaper than that gets inlined
+- One sanctioned exception: a single file-level `run_pass(migraphx::module&)` (or `run_pass(migraphx::program&)`) that only forwards to `migraphx::run_passes`, as shown above. Do not layer further helpers on top of it and do not add per-test variants; if a test needs a different pass list, call `migraphx::run_passes` inline
+- Shared utilities already in `test/include/` (`test.hpp`, `basic_ops.hpp`, `pointwise.hpp`, `reduce.hpp`, `verify_rms_range`) remain fine to use; this rule governs helpers you would write inside a test file
+
+```cpp
+// Good: the graph and its shapes are visible in the test
+TEST_CASE(test_relu)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {3, 3}});
+    auto y = m.add_instruction(migraphx::make_op("relu"), x);
+    m.add_return({y});
+    run_pass(m);
+    // ...
+}
+
+// Avoid: wrappers hide the graph and the shapes from the reader
+static migraphx::shape make_shape() { return {migraphx::shape::float_type, {3, 3}}; }
+
+static migraphx::instruction_ref add_relu(migraphx::module& m, migraphx::instruction_ref x)
+{
+    return m.add_instruction(migraphx::make_op("relu"), x);
+}
+
+TEST_CASE(test_relu)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", make_shape());
+    m.add_return({add_relu(m, x)});
+    run_pass(m);
+    // ...
+}
+```
+
+**Tests over several types:** write the test as a function template and register each
+instantiation, so a failure names the type and each one is listable:
+```cpp
+template <class T>
+static void match_foo()
+{
+    // ...
+}
+TEST_CASE_REGISTER(match_foo<std::uint32_t>);
+TEST_CASE_REGISTER(match_foo<std::int64_t>);
+```
+Do not write an `expect_*` helper template called from one plain `TEST_CASE`. Kernel
+tests under `test/gpu/kernels` use `template <class T> TEST_CASE_TEMPLATE(name)` plus
+`TEST_CASE_REGISTER(name<T>)` instead, and never take the test manager as an explicit
+parameter.
+
+### Testing Passes
+
+When adding a pass that rewrites structure:
+1. Build a small graph with the pattern to optimize
+2. Run only the new pass (plus prerequisites and dead_code_elimination for cleanup)
+3. Create a new module with the expected final structure and assert that it is the same
+
+This is the only form a pass unit test takes: build the exact expected module by hand
+and `EXPECT(m1 == m2)`. Do not write property-based or randomized sweeps as the pass
+test; numerical checks of a transformed program go in `test/verify/` with fixed inputs.
+
+When the pass must leave a module **unchanged**, build it once, copy it, and compare
+instead of constructing it twice:
+```cpp
+migraphx::module m2 = m1;
+run_pass(m1);
+EXPECT(m1 == m2);
+```
+
+Use driver for inspection: `migraphx-driver compile --text --apply-pass your_pass`
+(`-p` is the short form; both append, so repeat them to run several passes in order.
+There is no `--passes` option.)
+
+### Which tests to run
+
+Run only the tests that exercise the code you changed; grepping for a keyword and
+running everything that matches is slower and no more informative. A change to an op's
+`point_op()` codegen string does not need the ONNX parser tests; a kernel-header change
+does not need the host-side shape tests unless shape logic moved.
+
+Do not modify a failing test to match the new output. The tests express the contract;
+fix the implementation, and if the contract itself must change, say so explicitly.
+
+### Numerical Verification
+
+- Use `verify_rms_range` for tolerance-based comparisons with floating-point noise
+- Provide deterministic inputs (explicit literals or seeded random generators)
+- Avoid flaky thresholds by using stable, reproducible test data
+
+### Verify tests
+
+- Tests under `test/verify` will verify the results using the ref target
+- Each verify class should go into a separate .cpp file
+
+### Test Best Practices
+
+**Speed principles:**
+- Favor shapes < 64 elements for scalar algorithms
+- Use single-digit iteration counts
+- Reuse shapes across tests to exploit compiler cache hits
+- To skip large-buffer tests, configure `-DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On`
+
+**Edge cases to cover:**
+- Zero-length dimensions
+- Dynamic shapes at extreme min/max
+- Mixed type promotion (int + float → float)
+- Broadcasting asymmetries
+- Reduction axes ordering
+
+**Regression strategy:**
+- When fixing subtle bugs (e.g., stride miscalculation), add test reproducing original failure
+- Keep golden ONNX/TF assets minimal (large models slow CI and obscure failures)
+- For new operator parsing, a model containing just that op suffices
+
+**Test utilities:** `test/include/test.hpp`, `basic_ops.hpp`, `pointwise.hpp`, `reduce.hpp`
+
+## GPU Backend Details
+
+The GPU backend (`src/targets/gpu/`) implements:
+
+- **Lowering** (`lowering.cpp`): Transform generic ops to GPU-specific ops
+- **Fusion** (`fuse_ops.cpp`, `fuse_ck.cpp`; shared pointwise fusion in `src/fuse_pointwise.cpp`): Kernel fusion optimizations
+- **Code generation** (`compile_hip*.cpp`, `compile_miopen.cpp`): HIP/MIOpen/rocBLAS dispatch
+- **Scheduling** (`schedule_model.cpp`): Select optimal implementation
+- **Performance DB** (`perfdb.cpp`, `problem_cache.cpp`): Cache tuning results
+
+**Key subdirectories:**
+- `device/` - Device-side utilities and kernels
+- `kernels/` - Custom kernel implementations
+- `include/migraphx/gpu/` - GPU-specific headers
+
+**Kernel header notes:**
+- Kernel headers are recompiled by the JIT at runtime, so template instantiation count is a real cost. `if constexpr` special cases that look redundant with the generic path (e.g. `arg_c` for `N == 0`) exist to cut instantiations; keep them and say so in a one-line comment.
+- The kernel functional library (`kernels/functional.hpp` and friends) is a general-purpose toolkit: a helper is kept even when a change removes its last caller.
+- Inline asm must reference operands as `%[name]`; never hardcode register numbers, which conflict with the compiler's allocator. Large hand-tuned asm kernels with explicit register allocation (MIOpen's Winograd kernels) cannot be embedded as inline asm and need a standalone code object.
+- Wavefront size is a target property: RDNA parts such as gfx1201 are wave32, not wave64.
+
+### Fusion Strategies
+
+MIGraphX employs multiple fusion stages to reduce kernel overhead and improve memory locality:
+
+**1. Prefusion (GPU-specific):**
+- Replace recognizable operator clusters with custom placeholders before lowering
+- Passes: `prefuse_ops`, `fuse_attention`
+- Detects high-level patterns like transformer attention (Q*K^T scaling, softmax, V multiplication)
+
+**2. Pointwise/Reduce Fusion:**
+- `fuse_pointwise`: Groups pure elementwise chains into submodules for single-kernel code generation
+- `fuse_reduce` / `fuse_pointwise_reduce`: Combines reductions sharing compatible axes
+- Flags: `enable_rewrite_reshapes`, `enable_rewrite_broadcasts`, `enable_multi_output`
+- Critical for layernorm and attention patterns
+
+**3. Backend Post-Lowering Fusion:**
+- `fuse_ops`: Combine lowered ops with adjacent pointwise or layout adjustments
+- `fuse_ck`: Leverage Composable Kernel library for GEMM + epilogues (bias, activation)
+- `fuse_mlir`: Groups pointwise + reshape sequences around GEMM/Conv for MLIR pipeline
+
+**Troubleshooting missing fusion:**
+- Check if earlier passes canonicalized shapes (`simplify_reshapes`)
+- Verify broadcasts are explicit/implicit as expected
+- Check if dynamic dims prevent grouping
+- Ensure op type lists support new data types (fp8/bf16)
+- Use `MIGRAPHX_TRACE_COMPILE=1` to confirm fusion pass execution
+
+### Target Compilation Flow
+
+**Target object provides:**
+- `get_passes(context&, compile_options&)` - Ordered backend-specific pass list
+- Allocation model and context types
+- Lowering rules mapping high-level ops to target intrinsics/library calls
+
+**Compile options control:**
+- `fast_math` - Relaxed math transformations
+- `exhaustive_tune` - Full search for fastest GEMM/convolution implementation
+- Quantization toggles (fp16/int8/fp8) for op substitution
+
+**Memory planning:**
+- `memory_coloring` - Assign buffers to reuse memory where lifetimes don't overlap
+- `adjust_allocation` / `replace_allocate` - Coordinate with target allocation models
+- `schedule` - Order instructions for optimal overlap/locality (disable: `MIGRAPHX_DISABLE_SCHEDULE_PASS=1`)
+
+**Library integration:**
+- GEMM/DOT: HIPBLASLt or Composable Kernel (`MIGRAPHX_SET_GEMM_PROVIDER`)
+- Convolution: MIOpen if available (`MIGRAPHX_USE_MIOPEN`), else custom kernels
+- Precision handling: `propagate_precision`, `rewrite_low_precision` for mixed precision (fp16/fp8/bf16)
+
+## Type Erasure System
+
+MIGraphX uses type erasure extensively to create extensible systems without traditional inheritance. This pattern is used for `pass`, `operation`, `target`, `instruction`, and other core abstractions. It enables value semantics with polymorphic behavior, no virtual inheritance overhead.
+
+### Creating New Type-Erased Interfaces
+
+**1. Define interface template** in `tools/include/<name>.hpp`:
+```python
+<%
+interface('pass',
+    virtual('name', returns='std::string', const=True),
+    virtual('apply', returns='void', mpm='module_pass_manager &', const=True,
+            default='migraphx::detail::module_pass_manager_apply'),
+    virtual('apply', returns='void', p='program &', const=True,
+            default='migraphx::nop')
+)
+%>
+```
+
+**Syntax explanation:**
+- `interface('pass', ...)` - Defines type-erased interface named `pass`
+- `virtual(...)` - Defines one method in the interface
+  - First arg: method name (e.g., `'name'`)
+  - `returns='...'` - C++ return type
+  - `const=True` - Method is const
+  - Method arguments as keyword args: `p='program &'`
+  - `default='...'` - Optional default implementation fallback
+
+**2. Generate boilerplate:**
+```bash
+make generate  # Runs tools/te.py on templates in tools/include/
+```
+
+**3. Generated header** placed in `src/include/migraphx/<name>.hpp` contains wrapper class with concept/model pattern for virtual dispatch.
+
+### Using Type-Erased Objects
+
+No inheritance required - just implement the interface:
+```cpp
+struct my_custom_pass {
+    std::string name() const { return "my_custom_pass"; }
+    void apply(module& m) const { /* transformation logic */ }
+};
+
+// Use directly:
+migraphx::pass p = my_custom_pass{};  // Value semantics!
+```
+
+## Frontend Parsers
+
+### ONNX Parser (`src/onnx/`)
+
+- Parses ONNX models into MIGraphX IR
+- Located in `src/onnx/parse_*.cpp` files
+- Each ONNX operator has a corresponding parse function
+
+**Adding a new ONNX operator:**
+1. Add parse function in `src/onnx/parse_<op>.cpp`
+2. Register in ONNX parser operator map
+3. Map ONNX attributes to MIGraphX operation parameters
+4. Handle shape inference and broadcasting
+5. Add test in `test/onnx/parse/` (parsing only) and `test/onnx/verify/` (execution)
+
+**TensorFlow Parser** follows similar pattern in `src/tf/`.
+
+## Python Bindings
+
+Located in `src/py/migraphx_py.cpp` using pybind11.
+
+**Basic pattern:**
+```python
+import migraphx
+
+# Parse model
+model = migraphx.parse_onnx("model.onnx")
+
+# Compile for target
+model.compile(migraphx.get_target("gpu"))
+
+# Run inference
+results = model.run({"input": input_data})
+```
+
+When adding C++ APIs, mirror in Python bindings following existing patterns.
+
+## migraphx-driver CLI Tool
+
+The driver (`./bin/migraphx-driver`) is essential for development, debugging, and testing without writing C++ code.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `op -l/--list` | Print all available MIGraphX operators |
+| `params` | Print input/output parameter shapes |
+| `read` | Load and print input graph |
+| `compile` | Compile and print input graph |
+| `run` | Compile, allocate parameters, evaluate, and print graph |
+| `verify` | Run on reference and GPU, check output consistency |
+| `perf` | Compile and run, then print performance report |
+
+### Key Options
+
+| Option | Description |
+|--------|-------------|
+| `--onnx` | Load file as ONNX graph |
+| `--tf` | Load file as TensorFlow graph |
+| `--migraphx` | Load file as MIGraphX graph |
+| `--gpu` / `--cpu` / `--ref` | Target backend for compilation |
+| `--fp16` / `--int8` | Quantization mode |
+| `--text` / `--json` / `--binary` | Output format |
+| `--batch N` | Set batch size for model |
+| `--input-dim @input 1 3 224 224` | Set static dimensions |
+| `-n N` / `--iterations N` | Number of iterations for perf |
+| `--fill0` / `--fill1` | Fill parameters with 0s or 1s |
+| `-o FILE` / `--output FILE` | Write output to file |
+
+### Usage Examples
+
+**Compile and inspect IR:**
+```bash
+migraphx-driver compile model.onnx --gpu --text
+```
+
+**Apply a driver pass:**
+```bash
+migraphx-driver compile model.onnx --apply-pass dead_code_elimination --text
+```
+
+**Performance benchmarking:**
+```bash
+migraphx-driver perf model.onnx --gpu -n 100
+```
+
+**Verify numerical correctness:**
+```bash
+migraphx-driver verify model.onnx --atol 1e-5 --rtol 1e-5
+```
+
+**Register custom passes:** Add to `src/driver/passes.cpp` for driver access.
+
+## Debugging & Tracing
+
+**Environment variables:**
+- `MIGRAPHX_TRACE_COMPILE=1` - Trace compilation passes
+- `MIGRAPHX_TRACE_EVAL=1` - Trace evaluation
+- `MIGRAPHX_DISABLE_SCHEDULE_PASS=1` - Disable scheduling for debugging
+- `MIGRAPHX_DISABLE_PASSES=a,b` - Skip passes by name; bisect which pass corrupts the IR
+- `MIGRAPHX_GPU_DUMP_ASM=1` - Dump the ISA of the C++ kernels; first configure
+  CMake with `-DMIGRAPHX_USE_HIPRTC=OFF` and rebuild.
+  MIGraphX JIT-compiles itself (not rocMLIR's `mlir_*` kernels). A pure rename inside a
+  kernel must leave the dump byte-identical.
+- `MIGRAPHX_GPU_DEBUG=1` - Enable kernel asserts at runtime (works on a Release build)
+
+Env vars are read once per process and memoized. Never add an env read that bypasses the
+`MIGRAPHX_<NAME>{}` object pattern, and never use an env var to override per-shape tuning.
+
+**Asserts and the local build:** a `Release` build defines `NDEBUG`, so `assert()` never
+fires locally and a test can pass while violating an assert that the CI debug build trips.
+After adding an IR-rewrite path, grep the helpers it calls for `assert(` and check each
+one holds (e.g. `module_with_inputs::replace` asserts matching lens).
+
+**Performance reporting:**
+- `program.perf_report(std::ostream&, iterations, parameter_map)` - Get timing stats
+- `migraphx-driver perf --onnx model.onnx --gpu -n 50` - Per-operator times for a whole
+  model; the numbers include kernel-launch overhead
+- `migraphx-driver time` - One isolated kernel without launch overhead; use it for the
+  clean number once `perf` has told you which op to look at
+- `migraphx-driver time -b N` rotates N parameter maps so inputs are cold; size N past
+  the last-level cache when measuring nontemporal or streaming loads
+
+**Benchmarking two variants:** absolute kernel times drift with GPU clocks and thermal
+state, so only the ratio of two variants measured in the same window is trustworthy.
+Alternate A and B back-to-back in the same loop, with no exhaustive-tune or other heavy
+GPU work between them, and report the median per-iteration ratio over at least five
+rounds. Never compare a number from one sweep against a number from another, and never
+benchmark while `make analyze` or another all-core CPU job runs — it skews the
+compile-time solution benchmarking as well, so the tuner picks the wrong solution.
+
+**IR inspection:**
+- `program.debug_print()` - Print IR to stdout
+- GraphViz output via `graphviz.cpp` helpers
+- ROCm profiling markers via `marker_roctx.*`
+
+## Key CMake Options
+
+- `MIGRAPHX_ENABLE_GPU` - Enable GPU backend (default: ON if HIP available)
+- `MIGRAPHX_ENABLE_CPU` - Enable CPU backend (default: OFF)
+- `MIGRAPHX_ENABLE_PYTHON` - Build Python bindings (default: ON)
+- `MIGRAPHX_USE_MIOPEN` - Use MIOpen library (default: ON)
+- `MIGRAPHX_USE_ROCBLAS` - Use rocBLAS library (default: ON)
+- `MIGRAPHX_USE_HIPBLASLT` - Use hipBLASLt (default: ON, requires rocBLAS)
+- `MIGRAPHX_USE_COMPOSABLEKERNEL` - Use composable kernel JIT (default: ON)
+- `MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS` - Skip large-buffer tests
+- `BUILD_DEV` - Development mode with extra checks
+- `GPU_TARGETS` - Target GPU architectures (use detection snippet)
+
+**Example:** `cmake -S . -B build -DMIGRAPHX_ENABLE_GPU=On -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')`
+
+## Common Issues
+
+- **Missing GPU_TARGETS**: Always specify via `$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')`
+- **Dynamic shape errors**: Ensure `compute_shape()` handles unknown dimensions
+- **Pass ordering**: Passes have dependencies - check existing target pipelines
+- **Kernel packaging**: New GPU kernels must be included in CMake install targets
+- **Build failures**: Check clang-tidy warnings - they're enforced in CI
+- **`reshape` copies at runtime**: `op::reshape` and `flatten` allocate and copy in `compute`; they are not views and have no `output_alias`. The runtime view op is `reshape_lazy`. A pass that inserts a generated view chain (e.g. from `shape_transform_descriptor::generate()`) into a lowered GPU graph must convert `reshape` to `reshape_lazy` and reject chains that cannot alias (see `invert_alias_transforms` in `src/replace_allocate.cpp`); violating this is a GPU VM fault in the kernel writing through the "view". Separately, do not insert `contiguous` before `reshape` — reshape already handles non-standard input layouts.
+- **`squeeze` / `unsqueeze` are not inverses on scalars**: `unsqueeze` returns a rank-1 `{1}` input unchanged, and squeezing all axes clamps to rank-1 `{1}`. To invert a squeeze on an input whose lens are `{1}`, use `multibroadcast` to the reduce lens instead of `unsqueeze`.
+- **CI runner "shutdown signal" / exit 143 mid-compile**: the runner was OOM-killed compiling a matcher. A matcher that embeds the same sub-matcher more than once grows the nested closure type exponentially; local clang copes, but gcc and MSVC-target clang (where `MIGRAPHX_USE_TYPE_ERASED_OPAQUE_MATCHER` is 1) do not. Wrap each intermediate level in `match::opaque(...)` as `src/fuse_attention.cpp` does. Reproduce with g++ 13 using the flags from `build/compile_commands.json` under `ulimit -v`.
+- **Target knobs**: expose a new target setting through `compile_options::backend_options` (the reflected struct in `src/targets/gpu/target.cpp`), not a dedicated `MIGRAPHX_*` env var; `MIGRAPHX_GPU_OPTIONS` already provides environment control as a JSON object merged into the backend options. Tests set `options.backend_options["name"] = value` — a test that calls `setenv` leaks into every later test in the process.
+
+## Reference Materials
+
+**When implementing new features, search for analogous implementations:**
+- Operations: `grep -r "similar_op" src/op/`
+- Passes: `grep -r "similar_pass" src/`
+- GPU lowering: Check `src/targets/gpu/lowering.cpp`
+- Tests: Mirror structure from `test/<similar_feature>_test.cpp`
+- Matchers: See existing patterns in `src/matcher.cpp`
+- ONNX ops: Look at similar operators in `src/onnx/parse_*.cpp`
+
+**Key header files to understand:**
+- `src/include/migraphx/program.hpp` - Top-level container
+- `src/include/migraphx/module.hpp` - DAG of instructions
+- `src/include/migraphx/instruction.hpp` - Graph nodes
+- `src/include/migraphx/operation.hpp` - Operation abstraction
+- `src/include/migraphx/shape.hpp` - Tensor shape/layout
+- `src/include/migraphx/pass.hpp` - Pass interface
+- `src/include/migraphx/matcher.hpp` - Pattern matching DSL
+
+**Documentation:**
+- Official docs: `docs/` directory (Sphinx + Doxygen)
+- Developer guides: `docs/` directory (detailed contributor documentation)
+- Build documentation: `make -C build doc`
+
+## Commit & Pull Request Guidelines
+
+- **Commits:** Use imperative, concise subject lines (optionally add a scope), e.g., `fix: correct hip stream handling`. Reference issues/PRs (`Fixes #123`).
+- **PRs:** Include problem statement, approach, and risk notes; link issues. Show test output for affected areas and add tests for new behavior. Ensure formatting/linters pass and CI is green.
+
+## Running Commands
+
+- Do not use `$(nproc)`, run `nproc` first, then use the numeric value directly.
+- When running `make -j$(nproc)`, first resolve `$(nproc)` to a literal number, e.g. run `nproc` first, then use the numeric value directly in the make command (i.e., `make -j32` if `nproc` returns `32`).
+
+## Workspace Edit Rules
+
+- When creating *any* temporary/scratch/generated file, write it under `tmp/` at the workspace root.
+- Use `tmp/<task-slug>/<YYYYMMDD-HHMMSS>/` for groups of files.
+- Never place temp files outside `tmp/` or inside source directories.

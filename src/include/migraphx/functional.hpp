@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,11 +26,7 @@
 
 #include <utility>
 #include <migraphx/config.hpp>
-
-// Similiar to decltype(auto) except it will propagate any substitution failures
-// NOLINTNEXTLINE
-#define MIGRAPHX_RETURNS(...) \
-    ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
+#include <migraphx/returns.hpp>
 
 // Lifts an expression into a function object so it can be passed to a higher-order function
 // NOLINTNEXTLINE
@@ -143,7 +139,16 @@ constexpr void each_args(F)
 template <class F, class T>
 auto unpack(F f, T&& x)
 {
-    return sequence(tuple_size(x), [&](auto... is) { f(std::get<is>(static_cast<T&&>(x))...); });
+    // Use an unqualified get so ADL finds the right overload (std::get for tuple/array, or a
+    // user-provided get) regardless of which headers were included before this one.
+    using std::get;
+    return sequence(tuple_size(x), [&](auto... is) { return f(get<is>(static_cast<T&&>(x))...); });
+}
+
+template <class F>
+auto unpack(F f)
+{
+    return [=](auto&& x) { return unpack(f, static_cast<decltype(x)>(x)); };
 }
 
 /// Implements a fix-point combinator
@@ -264,6 +269,14 @@ template <class... Ts>
 void nop(Ts&&...)
 {
 }
+
+template <class... Ts>
+struct overloaded : Ts...
+{
+    using Ts::operator()...;
+};
+template <class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

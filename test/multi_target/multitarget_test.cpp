@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,22 +43,27 @@
 #include "test.hpp"
 
 // check if it is custom_op or run_on_module operator
-bool has_target_attr(const migraphx::instruction& ins)
+static bool has_target_attr(const migraphx::instruction& ins)
 {
     return ins.get_operator().attributes().contains("target");
 }
 
-auto nonprefixed_ops()
+static auto nonprefixed_ops()
 {
     // ops without prefixes
-    static std::unordered_set<std::string> op_map = {
-        "select_module", "load", "if", "nonmaxsuppression", "multibroadcast"};
+    static std::unordered_set<std::string> op_map = {"select_module",
+                                                     "load",
+                                                     "if",
+                                                     "nonmaxsuppression",
+                                                     "multibroadcast",
+                                                     "slice",
+                                                     "get_tuple_elem"};
     return op_map;
 }
 
-bool is_compiled_gpu_module(const migraphx::module& m)
+static bool is_compiled_gpu_module(const migraphx::module& m)
 {
-    return std::all_of(m.begin(), m.end(), [](auto ins) {
+    return std::all_of(m.begin(), m.end(), [](const auto& ins) {
         auto ins_name = ins.name();
         if(not migraphx::starts_with(ins_name, "@"))
         {
@@ -74,9 +79,9 @@ bool is_compiled_gpu_module(const migraphx::module& m)
     });
 }
 
-bool is_compiled_fpga_module(const migraphx::module& m)
+static bool is_compiled_fpga_module(const migraphx::module& m)
 {
-    return std::all_of(m.begin(), m.end(), [](auto ins) {
+    return std::all_of(m.begin(), m.end(), [](const auto& ins) {
         auto ins_name = ins.name();
         if(not migraphx::starts_with(ins_name, "@"))
         {
@@ -91,9 +96,9 @@ bool is_compiled_fpga_module(const migraphx::module& m)
     });
 }
 
-bool is_compiled_cpu_module(const migraphx::module& m)
+static bool is_compiled_cpu_module(const migraphx::module& m)
 {
-    return std::all_of(m.begin(), m.end(), [](auto ins) {
+    return std::all_of(m.begin(), m.end(), [](const auto& ins) {
         auto ins_name = ins.name();
         // sub is not lowered on CPU backend due to vectorization on non-aligned memory.
         if(not migraphx::starts_with(ins_name, "@") and ins_name != "sub")
@@ -110,9 +115,9 @@ bool is_compiled_cpu_module(const migraphx::module& m)
     });
 }
 
-bool is_compiled_ref_module(const migraphx::module& m)
+static bool is_compiled_ref_module(const migraphx::module& m)
 {
-    return std::all_of(m.begin(), m.end(), [](auto ins) {
+    return std::all_of(m.begin(), m.end(), [](const auto& ins) {
         auto ins_name = ins.name();
         if(not migraphx::starts_with(ins_name, "@"))
         {
@@ -129,8 +134,8 @@ bool is_compiled_ref_module(const migraphx::module& m)
 }
 
 // NOLINT
-bool check_compiled_program(const migraphx::program& p,
-                            const std::vector<migraphx::target>& targets)
+static bool check_compiled_program(const migraphx::program& p,
+                                   const std::vector<migraphx::target>& targets)
 {
     auto mods           = p.get_modules();
     bool check_compiled = true;
@@ -216,14 +221,17 @@ TEST_CASE(single_target_multi_compile)
     auto max_out_l                = gpu_mod->add_literal(int64_t{4});
     auto iou_threshold            = gpu_mod->add_literal(0.5f);
     auto score_threshold          = gpu_mod->add_literal(0.0f);
-    auto r                        = gpu_mod->add_instruction(
-        migraphx::make_op("nonmaxsuppression",
-                          {{"center_point_box", true}, {"use_dyn_output", true}}),
+    auto nms                      = gpu_mod->add_instruction(
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
         boxes_param_gpu,
         scores_l,
         max_out_l,
         iou_threshold,
         score_threshold);
+    auto idx = gpu_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto cnt = gpu_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    auto r   = gpu_mod->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), idx, cnt);
     gpu_mod->add_return({r});
 
     auto run_on_gpu = mm->add_instruction(
@@ -241,7 +249,7 @@ TEST_CASE(single_target_multi_compile)
     // eval
     migraphx::parameter_map params;
     std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     params["boxes"]               = migraphx::argument(boxes_s, boxes_vec.data());
     auto output                   = p.eval(params).back();
     std::vector<int64_t> gold_vec = {0, 0, 3, 0, 0, 0, 0, 0, 5};

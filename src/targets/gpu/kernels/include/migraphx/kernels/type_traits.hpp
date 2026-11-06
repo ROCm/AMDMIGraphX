@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,9 @@
 
 namespace migraphx {
 
+template <class...>
+using void_t = void;
+
 template <class T, class U = T&&>
 U private_declval(int);
 
@@ -37,6 +40,19 @@ T private_declval(long);
 
 template <class T>
 auto declval() noexcept -> decltype(private_declval<T>(0));
+
+template <class Void, class F, class... Ts>
+struct is_callable_impl : false_type
+{
+};
+
+template <class F, class... Ts>
+struct is_callable_impl<void_t<decltype(declval<F>()(declval<Ts>()...))>, F, Ts...> : true_type
+{
+};
+
+template <class F, class... Ts>
+using is_callable = is_callable_impl<void, F, Ts...>;
 
 template <class T>
 struct type_identity
@@ -204,7 +220,7 @@ struct common_type<T>
 template <class T, class U>
 struct common_type<T, U>
 {
-    using type = decltype(true ? declval<T>() : declval<U>());
+    using type = remove_cv_t<remove_reference_t<decltype(true ? declval<T>() : declval<U>())>>;
 };
 
 template <class T, class U, class... Us>
@@ -246,6 +262,11 @@ constexpr T numeric_max()
         return __FLT_MAX__;
     else if constexpr(is_same<T, migraphx::half>{})
         return __FLT16_MAX__;
+    else if constexpr(is_same<T, migraphx::bf16>{}) // cppcheck-suppress UnnecessaryElseStatement
+    {
+        unsigned short us = 0x7f7f; // Max +ve number encoding in BF16
+        return __builtin_bit_cast(T, us);
+    }
     else
         return 0;
 }
@@ -265,6 +286,32 @@ constexpr auto numeric_lowest() -> decltype(numeric_max<T>())
         return -numeric_max<T>();
     }
 }
+
+/// Unsigned integer type of exactly N bytes; other sizes are a compile error
+template <index_int N>
+struct sized_uint;
+template <>
+struct sized_uint<1>
+{
+    using type = uint8_t;
+};
+template <>
+struct sized_uint<2>
+{
+    using type = uint16_t;
+};
+template <>
+struct sized_uint<4>
+{
+    using type = uint32_t;
+};
+template <>
+struct sized_uint<8>
+{
+    using type = uint64_t;
+};
+template <index_int N>
+using sized_uint_t = typename sized_uint<N>::type;
 
 } // namespace migraphx
 

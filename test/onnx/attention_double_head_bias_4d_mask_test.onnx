@@ -1,0 +1,33 @@
+	'attention_double_head_bias_4d_mask_test:‡
+Q
+input
+weights
+bias
+
+mask_indexy"	Attention*
+	num_heads :com.microsoft'attention_double_head_bias_4d_mask_testZ
+input
+
+
+
+Z
+weights
+
+
+Z
+bias
+
+
+Z$
+
+mask_index
+
+
+
+
+b
+y
+
+
+
+B

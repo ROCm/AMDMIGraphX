@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,14 +52,16 @@ struct where
 
         auto s1 = inputs.at(1);
         auto s2 = inputs.at(2);
-        if(s1.dynamic() or s2.dynamic())
+        // Range-based dynamic (or mixed dynamic/static) inputs only support strict equality.
+        if((s1.dynamic() or s2.dynamic()) and not(s1.symbolic() and s2.symbolic()))
         {
             if(s1 == s2)
                 return s1;
-            MIGRAPHX_THROW("WHERE: dynamic input shapes must be the same");
+            MIGRAPHX_THROW("WHERE: dynamic input shapes must be the same but given " +
+                           to_string(s1) + " and " + to_string(s2));
         }
 
-        // Compare two static shapes, returning a standard shape
+        // Compare two static (or two symbolic) shapes, returning a standard shape
         if(s1 == s2 and s1.packed())
         {
             return s1;
@@ -69,12 +72,42 @@ struct where
         }
         else if(s1.broadcasted() != s2.broadcasted())
         {
+            if(s1.symbolic())
+                return s1.broadcasted() ? s2.with_lens(s1.dyn_dims()) : s1.with_lens(s1.dyn_dims());
             return s1.broadcasted() ? s2.with_lens(s1.lens()) : s1.with_lens(s1.lens());
         }
         else
         {
+            if(s1.symbolic())
+                return {s1.type(), s1.dyn_dims()};
             return {s1.type(), s1.lens()};
         }
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.size() != 3 or any_of(args, [](const auto& arg) { return arg.empty(); }) or
+           args[1].get_shape().lens() != output_shape.lens() or
+           args[2].get_shape().lens() != output_shape.lens())
+            return {};
+        const bool scalar_condition = args[0].get_shape().elements() == 1;
+        if(not scalar_condition and args[0].get_shape().lens() != output_shape.lens())
+            return {};
+
+        sym_argument result{output_shape};
+        const auto condition = args[0].get();
+        const auto x         = args[1].get();
+        const auto y         = args[2].get();
+        auto output          = result.get();
+        for(auto i : range(output_shape.elements()))
+        {
+            const auto condition_value = sym::fixed_value(condition[scalar_condition ? 0 : i]);
+            if(not condition_value.has_value())
+                return {};
+            output[i] = sym::to<int64_t>(*condition_value) != 0 ? x[i] : y[i];
+        }
+        return result;
     }
 
     argument compute(shape output_shape, std::vector<argument> args) const

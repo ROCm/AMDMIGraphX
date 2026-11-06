@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <stdint.h>
 
 #include <migraphx/api/export.h>
+#include <migraphx/config.h>
 
 // Add new types here
 // clang-format off
@@ -48,7 +49,8 @@
     m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz) \
     m(fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn) \
     m(fp8e5m2_type, migraphx::fp8::fp8e5m2) \
-    m(bf16_type, bf16)
+    m(bf16_type, bf16) \
+    m(fp8e5m2fnuz_type, migraphx::fp8::fp8e5m2fnuz)
 // clang-format on
 
 #ifdef __cplusplus
@@ -70,9 +72,36 @@ typedef enum
 typedef enum
 {
     migraphx_shape_tuple_type,
+    migraphx_shape_fp4x2_type,
     MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
+
+typedef enum
+{
+    migraphx_compile_mode_eager    = 0,
+    migraphx_compile_mode_balanced = 50,
+    migraphx_compile_mode_max      = 100,
+
+} migraphx_compile_mode;
+
+typedef enum
+{
+    migraphx_program_verify_mode_outputs,
+    migraphx_program_verify_mode_instructions,
+    migraphx_program_verify_mode_reduce,
+    migraphx_program_verify_mode_bisect,
+    migraphx_program_verify_mode_layerwise,
+
+} migraphx_program_verify_mode_t;
+
+typedef enum
+{
+    migraphx_program_verify_precision_fp32,
+    migraphx_program_verify_precision_fp16,
+    migraphx_program_verify_precision_bf16,
+
+} migraphx_program_verify_precision_t;
 
 <%
     generate_c_header()

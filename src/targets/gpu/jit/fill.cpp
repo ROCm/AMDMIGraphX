@@ -1,0 +1,150 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+#include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/compile_hip.hpp>
+#include <algorithm>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+
+// NOLINTNEXTLINE
+static const char* const fill_kernel = R"__migraphx__(
+#include <migraphx/kernels/index.hpp>
+#include <args.hpp>
+
+namespace migraphx {
+
+extern "C" {
+
+MIGRAPHX_GLOBAL void fill_kernel(void* value_ptr, void* data_ptr)
+{
+    make_tensors()(value_ptr, data_ptr)([](auto value, auto data) {
+        auto idx = make_index();
+        auto v = value[0];
+        idx.global_stride(data.get_shape().elements(), [&](auto i) {
+            data[i] = v;
+        });
+    });
+}
+
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
+struct fill_compiler : compiler<fill_compiler>
+{
+    std::vector<std::string> names() const { return {"fill"}; }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        hip_compile_options options;
+        const auto& out_s = inputs.back();
+        options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
+        options.inputs         = inputs;
+        options.output         = out_s;
+        options.kernel_name    = "fill_kernel";
+        options.virtual_inputs = inputs;
+
+        return compile_hip_code_object(ctx, fill_kernel, options);
+    }
+
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    {
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+    }
+};
+
+// NOLINTNEXTLINE
+static const char* const hip_fill_kernel = R"__migraphx__(
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/functional.hpp>
+#include <args.hpp>
+
+namespace migraphx {
+
+extern "C" {
+
+MIGRAPHX_GLOBAL void hip_fill_kernel(${params})
+{
+    make_tensors()(${args})([](auto... datas) {
+        auto idx = make_index();
+        each_args(
+            [&](auto data) {
+                idx.global_stride(data.get_shape().elements(),
+                                  [&](auto i) { data[i] = ${value}; });
+            },
+            datas...);
+    });
+}
+
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
+// hip::fill has a single in-place buffer input; its value is a compile-time attribute.
+struct hip_fill_compiler : compiler<hip_fill_compiler>
+{
+    std::vector<std::string> names() const { return {"hip::fill"}; }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        auto flat_inputs  = flatten_tuple_shapes(inputs);
+        auto max_elements = std::max_element(flat_inputs.begin(),
+                                             flat_inputs.end(),
+                                             [](const shape& a, const shape& b) {
+                                                 return a.elements() < b.elements();
+                                             })
+                                ->elements();
+
+        hip_compile_options options;
+        options.set_launch_params(v, compute_global_for(ctx, max_elements));
+        options.inputs         = flat_inputs;
+        options.output         = inputs.back();
+        options.kernel_name    = "hip_fill_kernel";
+        options.virtual_inputs = flat_inputs;
+
+        auto src =
+            interpolate_string(hip_fill_kernel,
+                               {{"value", std::to_string(v.at("value").to<int>())},
+                                {"params", enum_params(flat_inputs.size(), "void * private_p")},
+                                {"args", enum_params(flat_inputs.size(), "private_p")}});
+        return compile_hip_code_object(ctx, src, options);
+    }
+
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    {
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+    }
+};
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

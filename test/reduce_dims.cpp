@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,17 +26,22 @@
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
 
-migraphx::shape make_shape(std::vector<std::size_t> lens)
+static migraphx::shape make_shape(std::vector<std::size_t> lens)
 {
     return {migraphx::shape::float_type, std::move(lens)};
 }
 
-migraphx::shape make_shape(std::vector<std::size_t> lens, std::vector<std::size_t> strides)
+static migraphx::shape make_shape(std::vector<std::size_t> lens, std::vector<std::size_t> strides)
 {
     return {migraphx::shape::float_type, std::move(lens), std::move(strides)};
 }
 
-bool verify_shape(const migraphx::shape& s1, const migraphx::shape& s2)
+static migraphx::shape make_dyn_shape(std::vector<migraphx::shape::dynamic_dimension> dyn_dims)
+{
+    return {migraphx::shape::float_type, std::move(dyn_dims)};
+}
+
+static bool verify_shape(const migraphx::shape& s1, const migraphx::shape& s2)
 {
     if(s1.elements() != s2.elements())
         return false;
@@ -45,7 +50,7 @@ bool verify_shape(const migraphx::shape& s1, const migraphx::shape& s2)
 }
 
 template <class Range1, class Range2>
-bool verify_shapes(const Range1& r1, const Range2& r2)
+static bool verify_shapes(const Range1& r1, const Range2& r2)
 {
     return migraphx::equal(
         r1, r2, [](const auto& s1, const auto& s2) { return verify_shape(s1, s2); });
@@ -183,10 +188,96 @@ TEST_CASE(step_broadcast_transpose)
     EXPECT(eshapes == rshapes);
 }
 
+TEST_CASE(different_one_axis)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({64, 16, 160, 160}),
+                                            make_shape({64, 48, 160, 160})};
+    std::vector<migraphx::shape> eshapes = {make_shape({64, 16, 25600}),
+                                            make_shape({64, 48, 25600})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(verify_shapes(ishapes, rshapes));
+    EXPECT(eshapes == rshapes);
+}
+
+TEST_CASE(different_two_axes)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({64, 8, 2, 160, 160}),
+                                            make_shape({64, 4, 12, 160, 160})};
+    std::vector<migraphx::shape> eshapes = {make_shape({64, 8, 2, 25600}),
+                                            make_shape({64, 4, 12, 25600})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(verify_shapes(ishapes, rshapes));
+    EXPECT(eshapes == rshapes);
+}
+
+TEST_CASE(different_fast_axis)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({64, 160, 160, 16}),
+                                            make_shape({64, 160, 160, 48})};
+    std::vector<migraphx::shape> eshapes = {make_shape({1638400, 16}), make_shape({1638400, 48})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(verify_shapes(ishapes, rshapes));
+    EXPECT(eshapes == rshapes);
+}
+
+TEST_CASE(different_first_axis)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({16, 64, 160, 160}),
+                                            make_shape({48, 64, 160, 160})};
+    std::vector<migraphx::shape> eshapes = {make_shape({16, 1638400}), make_shape({48, 1638400})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(verify_shapes(ishapes, rshapes));
+    EXPECT(eshapes == rshapes);
+}
+
+TEST_CASE(different_adjacent_incompatible)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({5, 224, 224}), make_shape({5, 229, 229})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(ishapes == rshapes);
+}
+
+TEST_CASE(different_incompatible_broadcast_adjacent)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({4, 2, 1}), make_shape({4, 7, 5})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(ishapes == rshapes);
+}
+
+TEST_CASE(different_adjacent_incompatible_leading_unmerged)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({1, 3, 224, 224}),
+                                            make_shape({1, 3, 229, 229})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    // TODO: The matched leading dimensions should still merge even though the
+    // adjacent incompatible axes cant be masked:
+    // eshapes = {make_shape({3, 224, 224}), make_shape({3, 229, 229})}
+    EXPECT(ishapes == rshapes);
+}
+
+TEST_CASE(different_adjacent_incompatible_trailing_unmerged)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({224, 224, 2, 3}),
+                                            make_shape({229, 229, 2, 3})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    // TODO: The matched trailing dimensions should still merge even though the
+    // adjacent incompatible axes cant be masked:
+    // eshapes = {make_shape({224, 224, 6}), make_shape({229, 229, 6})}
+    EXPECT(ishapes == rshapes);
+}
+
 TEST_CASE(empty)
 {
     auto rshapes = migraphx::reduce_dims({});
     EXPECT(rshapes.empty());
+}
+
+TEST_CASE(dynamic_shape)
+{
+    std::vector<migraphx::shape> ishapes = {make_dyn_shape({{1, 4}, {2, 6}, {3, 12}}),
+                                            make_dyn_shape({{1, 4}, {2, 6}, {3, 12}})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(ishapes == rshapes);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

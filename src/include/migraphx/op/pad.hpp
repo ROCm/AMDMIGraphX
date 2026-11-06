@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,15 +24,16 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_PAD_HPP
 #define MIGRAPHX_GUARD_OPERATORS_PAD_HPP
 
-#include <array>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dyn_output.hpp>
+#include <migraphx/clamp.hpp>
+#include <migraphx/par_for.hpp>
 #include <cmath>
-#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -94,6 +95,55 @@ struct pad
         std::size_t num_dims = pads.size() / 2;
         return std::equal(
             pads.begin(), pads.begin() + num_dims, pads.begin() + num_dims, pads.end());
+    }
+
+    std::function<std::int64_t(std::int64_t idx, std::int64_t size)> get_pad_func() const
+    {
+        switch(mode)
+        {
+        case op::pad::constant_pad: return [](std::int64_t idx, std::int64_t) { return idx; };
+        case op::pad::reflect_pad:
+            return [](std::int64_t idx, std::int64_t size) -> std::int64_t {
+                if(size <= 1)
+                    return 0;
+                auto period  = size - 1;
+                auto mod_val = std::abs(idx) % (2 * period);
+                return (mod_val <= period) ? mod_val : (2 * period - mod_val);
+            };
+        case op::pad::edge_pad:
+            return [](std::int64_t idx, std::int64_t size) {
+                return std::min(std::max(idx, std::int64_t{0}), size - 1);
+            };
+        }
+        MIGRAPHX_THROW("Invalid pad mode");
+    }
+
+    // NOLINTNEXTLINE
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+    {
+        assert(dyn_out.computed_shape.standard());
+        argument result{dyn_out.computed_shape};
+        auto input_shape  = args[0].get_shape();
+        auto output_shape = dyn_out.computed_shape;
+        auto input_lens   = input_shape.lens();
+        auto ndim         = input_lens.size();
+
+        auto pad_func = get_pad_func();
+
+        visit_all(result, args[0])([&](auto output, auto input) {
+            using type = typename decltype(output)::value_type;
+            par_for(output_shape.elements(), [&](std::int64_t i) {
+                auto out_idx = output_shape.multi(i);
+                std::vector<std::int64_t> in_idx(ndim);
+                transform(out_idx, pads, in_idx.begin(), std::minus<std::int64_t>{});
+                transform(in_idx, input_lens, in_idx.begin(), pad_func);
+                if(migraphx::equal(in_idx, input_lens, std::less<std::size_t>{}))
+                    output(out_idx.begin(), out_idx.end()) = input(in_idx.begin(), in_idx.end());
+                else
+                    output(out_idx.begin(), out_idx.end()) = pad_clamp<type>(value);
+            });
+        });
+        return result;
     }
 };
 

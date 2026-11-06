@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 TEST_CASE(nms_dynamic_batch_test)
 {
+    using migraphx::sym::var;
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape sb{migraphx::shape::float_type, {{1, 10}, {6, 6}, {4, 4}}};
@@ -38,20 +39,61 @@ TEST_CASE(nms_dynamic_batch_test)
     auto iou = mm->add_parameter("iou_threshold", siou);
     migraphx::shape sst{migraphx::shape::float_type, {1}};
     auto st  = mm->add_parameter("score_threshold", sst);
-    auto ret = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression",
-                          {{"center_point_box", true}, {"use_dyn_output", true}}),
-        b,
-        s,
-        mo,
-        iou,
-        st);
+    auto nms = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}), b, s, mo, iou, st);
+    auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto num_selected =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    // 10 batches * 1 class * 6 boxes, so the padded indices are [60, 3]. Added last so it lands
+    // at the front of the module, where the parser puts it.
+    auto starts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto num_selected_var = var("main_NonMaxSuppression_5", {0, 60});
+    auto ends             = migraphx::value::array{migraphx::to_value(num_selected_var)};
+    auto ret              = mm->add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", ends}}),
+        indices,
+        starts,
+        num_selected);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10};
-    options.use_dyn_output        = true;
 
     auto prog = read_onnx("nms_dynamic_batch_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(nms_symbol_collision_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto batch = var("main_NonMaxSuppression_5", {1, 10});
+    auto b     = mm->add_parameter(
+        "boxes", migraphx::shape{migraphx::shape::float_type, sym_dims({batch, lit(6), lit(4)})});
+    auto s = mm->add_parameter(
+        "scores", migraphx::shape{migraphx::shape::float_type, sym_dims({batch, lit(1), lit(6)})});
+    auto mo  = mm->add_parameter("max_output_boxes_per_class", {migraphx::shape::int64_type, {1}});
+    auto iou = mm->add_parameter("iou_threshold", {migraphx::shape::float_type, {1}});
+    auto st  = mm->add_parameter("score_threshold", {migraphx::shape::float_type, {1}});
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"), b, s, mo, iou, st);
+    auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto num_selected =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    auto starts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto num_selected_var = var("main_NonMaxSuppression_5_2", {0, 60});
+    auto ends             = migraphx::value::array{migraphx::to_value(num_selected_var)};
+    auto ret              = mm->add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", ends}}),
+        indices,
+        starts,
+        num_selected);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes   = true;
+    options.default_dyn_dim_value = {1, 10};
+    auto prog                     = read_onnx("nms_symbol_collision_test.onnx", options);
     EXPECT(p == prog);
 }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,8 +29,10 @@
 #include <migraphx/requires.hpp>
 #include <migraphx/iota_iterator.hpp>
 #include <migraphx/as_number.hpp>
+#include <migraphx/byte.hpp>
 
 #include <iostream>
+#include <type_traits>
 #include <utility>
 
 namespace migraphx {
@@ -71,7 +73,7 @@ struct tensor_view
     const T& operator()(Ts... xs) const
     {
         assert(std::vector<std::size_t>{static_cast<std::size_t>(xs)...} < m_shape.lens());
-        assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.bytes() / sizeof(T));
+        assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.element_space());
         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
     }
 
@@ -79,7 +81,7 @@ struct tensor_view
     T& operator()(Ts... xs)
     {
         assert(std::vector<std::size_t>{static_cast<std::size_t>(xs)...} < m_shape.lens());
-        assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.bytes() / sizeof(T));
+        assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.element_space());
         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
     }
 
@@ -88,6 +90,7 @@ struct tensor_view
     {
         assert(std::distance(start, last) > 0);
         assert(std::all_of(start, last, [](auto x) { return x >= 0; }));
+        assert(m_shape.index(start, last) < m_shape.element_space());
         return m_data[m_shape.index(start, last)];
     }
 
@@ -96,18 +99,19 @@ struct tensor_view
     {
         assert(std::distance(start, last) > 0);
         assert(std::all_of(start, last, [](auto x) { return x >= 0; }));
+        assert(m_shape.index(start, last) < m_shape.element_space());
         return m_data[m_shape.index(start, last)];
     }
 
     T& operator[](std::size_t i)
     {
-        assert(not this->empty() && i < this->size());
+        assert(not this->empty() and i < this->size());
         return m_data[m_shape.index(i)];
     }
 
     const T& operator[](std::size_t i) const
     {
-        assert(not this->empty() && i < this->size());
+        assert(not this->empty() and i < this->size());
         return m_data[m_shape.index(i)];
     }
 
@@ -147,18 +151,41 @@ struct tensor_view
         return m_data[m_shape.index(this->size() - 1)];
     }
 
-    iterator begin() { return {0, {this}}; }
+    iterator begin() { return {0, this}; }
 
-    iterator end() { return {this->size(), {this}}; }
+    template <class Range>
+    iterator begin_at(const Range& r)
+    {
+        return {this->m_shape.single(r.begin(), r.end()), this};
+    }
 
-    const_iterator begin() const { return {0, {this}}; }
+    iterator end() { return {this->size(), this}; }
 
-    const_iterator end() const { return {this->size(), {this}}; }
+    const_iterator begin() const { return {0, this}; }
 
-    template <class U = T>
+    template <class Range>
+    const_iterator begin_at(const Range& r) const
+    {
+        return {this->m_shape.single(r.begin(), r.end()), this};
+    }
+
+    const_iterator end() const { return {this->size(), this}; }
+
+    template <class U = std::remove_cv_t<T>>
     std::vector<U> to_vector() const
     {
         return std::vector<U>(this->begin(), this->end());
+    }
+
+    template <class Range>
+    tensor_view slice_at(std::initializer_list<std::int64_t> axes, Range&& r)
+    {
+        assert(std::distance(r.begin(), r.end()) == this->get_shape().ndim());
+        std::vector<std::size_t> new_lens(this->get_shape().ndim(), 1);
+        for(auto axis : axes)
+            new_lens[axis] = this->get_shape().lens()[axis];
+        shape s{this->get_shape().type(), new_lens, this->get_shape().strides()};
+        return {s, this->data() + this->get_shape().index(r.begin(), r.end())};
     }
 
     friend std::ostream& operator<<(std::ostream& os, const tensor_view<T>& x)

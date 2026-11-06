@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,19 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <cmath>
+#include <migraphx/generic_float.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/bit_cast.hpp>
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
-#include <iostream>
 
+#include <array>
+#include <cmath>
 #include <limits>
 
 using fp32 = migraphx::generic_float<23, 8>;
 
 template <class T, class U>
-bool bit_equal(const T& x, const U& y)
+static bool bit_equal(const T& x, const U& y)
 {
     static_assert(sizeof(T) == sizeof(U));
     using type = std::array<char, sizeof(T)>;

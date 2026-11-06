@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,9 +24,9 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
+#include <migraphx/program.hpp>
 #include <optional>
 #include <test.hpp>
 
@@ -207,7 +207,7 @@ TEST_CASE(unique_unsorted_dupes_test)
     EXPECT(ct == gold_ct);
 }
 
-TEST_CASE(unique_3D_no_axis_test)
+TEST_CASE(unique_3_d_no_axis_test)
 {
     // sorted 3D (with dup entries). no axis
     int sorted                  = 1;
@@ -223,7 +223,7 @@ TEST_CASE(unique_3D_no_axis_test)
     EXPECT(ct == gold_ct);
 }
 
-TEST_CASE(unique_3D_no_axis_unsorted_test)
+TEST_CASE(unique_3_d_no_axis_unsorted_test)
 //  unsorted 3D (with dup entries). no axis
 {
     int sorted               = 0;

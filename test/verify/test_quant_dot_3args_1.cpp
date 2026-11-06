@@ -54,5 +54,6 @@ struct test_quant_dot_3args_1 : verify_program<test_quant_dot_3args_1<DType, CTy
 
 template struct test_quant_dot_3args_1<int8_t, int32_t>;
 template struct test_quant_dot_3args_1<migraphx::fp8::fp8e4m3fnuz, float>;
+template struct test_quant_dot_3args_1<migraphx::fp8::fp8e5m2fnuz, float>;
 template struct test_quant_dot_3args_1<migraphx::fp8::fp8e4m3fn, float>;
 template struct test_quant_dot_3args_1<migraphx::fp8::fp8e5m2, float>;

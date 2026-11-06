@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/float_equal.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -102,6 +103,11 @@ void eliminate_pad::apply(module& m) const
             continue;
         auto input = ins->inputs().front();
         if(input->name() != "pad")
+            continue;
+        auto pad_op = any_cast<op::pad>(input->get_operator());
+        // Only support folding zero padding into convolution/im2col/pooling
+        if(pad_op.mode != op::pad::pad_op_mode_t::constant_pad or
+           not float_equal(pad_op.value, 0.0f))
             continue;
         if(op_name == "convolution" or op_name == "im2col")
             update_op(input, ins, m);

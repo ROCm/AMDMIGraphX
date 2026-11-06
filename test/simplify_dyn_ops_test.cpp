@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,9 +28,10 @@
 #include <migraphx/program.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
 }
@@ -85,8 +86,39 @@ TEST_CASE(broadcast_with_dims_invalid)
     EXPECT(test::throws([&] { run_pass(m0); }));
 }
 
+TEST_CASE(fixed_pad_static)
+{
+    migraphx::module m;
+    auto input  = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto output = m.add_instruction(migraphx::make_op("fixed_pad"), input);
+    m.add_return({output});
+
+    run_pass(m);
+
+    migraphx::module expected;
+    auto expected_input =
+        expected.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    expected.add_return({expected_input});
+    EXPECT(m == expected);
+}
+
+TEST_CASE(fixed_pad_dynamic)
+{
+    migraphx::module m;
+    auto input =
+        m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}}});
+    auto output = m.add_instruction(migraphx::make_op("fixed_pad"), input);
+    m.add_return({output});
+
+    auto expected = m;
+    run_pass(m);
+    EXPECT(m == expected);
+}
+
 TEST_CASE(resize)
 {
+    // Test converting 2-input resize (with sizes as constant input) to 1-input resize with
+    // sizes as attribute
     migraphx::module m0;
     {
         std::vector<size_t> ds = {1, 1, 4, 6};
@@ -117,21 +149,23 @@ TEST_CASE(resize)
         migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
         auto inx = m1.add_parameter("X", sx);
 
-        std::vector<float> indices = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
-                                      2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-        migraphx::shape ss{migraphx::shape::int32_type, {1, 1, 4, 6}};
-        auto li = m1.insert_literal(inx, migraphx::literal{ss, indices});
-
-        auto reshape_ins = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
-        auto gather_ins =
-            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), reshape_ins, li);
-        m1.add_return({gather_ins});
+        // After simplify_dyn_ops, resize is converted to 1-input mode with sizes as attribute
+        auto resize_ins = m1.add_instruction(
+            migraphx::make_op("resize",
+                              {{"sizes", {1, 1, 4, 6}},
+                               {"mode", "nearest"},
+                               {"nearest_mode", "floor"},
+                               {"coordinate_transformation_mode", "asymmetric"}}),
+            inx);
+        m1.add_return({resize_ins});
     }
     EXPECT(m0 == m1);
 }
 
 TEST_CASE(resize_scales)
 {
+    // Test converting 2-input resize (with scales as constant input) to 1-input resize with
+    // scales as attribute
     migraphx::module m0;
     {
         // resize op. with scales (float_type) rather than sizes as an input
@@ -163,15 +197,15 @@ TEST_CASE(resize_scales)
         migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
         auto inx = m1.add_parameter("X", sx);
 
-        std::vector<float> indices = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
-                                      2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-        migraphx::shape ss{migraphx::shape::int32_type, {1, 1, 4, 6}};
-        auto li = m1.insert_literal(inx, migraphx::literal{ss, indices});
-
-        auto reshape_ins = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
-        auto gather_ins =
-            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), reshape_ins, li);
-        m1.add_return({gather_ins});
+        // After simplify_dyn_ops, resize is converted to 1-input mode with scales as attribute
+        auto resize_ins = m1.add_instruction(
+            migraphx::make_op("resize",
+                              {{"scales", {1.0f, 1.0f, 2.0f, 3.0f}},
+                               {"mode", "nearest"},
+                               {"nearest_mode", "floor"},
+                               {"coordinate_transformation_mode", "asymmetric"}}),
+            inx);
+        m1.add_return({resize_ins});
     }
     EXPECT(m0 == m1);
 }
@@ -285,7 +319,7 @@ TEST_CASE(after_split_dyn_broadcast_match)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm0->add_instruction(
             migraphx::make_op("select_module",
-                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret =
@@ -815,6 +849,63 @@ TEST_CASE(onehot_cannot_simplify)
     EXPECT(m0 == m1);
 }
 
+TEST_CASE(select_module_preserves_symbolic_output_shape)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using se = migraphx::sym::expr;
+
+    auto n        = migraphx::sym::var("n", {1, 4});
+    auto target_n = migraphx::sym::var("split_sym_dim_n_target", {1, 4}, {1, 4});
+    migraphx::program p0;
+    auto create_submodule0 = [&](const std::string& name, const dd::interval& subrange) {
+        auto* submod         = p0.create_module(name);
+        std::vector<dd> dims = {{migraphx::sym::var("n", {subrange.min, subrange.max})},
+                                {migraphx::sym::lit(4)}};
+        auto input =
+            submod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, dims});
+        auto output = submod->add_instruction(migraphx::make_op("fixed_pad"), input);
+        submod->add_return({output});
+        return submod;
+    };
+    auto* first0                = create_submodule0("main:split_sym_dim_0_0", {1, 1});
+    auto* second0               = create_submodule0("main:split_sym_dim_0_1", {2, 4});
+    auto* main0                 = p0.get_main_module();
+    std::vector<dd> input_dims0 = {{n}, {migraphx::sym::lit(4)}};
+    auto input0 =
+        main0->add_parameter("data", migraphx::shape{migraphx::shape::float_type, input_dims0});
+    std::vector<dd> output_dims0 = {{target_n}, {migraphx::sym::lit(4)}};
+    migraphx::shape output_shape0{
+        std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type, output_dims0}}};
+    auto select0 = main0->add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes", migraphx::to_value(output_shape0)}}),
+        {input0},
+        {first0, second0});
+    auto selected0 =
+        main0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select0);
+    std::vector<se> starts0 = {migraphx::sym::lit(0)};
+    std::vector<se> ends0   = {n};
+    auto start0             = main0->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(starts0)}}),
+        input0);
+    auto end0 = main0->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", migraphx::to_value(ends0)}}),
+        input0);
+    auto result0 =
+        main0->add_instruction(migraphx::make_op("dyn_slice",
+                                                 {{"axes", {0}},
+                                                  {"starts", migraphx::to_value(starts0)},
+                                                  {"ends", migraphx::to_value(ends0)}}),
+                               selected0,
+                               start0,
+                               end0);
+    main0->add_return({result0});
+
+    auto expected = p0;
+    migraphx::run_passes(p0, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
+    EXPECT(p0 == expected);
+}
+
 // Test case with static output shape in the submodules (look at `sm_shape`)
 TEST_CASE(select_module_update0)
 {
@@ -849,7 +940,7 @@ TEST_CASE(select_module_update0)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm0->add_instruction(
             migraphx::make_op("select_module",
-                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret =
@@ -890,7 +981,7 @@ TEST_CASE(select_module_update0)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm1->add_instruction(
             migraphx::make_op("select_module",
-                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret =
@@ -936,7 +1027,7 @@ TEST_CASE(select_module_update1)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm0->add_instruction(
             migraphx::make_op("select_module",
-                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret =
@@ -978,7 +1069,7 @@ TEST_CASE(select_module_update1)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm1->add_instruction(
             migraphx::make_op("select_module",
-                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret =
@@ -1023,7 +1114,7 @@ TEST_CASE(select_module_update2)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm0->add_instruction(
             migraphx::make_op("select_module",
-                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret =
@@ -1061,7 +1152,7 @@ TEST_CASE(select_module_update2)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm1->add_instruction(
             migraphx::make_op("select_module",
-                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret =

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,34 +36,45 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
-bool skip_propagate(instruction_ref ins)
+static bool skip_propagate(instruction_ref ins)
 {
     if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
         return skip_propagate(ins->inputs().front());
-    if(ins->name() == "unpack_int4")
+    // Folding a convert to a wider type would enlarge the literal and lose
+    // the smaller storage type, so keep it as a runtime conversion instead
+    if(ins->name() == "convert" and
+       ins->get_shape().type_size() > ins->inputs().front()->get_shape().type_size())
         return true;
-    auto&& s = ins->get_shape();
-    if(s.broadcasted() and s.element_space() < s.elements())
+    if(contains({"unpack_int4", "unpack_fp4"}, ins->name()))
         return true;
-    auto alias = instruction::get_output_alias(ins, true);
-    if(alias != ins)
-        return skip_propagate(alias);
+    // Skip broadcasted views since folding them saves no computation, but fold
+    // computed ops into a literal that keeps the broadcast shape
+    auto&& s           = ins->get_shape();
+    auto aliases       = instruction::get_output_alias(ins, true);
+    const bool is_view = aliases.front() != ins;
+    if(s.broadcasted() and s.element_space() < s.elements() and is_view)
+        return true;
+    if(aliases.size() == 1 and is_view)
+        return skip_propagate(aliases.front());
+    if(ins->is_undefined())
+        return true;
     return false;
 }
 
-bool is_const_ins(instruction_ref ins, const std::unordered_set<std::string>& skip_ops)
+static bool is_const_ins(instruction_ref ins, const std::unordered_set<std::string>& skip_ops)
 {
     return ins->can_eval() and not skip_propagate(ins) and
            skip_ops.find(ins->name()) == skip_ops.end();
 }
 
-argument as_packed(const argument& c)
+static literal as_packed(const argument& c)
 {
-    if(c.get_shape().packed())
-        return c;
+    // A broadcasted result only stores its element space, so it is already minimal
+    if(c.get_shape().packed() or c.get_shape().broadcasted())
+        return literal::from_raw_buffer(c.get_shape(), c.data());
     auto s = c.get_shape().with_lens(c.get_shape().lens());
-    argument result;
-    c.visit([&](auto x) { result = literal{s, x.begin(), x.end()}.get_argument(); });
+    literal result;
+    c.visit([&](auto x) { result = literal{s, x.begin(), x.end()}; });
     return result;
 }
 
@@ -96,11 +107,16 @@ void propagate_constant::apply(module& m) const
 
     // Compute literals in parallel
     std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
-    std::vector<argument> literals(const_instrs_vec.size());
+    std::vector<literal> literals(const_instrs_vec.size());
     std::size_t grainsize = 1;
+#ifdef _WIN32
+    grainsize = std::max<std::size_t>(
+        const_instrs_vec.size() / (std::thread::hardware_concurrency() / 2), 1);
+#else
 #if !MIGRAPHX_HAS_EXECUTORS
     std::size_t n = std::max<std::size_t>(2048 / std::thread::hardware_concurrency(), 1);
     grainsize     = const_instrs_vec.size() / n;
+#endif
 #endif
     simple_par_for(const_instrs_vec.size(), grainsize, [&](const auto i) {
         literals[i] = as_packed(const_instrs_vec[i]->eval());
@@ -126,7 +142,7 @@ void propagate_constant::apply(module& m) const
             }
             assert(literals[i].get_shape().lens() == const_instrs_vec[i]->get_shape().lens());
             assert(literals[i].get_shape().bytes() <= const_instrs_vec[i]->get_shape().bytes());
-            auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
+            auto l = m.add_literal(literals[i]);
             m.replace_instruction(const_instrs_vec[i], l);
         }
     }

@@ -1,0 +1,21 @@
+	dynamicscale_even_test:Å
+£
+inputoutput"DynamicScale*
+	group_dim†*
+
+group_size †*
+output_dtype†*"
+scale_selection_method"floor†*&
+zero_point_selection_method"None†dynamicscale_even_testZ
+input
+
+
+@
+
+b 
+output
+
+
+@
+
+B

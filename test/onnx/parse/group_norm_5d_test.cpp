@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,8 +28,8 @@
 TEST_CASE(group_norm_5d_test)
 {
     migraphx::program p = make_group_norm({3, 3, 3, 3, 3},
-                                          {1},
-                                          {1},
+                                          {3},
+                                          {3},
                                           {3, 1, 3, 3, 3, 3},
                                           {2, 3, 4, 5},
                                           1e-5f,

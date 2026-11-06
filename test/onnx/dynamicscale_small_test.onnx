@@ -1,0 +1,17 @@
+	dynamicscale_small_test:û
+¬
+inputoutput"DynamicScale*
+	group_dimÿÿÿÿÿÿÿÿÿ *
+
+group_size  *
+output_dtype *"
+scale_selection_method"floor *&
+zero_point_selection_method"None dynamicscale_small_testZ
+input
+
+
+b
+output
+
+
+B

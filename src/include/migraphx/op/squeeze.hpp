@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,9 +27,11 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -53,11 +55,44 @@ struct squeeze
     }
 
     std::string name() const { return "squeeze"; }
+
+    // Drops the size-1 axes, preserving the kept axes' strides, for static and
+    // symbolic input through one path.
+    shape symbolic_compute_shape(const shape& s) const
+    {
+        auto sym_in       = s.to_symbolic();
+        const auto& dds   = sym_in.dyn_dims();
+        const auto& strds = sym_in.dyn_strides();
+        auto one          = sym::lit(1);
+        // A dropped axis must be provably 1.
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+               return not(dds.at(axis).sym_expr == one);
+           }))
+            MIGRAPHX_THROW("SQUEEZE: axis dimension should be equal to 1; axes {" +
+                           to_string_range(axes) + "} of input " + to_string(s));
+        std::vector<shape::dynamic_dimension> new_dds;
+        std::vector<sym::expr> new_strides;
+        for(auto i : range(dds.size()))
+        {
+            const bool drop = axes.empty() ? (dds[i].sym_expr == one)
+                                           : (std::find(axes.begin(), axes.end(), i) != axes.end());
+            if(not drop)
+            {
+                new_dds.push_back(dds[i]);
+                new_strides.push_back(strds[i]);
+            }
+        }
+        shape result = new_dds.empty() ? shape{s.type()} : shape{s.type(), new_dds, new_strides};
+        if(not s.symbolic())
+            return result.to_static();
+        return result;
+    }
+
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
         auto input_shape = inputs[0];
-        if(input_shape.dynamic())
+        if(input_shape.dynamic() and not input_shape.symbolic())
         {
             // Allow for any dynamic_dimension that intersects with {1, 1}.
             // Assuming that the shape at run-time will be compatible.
@@ -69,8 +104,9 @@ struct squeeze
                    ;
                }))
             {
-                MIGRAPHX_THROW(
-                    "SQUEEZE: dynamic axis dimension should have an intersection with {1, 1}");
+                MIGRAPHX_THROW("SQUEEZE: dynamic axis dimension should have an intersection with "
+                               "{1, 1}; axes {" +
+                               to_string_range(axes) + "} of input " + to_string(input_shape));
             }
             std::vector<shape::dynamic_dimension> dyn_dims = {};
             if(axes.empty())
@@ -78,7 +114,7 @@ struct squeeze
                 std::copy_if(input_shape.dyn_dims().cbegin(),
                              input_shape.dyn_dims().cend(),
                              std::back_inserter(dyn_dims),
-                             [&](auto dd) { return dd != 1; });
+                             [&](const auto& dd) { return dd != 1; });
             }
             else
             {
@@ -92,56 +128,22 @@ struct squeeze
             }
             return {input_shape.type(), dyn_dims};
         }
-        else
-        {
-            auto type        = input_shape.type();
-            auto old_lens    = input_shape.lens();
-            auto old_strides = input_shape.strides();
-            if(std::any_of(
-                   axes.begin(), axes.end(), [&](auto axis) { return old_lens[axis] != 1; }))
-            {
-                MIGRAPHX_THROW("SQUEEZE: static axis dimension should be equal to 1");
-            }
-            std::vector<std::size_t> new_lens;
-            std::vector<std::size_t> new_strides;
-            if(axes.empty())
-            {
-                for(auto i : range(old_lens.size()))
-                {
-                    if(old_lens[i] != 1)
-                    {
-                        new_lens.push_back(old_lens[i]);
-                        new_strides.push_back(old_strides[i]);
-                    }
-                }
-            }
-            else
-            {
-                for(auto i : range(old_lens.size()))
-                {
-                    if(std::find(axes.begin(), axes.end(), i) == axes.end())
-                    {
-                        new_lens.push_back(old_lens[i]);
-                        new_strides.push_back(old_strides[i]);
-                    }
-                }
-            }
-            if(new_lens.empty())
-            {
-                return shape{type};
-            }
-            else
-            {
-                return shape{type, new_lens, new_strides};
-            }
-        }
+        return symbolic_compute_shape(input_shape);
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.size() != 1)
+            return {};
+        return args[0].reshape(output_shape);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         return args[0].reshape(dyn_out.computed_shape);
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 } // namespace op

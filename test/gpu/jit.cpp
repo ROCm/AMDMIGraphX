@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,21 +25,27 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/kernel.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compiler.hpp>
-#include <migraphx_kernels.hpp>
+#include <migraphx/gpu/device_description.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void write(char* data) 
@@ -56,7 +62,9 @@ int main() {}
 
 // NOLINTNEXTLINE
 const std::string add_2s_binary = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void add_2(char* x, char* y) 
@@ -141,12 +149,49 @@ const std::string math_template = R"__migraphx__(
 #include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
+
+template <class T>
+struct test_implicit_conversion_op
+{
+    T x;
+
+    template <index_int N, class U>
+    constexpr operator vec<U, N>() const
+    {
+        if constexpr(vec_size<T>() == 0)
+        {
+            return x;
+        }
+        else
+        {
+            static_assert(vec_size<T>() == N, "Vector mismatch size");
+            return __builtin_convertvector(x, vec<U, N>);
+        }
+    }
+
+    template <class U>
+    constexpr operator U() const
+    {
+        static_assert(is_same<T, bool>{} or not is_same<U, float>{} or is_same<T, U>{});
+        return static_cast<U>(x);
+    }
+};
+
+template <class T>
+constexpr test_implicit_conversion_op<T> test_implicit_conversion(T x)
+{
+    return {x};
+}
+
+
 extern "C" {
 __global__ void kernel(${type}* p) 
 {
     auto x = *p;
-    *p = migraphx::implicit_conversion(migraphx::${invoke});
-
+    auto y = migraphx::vec_at(x, 0);
+    (void)y;
+    *p = migraphx::test_implicit_conversion(migraphx::${invoke});
+    (void)(1.f + migraphx::vec_at(migraphx::${invoke}, 0));
 }
 }
 }
@@ -155,7 +200,7 @@ int main() {}
 
 )__migraphx__";
 
-migraphx::src_file make_src_file(const std::string& name, const std::string& content)
+static migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, content};
 }
@@ -177,7 +222,72 @@ TEST_CASE(simple_compile_hip)
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
 }
 
-auto check_target(const std::string& arch)
+// The compiled write_2s code object
+static std::vector<char> compile_write_2s()
+{
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, {}, migraphx::gpu::get_device_name());
+    EXPECT(binaries.size() == 1);
+    return binaries.front();
+}
+
+TEST_CASE(kernels_share_module)
+{
+    auto binary = compile_write_2s();
+    migraphx::gpu::code_module m{binary};
+    // Both resolve to the same function handle in the one module, and it still runs
+    migraphx::gpu::kernel k1{m, "write"};
+    migraphx::gpu::kernel k2{m, "write"};
+    EXPECT(k1.get_function() == k2.get_function());
+    // A kernel loaded from the image on its own gets a module of its own
+    migraphx::gpu::kernel k3{binary, "write"};
+    EXPECT(k3.get_function() != k1.get_function());
+
+    migraphx::argument input{{migraphx::shape::int8_type, {5}}};
+    auto ginput = migraphx::gpu::to_gpu(input);
+    k2.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int8_t>());
+    auto output = migraphx::gpu::from_gpu(ginput);
+    auto data   = output.get<std::int8_t>();
+    EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+// Function handle of a write-kernel code object with the given module_id after finalizing in ctx
+static hipFunction_t finalize_write_kernel(migraphx::context& ctx,
+                                           const std::vector<char>& binary,
+                                           std::int64_t module_id)
+{
+    migraphx::shape input{migraphx::shape::int8_type, {5}};
+    auto op = migraphx::make_op(
+        "gpu::code_object",
+        {{"code_object", migraphx::value::binary{binary}},
+         {"symbol_name", "write"},
+         {"global", input.elements()},
+         {"local", 1024},
+         {"expected_inputs", migraphx::to_value(std::vector<migraphx::shape>{input})},
+         {"output", migraphx::to_value(input)},
+         {"module_id", module_id}});
+    op.finalize(ctx, input, {input});
+    return migraphx::any_cast<migraphx::gpu::code_object_op>(op).k.get_function();
+}
+
+TEST_CASE(code_objects_with_module_id_share_module)
+{
+    auto binary           = compile_write_2s();
+    migraphx::context ctx = migraphx::gpu::context{};
+
+    hipFunction_t shared1 = finalize_write_kernel(ctx, binary, 0);
+    hipFunction_t shared2 = finalize_write_kernel(ctx, binary, 0);
+    EXPECT(shared1 == shared2);
+
+    // A different id or no id loads a module of its own
+    hipFunction_t other = finalize_write_kernel(ctx, binary, 1);
+    EXPECT(other != shared1);
+    hipFunction_t unshared = finalize_write_kernel(ctx, binary, -1);
+    EXPECT(unshared != shared1);
+    EXPECT(unshared != other);
+}
+
+static auto check_target(const std::string& arch)
 {
     auto define  = "__" + arch + "__";
     auto content = migraphx::replace_string(check_define, "__DEFINE__", define);
@@ -190,19 +300,52 @@ TEST_CASE(compile_target)
     EXPECT(not check_target("gfx906").empty());
 }
 
+TEST_CASE(cross_compile_gpu_target_gfx1101)
+{
+    // Verify a cross-compile gpu::context produces a code object for the requested arch.
+    migraphx::gpu::context ctx{migraphx::gpu::device_description{"gfx1101", 60, 1}};
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", add_2s_binary)}, {}, ctx.get_current_device().get_device_name());
+    EXPECT(binaries.size() == 1);
+    std::string_view bin{binaries.front().data(), binaries.front().size()};
+    EXPECT(bin.find("gfx1101") != std::string_view::npos);
+}
+
+TEST_CASE(cross_compile_wavefront_size)
+{
+    auto wavefront_size = [](const std::string& arch, std::size_t ws = 0) {
+        migraphx::gpu::device_description desc{arch, 1};
+        desc.wavefront_size = ws;
+        desc.normalize();
+        return desc.wavefront_size;
+    };
+    EXPECT(wavefront_size("gfx1101") == 32);
+    EXPECT(wavefront_size("gfx942") == 64);
+    EXPECT(wavefront_size("gfx942", 32) == 32);
+    EXPECT(wavefront_size("gfx12xx") == 32);
+    EXPECT(wavefront_size("gfx12xx", 64) == 64);
+    EXPECT(test::throws([&] { wavefront_size("gfx942", 16); }));
+}
+
 TEST_CASE(compile_errors)
 {
     EXPECT(test::throws([&] {
-        migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", incorrect_program)}, {}, migraphx::gpu::get_device_name());
+        migraphx::gpu::compile_hip_src({make_src_file("main.cpp", incorrect_program)},
+                                       {},
+                                       migraphx::gpu::get_device_name(),
+                                       false,
+                                       true);
     }));
 }
 
 TEST_CASE(compile_warnings)
 {
     auto compile = [](const std::vector<std::string>& params) {
-        return migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
+        return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", unused_param)},
+                                              params,
+                                              migraphx::gpu::get_device_name(),
+                                              false,
+                                              true);
     };
 
     EXPECT(not compile({}).empty());
@@ -224,6 +367,12 @@ TEST_CASE(has_flags)
     EXPECT(migraphx::gpu::hip_has_flags({"-Wunused-parameter"}));
     EXPECT(not migraphx::gpu::hip_has_flags(
         {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}));
+}
+
+TEST_CASE(can_compile)
+{
+    EXPECT(migraphx::gpu::hip_can_compile(write_2s, {}));
+    EXPECT(not migraphx::gpu::hip_can_compile(incorrect_program, {}));
 }
 
 TEST_CASE(code_object_hip)
@@ -263,12 +412,13 @@ TEST_CASE(compile_code_object_hip)
 {
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
     migraphx::gpu::hip_compile_options options;
+    migraphx::gpu::context ctx;
     options.global = 256 * 1024;
     options.local  = 1024;
     options.inputs = {input, input};
     options.output = input;
 
-    auto co = migraphx::gpu::compile_hip_code_object(simple_pointwise_increment, options);
+    auto co = migraphx::gpu::compile_hip_code_object(ctx, simple_pointwise_increment, options);
 
     migraphx::program p;
     auto* mm            = p.get_main_module();
@@ -308,6 +458,18 @@ TEST_CASE(compile_pointwise)
     EXPECT(result == output_literal.get_argument());
 }
 
+TEST_CASE(compile_gather_indexed_inputs)
+{
+    migraphx::shape data{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape idx{migraphx::shape::int32_type, {2}};
+    migraphx::shape out{migraphx::shape::float_type, {2, 3}};
+    migraphx::gpu::context ctx;
+    auto co = migraphx::gpu::compile_op("gather", ctx, {data, idx, out}, {{"axis", 0}});
+    // Only the data input is read at index-selected positions
+    EXPECT(co.attributes().get("indexed_inputs", std::vector<std::size_t>{}) ==
+           std::vector<std::size_t>{0});
+}
+
 TEST_CASE(compile_math)
 {
     std::vector<std::string> math_invoke = {
@@ -326,13 +488,23 @@ TEST_CASE(compile_math)
         "exp(x)",
         "floor(x)",
         "fmod(x, x)",
+        "fmod(x, y)",
+        "fmod(y, x)",
         "isnan(x)",
         "log(x)",
         "max(x, x)",
+        "max(x, y)",
+        "max(y, x)",
         "min(x, x)",
+        "min(x, y)",
+        "min(y, x)",
         "pow(x, 0)",
         "pow(x, x)",
+        "pow(x, y)",
+        "pow(y, x)",
         "remainder(x,x)",
+        "remainder(x,y)",
+        "remainder(y,x)",
         "round(x)",
         "rsqrt(x)",
         "sin(x)",
@@ -341,25 +513,25 @@ TEST_CASE(compile_math)
         "tan(x)",
         "tanh(x)",
         "where(true, x, x)",
+        "where(true, x, y)",
+        "where(true, y, x)",
         // clang-format on
     };
     std::vector<std::string> data_types;
     auto vec_sizes = {2, 4, 6};
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::tuple_type,
-                     migraphx::shape::bf16_type},
-                    t))
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if(contains({migraphx::shape::half_type, migraphx::shape::bf16_type}, t))
             name.insert(0, "migraphx::");
         data_types.push_back(name);
         // fp8 doesn't have vectorization support yet, therefore skip it for now.
         std::set<migraphx::shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type,
-                                                       migraphx::shape::fp8e5m2_type,
-                                                       migraphx::shape::fp8e4m3fn_type};
+                                                       migraphx::shape::fp8e5m2fnuz_type,
+                                                       migraphx::shape::fp8e4m3fn_type,
+                                                       migraphx::shape::fp8e5m2_type};
         if(not contains(fp8_types, t))
         {
             migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
@@ -369,6 +541,7 @@ TEST_CASE(compile_math)
     }
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
     migraphx::gpu::hip_compile_options options;
+    migraphx::gpu::context ctx;
     options.global = 1024;
     options.local  = 1024;
     options.inputs = {input};
@@ -377,7 +550,7 @@ TEST_CASE(compile_math)
         const auto& t      = data_types[i % data_types.size()];
         const auto& invoke = math_invoke[i / data_types.size()];
         auto src = migraphx::interpolate_string(math_template, {{"type", t}, {"invoke", invoke}});
-        auto co  = migraphx::gpu::compile_hip_code_object(src, options);
+        auto co  = migraphx::gpu::compile_hip_code_object(ctx, src, options);
         (void)co;
     });
 }
@@ -401,20 +574,20 @@ int main() {}
 
 TEST_CASE(assert_type_min_max)
 {
-    std::vector<std::string> data_types;
     migraphx::gpu::hip_compile_options options;
+    migraphx::gpu::context ctx;
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::fp8e4m3fnuz_type,
-                     migraphx::shape::tuple_type,
-                     migraphx::shape::bf16_type},
-                    t))
+        if(contains(
+               {
+                   migraphx::shape::bool_type,
+                   migraphx::shape::tuple_type,
+               },
+               t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if(contains({migraphx::shape::half_type, migraphx::shape::bf16_type}, t))
             name.insert(0, "migraphx::");
-
         migraphx::shape::visit(t, [&](auto as) {
             std::string min = "";
             std::string max = "";
@@ -445,9 +618,58 @@ TEST_CASE(assert_type_min_max)
             options.output = input;
             options.emplace_param("-Wno-float-equal");
 
-            auto co = migraphx::gpu::compile_hip_code_object(src, options);
+            auto co = migraphx::gpu::compile_hip_code_object(ctx, src, options);
         });
     }
+}
+
+// Compile with disable_processes=true to force in-process hiprtc instead of spawning
+// migraphx-hiprtc-driver; the resulting binary must be valid and execute correctly.
+TEST_CASE(compile_hip_src_disable_processes)
+{
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, {}, migraphx::gpu::get_device_name(), true);
+    EXPECT(binaries.size() == 1);
+
+    migraphx::argument input{{migraphx::shape::int8_type, {5}}};
+    auto ginput = migraphx::gpu::to_gpu(input);
+    migraphx::gpu::kernel k{binaries.front(), "write"};
+    k.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int8_t>());
+    auto output = migraphx::gpu::from_gpu(ginput);
+
+    EXPECT(output != input);
+    auto data = output.get<std::int8_t>();
+    EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+// hiprtc_disable_processes set via backend_options must thread through the full GPU target
+// pass pipeline (backend_options -> context -> compile_hip_src) and still produce a correct result.
+// relu lowers to gpu::precompile_op so compile_ops::apply triggers hiprtc compilation,
+// exercising the disable_processes path end-to-end through the pass pipeline.
+TEST_CASE(compile_code_object_disable_processes_backend_option)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {5, 2}};
+    auto input_literal = migraphx::generate_literal(input_shape);
+
+    auto make_prog = [&] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        mm->add_return(
+            {mm->add_instruction(migraphx::make_op("relu"), mm->add_literal(input_literal))});
+        return p;
+    };
+
+    auto p_ref = make_prog();
+    p_ref.compile(migraphx::make_target("ref"), migraphx::compile_options{});
+    auto expected = p_ref.eval({}).front();
+
+    auto p_gpu = make_prog();
+    migraphx::compile_options options;
+    options.backend_options["hiprtc_disable_processes"] = migraphx::value(true);
+    p_gpu.compile(migraphx::make_target("gpu"), options);
+    auto result = migraphx::gpu::from_gpu(p_gpu.eval({}).front());
+
+    EXPECT(result == expected);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

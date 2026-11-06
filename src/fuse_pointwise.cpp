@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,8 +32,13 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
+#include <migraphx/rewrite_broadcasts.hpp>
+#include <migraphx/permutation.hpp>
+#include <migraphx/algorithm.hpp>
 #include <iterator>
+#include <set>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
 
@@ -45,7 +50,7 @@ static literal get_scalar(instruction_ref ins)
     if(contains({"contiguous", "broadcast", "multibroadcast"}, ins->name()))
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
-    if(s.elements() != 1 and not(s.scalar()))
+    if(s.dynamic() or (s.elements() != 1 and not(s.scalar())))
         return {};
     if(not ins->can_eval())
         return {};
@@ -62,6 +67,29 @@ static literal get_scalar(instruction_ref ins)
         e.visit_at([&](auto x) { r = literal{x}; });
     }
     return r;
+}
+
+static shape to_scalar(const shape& s) { return shape{s.type()}; }
+
+static bool is_dead(instruction_ref ins)
+{
+    if(ins->name() == "@return")
+        return false;
+    if(ins->outputs().empty())
+        return true;
+    if(ins->name() != "pointwise")
+        return false;
+    return ends_with(ins->module_inputs().front()->name(), "-deleted");
+}
+
+// We dont want to consider the `extra` instruction as dead as it might be an implicit return
+static bool is_used_once(instruction_ref ins, const instruction_ref* extra = nullptr)
+{
+    return std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](auto output) {
+               if(extra and *extra == output)
+                   return true;
+               return not is_dead(output);
+           }) == 1;
 }
 
 static void create_pointwise_modules(module_pass_manager& mpm)
@@ -85,7 +113,8 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             if(contains(param_map, input))
                 continue;
             auto scalar = get_scalar(input);
-            if(scalar.empty())
+            // Have dynamic shapes always get put into a pointwise module even if scalar input
+            if(scalar.empty() or input->get_shape().dynamic())
             {
                 pointwise_inputs.push_back(input);
                 param_map[input] =
@@ -116,80 +145,333 @@ static void create_pointwise_modules(module_pass_manager& mpm)
 
 static module::with_inputs append_pointwise_module(instruction_ref ins, instruction_ref output)
 {
-    assert(contains(output->inputs(), ins));
+    std::unordered_set<instruction_ref> original_inputs{ins->inputs().begin(), ins->inputs().end()};
+    original_inputs.insert(output->inputs().begin(), output->inputs().end());
     module pm     = *ins->module_inputs().at(0);
-    module_ref xm = output->module_inputs().at(0);
+    const_module_ref xm  = output->module_inputs().at(0);
+    const bool dependent = contains(output->inputs(), ins);
+    assert(not dependent or pm.get_returns().size() == 1);
 
-    auto last = std::prev(pm.end());
-    assert(last->name() == "@return");
-    assert(last->inputs().size() == 1);
-
-    assert(pm.get_parameter_names().size() == ins->inputs().size());
-    assert(xm->get_parameter_names().size() == output->inputs().size());
-
-    std::vector<instruction_ref> inputs = ins->inputs();
-    std::unordered_map<instruction_ref, instruction_ref> map_ins;
-    std::unordered_map<instruction_ref, instruction_ref> input_map;
-    // Copy inputs to input_map
-    for(auto i : range(inputs.size()))
+    std::unordered_map<instruction_ref, instruction_ref> map_ins =
+        pm.get_ins_param_map(ins->inputs());
+    if(dependent)
+        map_ins[ins] = pm.get_returns().front();
+    auto returns = pm.fuse(*xm, output->inputs(), &map_ins, nullptr, &to_scalar);
+    if(not is_used_once(ins, &output) or not dependent)
     {
-        auto input = inputs[i];
-        auto param = pm.get_parameter(param_name(i));
-        assert(param != pm.end());
-        input_map[input] = param;
+        auto ireturns = pm.get_returns();
+        returns.insert(returns.end(), ireturns.begin(), ireturns.end());
     }
-    // Add the new parameter and additional inputs
-    for(auto i : range(output->inputs().size()))
-    {
-        auto input = output->inputs()[i];
-        auto param = xm->get_parameter(param_name(i));
-        assert(param != xm->end());
-        if(input == ins)
-        {
-            map_ins[param]   = last->inputs().front();
-            input_map[input] = map_ins[param];
-        }
-        // Avoid duplicate paramter inputs
-        else if(contains(input_map, input))
-        {
-            map_ins[param] = input_map[input];
-        }
-        else
-        {
-            map_ins[param] =
-                pm.add_parameter(param_name(inputs.size()), {input->get_shape().type()});
-            inputs.push_back(input);
-            input_map[input] = map_ins[param];
-        }
-    }
-    pm.replace_return(pm.insert_instructions(last, xm, &map_ins));
+    pm.replace_return(returns);
+    auto inputs = find_inputs(map_ins, original_inputs, &pm);
     return {std::move(pm), inputs};
 }
 
-static bool find_pointwise_modules(module_pass_manager& mpm)
+static void replace_with_tuple(module& m, instruction_ref ins, instruction_ref rep, bool first)
+
+{
+    if(rep->get_shape().type() != shape::tuple_type)
+    {
+        assert(ins->get_shape().type() != shape::tuple_type);
+        m.replace_instruction(ins, rep);
+        return;
+    }
+    if(ins->get_shape().type() != shape::tuple_type)
+    {
+        auto i = first ? 0 : rep->get_shape().sub_shapes().size() - 1;
+        auto elem =
+            m.insert_instruction(std::next(rep), make_op("get_tuple_elem", {{"index", i}}), rep);
+        m.replace_instruction(ins, elem);
+        return;
+    }
+    // TODO: We need to add a new operator to repack a tuple to support this scenario
+    if(std::any_of(ins->outputs().begin(), ins->outputs().end(), [](instruction_ref output) {
+           return output->name() != "get_tuple_elem";
+       }))
+        MIGRAPHX_THROW("Unsupported tuple replacement");
+    std::size_t start =
+        first ? 0 : rep->get_shape().sub_shapes().size() - ins->get_shape().sub_shapes().size();
+    auto outputs = ins->outputs();
+    for(auto output : outputs)
+    {
+        auto v = output->get_operator().to_value();
+        auto i = v.at("index").to<std::size_t>();
+        assert((i + start) < rep->get_shape().sub_shapes().size());
+        m.replace_instruction(output, make_op("get_tuple_elem", {{"index", i + start}}), rep);
+    }
+}
+
+static instruction_ref
+merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_ref output)
+{
+    auto fused = append_pointwise_module(input, output);
+    auto name  = fused.mod.name();
+    mpm.rename_module(name, name + ":" + output->module_inputs().front()->name() + "-deleted");
+    auto* new_pm = mpm.create_module(name, std::move(fused.mod));
+    auto fins =
+        mpm.get_module().insert_instruction(output, input->get_operator(), fused.inputs, {new_pm});
+    if(fins->get_shape().tuple_size() != output->get_shape().tuple_size())
+    {
+        mpm.get_module().move_output_instructions_after(input, fins);
+        replace_with_tuple(mpm.get_module(), input, fins, false);
+    }
+    replace_with_tuple(mpm.get_module(), output, fins, true);
+    return fins;
+}
+
+// One layout per non-broadcasted output; broadcasted and non-symbolic dynamic
+// outputs are layout-ambiguous so they contribute none.
+static std::vector<std::vector<int64_t>> output_layouts(instruction_ref ins)
+{
+    const auto& s = ins->get_shape();
+    auto shapes   = s.type() == shape::tuple_type ? s.sub_shapes() : std::vector<shape>{s};
+    std::vector<std::vector<int64_t>> result;
+    transform_if(
+        shapes.begin(),
+        shapes.end(),
+        std::back_inserter(result),
+        [](const shape& x) { return x.symbolic() or not(x.dynamic() or x.broadcasted()); },
+        [](const shape& x) { return find_permutation(x); });
+    return result;
+}
+
+// A multi-output pointwise resolves every output shape from one layout vote,
+// so only merge outputs that already agree; otherwise an unrelated input (eg
+// an NCHW constant) can flip the layout of an NHWC branch.
+static bool same_output_layouts(const std::vector<instruction_ref>& instructions)
+{
+    auto layouts = transform_accumulate(
+        instructions.begin(),
+        instructions.end(),
+        std::set<std::vector<int64_t>>{},
+        [](auto acc, const auto& perms) {
+            acc.insert(perms.begin(), perms.end());
+            return acc;
+        },
+        &output_layouts);
+    return layouts.size() < 2;
+}
+
+static auto find_input_pointwise(const module& m, instruction_ref ins, bool multi_out)
+{
+    auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+        return i->name() == "pointwise" and i->outputs().size() == 1 and m.has_instruction(i);
+    });
+    if(it == ins->inputs().end() and multi_out)
+    {
+        it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+            if(not m.has_instruction(i))
+                return false;
+            auto base_distance = std::distance(i, ins);
+            return i->name() == "pointwise" and same_output_layouts({i, ins}) and
+                   std::none_of(i->outputs().begin(), i->outputs().end(), [&](auto output) {
+                       if(not m.has_instruction(output))
+                           return true;
+                       if(output == ins)
+                           return false;
+                       if(std::distance(i, output) > base_distance)
+                           return false;
+                       return reaches(output, ins, &m);
+                   });
+        });
+    }
+    return it;
+}
+
+static std::vector<instruction_ref>
+find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
+{
+    std::vector<instruction_ref> result;
+    if(not multi_out)
+        return result;
+    std::vector<instruction_ref> outputs;
+    std::copy_if(ins->outputs().begin(),
+                 ins->outputs().end(),
+                 std::back_inserter(outputs),
+                 [&](instruction_ref output) {
+                     if(output->name() != "pointwise")
+                         return false;
+                     if(not m.has_instruction(output))
+                         return false;
+                     if(is_dead(output))
+                         return false;
+                     return true;
+                 });
+    if(outputs.size() < 2)
+        return result;
+    // Dont merge pointwise ops that only share a constant: there is no
+    // recomputation to save, and the merged multi-output pointwise blocks
+    // input fusion into its consumers (eg dequantizelinear into a gemm).
+    if(ins->can_eval())
+        return result;
+    std::sort(outputs.begin(), outputs.end(), by(std::less<>{}, [&](auto x) {
+                  return std::distance(ins, x);
+              }));
+    std::copy_if(outputs.begin(), outputs.end(), std::back_inserter(result), [&](auto output) {
+        return std::none_of(
+            result.begin(), result.end(), [&](auto other) { return reaches(other, output, &m); });
+    });
+    if(not same_output_layouts(result))
+        return {};
+    return result;
+}
+
+// A later pass (such as eliminate_common_subexpression) can merge two operands of
+// a pointwise instruction into the same instruction. This leaves the pointwise with
+// duplicate operands while its submodule still has a distinct parameter for each
+// original operand, breaking the invariant that every pointwise has exactly one
+// parameter per distinct input. Rebuild any such pointwise so that each distinct
+// operand maps to a single parameter.
+static bool dedup_pointwise_inputs(module_pass_manager& mpm)
+{
+    bool changed = false;
+    auto& m      = mpm.get_module();
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "pointwise")
+            continue;
+        const auto& inputs = ins->inputs();
+        std::unordered_set<instruction_ref> seen;
+        std::vector<instruction_ref> deduped;
+        std::copy_if(inputs.begin(), inputs.end(), std::back_inserter(deduped), [&](auto input) {
+            return seen.insert(input).second;
+        });
+        if(deduped.size() == inputs.size())
+            continue;
+
+        const_module_ref sm = ins->module_inputs().front();
+        module pm;
+        pm.set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        auto returns = pm.fuse(*sm, inputs, &map_ins, nullptr, &to_scalar);
+        pm.add_return(returns);
+        auto* new_pm = mpm.create_module(sm->name() + ":dedup", std::move(pm));
+        new_pm->set_bypass();
+        m.replace_instruction(ins, make_op("pointwise"), std::move(deduped), {new_pm});
+        changed = true;
+    }
+    return changed;
+}
+
+static bool split_pointwise_through_slices(module_pass_manager& mpm)
+{
+    bool changed    = false;
+    auto& m         = mpm.get_module();
+    std::size_t idx = 0;
+
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "pointwise")
+            continue;
+        if(ins->get_shape().type() == shape::tuple_type)
+            continue;
+
+        auto outputs = ins->outputs();
+        if(outputs.size() < 2)
+            continue;
+
+        // All consumers must be slice instructions
+        if(not all_of(outputs, [](instruction_ref output) {
+               return output->name() == "slice" and output->inputs().size() == 1;
+           }))
+            continue;
+
+        // Cache slice values to avoid repeated to_value() calls
+        std::unordered_map<instruction_ref, value> slice_vals;
+        for(auto output : outputs)
+            slice_vals[output] = output->get_operator().to_value();
+
+        // All slices must be on the same single axis
+        auto axes = slice_vals[outputs.front()]["axes"].to_vector<int64_t>();
+        if(axes.size() != 1)
+            continue;
+        if(not all_of(outputs, [&](instruction_ref output) {
+               return slice_vals[output]["axes"].to_vector<int64_t>() == axes;
+           }))
+            continue;
+
+        auto get_starts = [&](instruction_ref s) {
+            return slice_vals[s]["starts"].to_vector<int64_t>()[0];
+        };
+        auto get_ends = [&](instruction_ref s) {
+            return slice_vals[s]["ends"].to_vector<int64_t>()[0];
+        };
+
+        // Sort slices by start position and check for no overlap
+        std::sort(outputs.begin(), outputs.end(), by(std::less<>{}, get_starts));
+        if(std::adjacent_find(
+               outputs.begin(), outputs.end(), [&](instruction_ref a, instruction_ref b) {
+                   return get_starts(b) < get_ends(a);
+               }) != outputs.end())
+            continue;
+
+        // At least one slice consumer must feed into a pointwise op
+        if(none_of(outputs, [](instruction_ref s) {
+               return any_of(s->outputs(),
+                             [](instruction_ref c) { return c->name() == "pointwise"; });
+           }))
+            continue;
+
+        // Split: replace each slice with a pointwise on sliced inputs
+        auto* src_pm = ins->module_inputs().front();
+        auto pm_name = src_pm->name();
+        // Deliberately a copy: the loop below mutates the module while this is live.
+        auto inputs = ins->inputs();
+        for(const auto& slice_ins : outputs)
+        {
+            auto slice_op = slice_ins->get_operator();
+
+            std::vector<instruction_ref> sliced_inputs;
+            sliced_inputs.reserve(inputs.size());
+            transform(inputs, std::back_inserter(sliced_inputs), [&](instruction_ref input) {
+                return m.insert_instruction(slice_ins, slice_op, input);
+            });
+
+            module pm_copy = *src_pm;
+            auto* new_pm =
+                mpm.create_module(pm_name + ":split" + std::to_string(idx++), std::move(pm_copy));
+            new_pm->set_bypass();
+
+            m.replace_instruction(
+                slice_ins, make_op("pointwise"), std::move(sliced_inputs), {new_pm});
+        }
+
+        changed = true;
+    }
+
+    return changed;
+}
+
+static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
 {
     bool changed = false;
     auto last    = std::prev(mpm.get_module().end());
     for(auto ins : iterator_for(mpm.get_module()))
     {
-        if(ins->name() != "pointwise")
+        if(ins != last and is_dead(ins))
             continue;
-        if(ins->outputs().empty() and ins != last)
-            continue;
-        auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-            return i->name() == "pointwise" and i->outputs().size() == 1;
-        });
-        if(it == ins->inputs().end())
-            continue;
-        auto input = *it;
+        auto pw_outs = find_output_pointwise(mpm.get_module(), ins, multi_out);
 
-        auto fused = append_pointwise_module(input, ins);
-        auto name  = fused.mod.name();
-        mpm.rename_module(name, name + ":" + ins->module_inputs().front()->name() + "-deleted");
-        auto* new_pm = mpm.create_module(name, std::move(fused.mod));
-        mpm.get_module().replace_instruction(ins, input->get_operator(), fused.inputs, {new_pm});
+        if(pw_outs.size() > 1)
+        {
+            (void)std::accumulate(
+                pw_outs.begin() + 1, pw_outs.end(), pw_outs.front(), [&](auto input, auto output) {
+                    return merge_instruction(mpm, input, output);
+                });
+            changed = true;
+        }
+        else if(ins->name() == "pointwise")
+        {
+            auto it = find_input_pointwise(mpm.get_module(), ins, multi_out);
+            if(it == ins->inputs().end())
+                continue;
+            auto input = *it;
+            if(is_dead(input))
+                continue;
+            merge_instruction(mpm, input, ins);
 
-        changed = true;
+            changed = true;
+        }
     }
     return changed;
 }
@@ -200,42 +482,7 @@ struct pointwise_reshape : rewrite_reshapes_base
     static std::string name() { return "pointwise"; }
 };
 
-struct pointwise_broadcast_pointwise
-{
-    auto matcher() const
-    {
-        auto broadcast_pointwise =
-            match::name("multibroadcast")(
-                match::used_once(),
-                match::args(match::name("pointwise")(match::used_once()).bind("x")))
-                .bind("broadcast");
-        return match::name("pointwise")(match::any_of[match::inputs()](broadcast_pointwise));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto broadcast_ins = r.instructions["broadcast"];
-        auto x_ins         = r.instructions["x"];
-
-        auto broadcast = broadcast_ins->get_operator();
-
-        auto x_inputs = x_ins->inputs();
-        std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
-            return m.insert_instruction(broadcast_ins, broadcast, input);
-        });
-
-        m.replace_instruction(
-            broadcast_ins, x_ins->get_operator(), x_inputs, x_ins->module_inputs());
-    }
-};
-
 } // namespace
-
-static void rewrite_broadcasts(module_pass_manager& mpm)
-{
-    match::find_matches(mpm.get_module(), pointwise_broadcast_pointwise{});
-    mpm.run_pass(dead_code_elimination{});
-}
 
 void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
@@ -251,8 +498,11 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
         if(enable_rewrite_reshapes)
             mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
         if(enable_rewrite_broadcasts)
-            rewrite_broadcasts(mpm);
-        if(not find_pointwise_modules(mpm))
+            rewrite_broadcasts(mpm, "pointwise");
+        dedup_pointwise_inputs(mpm);
+        auto changed = split_pointwise_through_slices(mpm);
+        changed      = find_pointwise_modules(mpm, enable_multi_output) or changed;
+        if(not changed)
             break;
         mpm.run_pass(dead_code_elimination{});
     }

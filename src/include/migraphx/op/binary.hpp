@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,10 @@
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/par.hpp>
+#include <migraphx/sym_argument.hpp>
+#include <migraphx/tensor_view.hpp>
+#include <algorithm>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,6 +42,42 @@ namespace op {
 template <class Derived>
 struct binary : op_name<Derived>
 {
+    // The inherited symbolic_compute is opt-in because not every Derived::apply supports sym::expr.
+    static constexpr bool enable_symbolic_compute = false;
+
+    // The same storage viewed with the given lens; the dropped axes must not be
+    // ones the tensor varies along
+    template <class T>
+    static tensor_view<T> collapse_view(tensor_view<T> v, const std::vector<std::size_t>& lens)
+    {
+        shape s{v.get_shape().type(), lens, v.get_shape().strides()};
+        assert(s.element_space() == v.get_shape().element_space());
+        return make_view(s, v.data());
+    }
+
+    // A broadcasted output maps several indices to one address, so iterate with its
+    // zero-stride axes collapsed to 1; the inputs broadcast along those axes too, so
+    // every remaining index writes a distinct element.
+    template <class F, class Output, class Input1, class Input2>
+    static void par_broadcast_transform(F f, Output output, Input1 input1, Input2 input2)
+    {
+        const auto& s = output.get_shape();
+        if(s.broadcasted())
+        {
+            std::vector<std::size_t> lens(s.ndim());
+            std::transform(
+                s.lens().begin(),
+                s.lens().end(),
+                s.strides().begin(),
+                lens.begin(),
+                [](std::size_t len, std::size_t stride) { return stride == 0 ? 1 : len; });
+            output = collapse_view(output, lens);
+            input1 = collapse_view(input1, lens);
+            input2 = collapse_view(input2, lens);
+        }
+        par_transform(input1.begin(), input1.end(), input2.begin(), output.begin(), f);
+    }
+
     std::string point_function() const { return this->name(); }
     std::string point_op() const
     {
@@ -57,9 +97,44 @@ struct binary : op_name<Derived>
     value base_attributes() const
     {
         const auto& self = static_cast<const Derived&>(*this);
-        return {{"pointwise", true}, {"point_op", self.point_op()}};
+        return {{"pointwise", true},
+                {"point_op", self.point_op()},
+                {"fillcolor", "#008080" /* teal */}};
     }
     value attributes() const { return base_attributes(); }
+
+    bool supports_symbolic_compute(const shape& output_shape,
+                                   const std::vector<sym_argument>&) const
+    {
+        return output_shape.type() == shape::int64_type;
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        const auto& self = static_cast<const Derived&>(*this);
+        if constexpr(Derived::enable_symbolic_compute)
+        {
+            if(not self.supports_symbolic_compute(output_shape, args))
+                return {};
+            if(args.size() != 2 or args[0].empty() or args[1].empty() or
+               args[0].get_shape().lens() != output_shape.lens() or
+               args[1].get_shape().lens() != output_shape.lens())
+                return {};
+
+            sym_argument result{output_shape};
+            const auto x = args[0].get();
+            const auto y = args[1].get();
+            auto output  = result.get();
+            par_broadcast_transform(self.apply(), output, x, y);
+            return result;
+        }
+        else
+        {
+            return {};
+        }
+    }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, static_cast<const Derived&>(*this), true}
@@ -68,27 +143,57 @@ struct binary : op_name<Derived>
             .same_dims();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
-        if(s0.dynamic() or s1.dynamic())
+        // Symbolic: compatible expressions may differ, so keep s0's dimensions while selecting
+        // either input's layout.
+        // Non-symbolic: static inputs have equal lens; range-based or mixed inputs require exact
+        // shape equality below.
+        const auto output_dyn_dims =
+            s0.symbolic() ? s0.dyn_dims() : std::vector<shape::dynamic_dimension>{};
+        // Range-based dynamic (or mixed dynamic/static) inputs only support strict equality.
+        if((s0.dynamic() or s1.dynamic()) and not(s0.symbolic() and s1.symbolic()))
         {
             if(s0 == s1)
                 return s0;
             MIGRAPHX_THROW("BINARY: " + point_function() + ": fixed-dyn shape for inputs");
         }
-        else if(s0 == s1 and s0.packed())
+        const bool b0 = s0.broadcasted();
+        const bool b1 = s1.broadcasted();
+        // Prefer a non-broadcasted layout; otherwise preserve every axis on which either input
+        // varies.
+        if(s0 == s1 and (s0.packed() or b0))
         {
             return s0;
         }
         else if(s0.packed() != s1.packed())
         {
-            return s0.packed() ? s0 : s1;
+            if(s0.packed())
+                return s0;
+            return s1.symbolic() ? s1.with_lens(output_dyn_dims) : s1;
         }
-        else if(s0.broadcasted() != s1.broadcasted())
+        else if(b0 == b1 and (s0.element_space() == 1) != (s1.element_space() == 1))
         {
-            return s0.broadcasted() ? s1.with_lens(s0.lens()) : s0.with_lens(s0.lens());
+            return s0.element_space() == 1 ? s1 : s0;
+        }
+        else if(b0 != b1)
+        {
+            if(not s0.broadcasted())
+                return s0;
+            if(s0.symbolic())
+                return s1.with_lens(output_dyn_dims);
+            return s1.with_lens(s0.lens());
+        }
+        else if(b0)
+        {
+            // Stay broadcasted over the axes neither input varies along so a
+            // materialized default layout cannot outvote a later non-broadcast input
+            return shape::merge_broadcasts(s0, s1);
         }
         else
         {
-            return {s0.type(), s0.lens()};
+            if(s0.symbolic())
+                return shape::from_permutation(
+                    s0.type(), output_dyn_dims, find_permutation({s0, s1}));
+            return shape::from_permutation(s0.type(), s0.lens(), find_permutation({s0, s1}));
         }
     }
 
@@ -96,11 +201,8 @@ struct binary : op_name<Derived>
     {
         argument result{dyn_out.computed_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-            par_transform(input1.begin(),
-                          input1.end(),
-                          input2.begin(),
-                          output.begin(),
-                          static_cast<const Derived&>(*this).apply());
+            par_broadcast_transform(
+                static_cast<const Derived&>(*this).apply(), output, input1, input2);
         });
         return result;
     }

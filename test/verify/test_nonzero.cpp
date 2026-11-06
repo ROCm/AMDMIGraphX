@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,16 +35,46 @@ struct test_nonzero : verify_program<test_nonzero<DType>>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{DType, {2, 3, 4, 5}};
-        auto x = mm->add_parameter("data", s);
-        auto r = mm->add_instruction(migraphx::make_op("nonzero"), x);
-        mm->add_return({r});
+        auto x       = mm->add_parameter("data", s);
+        auto nz      = mm->add_instruction(migraphx::make_op("nonzero"), x);
+        auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
+        auto num_nonzero =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
+        mm->add_return({indices, num_nonzero});
 
         return p;
     }
 };
 
+template struct test_nonzero<migraphx::shape::bool_type>;
 template struct test_nonzero<migraphx::shape::float_type>;
 template struct test_nonzero<migraphx::shape::half_type>;
+template struct test_nonzero<migraphx::shape::bf16_type>;
 template struct test_nonzero<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_nonzero<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_nonzero<migraphx::shape::fp8e4m3fn_type>;
 template struct test_nonzero<migraphx::shape::fp8e5m2_type>;
+
+template <migraphx::shape::type_t DType>
+struct test_nonzero_transpose : verify_program<test_nonzero_transpose<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{DType, {2, 3}};
+        auto x = mm->add_parameter("data", s);
+        auto transposed =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto nz      = mm->add_instruction(migraphx::make_op("nonzero"), transposed);
+        auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nz);
+        auto num_nonzero =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nz);
+        mm->add_return({indices, num_nonzero});
+
+        return p;
+    }
+};
+
+template struct test_nonzero_transpose<migraphx::shape::bool_type>;
+template struct test_nonzero_transpose<migraphx::shape::float_type>;

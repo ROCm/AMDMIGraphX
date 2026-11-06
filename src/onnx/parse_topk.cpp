@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,11 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/sym.hpp>
+#include <migraphx/tune_axis.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,23 +40,24 @@ struct parse_topk : op_parser<parse_topk>
 {
     std::vector<op_desc> operators() const { return {{"TopK"}}; }
 
+    static std::vector<instruction_ref> add_topk_and_gets(const onnx_parser::node_info& info,
+                                                          const std::vector<instruction_ref>& args,
+                                                          int64_t k,
+                                                          int64_t axis,
+                                                          bool largest)
+    {
+        auto topk_ret = info.add_instruction(
+            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
+        auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
+        auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
+        return {ret_val, ret_ind};
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
     {
-        int64_t k = 0;
-        if(args.size() == 2)
-        {
-            auto arg_k = args.at(1)->eval();
-            check_arg_empty(arg_k, "PARSE_TopK: k input must be constant");
-            k = arg_k.at<int>();
-        }
-        else if(contains(info.attributes, "k"))
-        {
-            k = info.attributes.at("k").i();
-        }
-
         bool largest = true;
         if(contains(info.attributes, "largest"))
         {
@@ -64,13 +70,49 @@ struct parse_topk : op_parser<parse_topk>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        auto topk_ret = info.add_instruction(
-            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
+        // opset-1 form: `k` is an ONNX attribute. Go directly into MIGX's topk operator.
+        if(args.size() == 1)
+        {
+            int64_t k = 0;
+            if(contains(info.attributes, "k"))
+            {
+                k = info.attributes.at("k").i();
+            }
+            return add_topk_and_gets(info, args, k, axis, largest);
+        }
 
-        auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
-        auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
+        // opset-10+ form: `k` is a runtime input.
+        auto k_ins = args.at(1);
+        auto arg_k = k_ins->eval();
+        if(not arg_k.empty())
+        {
+            // constant `k` value
+            int64_t k = arg_k.at<int>();
+            return add_topk_and_gets(info, args, k, axis, largest);
+        }
+        // Variable (data-dependent) `k`: run topk over the whole axis dimension, then slice the
+        // outputs down to the runtime `k` using a symbolic dimension.
+        auto input_shape = args.at(0)->get_shape();
+        if(input_shape.dynamic() and not input_shape.symbolic())
+        {
+            MIGRAPHX_THROW("PARSE_TOPK: a runtime `k` needs a static or symbolic data shape; "
+                           "parse with symbolic shapes enabled");
+        }
+        // Normalize axis because we need the interval maximum on that dimension.
+        int64_t norm_axis = tune_axis(input_shape.ndim(), axis, "TopK");
+        int64_t max_k     = input_shape.max_lens().at(norm_axis);
+        auto outs         = add_topk_and_gets(info, args, max_k, norm_axis, largest);
 
-        return {ret_val, ret_ind};
+        // `k` is only known at run time, so it becomes a symbol bounded by the axis it slices.
+        auto k_var      = sym::var(info.name, {0, max_k});
+        auto starts_lit = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
+        auto dyn_slice  = make_op(
+            "dyn_slice",
+            {{"axes", {norm_axis}}, {"starts", {0}}, {"ends", value::array{to_value(k_var)}}});
+        std::transform(outs.begin(), outs.end(), outs.begin(), [&](auto out) {
+            return info.add_instruction(dyn_slice, out, starts_lit, k_ins);
+        });
+        return outs;
     }
 };
 

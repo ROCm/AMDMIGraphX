@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,10 +40,14 @@ struct miopen_contiguous : unary_device<miopen_contiguous, &device::contiguous>
     std::string name() const { return "gpu::contiguous"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
-        auto lens = inputs.at(0).lens();
-        auto t    = inputs.at(0).type();
-        return {t, lens};
+        check_shapes{inputs, *this, true}.has(2);
+        const auto& input = inputs.at(0);
+        // Packing yields a standard layout; a range-only dynamic shape has no strides to pack.
+        if(input.symbolic())
+            return {input.type(), input.dyn_dims()};
+        if(input.dynamic())
+            return input;
+        return {input.type(), input.lens()};
     }
 };
 

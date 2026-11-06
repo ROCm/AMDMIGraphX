@@ -1,0 +1,24 @@
+name: Feature Development Template
+description: Use this template to report MIGraphX related bugs/features
+body:
+  - type: textarea
+    id: DOR
+    attributes: 
+      label: "DOR (Definition of Ready)"
+      placeholder: The minimum set of criteria that must be fulfilled before a story is ready to be included and worked on in an upcoming sprint.
+    validations:
+      required: true
+  - type: textarea
+    id: Description
+    attributes:
+      label: Description
+      placeholder: As a [role], I want to [do something] so that [reason/benefit].
+    validations:
+      required: true
+  - type: textarea
+    id: DOD
+    attributes:
+      label: "DOD (Definition of Done)"
+      placeholder: The conditions that must be satisfied before deliverables can be considered fit for release / done.
+    validations:
+      required: true

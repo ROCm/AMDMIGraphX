@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,14 +29,14 @@
 #include <migraphx/pass_manager.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::autocast_fp8_pass{}, migraphx::eliminate_identity{}});
 }
 
 // with return
 template <migraphx::shape::type_t DType>
-void autocast_fp8_1()
+static void autocast_fp8_1()
 {
     migraphx::module m1;
     {
@@ -63,12 +63,13 @@ void autocast_fp8_1()
     EXPECT(m1 == m2);
 }
 TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e5m2fnuz_type>);
 TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e4m3fn_type>);
 TEST_CASE_REGISTER(autocast_fp8_1<migraphx::shape::fp8e5m2_type>);
 
 // without return
 template <migraphx::shape::type_t DType>
-void autocast_fp8_2()
+static void autocast_fp8_2()
 {
     migraphx::module m1;
     {
@@ -91,12 +92,13 @@ void autocast_fp8_2()
     EXPECT(m1 == m2);
 }
 TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e5m2fnuz_type>);
 TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e4m3fn_type>);
 TEST_CASE_REGISTER(autocast_fp8_2<migraphx::shape::fp8e5m2_type>);
 
 // multiple inputs (of same type) to return
 template <migraphx::shape::type_t DType>
-void autocast_fp8_3()
+static void autocast_fp8_3()
 {
     migraphx::module m1;
     {
@@ -127,12 +129,13 @@ void autocast_fp8_3()
     EXPECT(m1 == m2);
 }
 TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e5m2fnuz_type>);
 TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e4m3fn_type>);
 TEST_CASE_REGISTER(autocast_fp8_3<migraphx::shape::fp8e5m2_type>);
 
 // multiple inputs (of different types) to return
 template <migraphx::shape::type_t DType>
-void autocast_fp8_4()
+static void autocast_fp8_4()
 {
     migraphx::module m1;
     {
@@ -166,6 +169,7 @@ void autocast_fp8_4()
     EXPECT(m1 == m2);
 }
 TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e4m3fnuz_type>);
+TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e5m2fnuz_type>);
 TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e4m3fn_type>);
 TEST_CASE_REGISTER(autocast_fp8_4<migraphx::shape::fp8e5m2_type>);
 

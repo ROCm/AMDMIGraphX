@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 static void inline_submodule(module& m, instruction_ref ins, bool cond)
 {
     const auto& mod_inputs = ins->module_inputs();
-    module_ref smod        = cond ? mod_inputs.at(0) : mod_inputs.at(1);
+    const_module_ref smod  = cond ? mod_inputs.at(0) : mod_inputs.at(1);
     auto mod_outputs       = m.insert_instructions(ins, smod);
 
     auto ins_outputs = ins->outputs();

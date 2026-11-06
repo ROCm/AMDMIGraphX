@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -27,13 +27,18 @@ include(CheckCXXSourceCompiles)
 
 function(find_parallel_stl_check RESULT)
     set(CMAKE_REQUIRED_LIBRARIES ${ARGN})
-    set(CMAKE_REQUIRED_FLAGS)
-    if(NOT MSVC)
+    if(MSVC)
+        set(CMAKE_REQUIRED_FLAGS "/std:c++17")
+    else()
         set(CMAKE_REQUIRED_FLAGS "-std=c++17")
     endif()
     string(MD5 _flags_hash "${CMAKE_REQUIRED_FLAGS} ${CMAKE_REQUIRED_LIBRARIES}")
     set(_source "
 #include <execution>
+
+#ifdef _PSTL_PAR_BACKEND_SERIAL
+#error \"Using serial backend\"
+#endif
 
 int main() {
     int* i = nullptr;

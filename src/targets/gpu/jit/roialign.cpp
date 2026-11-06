@@ -90,7 +90,7 @@ struct roialign_compiler : compiler<roialign_compiler>
         // spatial_scale
         options.emplace_param("-DSPATIAL_SCALE=" + v.at("spatial_scale").to<std::string>());
 
-        return compile_hip_code_object(roialign_kernel, options);
+        return compile_hip_code_object(ctx, roialign_kernel, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

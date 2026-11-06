@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,8 +50,8 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
 #ifdef MIGRAPHX_NGLOBAL
     return MIGRAPHX_NGLOBAL;
 #else
-    // This actualy works even when global is not divisible by local size.
-    // This doesnt actually do a multiplicatiosn. Instead it calls a device
+    // This actually works even when global is not divisible by local size.
+    // This doesnt actually do a multiplication. Instead it calls a device
     // function to get the global size, which is why it works.
     return blockDim.x * gridDim.x; // NOLINT
 #endif
@@ -133,7 +133,7 @@ struct index
     }
 #endif
 
-    constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
+    constexpr auto ngroup() const { return (nglobal() + max_nlocal() - _c<1>) / max_nlocal(); }
 
     template <unsigned int SubWaveSize>
     constexpr index_constant<SubWaveSize> nlocal_subwave() const
@@ -155,7 +155,7 @@ struct index
         return max_nlocal() / nlocal_subwave<SubWaveSize>();
     }
 
-    constexpr index_constant<__AMDGCN_WAVEFRONT_SIZE> nlocal_wave() const { return {}; }
+    constexpr index_constant<MIGRAPHX_WAVEFRONTSIZE> nlocal_wave() const { return {}; }
     constexpr auto local_wave() const { return local % nlocal_wave(); }
     constexpr auto nwave() const { return max_nlocal() / nlocal_wave(); }
     constexpr auto wave() const { return local / nlocal_wave(); }
@@ -230,7 +230,12 @@ struct index
     static constexpr void for_stride(index_int start, N n, Stride stride, F f)
     {
         MIGRAPHX_ASSERT(start < stride);
-        if constexpr(not is_integral<N>{} and not is_integral<Stride>{})
+
+        if constexpr(not is_integral<N>{} and n < 1)
+        {
+            return;
+        }
+        else if constexpr(not is_integral<N>{} and not is_integral<Stride>{})
         {
             if constexpr(max_stride_iterations(n, stride) == 1)
             {
@@ -303,6 +308,45 @@ inline __device__ __attribute__((const)) index make_index()
 {
     return index{
         blockIdx.x * compute_max_local_size() + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
+}
+
+struct per_block
+{
+    index idx;
+
+    constexpr auto local() const { return idx.local; }
+
+    constexpr auto nlocal() const { return idx.nlocal(); }
+
+    constexpr auto size() const { return idx.ngroup(); }
+
+    constexpr auto group() const { return idx.group; }
+
+    template <class N, class F>
+    constexpr void group_stride(N n, F f) const
+    {
+        return idx.group_stride(n, f);
+    }
+
+    template <class N, class F>
+    constexpr void local_stride(N n, F f) const
+    {
+        return idx.local_stride(n, f);
+    }
+};
+
+template <class Group, index_int Block, class N>
+constexpr auto block_stride(index idx, N n)
+{
+    return [=](auto f) {
+        const auto m = n / _c<Block>;
+        Group{idx}.local_stride(m, [&](auto j) {
+            const auto jblock = j * Block;
+            repeat_c<Block>([&](auto k) { f(jblock + k); });
+        });
+        const auto mblock = m * _c<Block>;
+        Group{idx}.local_stride(n - mblock, [&](auto k) { f(mblock + k); });
+    };
 }
 
 } // namespace migraphx

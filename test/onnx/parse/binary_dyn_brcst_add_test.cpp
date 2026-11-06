@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,18 +26,21 @@
 
 TEST_CASE(binary_dyn_brcst_add_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::half_type, {4, 5}});
-    auto l1  = mm->add_parameter(
-        "1", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}});
+    EXPECT(
+        check_common_op("binary_dyn_brcst_add_test.onnx",
+                        migraphx::make_op("add"),
+                        {{"0", {migraphx::shape::half_type, {4, 5}}},
+                         {"1", {migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}}}}));
+}
 
-    auto ret = add_common_op(*mm, migraphx::make_op("add"), {l0, l1});
-    mm->add_return({ret});
-
-    migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    auto prog                     = read_onnx("binary_dyn_brcst_add_test.onnx", options);
-
-    EXPECT(p == prog);
+TEST_CASE(binary_sym_brcst_add_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    EXPECT(check_common_op(
+        "binary_dyn_brcst_add_test.onnx",
+        migraphx::make_op("add"),
+        {{"0", {migraphx::shape::half_type, {4, 5}}},
+         {"1",
+          {migraphx::shape::float_type, sym_dims({var("n", {1, 4}), lit(3), lit(4), lit(5)})}}}));
 }

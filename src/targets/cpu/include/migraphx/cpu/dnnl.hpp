@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -60,6 +60,9 @@ struct dnnl_context
 dnnl_context& get_dnnl_context();
 
 dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t);
+
+// oneDNN has no bool, int64, double or fp8 memory types
+bool is_dnnl_supported_type(shape::type_t t);
 
 dnnl::memory::format_tag to_dnnl_memory_format_tag(std::size_t n);
 
@@ -296,9 +299,9 @@ struct dnnl_op : auto_register_op<Derived>
         return execute(ctx, args);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
     value compile(context&, const shape& output_shape, std::vector<shape> inputs)
     {
@@ -353,8 +356,6 @@ struct dnnl_op : auto_register_op<Derived>
                     dnnl::algorithm algo;
                     dnnl::memory::desc mdesc;
                     float scale = 0;
-                    float alpha = 0;
-                    float beta  = 0;
                     if(kind == dnnl::primitive::kind::binary)
                     {
                         pos.get_params_binary(i, algo, mdesc);
@@ -365,6 +366,8 @@ struct dnnl_op : auto_register_op<Derived>
                     }
                     else if(kind == dnnl::primitive::kind::eltwise)
                     {
+                        float alpha = 0;
+                        float beta  = 0;
                         pos.get_params_eltwise(i, scale, algo, alpha, beta);
                     }
                     else if(kind == dnnl::primitive::kind::sum)

@@ -1,0 +1,212 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_BROADCAST_DIMENSIONS_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_BROADCAST_DIMENSIONS_HPP
+
+#include <migraphx/instruction.hpp>
+#include <migraphx/common.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
+
+#include <algorithm>
+#include <cassert>
+#include <optional>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
+namespace builder {
+
+namespace detail {
+
+template <typename Builder>
+void broadcast_dimensions_static(Builder& bldr,
+                                 const instruction_ref& a0,
+                                 const instruction_ref& a1,
+                                 instruction_ref& ba0,
+                                 instruction_ref& ba1)
+{
+    auto s0_lens = a0->get_shape().lens();
+    auto s1_lens = a1->get_shape().lens();
+
+    // try broadcasting if dimensions other than last two do not match
+    if(std::equal(s0_lens.rbegin() + 2, s0_lens.rend(), s1_lens.rbegin() + 2, s1_lens.rend()))
+        return;
+
+    auto l0_it = s0_lens.begin() + s0_lens.size() - 2;
+    std::vector<std::size_t> l0_broadcasted_lens(s0_lens.begin(), l0_it);
+    auto l1_it = s1_lens.begin() + s1_lens.size() - 2;
+    std::vector<std::size_t> l1_broadcasted_lens(s1_lens.begin(), l1_it);
+    auto output_lens    = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
+    l0_broadcasted_lens = output_lens;
+    l0_broadcasted_lens.insert(l0_broadcasted_lens.end(), l0_it, s0_lens.end());
+    l1_broadcasted_lens = output_lens;
+    l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, s1_lens.end());
+    if(s0_lens != l0_broadcasted_lens)
+    {
+        ba0 = bldr.add_instruction(make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}),
+                                   a0);
+    }
+    if(s1_lens != l1_broadcasted_lens)
+    {
+        ba1 = bldr.add_instruction(make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}),
+                                   a1);
+    }
+}
+
+template <typename Builder>
+void broadcast_dimensions_dynamic(Builder& bldr,
+                                  const instruction_ref& a0,
+                                  const instruction_ref& a1,
+                                  instruction_ref& ba0,
+                                  instruction_ref& ba1)
+{
+    auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
+    auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
+
+    if(not std::equal(s0_dds.rbegin() + 2, s0_dds.rend(), s1_dds.rbegin() + 2, s1_dds.rend()))
+    {
+        ba0 = bldr.add_instruction(make_op("broadcast_for_dot"), a0, a1);
+        ba1 = bldr.add_instruction(make_op("broadcast_for_dot"), a1, a0);
+    }
+}
+
+template <typename Builder>
+std::optional<instruction_ref>
+add_matching_dimension(Builder& bldr,
+                       const instruction_ref& source,
+                       const std::vector<shape::dynamic_dimension>& source_dds,
+                       const std::vector<shape::dynamic_dimension>& target_dds,
+                       std::size_t axis)
+{
+    if(source_dds.size() > target_dds.size())
+        return std::nullopt;
+    const auto offset = target_dds.size() - source_dds.size();
+    if(axis < offset)
+        return std::nullopt;
+    const auto source_axis = axis - offset;
+    if(source_dds[source_axis] != target_dds[axis])
+        return std::nullopt;
+    return bldr.add_instruction(
+        make_op("dimensions_of", {{"start", source_axis}, {"end", source_axis + 1}}), source);
+}
+
+template <typename Builder>
+instruction_ref add_symbolic_broadcast(Builder& bldr,
+                                       const instruction_ref& input,
+                                       const std::vector<shape::dynamic_dimension>& input_dds,
+                                       const instruction_ref& other,
+                                       const std::vector<shape::dynamic_dimension>& other_dds,
+                                       const std::vector<shape::dynamic_dimension>& target_dds)
+{
+    assert(not target_dds.empty());
+    std::vector<instruction_ref> runtime_dims;
+    auto axes = range(target_dds.size());
+    std::transform(axes.begin(), axes.end(), std::back_inserter(runtime_dims), [&](auto axis) {
+        auto result = add_matching_dimension(bldr, input, input_dds, target_dds, axis);
+        if(not result.has_value())
+            result = add_matching_dimension(bldr, other, other_dds, target_dds, axis);
+        if(not result.has_value())
+            MIGRAPHX_THROW("BROADCAST_DIMENSIONS: target dimension " +
+                           to_string(target_dds.at(axis)) + " at axis " + std::to_string(axis) +
+                           " has no runtime source");
+        return *result;
+    });
+    auto dims = runtime_dims.front();
+    if(runtime_dims.size() > 1)
+        dims = bldr.add_instruction(make_op("concat", {{"axis", 0}}), runtime_dims);
+    return bldr.add_instruction(
+        make_op("broadcast_with_dims", {{"out_dyn_dims", to_value(target_dds)}}), input, dims);
+}
+
+template <typename Builder>
+void broadcast_dimensions_symbolic(Builder& bldr,
+                                   const instruction_ref& a0,
+                                   const instruction_ref& a1,
+                                   instruction_ref& ba0,
+                                   instruction_ref& ba1)
+{
+    auto s0_dds = a0->get_shape().to_symbolic().dyn_dims();
+    auto s1_dds = a1->get_shape().to_symbolic().dyn_dims();
+
+    // broadcast if dimensions other than last two do not match
+    if(std::equal(s0_dds.rbegin() + 2, s0_dds.rend(), s1_dds.rbegin() + 2, s1_dds.rend()))
+        return;
+
+    auto l0_it = s0_dds.begin() + s0_dds.size() - 2;
+    std::vector<shape::dynamic_dimension> l0_dds(s0_dds.begin(), l0_it);
+    auto l1_it = s1_dds.begin() + s1_dds.size() - 2;
+    std::vector<shape::dynamic_dimension> l1_dds(s1_dds.begin(), l1_it);
+    auto out_dds = compute_broadcasted_dyn_dims(l0_dds, l1_dds);
+    l0_dds       = out_dds;
+    l0_dds.insert(l0_dds.end(), l0_it, s0_dds.end());
+    l1_dds = out_dds;
+    l1_dds.insert(l1_dds.end(), l1_it, s1_dds.end());
+
+    if(s0_dds != l0_dds)
+        ba0 = add_symbolic_broadcast(bldr, a0, s0_dds, a1, s1_dds, l0_dds);
+    if(s1_dds != l1_dds)
+        ba1 = add_symbolic_broadcast(bldr, a1, s1_dds, a0, s0_dds, l1_dds);
+}
+
+} // namespace detail
+
+template <typename Builder>
+void broadcast_dimensions(Builder& bldr,
+                          const instruction_ref& a0,
+                          const instruction_ref& a1,
+                          instruction_ref& ba0,
+                          instruction_ref& ba1)
+{
+    assert(a0->get_shape().ndim() >= 2 and a1->get_shape().ndim() >= 2);
+    auto args         = {a0, a1};
+    bool any_symbolic = std::any_of(
+        args.begin(), args.end(), [](const auto& a) { return a->get_shape().symbolic(); });
+    bool any_range   = std::any_of(args.begin(), args.end(), [](const auto& a) {
+        return a->get_shape().dynamic() and not a->get_shape().symbolic();
+    });
+    bool any_dynamic = std::any_of(
+        args.begin(), args.end(), [](const auto& a) { return a->get_shape().dynamic(); });
+    if(any_symbolic and not any_range)
+    {
+        detail::broadcast_dimensions_symbolic(bldr, a0, a1, ba0, ba1);
+    }
+    else if(any_dynamic)
+    {
+        detail::broadcast_dimensions_dynamic(bldr, a0, a1, ba0, ba1);
+    }
+    else
+    {
+        detail::broadcast_dimensions_static(bldr, a0, a1, ba0, ba1);
+    }
+}
+
+} // namespace builder
+} // namespace op
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

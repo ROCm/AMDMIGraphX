@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,12 +25,13 @@
 #define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/filesystem.hpp>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
 namespace gpu {
 
@@ -40,8 +41,12 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
 {
     context* ctx         = nullptr;
     bool exhaustive_tune = false;
+    bool skip_benchmark  = false;
+    /// Save each benchmark candidate here as an MXR file and exit instead of compiling; empty
+    /// compiles normally.
+    fs::path dump_mxr_dir = {};
     std::string name() const { return "gpu::compile_ops"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,17 +24,24 @@
 
 #include <migraphx/literal.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/fuse_pointwise.hpp>
+#include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/serialize.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::optimize_module{}}); }
+static void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::optimize_module{}});
+}
 
 TEST_CASE(broadcast_transpose_inner_broadcast)
 {
@@ -86,9 +93,9 @@ TEST_CASE(broadcast_transpose_inner_broadcast_generic)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x         = m2.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
-        auto y         = m2.add_parameter("y", {migraphx::shape::float_type, {5}});
-        auto yb        = m2.add_instruction(
+        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
+        auto y  = m2.add_parameter("y", {migraphx::shape::float_type, {5}});
+        auto yb = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {5, 10}}}), y);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), x, yb);
         auto mb2 = m2.add_instruction(
@@ -139,25 +146,23 @@ TEST_CASE(mul_add_transpose_dot)
     migraphx::literal lit23;
     migraphx::module lit_mod;
     {
-        auto lit1_ins  = lit_mod.add_literal(lit1);
-        auto lit1_b    = lit_mod.add_instruction(
+        auto lit1_ins = lit_mod.add_literal(lit1);
+        auto lit1_b   = lit_mod.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {64, 64}}}), lit1_ins);
 
         auto lit3_ins = lit_mod.add_literal(lit3);
 
         auto mul_lit   = lit_mod.add_instruction(migraphx::make_op("mul"), lit1_b, lit3_ins);
         auto lit13_arg = mul_lit->eval();
-        lit13          = migraphx::literal(lit13_arg.get_shape(), lit13_arg.data());
+        lit13 = migraphx::literal::from_raw_buffer(lit13_arg.get_shape(), lit13_arg.data());
 
         auto lit2_ins = lit_mod.add_literal(lit2);
         auto lit2_unsq =
             lit_mod.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), lit2_ins);
-        auto lit2_mb = lit_mod.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {4, 64}}}), lit2_unsq);
 
-        auto dot_lit   = lit_mod.add_instruction(migraphx::make_op("dot"), lit2_mb, lit3_ins);
+        auto dot_lit   = lit_mod.add_instruction(migraphx::make_op("dot"), lit2_unsq, lit3_ins);
         auto lit23_arg = dot_lit->eval();
-        lit23          = migraphx::literal(lit23_arg.get_shape(), lit23_arg.data());
+        lit23 = migraphx::literal::from_raw_buffer(lit23_arg.get_shape(), lit23_arg.data());
     }
 
     migraphx::module m2;
@@ -180,6 +185,238 @@ TEST_CASE(mul_add_transpose_dot)
     }
 
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_pw_unary)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq0  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto rel0 = m1.add_instruction(migraphx::make_op("relu"), sq0);
+        auto s1   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sq1  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto rel1 = m1.add_instruction(migraphx::make_op("relu"), sq1);
+        m1.add_return({rel0, rel1});
+    }
+    run_pass(m1);
+
+    // find_split_reshape then merges the two slice+squeeze pairs into a single
+    // reshape followed by slices on the merged axis.
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s);
+        auto relu    = m2.add_instruction(migraphx::make_op("relu"), input);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), relu);
+        auto s0      = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), reshape);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), reshape);
+        m2.add_return({s0, s1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_pw_unary_3d)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3, 2, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq0  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto rel0 = m1.add_instruction(migraphx::make_op("relu"), sq0);
+        auto s1   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sq1  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto rel1 = m1.add_instruction(migraphx::make_op("relu"), sq1);
+        auto s2   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), input);
+        auto sq2  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s2);
+        auto rel2 = m1.add_instruction(migraphx::make_op("relu"), sq2);
+        m1.add_return({rel0, rel1, rel2});
+    }
+    run_pass(m1);
+
+    // find_split_reshape then merges the three slice+squeeze pairs into a single
+    // reshape followed by slices on the merged axis.
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s);
+        auto relu    = m2.add_instruction(migraphx::make_op("relu"), input);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), relu);
+        auto s0      = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), reshape);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), reshape);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {6}}}), reshape);
+        m2.add_return({s0, s1, s2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_pw_binary_const)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape bs{migraphx::shape::float_type, {4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto b0    = m1.add_literal(migraphx::generate_literal(bs, 0));
+        auto b1    = m1.add_literal(migraphx::generate_literal(bs, 1));
+
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq0  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto add0 = m1.add_instruction(migraphx::make_op("add"), sq0, b0);
+
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sq1  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), sq1, b1);
+
+        m1.add_return({add0, add1});
+    }
+    run_pass(m1);
+
+    // propagate_constant folds unsqueeze+concat of literals into one literal
+    migraphx::literal stacked_lit;
+    {
+        migraphx::module tmp;
+        auto b0     = tmp.add_literal(migraphx::generate_literal(bs, 0));
+        auto b1     = tmp.add_literal(migraphx::generate_literal(bs, 1));
+        auto bu0    = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b0);
+        auto bu1    = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b1);
+        auto cat    = tmp.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), bu0, bu1);
+        auto ev     = cat->eval();
+        stacked_lit = migraphx::literal::from_raw_buffer(ev.get_shape(), ev.data());
+    }
+
+    // find_split_reshape then merges the two slice+squeeze pairs into a single
+    // reshape followed by slices on the merged axis.
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s);
+        auto stacked = m2.add_literal(stacked_lit);
+        auto add     = m2.add_instruction(migraphx::make_op("add"), input, stacked);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), add);
+
+        auto s0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), reshape);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), reshape);
+
+        m2.add_return({s0, s1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+TEST_CASE(slice_squeeze_non_zero_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3, 2, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq0  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), s0);
+        auto rel0 = m1.add_instruction(migraphx::make_op("relu"), sq0);
+        auto s1   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sq1  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), s1);
+        auto rel1 = m1.add_instruction(migraphx::make_op("relu"), sq1);
+        m1.add_return({rel0, rel1});
+    }
+    run_pass(m1);
+    // find_split_reshape then merges the two slice+squeeze pairs into a single
+    // reshape followed by slices on the merged (non-zero) axis.
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s);
+        auto relu    = m2.add_instruction(migraphx::make_op("relu"), input);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 8}}}), relu);
+        auto s0      = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), reshape);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), reshape);
+        m2.add_return({s0, s1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// End-to-end guard for the MLP prediction-tower SiLU pattern.
+//
+// This mirrors the GPU compile ordering around optimize_module:
+//   * fuse_pointwise collapses each per-slice SiLU (sigmoid * x) into a single
+//     pointwise op,
+//   * optimize_module (via find_splits) hoists that pointwise above the sibling
+//     slices that exactly tile a common tensor, and
+//   * fuse_horizontal batches the parallel constant-weight dots into one GEMM.
+//
+// All three reductions must occur.  This captures regressions like
+// dot_horizontal_fusion becoming unregistered in fuse_horizontal, which
+// silently stops the tower dots from batching.
+TEST_CASE(mlp_tower_silu_pipeline_end_to_end)
+{
+    migraphx::program p;
+    {
+        auto* m = p.get_main_module();
+        std::vector<migraphx::instruction_ref> outs;
+
+        // SiLU hoist target: sigmoid * x replicated over sibling row slices that
+        // exactly tile a common tensor.
+        auto t = m->add_parameter("t", {migraphx::shape::float_type, {4, 8}});
+        for(int i = 0; i < 4; ++i)
+        {
+            auto s = m->add_instruction(
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), t);
+            auto sig = m->add_instruction(migraphx::make_op("sigmoid"), s);
+            outs.push_back(m->add_instruction(migraphx::make_op("mul"), s, sig));
+        }
+
+        // Dot-batch target: parallel constant-weight dots with identical shapes.
+        for(int i = 0; i < 3; ++i)
+        {
+            auto x =
+                m->add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 3}});
+            auto w = m->add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {3, 5}}, i));
+            outs.push_back(m->add_instruction(migraphx::make_op("dot"), x, w));
+        }
+
+        m->add_return(outs);
+    }
+
+    migraphx::run_passes(p,
+                         {migraphx::fuse_pointwise{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::optimize_module{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::fuse_horizontal{},
+                          migraphx::dead_code_elimination{}});
+
+    std::size_t n_dot       = 0;
+    std::size_t n_pointwise = 0;
+    for(auto ins : migraphx::iterator_for(*p.get_main_module()))
+    {
+        const auto& name = ins->name();
+        if(name == "dot")
+            ++n_dot;
+        else if(name == "pointwise")
+            ++n_pointwise;
+    }
+
+    // dot_horizontal_fusion collapses the 3 parallel dots into one batched GEMM.
+    EXPECT(n_dot == 1);
+    // fuse_pointwise turns each per-slice SiLU into one pointwise op, which the
+    // find_splits hoist inside optimize_module then collapses into a single
+    // pointwise on the bounding slice.
+    EXPECT(n_pointwise == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,10 +31,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void insert_convert_to_supported_type(module& m,
-                                      instruction_ref ins,
-                                      migraphx::shape::type_t target_type,
-                                      std::set<migraphx::shape::type_t> unsupported_types)
+static void insert_convert_to_supported_type(module& m,
+                                             instruction_ref ins,
+                                             migraphx::shape::type_t target_type,
+                                             std::set<migraphx::shape::type_t> unsupported_types)
 {
     migraphx::shape::type_t orig_type   = ins->get_shape().type();
     std::vector<instruction_ref> inputs = ins->inputs();
@@ -99,7 +99,12 @@ void insert_convert_to_supported_type(module& m,
 
 void eliminate_data_type::apply(module& m) const
 {
-    static const std::vector<std::string> skip_op_names = {"convert",
+    static const std::vector<std::string> skip_op_names = {"addressof",
+                                                           "convert",
+                                                           "deref",
+                                                           "dyn_slice",
+                                                           "eval_expr_from_shape",
+                                                           "fixed_pad",
                                                            "get_tuple_elem",
                                                            "if",
                                                            "loop",
@@ -108,7 +113,10 @@ void eliminate_data_type::apply(module& m) const
                                                            "scatternd_add",
                                                            "scatternd_mul",
                                                            "scatternd_none",
-                                                           "select_module"};
+                                                           "select_module",
+                                                           "select_module_index",
+                                                           // operates only on int8/uint8 bytes
+                                                           "unpack_int4"};
     if(unsupported_types.empty())
         return;
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,12 +22,18 @@
  * THE SOFTWARE.
  */
 
+#include <algorithm>
 #include <iterator>
+#include <unordered_set>
+#include <vector>
 #include <migraphx/builtin.hpp>
+#include <migraphx/errors.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
@@ -41,6 +47,18 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP_TO_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP);
 
+void validate_pointwise_module(const module& m)
+{
+    auto invalid_ins = std::find_if(m.begin(), m.end(), [](const auto& ins) {
+        const auto& name = ins.name();
+        return not contains({"@literal", "@param", "@return"}, name) and
+               not ins.get_operator().attributes().get("pointwise", false);
+    });
+    if(invalid_ins != m.end())
+        MIGRAPHX_THROW("Pointwise module contains non-pointwise instruction: " +
+                       invalid_ins->name());
+}
+
 static module create_pointwise_module(module_ref in_mod)
 {
     module pw_mod;
@@ -51,21 +69,118 @@ static module create_pointwise_module(module_ref in_mod)
             pw_mod.add_parameter(any_cast<builtin::param>(param->get_operator()).parameter,
                                  shape{param->get_shape().type()});
     }
-    auto return_args = pw_mod.add_instructions(
-        in_mod,
-        &map_ins,
-        [](module& m,
-           instruction_ref ins,
-           const operation& op,
-           const std::vector<instruction_ref>& inputs,
-           const std::vector<module_ref>& mod_args) -> instruction_ref {
-            if(op.name() == "multibroadcast" and inputs.front()->name() == "@literal")
-                return inputs.front();
-            else
-                return m.insert_instruction(ins, op, inputs, mod_args);
-        });
+    auto return_args =
+        pw_mod.add_instructions(in_mod,
+                                &map_ins,
+                                [](module& m,
+                                   instruction_ref ins,
+                                   const operation& op,
+                                   const std::vector<instruction_ref>& inputs,
+                                   const std::vector<module_ref>& mod_args) -> instruction_ref {
+                                    auto out_aliases = op.output_alias(to_shapes(inputs));
+                                    if(out_aliases.size() == 1)
+                                        return inputs.at(out_aliases[0]);
+                                    else
+                                        return m.insert_instruction(ins, op, inputs, mod_args);
+                                });
     pw_mod.add_return(return_args);
     return pw_mod;
+}
+
+static code_object_op
+compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_ref mod)
+{
+    // Validate before create_pointwise_module removes aliasing shape operations.
+    validate_pointwise_module(*mod);
+    operation cop;
+    auto pw_mod = create_pointwise_module(mod);
+    if(any_of(mod->get_parameters(), [&](instruction_ref param) {
+           if(param->outputs().size() != 1)
+               return false;
+           return equal(instruction::get_output_alias(param->outputs().front(), /* shallow */ true),
+                        {param});
+       }))
+    {
+        auto mod2 = *mod;
+        adjust_param_shapes(mod2, inputs);
+        auto names = mod2.get_parameter_names();
+        std::sort(names.begin(), names.end());
+        std::vector<shape> new_shapes;
+        std::transform(names.begin(),
+                       names.end(),
+                       std::back_inserter(new_shapes),
+                       [&](const std::string& name) {
+                           auto param       = mod2.get_parameter(name);
+                           auto output_path = get_output_path(param);
+                           auto it          = std::adjacent_find(
+                               output_path.begin(),
+                               output_path.end(),
+                               [&](instruction_ref, instruction_ref output) {
+                                   return not equal(instruction::get_output_alias(output), {param});
+                               });
+                           return (*it)->get_shape();
+                       });
+        std::copy(inputs.begin() + new_shapes.size(), inputs.end(), std::back_inserter(new_shapes));
+        cop = compile_pointwise(ctx, new_shapes, &pw_mod);
+    }
+    else
+    {
+        cop = compile_pointwise(ctx, inputs, &pw_mod);
+    }
+    auto co            = any_cast<code_object_op>(cop);
+    co.expected_inputs = inputs;
+    return co;
+}
+
+static bool is_closed_split(instruction_ref output)
+{
+    std::unordered_set<instruction_ref> inputs;
+    fix<bool>([&](auto self, instruction_ref ins) -> bool {
+        if(not inputs.insert(ins).second)
+            return true;
+        return std::all_of(ins->inputs().begin(), ins->inputs().end(), self);
+    })(output);
+    return std::all_of(inputs.begin(), inputs.end(), [&](instruction_ref ins) {
+        if(ins == output or ins->name() == "@param")
+            return true;
+        return std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref out) {
+            return contains(inputs, out);
+        });
+    });
+}
+
+instruction_ref find_final_split(instruction_ref split_ins)
+{
+    auto output_path_range = get_output_path(split_ins);
+    std::vector<instruction_ref> output_path(output_path_range.begin(), output_path_range.end());
+    if(output_path.empty())
+        MIGRAPHX_THROW("find_final_split: empty output path for instruction: " + split_ins->name());
+    if(not is_closed_split(split_ins))
+        MIGRAPHX_THROW("find_final_split: no safe split boundary for instruction: " +
+                       split_ins->name());
+    instruction_ref result = split_ins;
+    if(output_path.size() < 2)
+        return result;
+    auto it = std::adjacent_find(
+        output_path.begin(), output_path.end(), [&](instruction_ref input, instruction_ref output) {
+            if(not is_closed_split(output))
+                return true;
+            if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
+                return false;
+            if(contains({"add", "mul"}, output->name()))
+            {
+                auto aux = *std::find_if(output->inputs().begin(),
+                                         output->inputs().end(),
+                                         [&](instruction_ref i) { return i != input; });
+                if(aux->can_eval())
+                    return false;
+                auto aliases = instruction::get_output_alias(aux);
+                return aliases.size() == 1 and aliases[0]->name() != "@param";
+            }
+            return true;
+        });
+    result = (it == output_path.end()) ? output_path.back() : *it;
+    return result;
 }
 
 struct mlir_compiler : compiler<mlir_compiler>
@@ -73,6 +188,64 @@ struct mlir_compiler : compiler<mlir_compiler>
     std::vector<std::string> names() const { return {"gpu::mlir_op"}; }
 
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
+    std::optional<instruction_ref> input_is_param(const instruction_ref& ins) const
+    {
+        auto aliases = instruction::get_output_alias(ins);
+        for(auto cur : aliases)
+        {
+            while(contains({"reshape", "contiguous"}, cur->name()))
+            {
+                auto nested_aliases = instruction::get_output_alias(cur->inputs().at(0));
+                cur                 = nested_aliases.front();
+            }
+            if(cur->name() == "@param")
+            {
+                return cur;
+            }
+        }
+        return nullopt;
+    }
+
+    bool is_range_literal(const instruction_ref& ins) const
+    {
+        auto lit_elms = ins->get_shape().element_space();
+        if(not ins->can_eval() or lit_elms < 2)
+        {
+            return false;
+        }
+        bool is_range = false;
+        ins->eval().visit([&](auto l) {
+            is_range = std::adjacent_find(l.begin(), l.begin() + lit_elms, [](auto cur, auto next) {
+                           return not float_equal(next - cur, 1.0);
+                       }) == l.begin() + lit_elms;
+        });
+        return is_range;
+    }
+
+    void set_fill_map(compiler_replace& cr, const module& m) const
+    {
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() != "greater")
+            {
+                continue;
+            }
+            auto fill_val      = ins->get_shape().lens().back() - 1;
+            bool has_range_lit = std::any_of(ins->inputs().begin(),
+                                             ins->inputs().end(),
+                                             [&](auto inp) { return is_range_literal(inp); });
+            for(auto inp : ins->inputs())
+            {
+                auto param = input_is_param(inp);
+                if(param.has_value() and has_range_lit)
+                {
+                    auto id = param.value()->get_shape().type_string() +
+                              migraphx::shape::to_sizes_string({param.value()->get_shape()});
+                    cr.code.fill_map[id] = static_cast<double>(fill_val);
+                }
+            }
+        }
+    }
 
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
@@ -94,30 +267,34 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto input_args = ins->inputs();
             // remove alloc buffer
             input_args.pop_back();
-            auto split_ins = std::prev(pointwise_ins);
-            std::array<module_with_inputs, 2> mod_splits;
-            mod_splits           = smod->split(input_args, {split_ins});
-            auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
+            auto split_ins                               = find_final_split(gemm_like_ins);
+            std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
+            auto dot_mlir_inputs                         = to_shapes(mod_splits[0].inputs);
             // add alloc for the gemm output
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
             auto pw_shapes        = to_shapes(mod_splits[1].inputs);
-            if(mod_splits[1].mod.get_output_shapes().size() == 1)
-            {
-                pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
-            }
-            else
-            {
-                pw_shapes.push_back(shape{mod_splits[1].mod.get_output_shapes()});
-            }
-            assert(pw_shapes.back() == ins->get_shape());
-            auto pw_mod                        = create_pointwise_module(&mod_splits[1].mod);
-            auto cop2                          = compile_pointwise(ctx, pw_shapes, &pw_mod);
-            std::vector<mlir_code_object> cops = {cop1,
-                                                  mlir_code_object{any_cast<code_object_op>(cop2)}};
+            pw_shapes.push_back(ins->get_shape());
+            auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
+            std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
             return insert(cops, mod_splits, ins, split_ins);
         }
-        return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
+        auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
+        set_fill_map(cr, *smod);
+        return cr;
+    }
+
+    std::string compile_key(const context& ctx,
+                            instruction_ref ins,
+                            const operation&,
+                            const value& solution) const
+    {
+        // The split into separate gemm and pointwise kernels is decided from the submodule, the
+        // context and the solution, so a key built from the unsplit submodule already
+        // distinguishes the split and unsplit forms.
+        assert(not ins->module_inputs().empty());
+        auto* smod = ins->module_inputs().front();
+        return mlir_compile_key(ctx, *smod, to_shapes(ins->inputs()), solution);
     }
 
     compiler_replace insert(const mlir_code_object& mco) const

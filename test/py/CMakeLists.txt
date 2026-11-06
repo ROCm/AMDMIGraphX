@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,10 @@ set(PYTHON_VERSION_TO_DISABLE_ONNX 3.6)
 option(MIGRAPHX_DISABLE_VIRTUAL_ENV "Disable python virtual environments" OFF)
 option(MIGRAPHX_DISABLE_ONNX_TESTS "Disable Onnx backend tests" OFF)
 
+if(NOT MIGRAPHX_ENABLE_ONNX AND NOT MIGRAPHX_DISABLE_ONNX_TESTS)
+    message(NOTICE "ONNX frontend disabled, hence turning off building the tests")
+    set(MIGRAPHX_DISABLE_ONNX_TESTS ON CACHE BOOL "" FORCE)
+endif()
 
 function(add_py_venv_fixture FIXTURE_NAME VIRTUAL_ENV_DIR REQUIREMENTS_FILE)
     foreach(PYTHON_VERSION ${PYTHON_VERSIONS})
@@ -101,9 +105,15 @@ add_py_test(ref test_cpu.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(save_load test_save_load.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(op test_op.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(shape test_shape.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(symbolic_shape test_symbolic_shape.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(module_construct test_module_construct.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(macro test_macro.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(literal test_literal.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(autocast_fp8 test_autocast_fp8.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(compile_modes test_compile_modes.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(program_verify test_program_verify.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(logger test_logger.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(debug_symbols test_debug_symbols.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 if(MIGRAPHX_ENABLE_GPU)
 add_py_test(gpu_offload test_gpu_offload.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(gpu test_gpu.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})

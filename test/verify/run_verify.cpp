@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,8 +32,8 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/verify_args.hpp>
-#include <set>
 
+#include <set>
 #include <future>
 #include <thread>
 #include <utility>
@@ -44,7 +44,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DUMP_TEST)
 
 // An improved async, that doesn't block
 template <class Function>
-std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool parallel = true)
+static std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool parallel = true)
 {
     if(parallel)
     {
@@ -57,7 +57,7 @@ std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool para
     return std::async(std::launch::deferred, std::forward<Function>(f));
 }
 
-inline void verify_load_save(const migraphx::program& p)
+inline static void verify_load_save(const migraphx::program& p)
 {
     migraphx::tmp_dir td{"migraphx_test"};
     auto path = td.path / "test.mxr";
@@ -66,10 +66,10 @@ inline void verify_load_save(const migraphx::program& p)
     EXPECT(p == loaded);
 }
 
-inline void compile_check(migraphx::program& p,
-                          const migraphx::target& t,
-                          migraphx::compile_options c_opts,
-                          bool show_trace = false)
+inline static void compile_check(migraphx::program& p,
+                                 const migraphx::target& t,
+                                 migraphx::compile_options c_opts,
+                                 bool show_trace = false)
 {
     auto name   = t.name();
     auto shapes = p.get_output_shapes();
@@ -91,14 +91,12 @@ inline void compile_check(migraphx::program& p,
         // for static output shapes check that the intial parsed shapes are
         // the same as the ones after compiling
         // no check for dynamic shapes because the shapes can change after compiling
-        if(not output_shape.dynamic() and not shapes[i].dynamic())
+        if(not output_shape.dynamic() and not shapes[i].dynamic() and
+           output_shape.lens() != shapes[i].lens())
         {
-            if(output_shape.lens() != shapes[i].lens())
-            {
-                std::cout << ss.str() << std::endl;
-                throw std::runtime_error("Compiling program with " + name +
-                                         " alters its static output dimensions");
-            }
+            std::cout << ss.str() << std::endl;
+            throw std::runtime_error("Compiling program with " + name +
+                                     " alters its static output dimensions");
         }
     }
     if(t.name() != "ref")
@@ -125,14 +123,14 @@ void run_verify::validate(const migraphx::target& t,
 
 std::pair<migraphx::program, std::vector<migraphx::argument>>
 run_verify::run_ref(migraphx::program p,
-                    migraphx::parameter_map inputs,
+                    const migraphx::parameter_map& inputs,
                     const migraphx::compile_options& c_opts) const
 {
     migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, c_opts, (trace_target == "ref"));
-    return std::make_pair(std::move(p), p.eval(std::move(inputs)));
+    return std::make_pair(std::move(p), p.eval(inputs));
 }
 
 std::pair<migraphx::program, std::vector<migraphx::argument>>
@@ -141,7 +139,7 @@ run_verify::run_target(const migraphx::target& t,
                        const migraphx::parameter_map& inputs,
                        const migraphx::compile_options& c_opts) const
 {
-    auto_print pp{p, t.name()};
+    auto_print pp{p, auto_print::make_name(t.name(), c_opts.compile_mode)};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, c_opts, (trace_target == t.name()));
     migraphx::parameter_map m;
@@ -168,7 +166,7 @@ run_verify::run_target(const migraphx::target& t,
 }
 
 template <class T>
-auto get_hash(const T& x)
+static auto get_hash(const T& x)
 {
     return std::hash<T>{}(x);
 }
@@ -205,23 +203,30 @@ void run_verify::verify(const program_info& pi) const
         {
             if(x.second.dynamic())
             {
-                // create static shape using maximum dimensions
-                migraphx::shape static_shape{x.second.type(), x.second.max_lens()};
-                m[x.first] = migraphx::generate_argument(static_shape, get_hash(x.first));
+                auto static_shape = contains(pi.test_dims, x.first)
+                                        ? pi.test_dims.at(x.first)
+                                        : migraphx::shape{x.second.type(), x.second.max_lens()};
+                m[x.first]        = migraphx::generate_argument(static_shape, get_hash(x.first));
             }
             else
             {
                 m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
             }
         }
-        const migraphx::compile_options c_opts = pi.compile_options;
+        const migraphx::compile_options& c_opts = pi.compile_options;
         auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);
             auto t         = migraphx::make_target(tname);
-            results.emplace_back(
-                tname, detach_async([=] { return run_target(t, p, m, c_opts); }, ti.parallel));
+            for(auto mode : ti.compile_modes)
+            {
+                migraphx::compile_options mode_opts = c_opts;
+                mode_opts.compile_mode              = mode;
+                results.emplace_back(
+                    auto_print::make_name(tname, mode),
+                    detach_async([=] { return run_target(t, p, m, mode_opts); }, ti.parallel));
+            }
         }
 
         assert(ref_f.valid());
@@ -284,4 +289,10 @@ void run_verify::disable_test_for(const std::string& name, const std::vector<std
 {
     auto& disabled_tests = info[name].disabled_tests;
     disabled_tests.insert(disabled_tests.end(), tests.begin(), tests.end());
+}
+
+void run_verify::set_compile_modes_for(const std::string& name,
+                                       const std::vector<migraphx::compile_modes>& modes)
+{
+    info[name].compile_modes = modes;
 }

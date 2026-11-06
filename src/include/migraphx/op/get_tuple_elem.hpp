@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,12 +62,10 @@ struct get_tuple_elem
     argument compute(const shape&, std::vector<argument> args) const
     {
         assert(args.size() == 1);
-        auto vec_args = args.at(0).get_sub_objects();
-        assert(index < vec_args.size());
-        return vec_args.at(index);
+        return args.at(0).get_sub_object(index);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 } // namespace op

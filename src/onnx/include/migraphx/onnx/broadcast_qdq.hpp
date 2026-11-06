@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,7 +42,8 @@ instruction_ref bcast_qdq_instr(const std::string& op_name,
                                 instruction_ref x_in,
                                 instruction_ref arg_fscale,
                                 instruction_ref arg_z_pt,
-                                const onnx_parser::node_info& info);
+                                const onnx_parser::node_info& info,
+                                int axis = 0);
 
 // Multibroadcast a scaler..
 instruction_ref bcast_scalar_instr(const migraphx::shape& shape_out,

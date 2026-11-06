@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,8 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
 
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/config.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -32,9 +33,22 @@ struct module;
 
 namespace gpu {
 
+// Places literals in GPU memory. When they do not fit in max_memory (free GPU memory by default),
+// literals that only feed index-selected kernel inputs are left in host memory for the kernel to
+// read directly, and the rest are staged through scratch (see staging_peak_percent).
 struct MIGRAPHX_GPU_EXPORT write_literals
 {
-    context* ctx = nullptr;
+    std::size_t max_memory = 0;
+    // Percentage to pad the scratch-memory estimate by. Memory coloring is NP-hard and the
+    // liveness-based estimate is incomplete without the scheduler, so the estimate is inflated to
+    // avoid exceeding max_memory after compilation. A staged literal copy adds only what it raises
+    // the unpadded peak by.
+    std::size_t scratch_overhead_percent = 50;
+    // Size cap, as a percentage of the memory shortfall, up to which literals are staged through
+    // scratch largest-first (fewest copies); the scratch the staged copies occupy while live frees
+    // nothing net, so this bounds that waste. Larger literals are staged smallest-first, and only
+    // when still needed.
+    std::size_t staging_peak_percent = 5;
     std::string name() const { return "gpu::write_literals"; }
 
     void apply(module& m) const;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,9 +25,12 @@
 #define MIGRAPHX_GUARD_RTGLIB_ARGUMENT_PARSER_HPP
 
 #include <algorithm>
+#include <fstream>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <list>
+#include <optional>
 #include <set>
 #include <string>
 #include <sstream>
@@ -38,6 +41,7 @@
 #include <vector>
 
 #include <migraphx/config.hpp>
+#include <migraphx/color.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/functional.hpp>
@@ -46,10 +50,9 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/rank.hpp>
-
-#ifndef _WIN32
-#include <unistd.h>
-#endif
+#include <migraphx/json.hpp>
+#include <migraphx/convert_to_json.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 namespace driver {
@@ -75,48 +78,15 @@ std::false_type is_container(float, T&&);
 } // namespace detail
 
 template <class T>
-struct is_container : decltype(detail::is_container(int(0), std::declval<T>()))
-{
-};
+struct is_container : decltype(detail::is_container(0, std::declval<T>())){};
 
 template <class T>
 using is_multi_value =
     std::integral_constant<bool, (is_container<T>{} and not std::is_convertible<T, std::string>{})>;
 
-enum class color
-{
-    reset      = 0,
-    bold       = 1,
-    underlined = 4,
-    fg_red     = 31,
-    fg_green   = 32,
-    fg_yellow  = 33,
-    fg_blue    = 34,
-    fg_default = 39,
-    bg_red     = 41,
-    bg_green   = 42,
-    bg_yellow  = 43,
-    bg_blue    = 44,
-    bg_default = 49
-};
-inline std::ostream& operator<<(std::ostream& os, const color& c)
-{
-#ifndef _WIN32
-    static const bool use_color = isatty(STDOUT_FILENO) != 0;
-    if(use_color)
-        return os << "\033[" << static_cast<std::size_t>(c) << "m";
-#else
-    (void)c;
-#endif
-    return os;
-}
-
-inline std::string colorize(color c, const std::string& s)
-{
-    std::stringstream ss;
-    ss << c << s << color::reset;
-    return ss.str();
-}
+// Use color utilities from migraphx::color
+using migraphx::color;
+using migraphx::colorize;
 
 template <class T>
 struct type_name
@@ -263,7 +233,7 @@ struct argument_parser
     }
 
     template <class T, class... Fs>
-    void operator()(T& x, const std::vector<std::string>& flags, Fs... fs)
+    void operator()(T& x, const std::vector<std::string>& flags, const Fs&... fs)
     {
         arguments.push_back({flags, [&](auto&&, const std::vector<std::string>& params) {
                                  if(params.empty())
@@ -276,20 +246,20 @@ struct argument_parser
 
         argument& arg = arguments.back();
         arg.type      = type_name<T>::apply();
-        migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
+        migraphx::each_args([&](const auto& f) { f(x, arg); }, fs...);
         if(not arg.default_value.empty() and arg.nargs > 0)
             arg.default_value = as_string_value(x);
     }
 
     template <class... Fs>
-    void operator()(std::nullptr_t x, std::vector<std::string> flags, Fs... fs)
+    void operator()(std::nullptr_t x, std::vector<std::string> flags, const Fs&... fs)
     {
         arguments.push_back({std::move(flags)});
 
         argument& arg = arguments.back();
         arg.type      = "";
         arg.nargs     = 0;
-        migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
+        migraphx::each_args([&](const auto& f) { f(x, arg); }, fs...);
     }
 
     MIGRAPHX_DRIVER_STATIC auto nargs(unsigned n = 1)
@@ -314,7 +284,7 @@ struct argument_parser
     }
 
     template <class F>
-    MIGRAPHX_DRIVER_STATIC auto do_action(F f)
+    MIGRAPHX_DRIVER_STATIC auto do_action(const F& f)
     {
         return [=](auto&, auto& arg) {
             arg.nargs  = 0;
@@ -332,12 +302,12 @@ struct argument_parser
             std::transform(params.begin(),
                            params.end(),
                            std::inserter(x, x.end()),
-                           [](std::string y) { return value_parser<type>::apply(y); });
+                           [](const std::string& y) { return value_parser<type>::apply(y); });
         });
     }
 
     template <class F>
-    MIGRAPHX_DRIVER_STATIC auto validate(F f)
+    MIGRAPHX_DRIVER_STATIC auto validate(const F& f)
     {
         return [=](const auto& x, auto& arg) {
             arg.validations.push_back(
@@ -433,9 +403,9 @@ struct argument_parser
             argument* input_argument =
                 self.find_argument([](const auto& arg) { return arg.flags.empty(); });
             auto required_usages = get_argument_usages(get_required_arguments());
-            if(required_usages.empty() && input_argument)
+            if(required_usages.empty() and input_argument)
                 required_usages.push_back(input_argument->metavar);
-            required_usages.insert(required_usages.begin(), "<options>");
+            required_usages.push_back("<options>");
             print_usage(required_usages);
             std::cout << std::endl;
             if(self.find_argument([](const auto& arg) { return arg.nargs == 0; }))
@@ -549,6 +519,18 @@ struct argument_parser
         actions.push_back([&](const auto& self) { x = self.exe_name; });
     }
 
+    // Register the generic `--json-config` option.
+    // Values passed on the command line take precedence over the config file.
+    void add_json_config_option()
+    {
+        (*this)(config_file,
+                {"--json-config"},
+                help("Set option values from a JSON config file. Each key is an option flag "
+                     "(with or without leading dashes) and its value sets that option. Boolean "
+                     "flags are toggled with true/false, list options take JSON arrays. Values "
+                     "passed on the command line take precedence."));
+    }
+
     void print_try_help()
     {
         if(has_argument([](const auto& a) { return contains(a.flags, "--help"); }))
@@ -645,7 +627,7 @@ struct argument_parser
         return true;
     }
 
-    bool parse(std::vector<std::string> args)
+    bool parse(const std::vector<std::string>& args)
     {
         std::unordered_map<std::string, unsigned> keywords;
         for(auto&& arg : arguments)
@@ -653,8 +635,9 @@ struct argument_parser
             for(auto&& flag : arg.flags)
                 keywords[flag] = arg.nargs + 1;
         }
-        auto arg_map =
-            generic_parse(std::move(args), [&](const std::string& x) { return keywords[x]; });
+        auto arg_map = generic_parse(args, [&](const std::string& x) { return keywords[x]; });
+        if(arg_map.count("--json-config") > 0 and merge_json_config(arg_map, keywords))
+            return true;
         std::list<const argument*> missing_arguments;
         std::unordered_set<std::string> groups_used;
         for(auto&& arg : arguments)
@@ -704,7 +687,7 @@ struct argument_parser
 
     using string_map = std::unordered_map<std::string, std::vector<std::string>>;
     template <class IsKeyword>
-    static string_map generic_parse(std::vector<std::string> as, IsKeyword is_keyword)
+    static string_map generic_parse(const std::vector<std::string>& as, IsKeyword is_keyword)
     {
         string_map result;
 
@@ -735,7 +718,93 @@ struct argument_parser
         return result;
     }
 
+    template <class F>
+    void post_action(const F& f)
+    {
+        actions.push_back(f);
+    }
+
     private:
+    // Resolve a config key to a registered flag. Accepts the flag as written
+    // (e.g. "--fp16"), or the bare name without leading dashes (e.g. "fp16" or "n").
+    static std::string
+    resolve_config_flag(const std::string& key,
+                        const std::unordered_map<std::string, unsigned>& keywords)
+    {
+        if(keywords.count(key) > 0)
+            return key;
+        if(keywords.count("--" + key) > 0)
+            return "--" + key;
+        if(keywords.count("-" + key) > 0)
+            return "-" + key;
+        throw std::runtime_error("Unknown option in json config: '" + key + "'");
+    }
+
+    // Merge the option values from the file passed via `--json-config` into arg_map.
+    // Options already present on the command line are left untouched (command line wins).
+    // Returns true if an error was reported and parsing should stop.
+    bool merge_json_config(string_map& arg_map,
+                           const std::unordered_map<std::string, unsigned>& keywords)
+    {
+        try
+        {
+            std::unordered_set<std::string> cli_flags;
+            for(auto&& p : arg_map)
+                cli_flags.insert(p.first);
+            const auto& file = arg_map.at("--json-config").back();
+            std::ifstream is(file);
+            if(not is)
+                throw std::runtime_error("Unable to open json config file: " + file);
+            std::string contents((std::istreambuf_iterator<char>(is)),
+                                 std::istreambuf_iterator<char>());
+            auto v = from_json_string(convert_to_json(contents));
+            if(not v.is_object())
+                throw std::runtime_error("JSON config in '" + file +
+                                         "' must be a top-level object.");
+            for(const auto& item : v)
+            {
+                auto flag = resolve_config_flag(item.get_key(), keywords);
+                // Command line takes precedence over the config file.
+                if(cli_flags.count(flag) > 0)
+                    continue;
+                if(item.is_null())
+                    throw std::runtime_error("Null value for '" + item.get_key() +
+                                             "' in json config is not supported.");
+                if(item.is_bool())
+                {
+                    // A bool toggles the flag: present (with no params) when true.
+                    if(item.to<bool>())
+                        arg_map[flag] = {};
+                    else
+                        arg_map.erase(flag);
+                }
+                else if(item.is_array())
+                {
+                    std::vector<std::string> params;
+                    std::transform(item.begin(),
+                                   item.end(),
+                                   std::back_inserter(params),
+                                   [](const auto& e) { return e.template to<std::string>(); });
+                    arg_map[flag] = params;
+                }
+                else
+                {
+                    arg_map[flag] = {item.to<std::string>()};
+                }
+            }
+            return false;
+        }
+        catch(const std::exception& e)
+        {
+            std::cout << color::fg_red << color::bold << "error: " << color::reset;
+            std::cout << "Failed to apply --json-config: " << e.what() << std::endl;
+            std::cout << std::endl;
+            print_try_help();
+            return true;
+        }
+    }
+
+    std::string config_file;
     std::list<argument> arguments;
     std::string exe_name = "";
     std::vector<std::function<void(argument_parser&)>> actions;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -96,7 +96,7 @@ TEST_CASE(run_sigmoid_custom_op)
                    expected_result.end(),
                    expected_result.begin(),
                    [](auto y) { return 1.f / (1.f + std::exp(-y)); });
-    EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
+    EXPECT(result == migraphx::argument(s, expected_result.data()));
 }
 
 extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool);
@@ -133,10 +133,10 @@ struct identity_custom_op final : migraphx::experimental_custom_op_base
         return inputs.back();
     }
 
-    virtual std::vector<size_t> output_alias(migraphx::shapes) const override { return {0, 1}; }
+    virtual std::vector<size_t> output_alias(migraphx::shapes) const override { return {0}; }
 };
 
-TEST_CASE(run_custom_op_with_invalid_output_alias)
+TEST_CASE(run_custom_op_with_output_alias)
 {
     identity_custom_op i_op;
     migraphx::register_experimental_custom_op(i_op);
@@ -147,11 +147,8 @@ TEST_CASE(run_custom_op_with_invalid_output_alias)
     migraphx::shape s{migraphx_shape_float_type, {12}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
-    auto i_ins         = m.add_instruction(migraphx::operation("identity_custom_op"), {x});
-    migraphx_test_private_disable_exception_catch(true);
-    EXPECT(test::throws<std::exception>(
-        [&] { p.compile(migraphx::target("ref")); },
-        "Currently, CustomOps in MIGraphX only supports one output_alias"));
+    m.add_instruction(migraphx::operation("identity_custom_op"), {x});
+    p.compile(migraphx::target("ref"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

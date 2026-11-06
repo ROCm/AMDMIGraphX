@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/onnx/broadcast_qdq.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/stringutils.hpp>
 
@@ -229,7 +230,20 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
 
         // Biases, if any.. : is an optional argument.
         if(args.size() > 8)
-            conv_x_w = add_bias_to_conv(args[8], conv_x_w, info);
+        {
+            const auto& in_b = args[8];
+
+            // the bias scale is x_scale * w_scale
+            auto bias_scale = info.add_common_op("mul", in_scale_x, in_scale_w);
+
+            // dequantize the bias through the op builder so the scale is broadcast to the
+            // bias shape (handles both per-tensor and per-axis weight scales)
+            value options = {{"axis", 0}};
+            auto dquant_bias =
+                op::builder::add("dequantizelinear", *info.mod, {in_b, bias_scale}, options).at(0);
+
+            conv_x_w = add_bias_to_conv(dquant_bias, conv_x_w, info);
+        }
 
         return bcast_qdq_instr("quantizelinear", conv_x_w, in_scale_y, in_zero_pt_y, info);
     }

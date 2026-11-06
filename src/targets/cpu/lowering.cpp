@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,6 +49,7 @@
 #include <migraphx/par_dfor.hpp>
 #include <migraphx/clamp.hpp>
 #include <migraphx/cpu/context.hpp>
+#include <migraphx/cpu/dnnl.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
@@ -64,20 +65,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
-
-template <typename T>
-T zero(const T&)
-{
-    return T(0);
-}
-
-template <class T>
-typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
-    type
-    make_signed(T x)
-{
-    return x;
-}
 
 struct cpu_im2col
 {
@@ -132,9 +119,10 @@ struct cpu_im2col
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
                         auto idx    = iinput + long(koffset) - kdiv2_h;
                         auto jdx    = jinput + long(loffset) - kdiv2_w;
-                        col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
-                                          ? input(0, c, idx, jdx)
-                                          : 0;
+                        col(ldx, p) =
+                            ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
+                                ? input(0, c, idx, jdx)
+                                : 0;
                         p++;
                     });
                 }
@@ -190,25 +178,79 @@ struct cpu_pad
 
     std::string name() const { return "cpu::pad"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+
+    // Calculate reflected index using triangle wave formula
+    static std::size_t reflect_index(int64_t idx, std::size_t size)
+    {
+        if(size <= 1)
+            return 0;
+
+        auto period = size - 1;
+
+        // Handle negative indices by taking absolute value
+        auto shifted = idx < 0 ? static_cast<std::size_t>(-idx) : static_cast<std::size_t>(idx);
+
+        // Triangle wave: oscillates between 0 and period
+        auto mod_val = shifted % (2 * period);
+        return (mod_val <= period) ? mod_val : (2 * period - mod_val);
+    }
+
+    // Map output index to input index for reflect/edge padding
+    std::size_t map_index(int64_t idx, std::size_t dim_size) const
+    {
+        assert(dim_size > 0 and dim_size <= std::numeric_limits<std::int64_t>::max());
+        if(idx >= 0 and idx < static_cast<int64_t>(dim_size))
+            return static_cast<std::size_t>(idx);
+        if(op.mode == op::pad::reflect_pad)
+            return reflect_index(idx, dim_size);
+        // edge padding: clamp to boundary
+        return (idx < 0) ? 0 : dim_size - 1;
+    }
+
+    // NOLINTNEXTLINE
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         assert(output_shape.standard());
         argument result{output_shape};
-        result.visit([&](auto output) {
-            using type = typename decltype(output)::value_type;
-            std::fill(output.begin(), output.end(), pad_clamp<type>(op.value));
-        });
+        auto input_shape = args[0].get_shape();
+        auto input_lens  = input_shape.lens();
+        auto ndim        = input_lens.size();
 
-        visit_all(result, args[0])([&](auto output, auto input) {
-            shape_for_each(input.get_shape(), [&](const auto& idx) {
-                std::vector<std::size_t> new_idx(idx.size());
-                std::transform(
-                    idx.begin(), idx.end(), op.pads.begin(), new_idx.begin(), [](auto i, auto j) {
-                        return i + j;
-                    });
-                output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
+        if(op.mode == op::pad::constant_pad)
+        {
+            // Constant padding: fill with value, then copy input
+            result.visit([&](auto output) {
+                using type = typename decltype(output)::value_type;
+                std::fill(output.begin(), output.end(), pad_clamp<type>(op.value));
             });
-        });
+
+            visit_all(result, args[0])([&](auto output, auto input) {
+                shape_for_each(input_shape, [&](const auto& idx) {
+                    std::vector<std::size_t> new_idx(idx.size());
+                    std::transform(idx.begin(),
+                                   idx.end(),
+                                   op.pads.begin(),
+                                   new_idx.begin(),
+                                   [](auto i, auto j) { return i + j; });
+                    output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
+                });
+            });
+        }
+        else
+        {
+            // Reflect or edge padding: iterate over output and map to input
+            visit_all(result, args[0])([&](auto output, auto input) {
+                shape_for_each(output_shape, [&](const auto& out_idx) {
+                    std::vector<std::size_t> in_idx(ndim);
+                    for(std::size_t d = 0; d < ndim; ++d)
+                    {
+                        auto idx  = static_cast<int64_t>(out_idx[d]) - op.pads[d];
+                        in_idx[d] = map_index(idx, input_lens[d]);
+                    }
+                    output(out_idx.begin(), out_idx.end()) = input(in_idx.begin(), in_idx.end());
+                });
+            });
+        }
 
         return result;
     }
@@ -262,6 +304,17 @@ struct cpu_rnn_var_sl_last_output
 };
 MIGRAPHX_REGISTER_OP(cpu_rnn_var_sl_last_output)
 
+static bool has_dnnl_type(instruction_ref ins)
+{
+    return is_dnnl_supported_type(ins->get_shape().type());
+}
+
+// oneDNN cannot run an op whose output or inputs use a type it lacks (bool, int64, fp8, ...)
+static bool has_dnnl_types(instruction_ref ins, const std::vector<instruction_ref>& inputs)
+{
+    return has_dnnl_type(ins) and std::all_of(inputs.begin(), inputs.end(), &has_dnnl_type);
+}
+
 struct cpu_apply
 {
     module* modl;
@@ -278,6 +331,13 @@ struct cpu_apply
         });
     }
 
+    void extend_dnnl_op(const std::string& op_name, const std::string& dnnl_name)
+    {
+        apply_map.emplace(op_name, [=](instruction_ref ins) {
+            return replace_dnnl(ins, make_op(dnnl_name, ins->get_operator().to_value()));
+        });
+    }
+
     void extend_dnnl_algos(const std::string& dnnl_name,
                            const std::vector<std::pair<std::string, std::string>>& algos)
     {
@@ -291,7 +351,7 @@ struct cpu_apply
                     return ins;
                 v["algo"] = algo;
                 auto op   = make_op(dnnl_name, v);
-                return replace(ins, op);
+                return replace_dnnl(ins, op);
             });
         }
     }
@@ -306,8 +366,7 @@ struct cpu_apply
                            bind_inputs.end(),
                            std::back_inserter(inputs),
                            [&](const auto& s) { return r.instructions[s]; });
-            inputs.push_back(this->insert_allocation(ins, ins->get_shape()));
-            modl->replace_instruction(ins, op, inputs);
+            this->replace_dnnl(ins, op, inputs);
         });
     }
 
@@ -340,21 +399,19 @@ struct cpu_apply
                               {"reduce_min", "reduction_min"},
                               {"reduce_sum", "reduction_sum"},
                           });
-        extend_op("concat", "dnnl::concat");
-        extend_op("contiguous", "dnnl::reorder");
-        extend_op("convolution", "dnnl::convolution");
+        extend_dnnl_op("concat", "dnnl::concat");
+        extend_dnnl_op("contiguous", "dnnl::reorder");
+        extend_dnnl_op("convolution", "dnnl::convolution");
 #ifndef MIGRAPHX_ENABLE_ZENDNN
-        extend_op("convolution_backwards", "dnnl::convolution_backwards");
-        extend_op("dot", "dnnl::dot");
+        extend_dnnl_op("dot", "dnnl::dot");
 #endif
         extend_op("erf", "cpu::erf");
         extend_op("gather", "cpu::gather");
-        extend_op("logsoftmax", "dnnl::logsoftmax");
-        extend_op("lrn", "dnnl::lrn");
-        extend_op("softmax", "dnnl::softmax");
+        extend_dnnl_op("logsoftmax", "dnnl::logsoftmax");
+        extend_dnnl_op("lrn", "dnnl::lrn");
+        extend_dnnl_op("softmax", "dnnl::softmax");
 
         extend_op("im2col", "cpu::im2col", false);
-        extend_op("leaky_relu", "cpu::leaky_relu", false);
         extend_op("pad", "cpu::pad", false);
         extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output", false);
     }
@@ -374,12 +431,6 @@ struct cpu_apply
         // Apply these operators first so the inputs can be const folded
         for(auto it : iterator_for(*modl))
         {
-            // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
-            // supported yet.
-            if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return contains(fp8_types{}.get(), i->get_shape().type());
-               }))
-                continue;
             if(it->name() == "pow")
             {
                 apply_pow(it);
@@ -387,16 +438,16 @@ struct cpu_apply
         }
         for(auto it : iterator_for(*modl))
         {
-            // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
-            // supported yet.
-            if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
-                   return contains(fp8_types{}.get(), i->get_shape().type());
-               }))
-                continue;
             if(it->name() == "pooling")
             {
                 apply_pooling(it);
             }
+#ifndef MIGRAPHX_ENABLE_ZENDNN
+            else if(it->name() == "convolution_backwards")
+            {
+                apply_convolution_backwards(it);
+            }
+#endif
             else if(it->name() == "reshape")
             {
                 apply_reshape(it);
@@ -413,10 +464,11 @@ struct cpu_apply
         auto beta = read_scalar<float>(ins->inputs()[1]);
         if(beta.empty())
             return ins;
-        return replace(ins,
-                       make_op("dnnl::eltwise",
-                               {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta.front()}}),
-                       {ins->inputs().front()});
+        return replace_dnnl(
+            ins,
+            make_op("dnnl::eltwise",
+                    {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta.front()}}),
+            {ins->inputs().front()});
     }
 
     // TODO:  update lowering to run the reference
@@ -436,7 +488,7 @@ struct cpu_apply
         if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and
            not v["ceil_mode"].to<bool>() and
            v["mode"].to<op::pooling_mode>() != op::pooling_mode::lpnorm)
-            return replace(ins, make_op("dnnl::pooling", op.to_value()));
+            return replace_dnnl(ins, make_op("dnnl::pooling", op.to_value()));
         return ins;
     }
     /*
@@ -445,6 +497,8 @@ struct cpu_apply
     */
     instruction_ref apply_reshape(instruction_ref ins) const
     {
+        if(not has_dnnl_types(ins, ins->inputs()))
+            return ins;
         std::vector<instruction_ref> before_contiguous_args = ins->inputs();
         auto before_alloc =
             insert_allocation(ins, before_contiguous_args.front()->get_shape().as_standard());
@@ -452,15 +506,30 @@ struct cpu_apply
         auto before_contig =
             modl->insert_instruction(ins, make_op("dnnl::reorder"), {before_contiguous_args});
 
-        auto new_lazy_reshape = modl->insert_instruction(
+        auto new_reshape_lazy = modl->insert_instruction(
             ins,
             make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
             before_contig);
 
-        std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
-        auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
+        std::vector<instruction_ref> after_contiguous_args = {new_reshape_lazy};
+        auto after_alloc = insert_allocation(new_reshape_lazy, new_reshape_lazy->get_shape());
         after_contiguous_args.push_back(after_alloc);
         return modl->replace_instruction(ins, make_op("dnnl::reorder"), after_contiguous_args);
+    }
+
+    /**
+     * Lower to dnnl:convolution_backwards if supported.
+     * OneDNN doesn't support group convolution transpose.
+     */
+    instruction_ref apply_convolution_backwards(instruction_ref ins) const
+    {
+        auto&& op = ins->get_operator();
+        auto v    = op.to_value();
+        if(has_op("dnnl::convolution_backwards") and v["group"].to<int>() == 1)
+        {
+            return replace_dnnl(ins, make_op("dnnl::convolution_backwards", op.to_value()));
+        }
+        return ins;
     }
 
     template <class T>
@@ -486,6 +555,21 @@ struct cpu_apply
     {
         inputs.push_back(insert_allocation(ins, ins->get_shape()));
         return modl->replace_instruction(ins, op, inputs);
+    }
+
+    // Leave the op for the reference implementation when oneDNN lacks one of its types
+    instruction_ref replace_dnnl(instruction_ref ins, const operation& op) const
+    {
+        return replace_dnnl(ins, op, ins->inputs());
+    }
+
+    instruction_ref replace_dnnl(instruction_ref ins,
+                                 const operation& op,
+                                 const std::vector<instruction_ref>& inputs) const
+    {
+        if(not has_dnnl_types(ins, inputs))
+            return ins;
+        return replace(ins, op, inputs);
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s) const

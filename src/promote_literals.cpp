@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,9 +23,11 @@
  */
 
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,7 +37,12 @@ void promote_literals::apply(module_pass_manager& mpm) const
     module& m              = mpm.get_module();
     module_ref root_module = mpm.get_root_module();
     if(m == *root_module)
+    {
+        // The root is visited last, after literals from every submodule have been promoted.
+        if(any_of(iterator_for(m), [](auto ins) { return not ins->module_inputs().empty(); }))
+            mpm.run_pass(eliminate_common_subexpression{});
         return;
+    }
 
     for(auto ins : iterator_for(m))
     {
@@ -45,7 +52,7 @@ void promote_literals::apply(module_pass_manager& mpm) const
             auto ins_outputs = ins->outputs();
             for(auto out_ins : ins_outputs)
             {
-                out_ins->replace_argument(out_ins, ins, new_lit);
+                migraphx::instruction::replace_argument(out_ins, ins, new_lit);
             }
         }
     }

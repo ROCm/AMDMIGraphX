@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,243 +24,430 @@
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
+#include <migraphx/convert_to_json.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
-#include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fp8_ocp_to_fnuz.hpp>
+#include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
+#include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
+#include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
+#include <migraphx/json.hpp>
 #include <migraphx/layout_convolution.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/optimize_module.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/promote_storage_type.hpp>
+#include <migraphx/propagate_precision.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
+#include <migraphx/rewrite_convolution.hpp>
+#include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/rewrite_resize.hpp>
 #include <migraphx/rewrite_quantization.hpp>
-#include <migraphx/rewrite_rnn.hpp>
+#include <migraphx/rewrite_topk.hpp>
 #include <migraphx/schedule.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_symbolic_dimensions.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/split_sym_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/gpu/lower_device_ops.hpp>
+#include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/gpu/fuse_mlss.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SPLIT_REDUCE)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIONS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR)
+
+namespace {
+// Backend options recognized by the GPU target, supplied via
+// compile_options::backend_options.
+struct backend_options
+{
+    std::vector<std::string> mlss_use_specific_ops = {};
+    /// Where compiled kernels are cached between runs. Defaults to ``MIGRAPHX_BINARY_CACHE``.
+    std::string binary_cache = binary_cache_settings{}.path;
+    /// Compile even when a kernel could be reused, and fail if the two disagree.
+    bool binary_cache_verify = false;
+    // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
+    bool hip_graph = false;
+    // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
+    // prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
+    // priority over this. The architecture and build-config defaults only force ops on, so a
+    // '!' entry cannot disable an op those defaults enable (e.g. attention on gfx94/gfx95).
+    std::vector<std::string> mlir_use_specific_ops = {};
+    // Problem caches that new tuning solutions are saved back to.
+    std::vector<std::string> problem_cache_files = {};
+    // System-level problem caches, searched after the writable ones and never written.
+    std::vector<std::string> read_only_problem_cache_files = {};
+    // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
+    layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
+    // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with pointwise ops.
+    bool enable_skinny_dot   = false;
+    bool standardize_outputs = false;
+    // Keep range-based dynamic shapes for runtime compilation instead of specializing ranges.
+    bool disable_range_based_splitting = false;
+    // When true, kernels compile in-process, not in migraphx-hiprtc-driver.
+    // Not honoured by binary_cache's compiler-version probe, which still spawns the driver.
+    bool hiprtc_disable_processes = false;
+    // Fuse the concat_past_present kv-cache append into its producer kernel.
+    bool eliminate_concat_past_present = true;
+    // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
+    // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
+    std::size_t literal_staging_peak_percent = 5;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.binary_cache, "binary_cache"),
+                    f(self.binary_cache_verify, "binary_cache_verify"),
+                    f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
+                    f(self.hip_graph, "hip_graph"),
+                    f(self.convolution_layout, "convolution_layout"),
+                    f(self.enable_skinny_dot, "enable_skinny_dot"),
+                    f(self.standardize_outputs, "standardize_outputs"),
+                    f(self.disable_range_based_splitting, "disable_range_based_splitting"),
+                    f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
+                    f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
+                    f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
+                    f(self.problem_cache_files, "problem_cache_files"),
+                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
+    }
+};
+
+// The backend options passed to compile, with any key set by MIGRAPHX_GPU_OPTIONS (a json-like
+// object such as "{convolution_layout:channels_last}") overriding it.
+backend_options get_backend_options(const compile_options& options)
+{
+    auto opts = options.backend_options;
+    auto env  = string_value_of(MIGRAPHX_GPU_OPTIONS{});
+    if(not env.empty())
+    {
+        auto v = from_json_string(convert_to_json(env));
+        if(not v.is_object())
+            MIGRAPHX_THROW("MIGRAPHX_GPU_OPTIONS must be a json object");
+        for(const auto& opt : v)
+            opts[opt.get_key()] = opt.without_key();
+    }
+    return from_value<backend_options>(value(opts));
+}
+
+struct pipeline_factory
+{
+    migraphx::context* gctx_ptr = nullptr;
+    compile_options options;
+    backend_options backend_opts = {};
+
+    migraphx::context* get_generic_context() const { return gctx_ptr; }
+
+    // cppcheck-suppress CastIntegerToAddressAtReturn
+    context* get_context() const { return any_cast<context>(gctx_ptr); }
+
+    std::vector<pass> dynamic_shapes_pipeline() const
+    {
+        return {
+            dead_code_elimination{},
+            simplify_symbolic_dimensions{},
+            dead_code_elimination{},
+            split_sym_dim{},
+            enable_pass(not backend_opts.disable_range_based_splitting and
+                            disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
+                        split_single_dyn_dim{}),
+            dead_code_elimination{},
+            simplify_dyn_ops{},
+            dead_code_elimination{},
+        };
+    }
+
+    std::vector<pass> required_pipeline() const
+    {
+        return {
+            normalize_ops{},
+            dead_code_elimination{},
+            eliminate_identity{},
+            dead_code_elimination{},
+            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics(*get_context()) and
+                            gpu::gfx_has_fp8fnuz_intrinsics(*get_context()),
+                        fp8_ocp_to_fnuz{}),
+            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics(*get_context()) and
+                            gpu::gfx_has_fp8fnuz_intrinsics(*get_context()),
+                        dead_code_elimination{}),
+            simplify_qdq{.use_mx_quant = gpu::gfx_has_mx_intrinsics(*get_context())},
+            enable_pass(not mlir_enabled(), rewrite_quantization{}),
+            dead_code_elimination{},
+            eliminate_data_type_for_gpu{.disable_64bit = options.fast_math, .ctx = get_context()},
+            rewrite_resize{.affine_only = true},
+            dead_code_elimination{},
+            simplify_reshapes{.enable_gather_rewrite = true},
+            eliminate_identity{},
+            eliminate_pad{},
+            dead_code_elimination{},
+            insert_pad{{"convolution"}},
+            dead_code_elimination{},
+            inline_module{},
+            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
+                        rewrite_pooling{.rewrite_lrn = (not MIGRAPHX_USE_MIOPEN or
+                                                        enabled(MIGRAPHX_REWRITE_LRN{}))}),
+            dead_code_elimination{},
+        };
+    }
+
+    std::vector<pass> optimize_rewrite_pipeline() const
+    {
+        auto gfx_name = get_context()->get_current_device().get_gfx_name();
+        const bool missing_fp32_mma =
+            starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
+        const bool bf16_missing_valu = not starts_with(gfx_name, "gfx125");
+        return {
+            rewrite_convolution{},
+            dead_code_elimination{},
+            rewrite_gelu{options.fast_math},
+            optimize_module{},
+            layout_convolution{.order                          = backend_opts.convolution_layout,
+                               .output_channels_last_threshold = missing_fp32_mma ? 8u : 0u,
+                               .output_channels_last_types     = {shape::float_type}},
+            dead_code_elimination{},
+            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
+            dead_code_elimination{},
+            prefuse_ops{get_context()},
+            dead_code_elimination{},
+            dead_code_elimination{},
+            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                           .fast_math         = options.fast_math},
+            rewrite_topk{},
+            rewrite_low_precision{},
+            enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
+            dead_code_elimination{},
+            enable_pass(bf16_missing_valu, promote_storage_type{{shape::bf16_type}}),
+            dead_code_elimination{},
+            propagate_precision{},
+            dead_code_elimination{},
+            simplify_reshapes{.enable_op_shape_transform_op = true},
+            dead_code_elimination{},
+        };
+    }
+
+    std::vector<pass> fusion_pipeline() const
+    {
+        return {
+            enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
+                        fuse_attention{.attn_enabled = mlir_attention_enabled(
+                                           get_context(), backend_opts.mlir_use_specific_ops),
+                                       .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+            dead_code_elimination{},
+            optimize_module{},
+            fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
+            fuse_pointwise_reduce{},
+            dead_code_elimination{},
+#ifndef _WIN32
+            enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
+#endif
+            dead_code_elimination{},
+            enable_pass(mlir_enabled(),
+                        fuse_mlir{.ctx              = get_context(),
+                                  .use_specific_ops = backend_opts.mlir_use_specific_ops}),
+            dead_code_elimination{},
+            fuse_topk{},
+            dead_code_elimination{},
+            fuse_concat{},
+            dead_code_elimination{},
+        };
+    }
+
+    std::vector<pass> backend_pipeline() const
+    {
+        std::size_t max_memory =
+            get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
+        return {
+            auto_contiguous{.standardize_outputs = backend_opts.standardize_outputs},
+            dead_code_elimination{},
+            lowering{get_context(), options.offload_copy},
+            eliminate_contiguous{"gpu::contiguous"},
+            dead_code_elimination{},
+            lower_reshape{},
+            dead_code_elimination{},
+            adjust_allocation{gpu_allocation_model{.use_hip_allocate = false}},
+            dead_code_elimination{},
+            eliminate_concat{concat_gpu_optimization{}},
+            dead_code_elimination{},
+#if MIGRAPHX_USE_MIOPEN
+            compile_miopen{get_generic_context()},
+            dead_code_elimination{},
+#endif
+            fuse_ops{get_context(), options.fast_math},
+            dead_code_elimination{},
+            enable_pass(backend_opts.eliminate_concat_past_present, fuse_concat_past_present{}),
+            dead_code_elimination{},
+#if MIGRAPHX_USE_HIPBLASLT
+            compile_hipblaslt{get_generic_context()},
+            dead_code_elimination{},
+#endif
+            replace_allocate{gpu_allocation_model{}, options.offload_copy},
+            dead_code_elimination{},
+            adjust_allocation{gpu_allocation_model{}},
+            dead_code_elimination{},
+            lower_device_ops{},
+            compile_ops{get_context(),
+                        options.exhaustive_tune,
+                        options.compile_mode == compile_modes::eager,
+                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{})},
+            dead_code_elimination{},
+            promote_literals{},
+            dead_code_elimination{},
+            write_literals{.max_memory           = max_memory,
+                           .staging_peak_percent = backend_opts.literal_staging_peak_percent},
+            enable_pass(backend_opts.hip_graph, hipgraphify{}),
+            dead_code_elimination{},
+            schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
+                     not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
+            memory_coloring{"hip::allocate"},
+            sync_device{},
+            preallocate_param{"scratch", gpu_allocation_model{}},
+            dead_code_elimination{},
+            eliminate_allocation{"hip::allocate"},
+            check_context<context>{},
+            normalize_ops{},
+            dead_code_elimination{},
+            eliminate_identity{},
+        };
+    }
+};
+} // namespace
+
+static migraphx::context make_context(const target& t)
+{
+    if(t.is_cross_compile())
+        return context(t.desc);
+    return context(gpu::get_device_id());
+}
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto& ctx = any_cast<context>(gctx);
+    auto backend_opts = get_backend_options(options);
+    auto& ctx         = any_cast<context>(gctx);
+    // The context predates the compile options, so the cache they configure is installed here.
+    ctx.set_binary_cache(std::make_shared<binary_cache>(
+        binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
-    ctx.load_problem_cache();
-    std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
-    unsupported_types.erase(shape::type_t::float_type);
-    unsupported_types.erase(shape::type_t::fp8e4m3fnuz_type);
-    unsupported_types.erase(shape::type_t::fp8e4m3fn_type);
-    unsupported_types.erase(shape::type_t::fp8e5m2_type);
-    unsupported_types.erase(shape::type_t::half_type);
-    unsupported_types.erase(shape::type_t::bool_type);
-    unsupported_types.erase(shape::type_t::int8_type);
-    unsupported_types.erase(shape::type_t::uint8_type);
-    unsupported_types.erase(shape::type_t::int32_type);
-    unsupported_types.erase(shape::type_t::tuple_type);
+    ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
 
-    // whiltelist supported Ops for the FP8 types
-    // different between fp8e4m3fnuz and OCP types because rocBLAS only has
-    // support for fp8e4m3fnuz
-    std::set<std::string> unsupported_fp8e4m3fnuz_ops = {};
-    if(not gpu::rocblas_fp8_available())
-    {
-        unsupported_fp8e4m3fnuz_ops.insert("dot");
-        unsupported_fp8e4m3fnuz_ops.insert("quant_dot");
-    }
-#if MIGRAPHX_USE_MIOPEN
-    // MIOpen doesn't have support for fp8 pooling yet.
-    unsupported_fp8e4m3fnuz_ops.insert("pooling");
-#endif
-    if(not gpu::gfx_has_fp8fnuz_intrinsics())
-    {
-        unsupported_fp8e4m3fnuz_ops.insert("convolution");
-        unsupported_fp8e4m3fnuz_ops.insert("quant_convolution");
-    }
-    // add all device kernels
-    unsupported_fp8e4m3fnuz_ops.insert("logsoftmax");
-    unsupported_fp8e4m3fnuz_ops.insert("nonzero");
-    unsupported_fp8e4m3fnuz_ops.insert("prefix_scan_sum");
-    unsupported_fp8e4m3fnuz_ops.insert("scatter_none");
-    unsupported_fp8e4m3fnuz_ops.insert("topk");
-    unsupported_fp8e4m3fnuz_ops.insert("rnn_var_sl_shift_output");
-    unsupported_fp8e4m3fnuz_ops.insert("multinomial");
-    unsupported_fp8e4m3fnuz_ops.insert("argmax");
-    unsupported_fp8e4m3fnuz_ops.insert("argmin");
+    if(options.compile_mode == compile_modes::max)
+        ctx.set_exhaustive_tune_flag(true);
 
-    std::set<std::string> unsupported_fp8ocp_ops = {};
-    // TODO: remove this when the flag is removed
-    if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
-    {
-        unsupported_fp8ocp_ops.insert("dot");
-        unsupported_fp8ocp_ops.insert("quant_dot");
-    }
-#if MIGRAPHX_USE_MIOPEN
-    // MIOpen doesn't have support for fp8 pooling yet.
-    unsupported_fp8ocp_ops.insert("pooling");
-#endif
-    if(not gpu::gfx_has_fp8ocp_intrinsics())
-    {
-        unsupported_fp8ocp_ops.insert("convolution");
-        unsupported_fp8ocp_ops.insert("quant_convolution");
-        unsupported_fp8ocp_ops.insert("dot");
-        unsupported_fp8ocp_ops.insert("quant_dot");
-    }
-    // add all device kernels
-    unsupported_fp8ocp_ops.insert("logsoftmax");
-    unsupported_fp8ocp_ops.insert("nonzero");
-    unsupported_fp8ocp_ops.insert("prefix_scan_sum");
-    unsupported_fp8ocp_ops.insert("scatter_none");
-    unsupported_fp8ocp_ops.insert("topk");
-    unsupported_fp8ocp_ops.insert("rnn_var_sl_shift_output");
-    unsupported_fp8ocp_ops.insert("multinomial");
-    unsupported_fp8ocp_ops.insert("argmax");
-    unsupported_fp8ocp_ops.insert("argmin");
+    ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
+                            backend_opts.problem_cache_files);
 
-    // clang-format off
-    return
+    pipeline_factory p{&gctx, options, backend_opts};
+
+    std::vector<std::vector<pass>> pipelines;
+
+    if(options.compile_mode == compile_modes::eager)
     {
-        split_single_dyn_dim{},
-        dead_code_elimination{},
-        simplify_dyn_ops{},
-        dead_code_elimination{},
-        normalize_ops{},
-        dead_code_elimination{},
-        eliminate_identity{},
-        dead_code_elimination{},
-        simplify_qdq{},
-        enable_pass(not mlir_enabled(), rewrite_quantization{}),
-        dead_code_elimination{},
-        // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution & pooling
-        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}},
-        eliminate_data_type{unsupported_types, shape::type_t::float_type},
-        simplify_reshapes{},
-        eliminate_identity{},
-        eliminate_pad{},
-        dead_code_elimination{},
-        insert_pad{{"convolution"}},
-        dead_code_elimination{},
-        rewrite_rnn{},
-        dead_code_elimination{},
-        inline_module{},
-        rewrite_pooling{},
-        dead_code_elimination{},
-        rewrite_gelu{options.fast_math},
-        optimize_module{},
-        layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
-        dead_code_elimination{},
-        prefuse_ops{},
-        dead_code_elimination{},
-        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8e4m3fnuz_ops},
-        eliminate_data_type{{migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_fp8ocp_ops},
-        dead_code_elimination{},
-        rewrite_reduce{},
-        rewrite_low_precision{},
-        dead_code_elimination{},
-        optimize_module{},
-        fuse_pointwise_reduce{},
-        enable_pass(enabled(MIGRAPHX_ENABLE_SPLIT_REDUCE{}), split_reduce{}),
-        dead_code_elimination{},
-#ifndef _WIN32
-        enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
-#endif
-        dead_code_elimination{},
-        enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
-        dead_code_elimination{},
-        fuse_concat{},
-        dead_code_elimination{},
-        auto_contiguous{},
-        dead_code_elimination{},
-        lowering{&ctx, options.offload_copy},
-        eliminate_contiguous{"gpu::contiguous"},
-        dead_code_elimination{},
-        eliminate_concat{concat_gpu_optimization{}},
-        dead_code_elimination{},
-#if MIGRAPHX_USE_MIOPEN
-        compile_miopen{&gctx},
-        dead_code_elimination{},
-#endif
-        dead_code_elimination{},
-        fuse_ops{&ctx, options.fast_math},
-        dead_code_elimination{},
-#if MIGRAPHX_USE_HIPBLASLT
-        compile_hipblaslt{&gctx},
-        dead_code_elimination{},
-#endif
-        replace_allocate{gpu_allocation_model{}, options.offload_copy},
-        dead_code_elimination{},
-        adjust_allocation{gpu_allocation_model{}},
-        dead_code_elimination{},
-        compile_ops{&ctx, options.exhaustive_tune},
-        dead_code_elimination{},
-        promote_literals{},
-        dead_code_elimination{},
-        write_literals{&ctx},
-        schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
-        memory_coloring{"hip::allocate"},
-        sync_device{},
-        preallocate_param{"scratch", gpu_allocation_model{}},
-        dead_code_elimination{},
-        eliminate_allocation{"hip::allocate"},
-        check_context<context>{},
-        normalize_ops{},
-        dead_code_elimination{},
-        eliminate_identity{}
-    };
-    // clang-format on
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            {optimize_module{},
+             dead_code_elimination{},
+             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                            .fast_math         = options.fast_math},
+             rewrite_topk{},
+             dead_code_elimination{}},
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
+    else
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            p.optimize_rewrite_pipeline(),
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
+
+    std::vector<pass> passes;
+    std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));
+    return passes;
 }
 
 std::string target::name() const { return "gpu"; }
 
-migraphx::context target::get_context() const { return context(gpu::get_device_id()); }
+migraphx::context target::get_context() const { return make_context(*this); }
 
-argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
+argument target::copy_to(const argument& arg) const
+{
+    if(is_cross_compile())
+        MIGRAPHX_THROW("Cannot copy data in cross-compilation mode");
+    return gpu::to_gpu(arg);
+}
 
-argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg); }
+argument target::copy_from(const argument& arg) const
+{
+    if(is_cross_compile())
+        MIGRAPHX_THROW("Cannot copy data in cross-compilation mode");
+    return gpu::from_gpu(arg);
+}
 
-argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
+argument target::allocate(const shape& s) const
+{
+    if(is_cross_compile())
+        MIGRAPHX_THROW("Cannot allocate GPU memory in cross-compilation mode");
+    return gpu::allocate_gpu(s);
+}
 
 MIGRAPHX_REGISTER_TARGET(target);
 

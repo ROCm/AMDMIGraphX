@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,49 +26,54 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/op/common.hpp>
-#include <sstream>
+#include <migraphx/sym.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/make_op.hpp>
-
 #include <migraphx/serialize.hpp>
 
 #include "test.hpp"
 
+using dd = migraphx::shape::dynamic_dimension;
+using se = migraphx::sym::expr;
+using migraphx::sym::lit;
+using migraphx::sym::var;
+
+/// A starts or ends attribute holding symbolic bounds, one per sliced axis.
 template <class... Ts>
-void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
+static migraphx::value sym_bound(const Ts&... bounds)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    std::vector<migraphx::shape> shapes{xs...};
-    std::vector<migraphx::instruction_ref> args(shapes.size());
-    std::transform(
-        shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return mm->add_outline(s); });
-    mm->add_instruction(op, args);
-    if(p.get_output_shapes().back() != expected)
-    {
-        std::cout << "FAILED: Incorrect shape for " << op << ": ";
-        std::cout << expected << " != " << p.get_output_shapes().back() << std::endl;
-        for(auto&& s : shapes)
-            std::cout << "    " << s << std::endl;
-    }
+    return migraphx::value::array{migraphx::to_value(bounds)...};
 }
 
 template <class... Ts>
-void throws_shape(const migraphx::operation& op, Ts... xs)
+struct expect_shape
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    std::vector<migraphx::shape> shapes{xs...};
-    std::vector<migraphx::instruction_ref> args(shapes.size());
-    std::transform(
-        shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return mm->add_outline(s); });
-    bool thrown = test::throws([&] { mm->add_instruction(op, args); });
-    if(not thrown)
+    expect_shape(const migraphx::shape& expected,
+                 const migraphx::operation& op,
+                 Ts... xs,
+                 test::source_location loc = test::source_location{})
     {
-        std::cout << "FAILED: No error found for " << op.name() << ": ";
-        for(auto&& s : shapes)
-            std::cout << "    " << s << std::endl;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<migraphx::shape> shapes{xs...};
+        std::vector<migraphx::instruction_ref> args(shapes.size());
+        std::transform(shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) {
+            return mm->add_outline(s);
+        });
+        mm->add_instruction(op, args);
+        if(p.get_output_shapes().back() != expected)
+        {
+            test::failed(loc) << "Incorrect shape for " << op << ": " << expected
+                              << " != " << p.get_output_shapes().back();
+            for(auto&& s : shapes)
+                std::cout << "    " << s << std::endl;
+        }
     }
-}
+};
+
+template <class... Ts>
+expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
+    -> expect_shape<Ts...>;
 
 template <class...>
 struct always_false : std::false_type
@@ -76,11 +81,40 @@ struct always_false : std::false_type
 };
 
 template <class... Ts>
-void throws_shape(const migraphx::shape&, Ts...)
+struct throws_shape
 {
-    static_assert(always_false<Ts...>{},
-                  "An expected shape should not be passed to throws_shape function");
-}
+    throws_shape(const migraphx::operation& op,
+                 Ts... xs,
+                 test::source_location loc = test::source_location{})
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<migraphx::shape> shapes{xs...};
+        std::vector<migraphx::instruction_ref> args(shapes.size());
+        std::transform(shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) {
+            return mm->add_outline(s);
+        });
+        bool thrown = test::throws([&] { mm->add_instruction(op, args); });
+        if(not thrown)
+        {
+            test::failed(loc) << ": No error found for " << op.name() << ": ";
+            for(auto&& s : shapes)
+                std::cout << "    " << s << std::endl;
+        }
+    }
+
+    throws_shape(const migraphx::shape&, Ts...)
+    {
+        static_assert(always_false<Ts...>{},
+                      "An expected shape should not be passed to throws_shape function");
+    }
+};
+
+template <class... Ts>
+throws_shape(const migraphx::operation& op, Ts... xs) -> throws_shape<Ts...>;
+
+template <class... Ts>
+throws_shape(const migraphx::shape&, Ts... xs) -> throws_shape<Ts...>;
 
 TEST_CASE(allocate_static)
 {
@@ -193,12 +227,287 @@ TEST_CASE(argmax_dyn1)
                  input);
 }
 
+TEST_CASE(argmax_sym_axis0)
+{
+    // Symbol at axis 0; reduce the symbolic axis -> collapses to lit(1).
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("argmax", {{"axis", 0}});
+    expect_shape(migraphx::shape{migraphx::shape::int64_type,
+                                 {dd{lit(1)}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}},
+                 op,
+                 input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}}) ==
+           op.compute_shape({input.to_static({{n, 7}})}));
+}
+
+TEST_CASE(argmax_sym_axis_middle)
+{
+    // Symbol in middle axis; reduce a different axis -> symbol preserved.
+    auto m = var("m", {2, 6});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{m}, dd{lit(5)}}};
+    auto op = migraphx::make_op("argmax", {{"axis", 1}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{lit(2)}, dd{lit(1)}, dd{m}, dd{lit(5)}}},
+        op,
+        input);
+    EXPECT(op.compute_shape({input}).to_static({{m, 4}}) ==
+           op.compute_shape({input.to_static({{m, 4}})}));
+}
+
+TEST_CASE(argmax_sym_axis_neg)
+{
+    // Symbol at last axis; reduce via negative index -> collapses the symbolic axis.
+    auto k = var("k", {1, 12});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{k}}};
+    auto op = migraphx::make_op("argmax", {{"axis", -1}});
+    expect_shape(migraphx::shape{migraphx::shape::int64_type,
+                                 {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{lit(1)}}},
+                 op,
+                 input);
+    EXPECT(op.compute_shape({input}).to_static({{k, 9}}) ==
+           op.compute_shape({input.to_static({{k, 9}})}));
+}
+
+TEST_CASE(argmax_sym_two_symbols)
+{
+    // Two distinct symbols (axes 0 and 2); reduce axis 0 -> first collapses, second preserved.
+    auto n = var("n", {1, 16});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{k}}};
+    auto op = migraphx::make_op("argmax", {{"axis", 0}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{lit(1)}, dd{lit(3)}, dd{k}}}, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 4}, {k, 11}}) ==
+           op.compute_shape({input.to_static({{n, 4}, {k, 11}})}));
+}
+
+TEST_CASE(argmax_sym_all)
+{
+    // Fully symbolic 3D input; reduce middle axis -> symbols on either side both survive.
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    auto op = migraphx::make_op("argmax", {{"axis", 1}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{n}, dd{lit(1)}, dd{k}}}, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}, {m, 5}, {k, 9}}) ==
+           op.compute_shape({input.to_static({{n, 7}, {m, 5}, {k, 9}})}));
+}
+
 TEST_CASE(binary_dyn_static_error)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 4, 4}};
     std::vector<migraphx::shape::dynamic_dimension> b{{1, 1}, {4, 4, {4}}, {4, 4}};
     migraphx::shape b_shape{migraphx::shape::float_type, b};
     throws_shape(migraphx::make_op("add"), a_shape, b_shape);
+}
+
+TEST_CASE(binary_sym_same_packed)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    expect_shape(s, migraphx::make_op("add"), s, s);
+}
+
+TEST_CASE(binary_sym_different_expressions)
+{
+    auto n = var("n", {0, 100});
+    auto m = var("m", {0, 100});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}, dd{lit(4)}}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_overlapping_expressions)
+{
+    // extents of expressions are not checked
+    auto n = var("n", {0, 100});
+    auto m = var("m", {50, 150});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}}};
+    expect_shape(sx, migraphx::make_op("mul"), sx, sy);
+}
+
+TEST_CASE(binary_sym_disjoint_expressions)
+{
+    // extents of expressions are not checked
+    auto n = var("n", {0, 10});
+    auto m = var("m", {20, 30});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_mismatch_error)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{lit(5)}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_expression_mismatch_error)
+{
+    auto n = var("n", {4, 8});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_literal_one_requires_broadcast)
+{
+    auto n = var("n", {1, 100});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(1)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_packed_vs_broadcasted)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims};
+    migraphx::shape sy{migraphx::shape::float_type, dims, {lit(0), lit(4), lit(1)}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_zero_packed_vs_broadcasted)
+{
+    auto k = var("k", {0, 200});
+    std::vector<dd> dims{dd{lit(1)}, dd{k}};
+    migraphx::shape sx{migraphx::shape::int64_type, dims};
+    migraphx::shape sy{migraphx::shape::int64_type, dims, {lit(0), lit(0)}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_zero_broadcasted_vs_different_packed)
+{
+    auto n = var("n", {0, 200});
+    std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
+    migraphx::shape sy{migraphx::shape::float_type, output_dims};
+    migraphx::shape output{migraphx::shape::float_type, output_dims};
+    expect_shape(output, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_broadcasted_vs_different_packed)
+{
+    auto n = var("n", {2, 8});
+    auto m = var("m", {2, 8});
+    std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}};
+    migraphx::shape output{migraphx::shape::float_type, output_dims};
+    expect_shape(output, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_nonpacked_permutation)
+{
+    std::vector<dd> dims{dd{lit(4)}, dd{lit(3)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims, {lit(1), lit(8)}};
+    migraphx::shape sy{migraphx::shape::float_type, dims, {lit(1), lit(16)}};
+    auto sout = migraphx::shape::from_permutation(migraphx::shape::float_type, dims, {1, 0});
+    expect_shape(sout, migraphx::make_op("mul"), sx, sy);
+}
+
+TEST_CASE(binary_same_broadcasted)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    expect_shape(s, migraphx::make_op("mul"), s, s);
+}
+
+TEST_CASE(binary_broadcasted_vs_scalar)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 96, 96, 96}, {0, 0, 0, 0}};
+    expect_shape(sx, migraphx::make_op("mul"), sx, sy);
+    expect_shape(sx, migraphx::make_op("mul"), sy, sx);
+}
+
+// A single-element shape whose only nonzero stride is on a length-1 dim (broadcast
+// axis=0 of a {1} input) is treated as one element even though scalar() is false.
+TEST_CASE(binary_broadcasted_vs_single_element)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 96, 96, 96}, {1, 0, 0, 0}};
+    expect_shape(sx, migraphx::make_op("mul"), sx, sy);
+    expect_shape(sx, migraphx::make_op("mul"), sy, sx);
+}
+
+TEST_CASE(binary_different_broadcasted)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 96, 96, 96}, {96, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 96, 96, 96}, {0, 0, 96, 1}};
+    migraphx::shape sout{migraphx::shape::float_type, {1, 96, 96, 96}};
+    expect_shape(sout, migraphx::make_op("mul"), sx, sy);
+}
+
+// Both broadcasted over disjoint axes: the result is packed over the union of
+// the varying axes and still broadcast on the rest
+TEST_CASE(binary_different_broadcasted_partial)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 0, 8, 1}};
+    migraphx::shape sout{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 64, 8, 1}};
+    expect_shape(sout, migraphx::make_op("add"), sx, sy);
+    expect_shape(sout, migraphx::make_op("add"), sy, sx);
+}
+
+// Same broadcast axes but different strides on the length-1 axis 0 (broadcast of a
+// {1, 64} input vs a {64} input multibroadcast to {1, 64}); the merge keeps sx.
+TEST_CASE(binary_different_broadcasted_same_axes)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 64, 8, 8}, {64, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 1, 0, 0}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+    expect_shape(sx, migraphx::make_op("add"), sy, sx);
+}
+
+// The broadcast survives the merge, so a following channels-last input keeps
+// its layout instead of tying against a materialized default layout
+TEST_CASE(binary_different_broadcasted_keeps_layout)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 64, 8, 8}, {64, 1, 0, 0}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 64, 8, 8}, {0, 1, 0, 0}};
+    auto nhwc =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 64, 8, 8}, {0, 2, 3, 1});
+    auto xy = migraphx::make_op("add").compute_shape({sx, sy});
+    expect_shape(nhwc, migraphx::make_op("add"), nhwc, xy);
+}
+
+TEST_CASE(binary_sym_different_broadcasted_partial)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{n}, dd{lit(64)}, dd{lit(8)}, dd{lit(8)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims, {lit(0), lit(1), lit(0), lit(0)}};
+    migraphx::shape sy{migraphx::shape::float_type, dims, {lit(0), lit(0), lit(8), lit(1)}};
+    migraphx::shape sout{migraphx::shape::float_type, dims, {lit(0), lit(64), lit(8), lit(1)}};
+    expect_shape(sout, migraphx::make_op("add"), sx, sy);
+    expect_shape(sout, migraphx::make_op("add"), sy, sx);
+}
+
+TEST_CASE(binary_sym_with_range_dyn_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{2, 2}, dd{2, 8}, dd{4, 4}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(bit_cast_typesize_mismatch)
+{
+    migraphx::shape a_shape{migraphx::shape::int8_type, {1, 4, 4}};
+    throws_shape(migraphx::make_op("bit_cast", {{"target_type", migraphx::shape::int32_type}}),
+                 a_shape);
+}
+
+TEST_CASE(bit_cast_dyn)
+{
+    migraphx::shape a_shape{migraphx::shape::int8_type, {{1, 1}, {4, 8}, {4, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::uint8_type, {{1, 1}, {4, 8}, {4, 8}}},
+                 migraphx::make_op("bit_cast", {{"target_type", migraphx::shape::uint8_type}}),
+                 a_shape);
 }
 
 TEST_CASE(bitwise_and_not_integral_error)
@@ -260,6 +569,83 @@ TEST_CASE(broadcast_1in_dyn_error)
     throws_shape(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", lens}}), input);
 }
 
+TEST_CASE(broadcast_1in_sym_match)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}}};
+    std::vector<dd> out{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(0), lit(1), lit(0)}};
+    expect_shape(
+        expected,
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_sym_static_to_sym)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {3}};
+    std::vector<dd> out{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(0), lit(1), lit(0)}};
+    expect_shape(
+        expected,
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_sym_higher_rank)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(4)}, dd{lit(3)}}};
+    std::vector<dd> out{dd{lit(3)}, dd{n}, dd{lit(4)}, dd{lit(3)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(0), lit(0), lit(3), lit(1)}};
+    expect_shape(
+        expected,
+        migraphx::make_op("broadcast", {{"axis", 2}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_sym_axis_out_of_range_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}}};
+    std::vector<dd> out{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    throws_shape(
+        migraphx::make_op("broadcast", {{"axis", 4}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_sym_size_mismatch_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{lit(4)}}};
+    std::vector<dd> out{dd{n}, dd{lit(3)}};
+    throws_shape(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_sym_dim_mismatch_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(5)}}};
+    std::vector<dd> out{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    throws_shape(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_range_dyn_with_sym_target_error)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> in_dims{dd{3, 3}};
+    migraphx::shape input{migraphx::shape::float_type, in_dims};
+    std::vector<dd> out{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    throws_shape(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
 TEST_CASE(broadcast_2in_static_static)
 {
     migraphx::shape a_input{migraphx::shape::float_type, {4}, {1}};
@@ -316,6 +702,39 @@ TEST_CASE(broadcast_2in_dyn_s0_ndim_greater_than_1_error)
     throws_shape(migraphx::make_op("broadcast", {{"axis", 0}}), a_input, b_input);
 }
 
+TEST_CASE(broadcast_2in_sym_match)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape a_input{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape b_input{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(0), lit(1)}};
+    expect_shape(expected, migraphx::make_op("broadcast", {{"axis", 1}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_sym_static_to_sym)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape a_input{migraphx::shape::float_type, {4}, {1}};
+    migraphx::shape b_input{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(0), lit(1)}};
+    expect_shape(expected, migraphx::make_op("broadcast", {{"axis", 1}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_sym_dim_mismatch_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape a_input{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape b_input{migraphx::shape::float_type, {dd{n}, dd{lit(8)}}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 1}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_sym_with_range_dyn_error)
+{
+    migraphx::shape a_input{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape b_input{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 1}}), a_input, b_input);
+}
+
 TEST_CASE(conv_2d_0)
 {
     migraphx::shape output{migraphx::shape::float_type, {4, 4, 1, 1}};
@@ -356,7 +775,7 @@ TEST_CASE(conv_channel_mismatch)
     throws_shape(migraphx::make_op("convolution"), input_1d, weights_1d);
 }
 
-TEST_CASE(conv_3D)
+TEST_CASE(conv_3_d)
 {
     migraphx::shape output_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
     migraphx::shape input_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
@@ -426,6 +845,31 @@ TEST_CASE(conv_dyn_img_weights)
                  weights_shape);
 }
 
+TEST_CASE(conv_kernel_too_large)
+{
+    // Spatial input smaller than kernel collapses output to 0 (cap, not throw).
+    migraphx::shape input{migraphx::shape::float_type, {1, 3, 2, 2}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 5, 5}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 0, 0}};
+    expect_shape(expected,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(conv_kernel_too_large_dyn)
+{
+    migraphx::shape input_dyn_shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 2}, {2, 2}}};
+    migraphx::shape weights_shape{migraphx::shape::float_type, {1, 3, 5, 5}};
+    migraphx::shape output_dyn_shape{migraphx::shape::float_type, {{1, 1}, {1, 1}, {0, 0}, {0, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input_dyn_shape,
+                 weights_shape);
+}
+
 TEST_CASE(conv_attr_shape_mismatch)
 {
     migraphx::shape input_dyn_shape = {migraphx::shape::float_type,
@@ -487,6 +931,59 @@ TEST_CASE(conv_autopad_dyn_kernel)
                  weights_shape);
 }
 
+TEST_CASE(conv_sym_batch)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(5)}}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 3, 3}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{n}, dd{lit(1)}, dd{lit(3)}, dd{lit(3)}}};
+    expect_shape(expected,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(conv_sym_img)
+{
+    auto h = var("h", {5, 20}, {10, 15});
+    auto w = var("w", {5, 20}, {10, 15});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(3)}, dd{h}, dd{w}}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 3, 3}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{lit(1)}, dd{lit(1)}, dd{h - 2}, dd{w - 2}}};
+    auto conv_op = migraphx::make_op(
+        "convolution", {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}});
+    expect_shape(expected, conv_op, input, weights);
+
+    std::unordered_map<se, std::size_t> sym_map = {{h, 12}, {w, 8}};
+    migraphx::shape static_input{migraphx::shape::float_type, {1, 3, 12, 8}};
+    migraphx::shape static_out = conv_op.compute_shape({static_input, weights});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(conv_sym_img_pad_stride)
+{
+    auto n = var("n", {1, 8});
+    auto h = var("h", {10, 50}, {20, 30});
+    auto w = var("w", {10, 50}, {20, 30});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{h}, dd{w}}};
+    migraphx::shape weights{migraphx::shape::float_type, {16, 3, 5, 5}};
+    // h: ((h + 2*2 - 5) / 2) + 1 = (h - 1)/2 + 1
+    // w: ((w + 2*1 - 5) / 3) + 1 = (w - 3)/3 + 1
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{n}, dd{lit(16)}, dd{(h - 1) / 2 + 1}, dd{(w - 3) / 3 + 1}}};
+    auto conv_op = migraphx::make_op(
+        "convolution", {{"padding", {2, 1}}, {"stride", {2, 3}}, {"dilation", {1, 1}}});
+    expect_shape(expected, conv_op, input, weights);
+
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}, {h, 26}, {w, 26}};
+    migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 26, 26}};
+    migraphx::shape static_out = conv_op.compute_shape({static_input, weights});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
 TEST_CASE(contiguous_shape)
 {
     migraphx::shape output{migraphx::shape::float_type, {2, 2}};
@@ -504,11 +1001,54 @@ TEST_CASE(contiguous_dyn_shape)
     expect_shape(s0, migraphx::make_op("contiguous"), s0);
 }
 
+TEST_CASE(contiguous_sym_standard)
+{
+    auto n = var("N", {1, 64});
+    auto h = var("H", {1, 128});
+    migraphx::shape s0{migraphx::shape::float_type, {dd{n}, dd{h}}};
+    expect_shape(s0, migraphx::make_op("contiguous"), s0);
+}
+
+TEST_CASE(contiguous_sym_transposed)
+{
+    auto n = var("N", {1, 64});
+    auto h = var("H", {1, 128});
+    // Transposed symbolic input: standard {N, H} -> transposed {H, N}.
+    auto input =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {dd{h}, dd{n}}, {1, 0});
+    migraphx::shape output{migraphx::shape::float_type, {dd{h}, dd{n}}};
+    expect_shape(output, migraphx::make_op("contiguous"), input);
+}
+
 TEST_CASE(contiguous_shape_scalar)
 {
     migraphx::shape output{migraphx::shape::float_type, {1}};
     migraphx::shape input{migraphx::shape::float_type};
     expect_shape(output, migraphx::make_op("contiguous"), input);
+}
+
+TEST_CASE(as_shape_static)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4}};
+    migraphx::shape target{migraphx::shape::float_type, {2, 8}};
+    expect_shape(
+        target, migraphx::make_op("as_shape", {{"shape", migraphx::to_value(target)}}), input);
+}
+
+TEST_CASE(as_shape_sym)
+{
+    auto n = var("N", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(16)}}};
+    migraphx::shape target{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(4)}}};
+    expect_shape(
+        target, migraphx::make_op("as_shape", {{"shape", migraphx::to_value(target)}}), input);
+}
+
+TEST_CASE(as_shape_dyn_target_throws)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4}};
+    migraphx::shape target{migraphx::shape::float_type, {{1, 4}, {2, 8}}};
+    throws_shape(migraphx::make_op("as_shape", {{"shape", migraphx::to_value(target)}}), input);
 }
 
 TEST_CASE(contiguous_shape_singleton_dim)
@@ -566,6 +1106,13 @@ TEST_CASE(convolution_backwards_2stride)
                  weights);
 }
 
+TEST_CASE(convolution_backwards_stride_zero)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 2, 2}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 1, 2, 2}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"stride", {0, 1}}}), input, weights);
+}
+
 TEST_CASE(convolution_backwards_2dilation)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};
@@ -574,6 +1121,19 @@ TEST_CASE(convolution_backwards_2dilation)
     expect_shape(output,
                  migraphx::make_op("convolution_backwards",
                                    {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {2, 2}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(convolution_backwards_2group)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 2, 4, 4}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 4, 7, 7}};
+    expect_shape(output,
+                 migraphx::make_op(
+                     "convolution_backwards",
+                     {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 2}}),
                  input,
                  weights);
 }
@@ -598,12 +1158,37 @@ TEST_CASE(convolution_backwards_channel_mismatch)
     throws_shape(migraphx::make_op("convolution_backwards"), input, weights);
 }
 
+// compute() splits the input channels into equal per-group blocks, so a group that does not
+// divide them would leave part of every group unread.
+TEST_CASE(convolution_backwards_group_indivisible)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 5, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {5, 3, 3, 3}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"group", 2}}), input, weights);
+}
+
+TEST_CASE(convolution_backwards_group_not_positive)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 2, 3, 3}};
+    throws_shape(migraphx::make_op("convolution_backwards", {{"group", 0}}), input, weights);
+}
+
 TEST_CASE(convolution_backwards_dyn_batch_2d)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {1, 1}, {1, 1}}};
     migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {3, 3}, {3, 3}, {3, 3}}};
     expect_shape(output, migraphx::make_op("convolution_backwards"), input, weights);
+}
+
+TEST_CASE(convolution_backwards_dyn_batch_2dgroup)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {4, 4}, {4, 4}}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 2, 4, 4}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {4, 4}, {7, 7}, {7, 7}}};
+    expect_shape(
+        output, migraphx::make_op("convolution_backwards", {{"group", 2}}), input, weights);
 }
 
 TEST_CASE(convolution_backwards_dyn_img_2d)
@@ -725,7 +1310,7 @@ TEST_CASE(dot_mismatch_outer_error)
     throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test0)
+TEST_CASE(dot_2_d_test0)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
@@ -733,7 +1318,7 @@ TEST_CASE(dot_2D_test0)
         migraphx::shape{migraphx::shape::float_type, {4, 8}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test1)
+TEST_CASE(dot_2_d_test1)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {5, 4}};
@@ -741,7 +1326,7 @@ TEST_CASE(dot_2D_test1)
         migraphx::shape{migraphx::shape::float_type, {1, 4}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test2)
+TEST_CASE(dot_2_d_test2)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
@@ -749,7 +1334,7 @@ TEST_CASE(dot_2D_test2)
         migraphx::shape{migraphx::shape::float_type, {4, 8}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test3)
+TEST_CASE(dot_2_d_test3)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 1}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 1}};
@@ -757,7 +1342,7 @@ TEST_CASE(dot_2D_test3)
         migraphx::shape{migraphx::shape::float_type, {1, 1}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_3D_test0)
+TEST_CASE(dot_3_d_test0)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 8}};
@@ -767,7 +1352,7 @@ TEST_CASE(dot_3D_test0)
                  s_m2);
 }
 
-TEST_CASE(dot_3D_test_1)
+TEST_CASE(dot_3_d_test_1)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {6, 1, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {6, 5, 4}};
@@ -777,7 +1362,7 @@ TEST_CASE(dot_3D_test_1)
                  s_m2);
 }
 
-TEST_CASE(dot_3D_test2)
+TEST_CASE(dot_3_d_test2)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 7}};
@@ -787,7 +1372,7 @@ TEST_CASE(dot_3D_test2)
                  s_m2);
 }
 
-TEST_CASE(dot_4D_test)
+TEST_CASE(dot_4_d_test)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 6, 1, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 6, 5, 4}};
@@ -894,6 +1479,588 @@ TEST_CASE(dot_dyn_test_outer_mismatch)
     throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
 }
 
+TEST_CASE(dot_sym_batch)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(3)}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(3)}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{n, 2}};
+    migraphx::shape static_a{migraphx::shape::float_type, {2, 4, 5}};
+    migraphx::shape static_b{migraphx::shape::float_type, {2, 5, 3}};
+    migraphx::shape static_out = dot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(dot_sym_batch_4d)
+{
+    auto n = var("n", {1, 8});
+    auto c = var("c", {1, 16});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{n}, dd{c}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{n}, dd{c}, dd{lit(5)}, dd{lit(7)}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{c}, dd{lit(4)}, dd{lit(7)}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{n, 2}, {c, 8}};
+    migraphx::shape static_a{migraphx::shape::float_type, {2, 8, 4, 5}};
+    migraphx::shape static_b{migraphx::shape::float_type, {2, 8, 5, 7}};
+    migraphx::shape static_out = dot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(dot_sym_matdims)
+{
+    auto m = var("m", {1, 64});
+    auto k = var("k", {1, 128});
+    auto n = var("n", {1, 32});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{m}, dd{k}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{k}, dd{n}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{m}, dd{n}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{m, 16}, {k, 32}, {n, 8}};
+    migraphx::shape static_a{migraphx::shape::float_type, {16, 32}};
+    migraphx::shape static_b{migraphx::shape::float_type, {32, 8}};
+    migraphx::shape static_out = dot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(dot_sym_batch_matdims)
+{
+    auto b = var("b", {1, 8});
+    auto m = var("m", {1, 64});
+    auto k = var("k", {1, 128});
+    auto n = var("n", {1, 32});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{b}, dd{m}, dd{k}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{b}, dd{k}, dd{n}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{b}, dd{m}, dd{n}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{b, 2}, {m, 16}, {k, 32}, {n, 8}};
+    migraphx::shape static_a{migraphx::shape::float_type, {2, 16, 32}};
+    migraphx::shape static_b{migraphx::shape::float_type, {2, 32, 8}};
+    migraphx::shape static_out = dot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(dot_sym_k_mismatch)
+{
+    auto m  = var("m", {1, 64});
+    auto k1 = var("k1", {1, 128});
+    auto k2 = var("k2", {1, 128});
+    auto n  = var("n", {1, 32});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{m}, dd{k1}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{k2}, dd{n}}};
+    throws_shape(migraphx::make_op("dot"), s_a, s_b);
+}
+
+TEST_CASE(dot_sym_outer_mismatch)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{m}, dd{lit(5)}, dd{lit(3)}}};
+    throws_shape(migraphx::make_op("dot"), s_a, s_b);
+}
+
+TEST_CASE(dot_sym_static)
+{
+    auto b = var("b", {1, 8});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{b}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {5, 3}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{b}, dd{lit(3)}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{b, 4}};
+    migraphx::shape static_a{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape static_b{migraphx::shape::float_type, {5, 3}};
+    migraphx::shape static_out = dot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(dot_sym_k_vs_range)
+{
+    auto m = var("m", {1, 64});
+    auto k = var("k", {1, 128});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{m}, dd{k}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {{1, 128}, {1, 32}}};
+    migraphx::shape expected{migraphx::shape::float_type, {{1, 64}, {1, 32}}};
+    expect_shape(expected, migraphx::make_op("dot"), s_a, s_b);
+}
+
+TEST_CASE(dynamic_range_output_dim_not_symbolic_error)
+{
+    migraphx::shape scalar{migraphx::shape::int64_type, {1}};
+    dd output_dim{1, 8};
+    throws_shape(
+        migraphx::make_op("dynamic_range", {{"output_dim", migraphx::to_value(output_dim)}}),
+        scalar,
+        scalar,
+        scalar);
+}
+
+TEST_CASE(dynamic_range_output_dim_exceeds_max_error)
+{
+    migraphx::shape scalar{migraphx::shape::int64_type, {1}};
+    dd output_dim{var("n", {1, 9})};
+    throws_shape(
+        migraphx::make_op("dynamic_range",
+                          {{"max_output", 8}, {"output_dim", migraphx::to_value(output_dim)}}),
+        scalar,
+        scalar,
+        scalar);
+}
+
+TEST_CASE(dyn_slice_static)
+{
+    // Concrete bounds over a static input stay static: a slice is just a view.
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    // dyn_slice takes its bounds as inputs, with one element per sliced axis.
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}),
+                 input,
+                 bounds,
+                 bounds);
+}
+
+TEST_CASE(dyn_slice_static_clamped_bounds)
+{
+    // Out of range bounds are clipped and negative bounds resolved against the axis length.
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {-2}}, {"ends", {10}}}),
+                 input,
+                 bounds,
+                 bounds);
+}
+
+TEST_CASE(dyn_slice_negative_axis)
+{
+    // A negative axis attribute is normalized against the input rank.
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("dyn_slice", {{"axes", {-1}}, {"starts", {1}}, {"ends", {3}}}),
+                 input,
+                 bounds,
+                 bounds);
+}
+
+TEST_CASE(dyn_slice_symbolic_end_static_input)
+{
+    // Static input + symbolic end bound: the output is symbolic, so it is not demoted to static.
+    auto n = var("n", {1, 16});
+    auto op =
+        migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", sym_bound(n)}});
+
+    // end=n is clamped to the axis length 10: dim = min(n, 10).
+    migraphx::shape sin{migraphx::shape::float_type, {10}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{migraphx::sym::min(n, lit(10))}}, {lit(1)}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    expect_shape(sout, op, sin, bounds, bounds);
+    EXPECT(sout.symbolic());
+    EXPECT(not sout.is_fixed());
+    EXPECT(sout.to_static({{n, 7}}) == migraphx::shape{migraphx::shape::float_type, {7}, {1}});
+    EXPECT(sout.to_static({{n, 10}}) == migraphx::shape{migraphx::shape::float_type, {10}, {1}});
+}
+
+TEST_CASE(dyn_slice_symbolic_bounds)
+{
+    // Each var range here keeps end >= start over the whole range, so the extent is provably
+    // non-negative and the clamp on it folds away. See dyn_slice_symbolic_bounds_may_cross for
+    // the case where it does not.
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    {
+        // Symbolic end clamped to the axis length 12: dim = min(n, 12) - 2.
+        auto m  = var("m", {1, 16});
+        auto n  = var("n", {2, 16});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {1}}, {"starts", {2}}, {"ends", sym_bound(n)}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{m}, dd{lit(12)}}};
+        migraphx::shape sout{migraphx::shape::float_type,
+                             {dd{m}, dd{migraphx::sym::min(n, lit(12)) - lit(2)}},
+                             sin.dyn_strides()};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.symbolic());
+        EXPECT(not sout.is_fixed());
+        EXPECT(sout.to_static({{m, 4}, {n, 9}}) ==
+               migraphx::shape{migraphx::shape::float_type, {4, 7}, {12, 1}});
+    }
+    {
+        // Symbolic end provably >= the axis length collapses to the length: extent is concrete.
+        auto n  = var("n", {13, 20});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}}, {"starts", {2}}, {"ends", sym_bound(n)}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(12)}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{lit(10)}, dd{lit(4)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin, bounds, bounds);
+    }
+    {
+        // Symbolic start: dim = 8 - n (n <= 8 keeps the extent non-negative).
+        auto n  = var("n", {1, 8});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}}, {"starts", sym_bound(n)}, {"ends", {8}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(10)}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{lit(8) - n}, dd{lit(4)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.symbolic());
+    }
+}
+
+TEST_CASE(dyn_slice_symbolic_bounds_may_cross)
+{
+    // Bounds whose ordering interval arithmetic cannot settle: the extent is clamped so the
+    // dimension stays non-negative. Only start <= end reaches compute(), which rejects the rest
+    // at run time.
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    {
+        // Both bounds symbolic over the same range.
+        auto m  = var("m", {0, 3});
+        auto n  = var("n", {0, 3});
+        auto op = migraphx::make_op(
+            "dyn_slice", {{"axes", {2}}, {"starts", sym_bound(m)}, {"ends", sym_bound(n)}});
+        migraphx::shape sin{migraphx::shape::float_type, {2, 2, 3}};
+        auto extent = migraphx::sym::max(
+            migraphx::sym::min(n, lit(3)) - migraphx::sym::min(m, lit(3)), lit(0));
+        migraphx::shape sout{migraphx::shape::float_type,
+                             {dd{lit(2)}, dd{lit(2)}, dd{extent}},
+                             {lit(6), lit(3), lit(1)}};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.dyn_dims().back().get_interval().min == 0);
+        EXPECT(sout.dyn_dims().back().get_interval().max == 3);
+        EXPECT(sout.to_static({{m, 1}, {n, 3}}) ==
+               migraphx::shape{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}});
+        // An assignment putting the end before the start gives an empty dimension rather than
+        // wrapping around.
+        EXPECT(sout.to_static({{m, 3}, {n, 1}}) ==
+               migraphx::shape{migraphx::shape::float_type, {2, 2, 0}, {6, 3, 1}});
+    }
+    {
+        // Symbolic start whose range can exceed the concrete end.
+        auto m  = var("m", {0, 10});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}}, {"starts", sym_bound(m)}, {"ends", {4}}});
+        migraphx::shape sin{migraphx::shape::float_type, {10, 4}};
+        auto extent = migraphx::sym::max(lit(4) - migraphx::sym::min(m, lit(10)), lit(0));
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{extent}, dd{lit(4)}}, {lit(4), lit(1)}};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.dyn_dims().front().get_interval().min == 0);
+        EXPECT(sout.dyn_dims().front().get_interval().max == 4);
+    }
+    {
+        // Symbolic end whose range can fall below the concrete start.
+        auto n  = var("n", {0, 10});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}}, {"starts", {4}}, {"ends", sym_bound(n)}});
+        migraphx::shape sin{migraphx::shape::float_type, {10, 4}};
+        auto extent = migraphx::sym::max(migraphx::sym::min(n, lit(10)) - lit(4), lit(0));
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{extent}, dd{lit(4)}}, {lit(4), lit(1)}};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.dyn_dims().front().get_interval().min == 0);
+        EXPECT(sout.dyn_dims().front().get_interval().max == 6);
+    }
+    {
+        // The sliced axis length is itself a symbol, so both bounds clamp against it.
+        auto k  = var("k", {4, 8});
+        auto m  = var("m", {0, 8});
+        auto n  = var("n", {0, 8});
+        auto op = migraphx::make_op(
+            "dyn_slice", {{"axes", {0}}, {"starts", sym_bound(m)}, {"ends", sym_bound(n)}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{k}, dd{lit(4)}}};
+        auto extent =
+            migraphx::sym::max(migraphx::sym::min(n, k) - migraphx::sym::min(m, k), lit(0));
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{extent}, dd{lit(4)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin, bounds, bounds);
+        EXPECT(sout.dyn_dims().front().get_interval().min == 0);
+        EXPECT(sout.dyn_dims().front().get_interval().max == 8);
+    }
+}
+
+TEST_CASE(dyn_slice_symbolic_bounds_clamped_multi_axes)
+{
+    // The clamp is decided per axis: axis 0 needs it, axis 1 is provably non-negative.
+    auto m  = var("m", {0, 10});
+    auto p  = var("p", {0, 2});
+    auto op = migraphx::make_op("dyn_slice",
+                                {{"axes", {0, 1}}, {"starts", sym_bound(m, p)}, {"ends", {4, 10}}});
+
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
+    migraphx::shape sin{migraphx::shape::float_type, {10, 12}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{migraphx::sym::max(lit(4) - migraphx::sym::min(m, lit(10)), lit(0))}, dd{lit(10) - p}},
+        {lit(12), lit(1)}};
+    expect_shape(sout, op, sin, bounds, bounds);
+    EXPECT(sout.dyn_dims().front().get_interval().min == 0);
+    EXPECT(sout.dyn_dims().front().get_interval().max == 4);
+    EXPECT(sout.dyn_dims().back().get_interval().min == 8);
+    EXPECT(sout.dyn_dims().back().get_interval().max == 10);
+}
+
+TEST_CASE(dyn_slice_provably_negative_extent_error)
+{
+    // An end before its start over the whole range can never produce a valid slice, so it is
+    // rejected when the shape is computed instead of being clamped to an empty dimension. The
+    // message is checked so the failure is attributed to the offending axis.
+    auto add_dyn_slice = [](const migraphx::operation& op,
+                            const migraphx::shape& data,
+                            const migraphx::shape& bounds) {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        mm->add_instruction(
+            op, mm->add_outline(data), mm->add_outline(bounds), mm->add_outline(bounds));
+    };
+    {
+        auto n  = var("n", {1, 4});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}}, {"starts", {8}}, {"ends", sym_bound(n)}});
+        EXPECT(test::throws<migraphx::exception>(
+            [&] {
+                add_dyn_slice(op,
+                              migraphx::shape{migraphx::shape::float_type, {10, 4}},
+                              migraphx::shape{migraphx::shape::int64_type, {1}});
+            },
+            "axis 0: end is always before start"));
+    }
+    {
+        // Only the second axis is bad, so every axis has to be checked.
+        auto a  = var("a", {5, 9});
+        auto b  = var("b", {1, 4});
+        auto op = migraphx::make_op(
+            "dyn_slice", {{"axes", {0, 1}}, {"starts", {2, 8}}, {"ends", sym_bound(a, b)}});
+        EXPECT(test::throws<migraphx::exception>(
+            [&] {
+                add_dyn_slice(op,
+                              migraphx::shape{migraphx::shape::float_type, {10, 12}},
+                              migraphx::shape{migraphx::shape::int64_type, {2}});
+            },
+            "axis 1: end is always before start"));
+    }
+}
+
+TEST_CASE(dyn_slice_empty_extent_allowed)
+{
+    // An extent that is always zero is a legal empty slice, which compute() accepts. Only a
+    // provably negative extent is an error.
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    migraphx::shape sin{migraphx::shape::float_type, {10, 4}};
+    migraphx::shape sout{migraphx::shape::float_type, {0, 4}, {4, 1}};
+    EXPECT(sout.elements() == 0);
+    {
+        // Concrete bounds that coincide.
+        auto op = migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {4}}});
+        expect_shape(sout, op, sin, bounds, bounds);
+    }
+    {
+        // Here the clamp is emitted, but its interval collapses to [0, 0], which makes the
+        // dimension fixed and demotes the result to a static shape.
+        auto m  = var("m", {2, 4});
+        auto op = migraphx::make_op("dyn_slice",
+                                    {{"axes", {0}}, {"starts", sym_bound(m)}, {"ends", {2}}});
+        expect_shape(sout, op, sin, bounds, bounds);
+    }
+}
+
+TEST_CASE(dyn_slice_sym_data_fixed_axis)
+{
+    // Symbolic input sliced on a fixed axis: the symbol on the other axis is untouched and the
+    // result matches slicing the equivalent static shape.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 5}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(2)}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin, bounds, bounds);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map), bounds, bounds}));
+}
+
+TEST_CASE(dyn_slice_sym_data_symbolic_axis)
+{
+    // Slicing the non-fixed symbolic axis: the concrete end is clamped against the axis symbol
+    // rather than a compile-time length, so the extent stays symbolic.
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}});
+
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{migraphx::sym::min(lit(2), n)}, dd{m}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin, bounds, bounds);
+    EXPECT(sout.to_static({{n, 5}, {m, 3}}) ==
+           migraphx::shape{migraphx::shape::float_type, {2, 3}, {3, 1}});
+    EXPECT(sout.to_static({{n, 1}, {m, 3}}) ==
+           migraphx::shape{migraphx::shape::float_type, {1, 3}, {3, 1}});
+}
+
+TEST_CASE(dyn_slice_sym_multiple_axes)
+{
+    // Slice two axes at once; the symbol at the untouched axis survives.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
+    auto op =
+        migraphx::make_op("dyn_slice", {{"axes", {0, 2}}, {"starts", {1, 2}}, {"ends", {4, 5}}});
+
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(6)}, dd{n}, dd{lit(8)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(3)}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin, bounds, bounds);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map), bounds, bounds}));
+}
+
+TEST_CASE(dyn_slice_sym_nonstandard_layout)
+{
+    // Non-standard symbolic input: the slice must preserve the permutation.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+
+    auto sin = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(7)}}, {0, 2, 3, 1});
+    auto op   = migraphx::make_op("dyn_slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {6}}});
+    auto sout = op.compute_shape({sin, bounds, bounds});
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map), bounds, bounds}));
+}
+
+TEST_CASE(dyn_slice_wrong_number_of_inputs_error)
+{
+    // The bounds are the only inputs: the axes are an attribute, not a fourth input.
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+    throws_shape(op, input, bounds);
+    throws_shape(op, input, bounds, bounds, bounds);
+}
+
+TEST_CASE(dyn_slice_bounds_input_rank_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds_2d{migraphx::shape::int64_type, {1, 1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+    throws_shape(op, input, bounds_2d, bounds_2d);
+}
+
+TEST_CASE(dyn_slice_dynamic_bounds_input_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape dyn_bounds{migraphx::shape::int64_type, {dd{1, 4}}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+    throws_shape(op, input, dyn_bounds, dyn_bounds);
+}
+
+TEST_CASE(dyn_slice_bounds_input_length_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    // One axis is sliced, so a two element bounds input does not match.
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+    throws_shape(op, input, bounds, bounds);
+}
+
+TEST_CASE(dyn_slice_attribute_length_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {0, 1}}, {"ends", {2, 3}}});
+    throws_shape(op, input, bounds, bounds);
+}
+
+TEST_CASE(dyn_slice_missing_attribute_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    throws_shape(
+        migraphx::make_op("dyn_slice", {{"starts", {1}}, {"ends", {3}}}), input, bounds, bounds);
+}
+
+TEST_CASE(dyn_slice_range_dynamic_data_error)
+{
+    // A range-based dynamic dimension has no expression to build a symbolic extent from.
+    migraphx::shape input{migraphx::shape::float_type, {{2, 4}, {3, 3}}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    throws_shape(migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}),
+                 input,
+                 bounds,
+                 bounds);
+}
+
+TEST_CASE(eval_expr_from_shape_shape)
+{
+    auto n = var("n", {1, 16});
+    auto h = var("h", {1, 32});
+    auto w = var("w", {1, 32});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{h}, dd{w}}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {3}},
+                 migraphx::make_op("eval_expr_from_shape",
+                                   {{"expressions",
+                                     migraphx::value::array{migraphx::to_value(n),
+                                                            migraphx::to_value(h / lit(2)),
+                                                            migraphx::to_value(w / lit(2))}}}),
+                 input);
+}
+
+TEST_CASE(eval_expr_from_shape_missing_symbol)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    throws_shape(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::value::array{migraphx::to_value(m)}}}),
+        input);
+}
+
+TEST_CASE(eval_expr_from_shape_multi_input)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    migraphx::shape a{migraphx::shape::float_type, {dd{m}, dd{lit(3)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {2}},
+                 migraphx::make_op(
+                     "eval_expr_from_shape",
+                     {{"expressions",
+                       migraphx::value::array{migraphx::to_value(m + n), migraphx::to_value(m)}}}),
+                 a,
+                 b);
+}
+
+TEST_CASE(eval_expr_from_shape_missing_symbol_multi_input)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    auto k = var("k", {1, 16});
+    migraphx::shape a{migraphx::shape::float_type, {dd{m}, dd{lit(3)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
+    throws_shape(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::value::array{migraphx::to_value(m + k)}}}),
+        a,
+        b);
+}
+
 TEST_CASE(broadcast_for_dot_static)
 {
     migraphx::shape s0{migraphx::shape::float_type, {481, 356}};
@@ -959,13 +2126,29 @@ TEST_CASE(broadcast_for_dot_dyn2)
         s0);
 }
 
+TEST_CASE(broadcast_for_dot_sym)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s0{migraphx::shape::float_type, {dd{lit(4)}, dd{lit(8)}}};
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(8)}, dd{lit(6)}}};
+    auto bcast_op = migraphx::make_op("broadcast_for_dot");
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(8)}}},
+                 bcast_op,
+                 s0,
+                 s1);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(8)}, dd{lit(6)}}},
+                 bcast_op,
+                 s1,
+                 s0);
+}
+
 TEST_CASE(broadcast_with_dims0)
 {
     using migraphx::shape;
     shape s0{migraphx::shape::float_type, {2, 4}};
     shape s1{migraphx::shape::int64_type, {4}};
     std::size_t max_int = std::numeric_limits<std::size_t>::max();
-    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
+    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{1, max_int});
     expect_shape(
         shape{shape::float_type, dyn_dims}, migraphx::make_op("broadcast_with_dims"), s0, s1);
 }
@@ -976,7 +2159,7 @@ TEST_CASE(broadcast_with_dims1)
     shape s0{migraphx::shape::int32_type, {1, 2, 4}};
     shape s1{migraphx::shape::int64_type, {1}};
     std::size_t max_int = std::numeric_limits<std::size_t>::max();
-    std::vector<shape::dynamic_dimension> dyn_dims(3, shape::dynamic_dimension{0, max_int});
+    std::vector<shape::dynamic_dimension> dyn_dims(3, shape::dynamic_dimension{1, max_int});
     expect_shape(shape{migraphx::shape::int32_type, dyn_dims},
                  migraphx::make_op("broadcast_with_dims"),
                  s0,
@@ -989,11 +2172,77 @@ TEST_CASE(broadcast_with_dims2)
     shape s0{migraphx::shape::float_type, {{1, 4}, {2, 2}, {4, 4}}};
     shape s1{migraphx::shape::int64_type, {4}};
     std::size_t max_int = std::numeric_limits<std::size_t>::max();
-    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
+    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{1, max_int});
     expect_shape(shape{migraphx::shape::float_type, dyn_dims},
                  migraphx::make_op("broadcast_with_dims"),
                  s0,
                  s1);
+}
+
+TEST_CASE(broadcast_with_dims_symbolic_output)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {1, 1, 1}};
+    shape dims{shape::int64_type, {4}};
+    std::vector<dd> output_dims{dd{lit(2)}, dd{var("sequence", {1, 8})}, dd{lit(4)}, dd{lit(5)}};
+    expect_shape(shape{shape::float_type,
+                       output_dims,
+                       {migraphx::sym::lit(0),
+                        migraphx::sym::lit(0),
+                        migraphx::sym::lit(0),
+                        migraphx::sym::lit(0)}},
+                 migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
+}
+
+TEST_CASE(broadcast_with_dims_symbolic_output_rank_error)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {1, 1, 1}};
+    shape dims{shape::int64_type, {4}};
+    std::vector<dd> output_dims{dd{var("sequence", {1, 8})}, dd{lit(4)}, dd{lit(5)}};
+    throws_shape(migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
+}
+
+TEST_CASE(broadcast_with_dims_non_symbolic_output_error)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {1, 1, 1}};
+    shape dims{shape::int64_type, {4}};
+    std::vector<dd> output_dims{dd{2, 2}, dd{var("sequence", {1, 8})}, dd{lit(4)}, dd{lit(5)}};
+    throws_shape(migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
+}
+
+TEST_CASE(broadcast_with_dims_symbolic_output_mismatch_error)
+{
+    using migraphx::shape;
+    shape input{shape::float_type, {2, 3}};
+    shape dims{shape::int64_type, {2}};
+    std::vector<dd> output_dims{dd{var("sequence", {1, 8})}, dd{lit(4)}};
+    throws_shape(migraphx::make_op("broadcast_with_dims",
+                                   {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+                 input,
+                 dims);
+}
+
+TEST_CASE(fixed_pad)
+{
+    using migraphx::shape;
+    shape input{migraphx::shape::float_type, {{2, 4, {}}, {3, 3}}};
+    shape input_static{migraphx::shape::float_type, {2, 3}};
+
+    shape output{migraphx::shape::float_type, {4, 3}};
+    expect_shape(output, migraphx::make_op("fixed_pad"), input);
+    expect_shape(output, migraphx::make_op("fixed_pad", {{"value", -1.0f}}), input);
+    expect_shape(input_static, migraphx::make_op("fixed_pad"), input_static); // effectively no-op
 }
 
 TEST_CASE(flatten_shape)
@@ -1073,6 +2322,41 @@ TEST_CASE(flatten_dyn_axis4)
         migraphx::shape{migraphx::shape::float_type, {{1 * 4 * 6 * 8, 4 * 4 * 6 * 8}, {1, 1}}},
         migraphx::make_op("flatten", {{"axis", 4}}),
         input);
+}
+
+TEST_CASE(flatten_sym_axis1)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(24)}}};
+    expect_shape(output, migraphx::make_op("flatten", {{"axis", 1}}), input);
+}
+
+TEST_CASE(flatten_sym_multi)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    auto k = var("K", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{m * k}}};
+    expect_shape(output, migraphx::make_op("flatten", {{"axis", 1}}), input);
+}
+
+TEST_CASE(flatten_sym_axis0)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(1)}, dd{n * m}}};
+    expect_shape(output, migraphx::make_op("flatten", {{"axis", 0}}), input);
+}
+
+TEST_CASE(flatten_sym_negative_axis)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(4) * n}, dd{lit(6)}}};
+    expect_shape(output, migraphx::make_op("flatten", {{"axis", -1}}), input);
 }
 
 TEST_CASE(fill_static_int)
@@ -1278,6 +2562,64 @@ TEST_CASE(gather_dyn4)
                  indices);
 }
 
+TEST_CASE(gather_sym_data_on_axis)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {2, 4}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(3)}, dd{lit(2)}, dd{lit(4)}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 1}}), input, indices);
+}
+
+TEST_CASE(gather_sym_data_off_axis)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {2, 4}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(2)}, dd{lit(4)}, dd{n}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 0}}), input, indices);
+}
+
+TEST_CASE(gather_sym_indices)
+{
+    auto k = var("k", {1, 6}, {3});
+    migraphx::shape input{migraphx::shape::float_type, {4, 5, 6}};
+    migraphx::shape indices{migraphx::shape::int32_type, {dd{k}, dd{lit(3)}}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(4)}, dd{k}, dd{lit(3)}, dd{lit(6)}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 1}}), input, indices);
+}
+
+TEST_CASE(gather_sym_both)
+{
+    auto n = var("n", {2, 8}, {4});
+    auto k = var("k", {1, 6}, {3});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {dd{k}, dd{lit(3)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{k}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 1}}), input, indices);
+}
+
+TEST_CASE(gather_sym_scalar_indices)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{n}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {1}, {0}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 1}}), input, indices);
+}
+
+TEST_CASE(gather_sym_data_dyn_indices)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {dd{1, 3, {2}}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{2, 8, {4}}, dd{1, 3, {2}}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 1}}), input, indices);
+}
+
 TEST_CASE(get_tuple_elem_test)
 {
     migraphx::shape s0{migraphx::shape::bool_type, {1, 1}};
@@ -1294,198 +2636,170 @@ TEST_CASE(get_tuple_elem_test)
     throws_shape(migraphx::make_op("get_tuple_elem", {{"index", 0}}), s2);
 }
 
-TEST_CASE(gru)
+TEST_CASE(gridsample_shape)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::shape grid{migraphx::shape::float_type, {2, 6, 7, 2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 6, 7}},
+                 migraphx::make_op("gridsample"),
+                 input,
+                 grid);
+}
+
+TEST_CASE(gridsample_shape_modes)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 4, 3, 7}};
+    migraphx::shape grid{migraphx::shape::float_type, {2, 5, 6, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 4, 5, 6}};
+    // it isnt supposed to change...
+    expect_shape(output, migraphx::make_op("gridsample", {{"mode", "nearest"}}), input, grid);
+    expect_shape(output, migraphx::make_op("gridsample", {{"mode", "linear"}}), input, grid);
+    expect_shape(output, migraphx::make_op("gridsample", {{"mode", "cubic"}}), input, grid);
+
+    // Opset 16 Legacy
+    expect_shape(output, migraphx::make_op("gridsample", {{"mode", "bilinear"}}), input, grid);
+    expect_shape(output, migraphx::make_op("gridsample", {{"mode", "bicubic"}}), input, grid);
+}
+
+TEST_CASE(gridsample_shape_invalid_mode)
+{
+    // mode is an enum, so an unknown spelling is rejected when the operator is
+    // constructed rather than during shape inference -- make_op throws before
+    // throws_shape would ever see it. "linearbanana" pins the old substring
+    // behaviour shut: contains(mode, "linear") used to accept it.
+    for(const char* mode : {"error", "linearbanana", "nonlinear", ""})
+        EXPECT(test::throws([&] { migraphx::make_op("gridsample", {{"mode", mode}}); }));
+}
+
+TEST_CASE(gridsample_shape_invalid_padding_mode)
+{
+    // As above, padding_mode is an enum and rejects unknown names at
+    // construction time.
+    for(const char* padding : {"nozeros", "zerosbanana", ""})
+        EXPECT(test::throws([&] { migraphx::make_op("gridsample", {{"padding_mode", padding}}); }));
+}
+
+TEST_CASE(gridsample_shape_bad_input_rank)
+{
+    migraphx::shape input_zero{migraphx::shape::float_type, {}};
+    migraphx::shape input_one{migraphx::shape::float_type, {1}};
+    migraphx::shape input_three{migraphx::shape::float_type, {1, 2, 3}};
+    migraphx::shape input_too_many{migraphx::shape::float_type, {1, 2, 3, 4, 5}};
+
+    migraphx::shape grid{migraphx::shape::float_type, {2, 6, 7, 2}};
+    throws_shape(migraphx::make_op("gridsample"), input_zero, grid);
+    throws_shape(migraphx::make_op("gridsample"), input_one, grid);
+    throws_shape(migraphx::make_op("gridsample"), input_three, grid);
+    throws_shape(migraphx::make_op("gridsample"), input_too_many, grid);
+}
+
+TEST_CASE(gridsample_shape_bad_grid)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+
+    migraphx::shape grid_rank3{migraphx::shape::float_type, {2, 6, 2}};
+    migraphx::shape grid_rank5{migraphx::shape::float_type, {2, 6, 7, 3, 2}};
+    throws_shape(migraphx::make_op("gridsample"), input, grid_rank3);
+    throws_shape(migraphx::make_op("gridsample"), input, grid_rank5);
+
+    migraphx::shape grid_last1{migraphx::shape::float_type, {2, 6, 7, 1}};
+    migraphx::shape grid_last3{migraphx::shape::float_type, {2, 6, 7, 3}};
+    throws_shape(migraphx::make_op("gridsample"), input, grid_last1);
+    throws_shape(migraphx::make_op("gridsample"), input, grid_last3);
+}
+
+TEST_CASE(gridsample_shape_batch_mismatch)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::shape grid{migraphx::shape::float_type, {3, 6, 7, 2}};
+    throws_shape(migraphx::make_op("gridsample"), input, grid);
+}
+
+TEST_CASE(gridsample_shape_type_mismatch)
+{
+    migraphx::shape int_x{migraphx::shape::int32_type, {2, 3, 4, 5}};
+    migraphx::shape float_x{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::shape float_grid{migraphx::shape::float_type, {2, 6, 7, 2}};
+    migraphx::shape half_grid{migraphx::shape::half_type, {2, 6, 7, 2}};
+
+    throws_shape(migraphx::make_op("gridsample"), int_x, float_grid);
+    throws_shape(migraphx::make_op("gridsample"), float_x, half_grid);
+}
+
+TEST_CASE(gridsample_shape_bad_arg_count)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+    migraphx::shape grid{migraphx::shape::float_type, {2, 6, 7, 2}};
+
+    throws_shape(migraphx::make_op("gridsample"), input);
+    throws_shape(migraphx::make_op("gridsample"), input, grid, grid);
+}
+
+TEST_CASE(gridsample_shape_nonstandard)
+{
+    // TODO compute_shape does not require standard inputs -- the operator
+    // declares attributes() = {{"require_std_shape", true}} so auto_contiguous
+    // inserts the contiguous instead.  Assert a transposed or broadcast x still
+    // computes the expected shape rather than throwing, so the two mechanisms
+    // do not silently drift apart.
+}
+
+TEST_CASE(gridsample_shape_dynamic)
+{
+    // TODO dynamic inputs are not supported.  compute_shape currently calls
+    // shape::lens() unguarded, so it throws "SHAPE: lens() called on a dynamic
+    // shape" rather than a gridsample-specific message.  Either assert that it
+    // throws, or add an explicit dynamic() check to compute_shape first and
+    // assert the better message.
+}
+
+TEST_CASE(group_op)
 {
     {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type,
-                            {seq_len, num_dirct, batch_size, hidden_size}},
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {1, 2}};
+        std::vector<float> l0_data{0, 1};
+        auto l0 = mm->add_literal(migraphx::literal{s0, l0_data});
+        migraphx::module m1;
+        std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_mm_to_m1;
+        m1.add_params({l0}, &map_mm_to_m1);
+        auto add =
+            m1.add_instruction(migraphx::make_op("add"), map_mm_to_m1.at(l0), map_mm_to_m1.at(l0));
+        m1.add_return({add});
+        migraphx::module_ref m1_ref = p.create_module("m_add", std::move(m1));
+        auto group =
+            mm->add_instruction(migraphx::make_op("group", {{"tag", "add"}}), {l0}, {m1_ref});
+        EXPECT(group->get_shape() == s0);
     }
 
     {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type,
-                            {seq_len, num_dirct, batch_size, hidden_size}},
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {1, 2}};
+        std::vector<float> l0_data{0, 1};
+        auto l0 = mm->add_literal(migraphx::literal{s0, l0_data});
+        migraphx::module m1;
+        std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_mm_to_m1;
+        m1.add_params({l0}, &map_mm_to_m1);
+        auto add =
+            m1.add_instruction(migraphx::make_op("add"), map_mm_to_m1.at(l0), map_mm_to_m1.at(l0));
+        auto ret                    = m1.add_return({add, add});
+        migraphx::module_ref m1_ref = p.create_module("m_add", std::move(m1));
+        auto group =
+            mm->add_instruction(migraphx::make_op("group", {{"tag", "add"}}), {l0}, {m1_ref});
+        auto out_shapes = ret->get_shape();
+        EXPECT(group->get_shape() == out_shapes);
     }
 
     {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 2;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type,
-                            {seq_len, num_dirct, batch_size, hidden_size}},
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        throws_shape(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size + 1},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        throws_shape(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 2;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        throws_shape(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {1, 2}};
+        std::vector<float> l0_data{0, 1};
+        auto l0 = mm->add_literal(migraphx::literal{s0, l0_data});
+        EXPECT(test::throws(
+            [&] { mm->add_instruction(migraphx::make_op("group", {{"tag", "add"}}), {l0}, {}); }));
     }
 }
 
@@ -1509,7 +2823,7 @@ TEST_CASE(inconsistent_attr_shape)
                  input);
 }
 
-void test_softmax_variations(const std::string& name)
+static void test_softmax_variations(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -1548,197 +2862,6 @@ void test_softmax_variations(const std::string& name)
 TEST_CASE(logsoftmax) { test_softmax_variations("logsoftmax"); }
 
 TEST_CASE(softmax) { test_softmax_variations("softmax"); }
-
-TEST_CASE(lstm)
-{
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type,
-                            {seq_len, num_dirct, batch_size, hidden_size}},
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type,
-                            {seq_len, num_dirct, batch_size, hidden_size}},
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 2;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type,
-                            {seq_len, num_dirct, batch_size, hidden_size}},
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        throws_shape(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size + 1},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        throws_shape(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 2;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type,
-                                {num_dirct, 3 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-
-        throws_shape(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-}
 
 TEST_CASE(multibroadcast)
 {
@@ -1820,6 +2943,133 @@ TEST_CASE(multibroadcast_1in_dyn_error_0)
     std::vector<std::size_t> lens{4, 4, 1, 3};
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {4, 4}}};
     throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_match)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> out{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape input{migraphx::shape::float_type, out};
+    expect_shape(input,
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_broadcast_axis)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{lit(1)}, dd{lit(1)}, dd{lit(3)}, dd{lit(4)}}};
+    std::vector<dd> out{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(12), lit(0), lit(4), lit(1)}};
+    expect_shape(expected,
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_rank_extend)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{lit(4)}}};
+    std::vector<dd> out{dd{lit(2)}, dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(0), lit(0), lit(4), lit(1)}};
+    expect_shape(expected,
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_static_to_sym)
+{
+    // Static input + symbolic out_dyn_dims: op bridges via to_symbolic() internally.
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 3, 4}};
+    std::vector<dd> out{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(12), lit(0), lit(4), lit(1)}};
+    expect_shape(expected,
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_mismatch_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}}};
+    std::vector<dd> out{dd{lit(1)}, dd{n}, dd{lit(3)}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_range_dyn_with_sym_target_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    std::vector<dd> out{dd{lit(1)}, dd{n}, dd{lit(3)}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_input_with_static_target_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}};
+    std::vector<std::size_t> lens{2, 8};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
+}
+
+TEST_CASE(multibroadcast_2in_symbolic_target)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {1, 3}};
+    std::vector<dd> output_dims{dd{n}, dd{lit(3)}};
+    migraphx::shape target{migraphx::shape::float_type, output_dims};
+    migraphx::shape expected{migraphx::shape::float_type, output_dims, {lit(0), lit(1)}};
+    expect_shape(
+        expected,
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+        input,
+        target);
+}
+
+TEST_CASE(multibroadcast_3in_symbolic_target)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> output_dims{dd{n}, dd{lit(3)}};
+    migraphx::shape a{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(3)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{n}, dd{lit(1)}}};
+    migraphx::shape c{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}}};
+    migraphx::shape expected{migraphx::shape::float_type, output_dims, {lit(0), lit(1)}};
+    expect_shape(
+        expected,
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+        a,
+        b,
+        c);
+}
+
+TEST_CASE(multibroadcast_2in_range_symbolic_target)
+{
+    auto n = var("n", {1, 4});
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    std::vector<dd> output_dims{dd{n}, dd{lit(3)}};
+    migraphx::shape target{migraphx::shape::float_type, output_dims};
+    expect_shape(
+        target,
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+        input,
+        target);
+}
+
+TEST_CASE(multibroadcast_2in_symbolic_target_mismatch_error)
+{
+    auto n = var("n", {2, 8});
+    auto m = var("m", {2, 8});
+    std::vector<dd> output_dims{dd{n}, dd{lit(4)}};
+    migraphx::shape input{migraphx::shape::float_type, output_dims};
+    migraphx::shape target{migraphx::shape::float_type, {dd{m}, dd{lit(4)}}};
+    throws_shape(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(output_dims)}}),
+        input,
+        target);
 }
 
 TEST_CASE(multibroadcast_2in_static_dyn0)
@@ -2192,145 +3442,106 @@ TEST_CASE(multinomial_dyn)
 
 TEST_CASE(nms_shape)
 {
-    // use_dyn_output == false
-    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    // The nonmaxsuppression op always returns a tuple shape:
+    //   {indices [max_num_boxes, 3] int64, num_selected [1] int64}
+    // where max_num_boxes = max_batches * max_classes * max_spatial_dim (from max_lens).
     migraphx::shape max_out_s{migraphx::shape::int64_type, {1}};
     migraphx::shape iou_thres_s{migraphx::shape::float_type, {1}};
     migraphx::shape score_thres_s{migraphx::shape::float_type, {1}};
-    migraphx::shape output_s{migraphx::shape::int64_type, {6, 3}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", false}}),
+    migraphx::shape num_selected_s{migraphx::shape::int64_type, {1}};
+
+    auto nms_tuple = [&](std::size_t max_num_boxes) {
+        return migraphx::shape(
+            {migraphx::shape{migraphx::shape::int64_type, {max_num_boxes, 3}}, num_selected_s});
+    };
+
+    // fully static inputs
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    expect_shape(nms_tuple(6),
+                 migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                  boxes_s,
                  scores_s,
                  max_out_s,
                  iou_thres_s,
                  score_thres_s);
 
-    // use_dyn_output == true
-    output_s = {migraphx::shape::int64_type, {{0, 6}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // dynamic batches
+    // dynamic batches: max_num_boxes = 3 * 1 * 6 = 18
     boxes_s  = {migraphx::shape::float_type, {{1, 3}, {6, 6}, {4, 4}}};
     scores_s = {migraphx::shape::float_type, {{1, 3}, {1, 1}, {6, 6}}};
-    output_s = {migraphx::shape::int64_type, {{0, 18}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+    expect_shape(nms_tuple(18),
+                 migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                  boxes_s,
                  scores_s,
                  max_out_s,
                  iou_thres_s,
                  score_thres_s);
 
-    // dynamic num boxes
+    // dynamic num boxes: max_num_boxes = 1 * 1 * 20 = 20
     boxes_s  = {migraphx::shape::float_type, {{1, 1}, {6, 20}, {4, 4}}};
     scores_s = {migraphx::shape::float_type, {{1, 1}, {1, 1}, {6, 20}}};
-    output_s = {migraphx::shape::int64_type, {{0, 20}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+    expect_shape(nms_tuple(20),
+                 migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                  boxes_s,
                  scores_s,
                  max_out_s,
                  iou_thres_s,
                  score_thres_s);
 
-    // use_dyn_output false with dynamic input shape
-    throws_shape(migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", false}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // dynamic classes
+    // dynamic classes: max_num_boxes = 1 * 3 * 6 = 18
     boxes_s  = {migraphx::shape::float_type, {{1, 1}, {6, 6}, {4, 4}}};
     scores_s = {migraphx::shape::float_type, {{1, 1}, {1, 3}, {6, 6}}};
-    output_s = {migraphx::shape::int64_type, {{0, 6}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+    expect_shape(nms_tuple(18),
+                 migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                  boxes_s,
                  scores_s,
                  max_out_s,
                  iou_thres_s,
                  score_thres_s);
 
-    // fixed mismatch batches
-    boxes_s  = {migraphx::shape::float_type, {2, 6, 4}};
-    scores_s = {migraphx::shape::float_type, {1, 1, 6}};
-    throws_shape(migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // fixed mismatch num boxes
-    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
-    scores_s = {migraphx::shape::float_type, {1, 1, 4}};
-    throws_shape(migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // dynamic mismatch batches
-    boxes_s  = {migraphx::shape::float_type, {{1, 4}, {6, 6}, {4, 4}}};
-    scores_s = {migraphx::shape::float_type, {{2, 8}, {1, 1}, {6, 6}}};
-    throws_shape(migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // dynamic mismatch num boxes
+    // dynamic mismatch num boxes: deferred to runtime validation.
+    // spatial dim is taken from boxes.max_lens()[1] = 8, so max_num_boxes = 1 * 1 * 8 = 8
     boxes_s  = {migraphx::shape::float_type, {{1, 1}, {6, 8}, {4, 4}}};
     scores_s = {migraphx::shape::float_type, {{1, 1}, {1, 1}, {3, 9}}};
-    throws_shape(migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+    expect_shape(nms_tuple(8),
+                 migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                  boxes_s,
                  scores_s,
                  max_out_s,
                  iou_thres_s,
                  score_thres_s);
+}
 
-    // dynamic number of classes, fixed boxes_s, mismatch batches
-    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
-    scores_s = {migraphx::shape::float_type, {{1, 3}, {1, 3}, {6, 6}}};
-    throws_shape(migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-    // dynamic number of classes, fixed boxes_s, mismatch num boxes
-    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
-    scores_s = {migraphx::shape::float_type, {{1, 1}, {1, 3}, {4, 8}}};
-    throws_shape(migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
+TEST_CASE(nonzero_shape)
+{
+    // The nonzero op always returns a tuple shape:
+    //   {indices [ndim, max elements] int64, num_nonzero [1] int64}
+    migraphx::shape num_nonzero_s{migraphx::shape::int64_type, {1}};
+
+    migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    expect_shape(
+        migraphx::shape({migraphx::shape{migraphx::shape::int64_type, {3, 12}}, num_nonzero_s}),
+        migraphx::make_op("nonzero"),
+        input);
+
+    // A non-standard input keeps the same output; only its lengths matter.
+    input = {migraphx::shape::float_type, {2, 3}, {1, 2}};
+    expect_shape(
+        migraphx::shape({migraphx::shape{migraphx::shape::int64_type, {2, 6}}, num_nonzero_s}),
+        migraphx::make_op("nonzero"),
+        input);
+}
+
+TEST_CASE(nonzero_dyn_shape)
+{
+    // A dynamic input still gets a fixed output, padded for the most elements it can hold.
+    migraphx::shape num_nonzero_s{migraphx::shape::int64_type, {1}};
+
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    expect_shape(
+        migraphx::shape({migraphx::shape{migraphx::shape::int64_type, {2, 12}}, num_nonzero_s}),
+        migraphx::make_op("nonzero"),
+        input);
 }
 
 TEST_CASE(onehot_static_2arg0)
@@ -2610,6 +3821,30 @@ TEST_CASE(pointwise_strict_type)
     EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), {x}, {&pm}); }));
 }
 
+TEST_CASE(pointwise_broadcast_input)
+{
+    auto s1 = migraphx::shape::from_permutation(migraphx::shape::float_type, {2, 3}, {1, 0});
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3}, {1, 0}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 3}, {0, 1}};
+    migraphx::shape is{migraphx::shape::float_type, {1}, {0}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module pm;
+    {
+        auto x   = pm.add_parameter("x", is);
+        auto y   = pm.add_parameter("y", is);
+        auto z   = pm.add_parameter("z", is);
+        auto mul = pm.add_instruction(migraphx::make_op("mul"), y, z);
+        auto add = pm.add_instruction(migraphx::make_op("add"), mul, x);
+        pm.add_return({add});
+    }
+    auto x  = mm->add_parameter("x", s1);
+    auto y  = mm->add_parameter("y", s2);
+    auto z  = mm->add_parameter("z", s3);
+    auto pw = mm->add_instruction(migraphx::make_op("pointwise"), {x, y, z}, {&pm});
+    EXPECT(pw->get_shape() == x->get_shape());
+}
+
 TEST_CASE(pooling_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
@@ -2775,7 +4010,7 @@ TEST_CASE(pooling_dyn_shape3)
 {
     migraphx::shape input{migraphx::shape::float_type,
                           {{4, 4}, {3, 3}, {4, 12, {8}}, {4, 12, {8}}}};
-    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {2, 4}, {2, 4}}};
+    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {2, 4, {3}}, {2, 4, {3}}}};
     expect_shape(output,
                  migraphx::make_op("pooling",
                                    {{"mode", migraphx::op::pooling_mode::max},
@@ -2790,7 +4025,7 @@ TEST_CASE(pooling_dyn_shape4)
 {
     migraphx::shape input{migraphx::shape::float_type,
                           {{4, 4}, {3, 3}, {4, 12, {8}}, {4, 12, {8}}}};
-    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {3, 6}, {3, 6}}};
+    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {3, 6, {4}}, {3, 6, {4}}}};
     expect_shape(output,
                  migraphx::make_op("pooling",
                                    {{"mode", migraphx::op::pooling_mode::max},
@@ -2800,6 +4035,92 @@ TEST_CASE(pooling_dyn_shape4)
                                     {"dilations", {1, 1}},
                                     {"ceil_mode", true}}),
                  input);
+}
+
+TEST_CASE(pooling_sym_batch)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{n}, dd{lit(3)}, dd{lit(10)}, dd{lit(10)}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(4)}}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::max},
+                                      {"padding", {0, 0}},
+                                      {"stride", {2, 2}},
+                                      {"lengths", {3, 3}},
+                                      {"dilations", {1, 1}}});
+    expect_shape(expected, pool_op, input);
+
+    auto sym_out                                = pool_op.compute_shape({input});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}};
+    migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 10, 10}};
+    auto static_out = pool_op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(pooling_sym_ceil_fixed_output)
+{
+    auto n = var("n", {3, 4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{n}}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 2}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::average},
+                                      {"padding", {0}},
+                                      {"stride", {2}},
+                                      {"lengths", {2}},
+                                      {"dilations", {1}},
+                                      {"ceil_mode", true},
+                                      {"count_include_pad", true}});
+    expect_shape(expected, pool_op, input);
+}
+
+TEST_CASE(pooling_sym_img)
+{
+    auto h = var("h", {5, 20}, {10, 15});
+    auto w = var("w", {5, 20}, {10, 15});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(3)}, dd{h}, dd{w}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{lit(1)}, dd{lit(3)}, dd{h - 2}, dd{w - 2}}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::average},
+                                      {"padding", {0, 0}},
+                                      {"stride", {1, 1}},
+                                      {"lengths", {3, 3}},
+                                      {"dilations", {1, 1}}});
+    expect_shape(expected, pool_op, input);
+
+    auto sym_out                                = pool_op.compute_shape({input});
+    std::unordered_map<se, std::size_t> sym_map = {{h, 12}, {w, 8}};
+    migraphx::shape static_input{migraphx::shape::float_type, {1, 3, 12, 8}};
+    auto static_out = pool_op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(pooling_sym_img_pad_dilation)
+{
+    // padding={1,2}, stride={2,3}, lengths={3,3}, dilations={2,1}
+    // h: dilated_length=1+2*(3-1)=5, result=((h+2-5)/2)+1 = (h-3)/2+1
+    // w: dilated_length=1+1*(3-1)=3, result=((w+4-3)/3)+1 = (w+1)/3+1
+    auto n = var("n", {1, 8});
+    auto h = var("h", {10, 50}, {20, 30});
+    auto w = var("w", {10, 50}, {20, 30});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{h}, dd{w}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{n}, dd{lit(3)}, dd{(h - 3) / 2 + 1}, dd{(w + 1) / 3 + 1}}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::max},
+                                      {"padding", {1, 2}},
+                                      {"stride", {2, 3}},
+                                      {"lengths", {3, 3}},
+                                      {"dilations", {2, 1}}});
+    expect_shape(expected, pool_op, input);
+
+    auto sym_out                                = pool_op.compute_shape({input});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}, {h, 26}, {w, 26}};
+    migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 26, 26}};
+    auto static_out = pool_op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
 }
 
 TEST_CASE(prefix_scan_sum)
@@ -2832,6 +4153,16 @@ TEST_CASE(prefix_scan_sum_dyn)
     }
 }
 
+TEST_CASE(prefix_scan_sum_sym)
+{
+    auto n = var("n", {5, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}}};
+    expect_shape(
+        s,
+        migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", 0}, {"reverse", 0}}),
+        s);
+}
+
 TEST_CASE(prefix_scan_sum_dyn_2d)
 {
     {
@@ -2843,6 +4174,17 @@ TEST_CASE(prefix_scan_sum_dyn_2d)
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", 0}, {"reverse", 0}}),
             s);
     }
+}
+
+TEST_CASE(prefix_scan_sum_sym_2d)
+{
+    auto n = var("n", {5, 8});
+    auto m = var("m", {3, 7});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    expect_shape(
+        s,
+        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", 0}, {"reverse", 0}}),
+        s);
 }
 
 TEST_CASE(random_uniform)
@@ -2913,6 +4255,70 @@ TEST_CASE(quant_dot_2args)
         migraphx::shape s_m2{migraphx::shape::int8_type, {8, 8}};
         throws_shape(migraphx::make_op("quant_dot"), s_m1, s_m2);
     }
+}
+
+TEST_CASE(quant_dot_dyn)
+{
+    migraphx::shape s_a{migraphx::shape::int8_type, {{1, 4}, {3, 3}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {{3, 3}, {8, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{1, 4}, {8, 8}}},
+                 migraphx::make_op("quant_dot"),
+                 s_a,
+                 s_b);
+}
+
+TEST_CASE(quant_dot_sym_batch)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{n}, dd{lit(5)}, dd{lit(3)}}};
+    migraphx::shape expected{migraphx::shape::int32_type, {dd{n}, dd{lit(4)}, dd{lit(3)}}};
+    auto qdot_op = migraphx::make_op("quant_dot");
+    expect_shape(expected, qdot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{n, 2}};
+    migraphx::shape static_a{migraphx::shape::int8_type, {2, 4, 5}};
+    migraphx::shape static_b{migraphx::shape::int8_type, {2, 5, 3}};
+    migraphx::shape static_out = qdot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(quant_dot_sym_matdims)
+{
+    auto m = var("m", {1, 64});
+    auto k = var("k", {1, 128});
+    auto n = var("n", {1, 32});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{m}, dd{k}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{k}, dd{n}}};
+    migraphx::shape expected{migraphx::shape::int32_type, {dd{m}, dd{n}}};
+    auto qdot_op = migraphx::make_op("quant_dot");
+    expect_shape(expected, qdot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{m, 16}, {k, 32}, {n, 8}};
+    migraphx::shape static_a{migraphx::shape::int8_type, {16, 32}};
+    migraphx::shape static_b{migraphx::shape::int8_type, {32, 8}};
+    migraphx::shape static_out = qdot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(quant_dot_sym_k_mismatch)
+{
+    auto m  = var("m", {1, 64});
+    auto k1 = var("k1", {1, 128});
+    auto k2 = var("k2", {1, 128});
+    auto n  = var("n", {1, 32});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{m}, dd{k1}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{k2}, dd{n}}};
+    throws_shape(migraphx::make_op("quant_dot"), s_a, s_b);
+}
+
+TEST_CASE(quant_dot_sym_outer_mismatch)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{m}, dd{lit(5)}, dd{lit(3)}}};
+    throws_shape(migraphx::make_op("quant_dot"), s_a, s_b);
 }
 
 TEST_CASE(qlinear)
@@ -2991,7 +4397,7 @@ TEST_CASE(dqlinear_mismatch_type)
     throws_shape(migraphx::make_op("dequantizelinear"), input, scales, zeros);
 }
 
-void test_reduce_ops(const std::string& name)
+static void test_reduce_ops(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -3023,8 +4429,78 @@ void test_reduce_ops(const std::string& name)
     }
 }
 
+// symbolic shape: reduced axes collapse to literal 1; non-reduced symbolic dims are preserved.
+// Cases vary which axis carries the symbol and which axes get reduced so that both "reduce
+// symbolic" and "preserve symbolic" paths are exercised. Each case also round-trips through
+// to_static(sym_map) to verify equivalence with the static-input compute_shape result.
+static void test_sym_reduce_ops(const std::string& name)
+{
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+
+    auto check = [&](const migraphx::shape& sym_input,
+                     const std::vector<int64_t>& red_axes,
+                     const std::unordered_map<se, std::size_t>& sym_map,
+                     const migraphx::shape& expected) {
+        auto op = migraphx::make_op(name, {{"axes", red_axes}});
+        expect_shape(expected, op, sym_input);
+        migraphx::shape static_input = sym_input.to_static(sym_map);
+        EXPECT(op.compute_shape({sym_input}).to_static(sym_map) ==
+               op.compute_shape({static_input}));
+    };
+
+    // Symbol at axis 0; reduce trailing fixed axes -> symbol preserved at axis 0.
+    check({migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}},
+          {2, 3},
+          {{n, 7}},
+          {migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(1)}, dd{lit(1)}}});
+
+    // Symbol in middle axis; reduce that symbolic axis -> collapses to lit(1).
+    check({migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}},
+          {1},
+          {{m, 5}},
+          {migraphx::shape::float_type, {dd{lit(2)}, dd{lit(1)}, dd{lit(4)}}});
+
+    // Symbol at last axis; reduce a non-symbolic axis via negative index -> symbol preserved.
+    check({migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{k}}},
+          {0},
+          {{k, 9}},
+          {migraphx::shape::float_type, {dd{lit(1)}, dd{lit(3)}, dd{k}}});
+
+    // Two symbols at axes 0 and 2; reduce the symbol at axis -1 -> first symbol preserved.
+    check({migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{k}}},
+          {-1},
+          {{n, 4}, {k, 11}},
+          {migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(1)}}});
+
+    // Fully symbolic 3D input; reduce all axes -> static-shaped lit(1) output.
+    check({migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}},
+          {0, 1, 2},
+          {{n, 7}, {m, 5}, {k, 9}},
+          {migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{lit(1)}}});
+
+    // Symbol at last axis of a 4D input; reduce only that axis -> all other dims unchanged.
+    check({migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{n}}},
+          {-1},
+          {{n, 6}},
+          {migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{lit(1)}}});
+
+    // 2D input with two distinct symbols; reduce one of them.
+    check({migraphx::shape::float_type, {dd{m}, dd{k}}},
+          {0},
+          {{m, 5}, {k, 9}},
+          {migraphx::shape::float_type, {dd{lit(1)}, dd{k}}});
+
+    // Fully symbolic 3D input; reduce a middle axis so symbols on either side both survive.
+    check({migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}},
+          {1},
+          {{n, 7}, {m, 5}, {k, 9}},
+          {migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{k}}});
+}
+
 // dynamic shape
-void test_dyn_reduce_ops(const std::string& name)
+static void test_dyn_reduce_ops(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {{2, 3, {3}}, {2, 4, {4}}}};
@@ -3056,7 +4532,7 @@ void test_dyn_reduce_ops(const std::string& name)
     }
 }
 
-void test_reduce_ops_variable_axes(const std::string& name)
+static void test_reduce_ops_variable_axes(const std::string& name)
 {
     {
         migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}};
@@ -3073,23 +4549,79 @@ void test_reduce_ops_variable_axes(const std::string& name)
     }
 }
 
+// Symbolic input + variable axes: each dim materializes to {1, upper_bound}; the upper bound
+// for a symbolic dim comes from its sym::expr eval_interval, for a fixed dim from its literal
+// value. Cases cover symbols at varied positions and a fully symbolic input.
+static void test_sym_reduce_ops_variable_axes(const std::string& name)
+{
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+
+    // Symbol at axis 0.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 16}, {1, 3}, {1, 4}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+    // Symbol in middle axis.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 2}, {1, 8}, {1, 4}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+    // Symbol at last axis.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{k}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 2}, {1, 3}, {1, 64}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+    // Fully symbolic 3D input.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 16}, {1, 8}, {1, 64}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+}
+
 TEST_CASE(reduce_max) { test_reduce_ops("reduce_max"); }
+TEST_CASE(reduce_max_sym) { test_sym_reduce_ops("reduce_max"); }
 TEST_CASE(reduce_min) { test_reduce_ops("reduce_min"); }
+TEST_CASE(reduce_min_sym) { test_sym_reduce_ops("reduce_min"); }
 TEST_CASE(reduce_mean) { test_reduce_ops("reduce_mean"); }
+TEST_CASE(reduce_mean_sym) { test_sym_reduce_ops("reduce_mean"); }
 TEST_CASE(reduce_prod) { test_reduce_ops("reduce_prod"); }
+TEST_CASE(reduce_prod_sym) { test_sym_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum) { test_reduce_ops("reduce_sum"); }
+TEST_CASE(reduce_sum_sym) { test_sym_reduce_ops("reduce_sum"); }
+TEST_CASE(reduce_any) { test_reduce_ops("reduce_any"); }
+TEST_CASE(reduce_any_sym) { test_sym_reduce_ops("reduce_any"); }
+TEST_CASE(reduce_all) { test_reduce_ops("reduce_all"); }
+TEST_CASE(reduce_all_sym) { test_sym_reduce_ops("reduce_all"); }
 
 TEST_CASE(reduce_max_dyn) { test_dyn_reduce_ops("reduce_max"); }
 TEST_CASE(reduce_min_dyn) { test_dyn_reduce_ops("reduce_min"); }
 TEST_CASE(reduce_mean_dyn) { test_dyn_reduce_ops("reduce_mean"); }
 TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops("reduce_sum"); }
+TEST_CASE(reduce_any_dyn) { test_dyn_reduce_ops("reduce_any"); }
+TEST_CASE(reduce_all_dyn) { test_dyn_reduce_ops("reduce_all"); }
 
 TEST_CASE(reduce_max_variable_axes) { test_reduce_ops_variable_axes("reduce_max"); }
+TEST_CASE(reduce_max_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_max"); }
 TEST_CASE(reduce_min_variable_axes) { test_reduce_ops_variable_axes("reduce_min"); }
+TEST_CASE(reduce_min_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_min"); }
 TEST_CASE(reduce_mean_variable_axes) { test_reduce_ops_variable_axes("reduce_mean"); }
+TEST_CASE(reduce_mean_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_mean"); }
 TEST_CASE(reduce_prod_variable_axes) { test_reduce_ops_variable_axes("reduce_prod"); }
+TEST_CASE(reduce_prod_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_prod"); }
 TEST_CASE(reduce_sum_variable_axes) { test_reduce_ops_variable_axes("reduce_sum"); }
+TEST_CASE(reduce_sum_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_sum"); }
+TEST_CASE(reduce_any_variable_axes) { test_reduce_ops_variable_axes("reduce_any"); }
+TEST_CASE(reduce_any_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_any"); }
+TEST_CASE(reduce_all_variable_axes) { test_reduce_ops_variable_axes("reduce_all"); }
+TEST_CASE(reduce_all_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_all"); }
 
 TEST_CASE(reshape_shape)
 {
@@ -3139,21 +4671,23 @@ TEST_CASE(reshape_nonstandard)
     auto input = migraphx::shape::from_permutation(migraphx::shape::float_type,
                                                    {4, 24, 1, 1, 1},
                                                    migraphx::invert_permutation({1, 0, 2, 3, 4}));
-    std::vector<std::vector<std::size_t>> tests{{4, 24},
-                                                {4, 24, 1, 1, 1, 1},
-                                                {4, 8, 3, 1, 1},
-                                                {4, 1, 3, 4, 2},
-                                                {4, 1, 4, 3, 2},
-                                                {4, 2, 4, 3},
-                                                {4, 2, 12, 1},
-                                                {4, 2, 1, 12},
-                                                {4, 4, 2, 3},
-                                                {4, 8, 1, 3},
-                                                {4, 8, 3, 1}};
+    std::vector<std::pair<std::vector<std::size_t>, std::vector<int64_t>>> tests{
+        {{4, 24}, {1, 0}},
+        {{4, 24, 1, 1, 1, 1}, {1, 0, 2, 3, 4, 5}},
+        {{4, 8, 3, 1, 1}, {2, 0, 1, 3, 4}},
+        {{4, 1, 3, 4, 2}, {4, 0, 1, 2, 3}},
+        {{4, 1, 4, 3, 2}, {4, 0, 1, 2, 3}},
+        {{4, 2, 4, 3}, {3, 0, 1, 2}},
+        {{4, 2, 12, 1}, {2, 0, 1, 3}},
+        {{4, 2, 1, 12}, {3, 0, 1, 2}},
+        {{4, 4, 2, 3}, {3, 0, 1, 2}},
+        {{4, 8, 1, 3}, {3, 0, 1, 2}},
+        {{4, 8, 3, 1}, {2, 0, 1, 3}}};
 
-    for(auto dims : tests)
+    for(const auto& [dims, perm] : tests)
     {
-        migraphx::shape output = migraphx::shape{migraphx::shape::float_type, dims};
+        migraphx::shape output = migraphx::shape::from_permutation(
+            migraphx::shape::float_type, dims, migraphx::invert_permutation(perm));
         expect_shape(output, migraphx::make_op("reshape", {{"dims", dims}}), input);
     }
 }
@@ -3163,7 +4697,8 @@ TEST_CASE(reshape_nonstandard_squeeze)
     auto input = migraphx::shape::from_permutation(
         migraphx::shape::float_type, {2, 16, 16, 1280}, migraphx::invert_permutation({0, 2, 3, 1}));
     std::vector<std::size_t> lens = {2, 256, 1280};
-    migraphx::shape output        = migraphx::shape{migraphx::shape::float_type, lens};
+    migraphx::shape output        = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, lens, migraphx::invert_permutation({0, 2, 1}));
     expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
 }
 
@@ -3241,6 +4776,31 @@ TEST_CASE(reshape_broadcast_squeeze1)
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
     migraphx::shape output{migraphx::shape::float_type, {2, 256, 1280}};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
+}
+
+TEST_CASE(reshape_transposed_broadcast)
+{
+    // Input is transposed (axis 2 slowest, axis 1 fastest) and broadcast on axis 0.
+    // Broadcasts have ambiguous permutations, so the reshape falls back to standard layout.
+    migraphx::shape input{migraphx::shape::float_type, {4, 24, 8}, {0, 1, 4}};
+    std::vector<std::size_t> lens = {2, 2, 24, 8};
+    migraphx::shape output{migraphx::shape::float_type, lens};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
+    EXPECT(output.standard());
+}
+
+TEST_CASE(reshape_transposed_slice)
+{
+    // Input is transposed (axis 0 fastest, axis 1 slowest) with stride gaps (sliced).
+    // The reshape splits axis 1; output should preserve the transpose pattern and be packed.
+    migraphx::shape input{migraphx::shape::float_type, {4, 24}, {1, 8}};
+    std::vector<std::size_t> lens = {4, 4, 6};
+    migraphx::shape output        = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, lens, migraphx::invert_permutation({2, 0, 1}));
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
+    EXPECT(output.packed());
+    EXPECT(not output.broadcasted());
+    EXPECT(not output.standard());
 }
 
 TEST_CASE(reshape_broadcast_squeeze2)
@@ -3369,6 +4929,194 @@ TEST_CASE(reshape_dyn_1in_multiple_non_fixed1)
     migraphx::shape output{migraphx::shape::float_type, {{1, 8}, {1, 1}, {10, 20}, {24, 24}}};
     std::vector<int64_t> new_shape = {-1, 1, 0, 24};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(reshape_sym_zero_marker)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 2, 3}}}), input);
+}
+
+TEST_CASE(reshape_sym_negative_1_int_missing)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(3)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {2, 0, -1}}}), input);
+}
+
+TEST_CASE(reshape_sym_minus1_first)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(3) * n}, dd{lit(2)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {-1, 2}}}), input);
+}
+
+TEST_CASE(reshape_sym_minus1_distributes_over_sum)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n + lit(1)}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(3) * n + lit(3)}, dd{lit(2)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {-1, 2}}}), input);
+}
+
+TEST_CASE(reshape_sym_dims_smaller_than_input)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{m}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(2) * m}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, -1}}}), input);
+}
+
+TEST_CASE(reshape_sym_broadcast_input_standard)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}, {lit(0), lit(1)}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 2, 3}}}), input);
+    EXPECT(output.standard());
+}
+
+TEST_CASE(reshape_sym_transposed_literal_unsqueeze)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(6)}, dd{n}}, {lit(1), lit(6)}};
+    std::vector<migraphx::dim_like> dims = {2, 3, dd{n}};
+    migraphx::shape output{
+        migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{n}}, {lit(3), lit(1), lit(6)}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+    EXPECT(not output.standard());
+}
+
+TEST_CASE(reshape_sym_transposed_symbolic_strides)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}, {lit(1), n}};
+    migraphx::shape output{
+        migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}, {lit(1), lit(3) * n, n}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 2, 3}}}), input);
+    EXPECT(not output.standard());
+}
+
+TEST_CASE(reshape_sym_nonstandard_indeterminate_falls_back)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}, {lit(1), n}};
+    std::vector<migraphx::dim_like> dims = {6, dd{n}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(6)}, dd{n}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+    EXPECT(output.standard());
+}
+
+TEST_CASE(reshape_sym_nonpacked_unsqueeze)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{
+        migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(16)}}, {lit(128), lit(32), lit(2)}};
+    std::vector<migraphx::dim_like> dims = {0, 4, 2, 8};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{n}, dd{lit(4)}, dd{lit(2)}, dd{lit(8)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+    EXPECT(output.standard());
+}
+
+TEST_CASE(reshape_sym_target_dim_negative_1)
+{
+    auto n                               = var("N", {1, 8});
+    migraphx::shape input                = {migraphx::shape::float_type, {6}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, -1};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(6) / n}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_minus1_non_exact_div)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{(lit(2) * m * n) / lit(3)}, dd{lit(3)}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {-1, 3, 3}}}), input);
+}
+
+TEST_CASE(reshape_sym_target_middle_axis)
+{
+    auto n                               = var("N", {1, 8});
+    migraphx::shape input                = {migraphx::shape::float_type, {24}};
+    std::vector<migraphx::dim_like> dims = {2, dd{n}, dd{lit(12) / n}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(12) / n}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_target_minus1_cancels_to_literal)
+{
+    auto n                               = var("N", {1, 8});
+    migraphx::shape input                = {migraphx::shape::float_type, {dd{lit(12)}, dd{n}}};
+    std::vector<migraphx::dim_like> dims = {-1, dd{lit(2) * n}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(6)}, dd{lit(2) * n}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_target_minus1_symbolic_missing)
+{
+    auto n                               = var("N", {1, 8});
+    auto m                               = var("M", {1, 8});
+    migraphx::shape input                = {migraphx::shape::float_type, {dd{n}, dd{m}}};
+    std::vector<migraphx::dim_like> dims = {dd{lit(2) * n}, -1};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(2) * n}, dd{m / lit(2)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_target_collapse_axes)
+{
+    auto n                               = var("N", {1, 8});
+    auto m                               = var("M", {1, 8});
+    auto k                               = var("K", {1, 8});
+    migraphx::shape input                = {migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    std::vector<migraphx::dim_like> dims = {dd{n * m}, dd{k}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n * m}, dd{k}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_element_mismatch_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", {0, 2, 2}}}), input);
+}
+
+TEST_CASE(reshape_sym_symbolic_dim_mismatch_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, dd{lit(7)}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_range_input_sym_dim_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {{1, 8}, {6, 6}}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, dd{lit(2)}, dd{lit(3)}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_range_dim_like_throws)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6}};
+    std::vector<migraphx::dim_like> dims = {dd{1, 4}, dd{1, 6}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_multiple_neg_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", {1, -1, -1}}}), input);
 }
 
 TEST_CASE(reshape_lazy_shape)
@@ -3503,6 +5251,72 @@ TEST_CASE(reshape_lazy_nonpacked_squeeze2)
     throws_shape(migraphx::make_op("reshape_lazy", {{"dims", {64}}}), input);
 }
 
+TEST_CASE(reshape_lazy_sym_nonpacked_squeeze)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(4)}, dd{n}}, {lit(2) * n, lit(2)}};
+    std::vector<migraphx::dim_like> dims = {dd{lit(4) * n}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(4) * n}}, {lit(2)}};
+    expect_shape(
+        output, migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_nonpacked_unsqueeze)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(4)}, dd{n}}, {lit(2) * n, lit(2)}};
+    std::vector<migraphx::dim_like> dims = {2, 2, dd{n}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(2)}, dd{lit(2)}, dd{n}},
+                           {lit(4) * n, lit(2) * n, lit(2)}};
+    expect_shape(
+        output, migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_transposed_squeeze_throws)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(4)}, dd{n}}, {lit(1), lit(4)}};
+    std::vector<migraphx::dim_like> dims = {dd{lit(4) * n}};
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_broadcast_squeeze)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{lit(2)}, dd{n}, dd{lit(16)}, dd{lit(1280)}},
+                          {lit(0), lit(0), lit(0), lit(1)}};
+    std::vector<migraphx::dim_like> dims = {2, dd{lit(16) * n}, 1280};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(2)}, dd{lit(16) * n}, dd{lit(1280)}},
+                           {lit(0), lit(0), lit(1)}};
+    expect_shape(
+        output, migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_broadcast_unsqueeze)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{lit(2)}, dd{lit(16) * n}, dd{lit(1280)}},
+                          {lit(0), lit(0), lit(1)}};
+    std::vector<migraphx::dim_like> dims = {2, dd{n}, 16, 1280};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(2)}, dd{n}, dd{lit(16)}, dd{lit(1280)}},
+                           {lit(0), lit(0), lit(0), lit(1)}};
+    expect_shape(
+        output, migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_element_mismatch_throws)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, 2, 2};
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
 TEST_CASE(reshape_lazy_broadcast_unsqueeze1)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 256, 1280}, {0, 0, 1}};
@@ -3541,6 +5355,47 @@ TEST_CASE(reshape_lazy_broadcast_squeeze_error)
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
     std::vector<int64_t> new_shape = {2, 16, 20480};
     throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(reshape_lazy_nonpacked_transpose)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 3, 512, 512}, {786432, 1, 1536, 3}};
+    migraphx::shape output{
+        migraphx::shape::float_type, {1, 3, 256, 2, 256, 2}, {786432, 1, 3072, 1536, 6, 3}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
+// Unsqueeze first dim, then equal for remaining two (r > i entering equal branch)
+TEST_CASE(reshape_lazy_nonpacked_unsqueeze_then_equal)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16, 8}, {256, 16, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 2, 16, 8}, {512, 256, 16, 2}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
+// Unsqueeze both dims of a 2D non-packed shape (r > i after first unsqueeze)
+TEST_CASE(reshape_lazy_nonpacked_unsqueeze_both)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 2, 4, 4}, {64, 32, 8, 2}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
+// Squeeze first two dims, then unsqueeze last dim (i > r entering unsqueeze branch)
+TEST_CASE(reshape_lazy_nonpacked_squeeze_then_unsqueeze)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 10}, {60, 20, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {6, 2, 5}, {20, 10, 2}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
+// Three consecutive unsqueezes on a non-packed shape (r diverges from i three times)
+TEST_CASE(reshape_lazy_nonpacked_three_unsqueezes)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4, 10}, {80, 20, 2}};
+    migraphx::shape output{
+        migraphx::shape::float_type, {2, 3, 2, 2, 2, 5}, {240, 80, 40, 20, 10, 2}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
 }
 
 TEST_CASE(reshape_lazy_dyn_shape)
@@ -3686,189 +5541,6 @@ TEST_CASE(return_shape_empty)
     EXPECT(op.compute_shape(s) == shape{});
 }
 
-TEST_CASE(rnn)
-{
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
-
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type,
-                            {seq_len, num_dirct, batch_size, hidden_size}},
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
-
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type,
-                            {seq_len, num_dirct, batch_size, hidden_size}},
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 2;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
-
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type,
-                            {seq_len, num_dirct, batch_size, hidden_size}},
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
-
-        throws_shape(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size + 1},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
-
-        throws_shape(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-
-    {
-        std::size_t batch_size  = 2;
-        std::size_t seq_len     = 2;
-        std::size_t hidden_size = 4;
-        std::size_t input_size  = 3;
-        std::size_t num_dirct   = 2;
-        float clip              = 0.0f;
-
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
-
-        throws_shape(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            in_shape,
-            w_shape,
-            r_shape,
-            b_shape,
-            ih_shape);
-    }
-}
-
 TEST_CASE(select_module_dyn)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}, {255, 255}, {255, 255}}};
@@ -3879,6 +5551,100 @@ TEST_CASE(select_module_dyn)
         out_attr,
         migraphx::make_op("select_module", {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
         input);
+}
+
+TEST_CASE(select_module_index_static)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape data_s{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape out_s{std::vector<migraphx::shape>{data_s}};
+    auto index32 = mm->add_outline(migraphx::shape{migraphx::shape::int32_type});
+    // dimensions_of and eval_expr_from_shape produce int64[1], not a rank-0 scalar
+    auto index64 = mm->add_outline(migraphx::shape{migraphx::shape::int64_type, {1}});
+    auto data    = mm->add_outline(data_s);
+    auto out     = mm->add_outline(out_s);
+
+    auto* sub0 = p.create_module("sub_0");
+    auto x0    = sub0->add_parameter("data", data_s);
+    sub0->add_return({sub0->add_instruction(migraphx::make_op("neg"), x0)});
+    auto* sub1 = p.create_module("sub_1");
+    auto x1    = sub1->add_parameter("data", data_s);
+    sub1->add_return({sub1->add_instruction(migraphx::make_op("abs"), x1)});
+
+    auto smi32 = mm->add_instruction(
+        migraphx::make_op("select_module_index"), {index32, data}, {sub0, sub1});
+    EXPECT(smi32->get_shape() == out_s);
+    auto smi64 = mm->add_instruction(
+        migraphx::make_op("select_module_index", {{"index_map", std::vector<std::size_t>{4, 7}}}),
+        {index64, data},
+        {sub0, sub1});
+    EXPECT(smi64->get_shape() == out_s);
+    auto smi_out = mm->add_instruction(
+        migraphx::make_op("select_module_index"), {index64, data, out}, {sub0, sub1});
+    EXPECT(smi_out->get_shape() == out_s);
+}
+
+TEST_CASE(select_module_index_invalid)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape data_s{migraphx::shape::float_type, {2, 2}};
+    auto index      = mm->add_outline(migraphx::shape{migraphx::shape::int64_type, {1}});
+    auto data       = mm->add_outline(data_s);
+    auto float_idx  = mm->add_outline(migraphx::shape{migraphx::shape::float_type, {1}});
+    auto multi_idx  = mm->add_outline(migraphx::shape{migraphx::shape::int64_type, {2}});
+    auto wrong_data = mm->add_outline(migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto tup        = mm->add_outline(
+        migraphx::shape{std::vector<migraphx::shape>{{migraphx::shape::float_type, {3}}}});
+
+    auto* sub0 = p.create_module("sub_0");
+    auto x0    = sub0->add_parameter("data", data_s);
+    sub0->add_return({sub0->add_instruction(migraphx::make_op("neg"), x0)});
+    auto* sub1 = p.create_module("sub_1");
+    auto x1    = sub1->add_parameter("data", data_s);
+    sub1->add_return({sub1->add_instruction(migraphx::make_op("abs"), x1)});
+    auto* sub2 = p.create_module("sub_2");
+    sub2->add_parameter("data", data_s);
+    sub2->add_return({sub2->add_outline(migraphx::shape{migraphx::shape::float_type, {3}})});
+
+    auto smi = migraphx::make_op("select_module_index");
+    // index must be a single integral element
+    EXPECT(test::throws([&] { mm->add_instruction(smi, {float_idx, data}, {sub0, sub1}); }));
+    EXPECT(test::throws([&] { mm->add_instruction(smi, {multi_idx, data}, {sub0, sub1}); }));
+    // at least one submodule, all with the same output shapes
+    EXPECT(test::throws([&] { mm->add_instruction(smi, {index, data}, {}); }));
+    EXPECT(test::throws([&] { mm->add_instruction(smi, {index, data}, {sub0, sub2}); }));
+    // data inputs must match the submodule parameters
+    EXPECT(test::throws([&] { mm->add_instruction(smi, {index}, {sub0, sub1}); }));
+    EXPECT(test::throws([&] { mm->add_instruction(smi, {index, wrong_data}, {sub0, sub1}); }));
+    // tuples are only allowed as a trailing output buffer that matches the output
+    EXPECT(test::throws([&] { mm->add_instruction(smi, {index, tup, data}, {sub0, sub1}); }));
+    EXPECT(test::throws([&] { mm->add_instruction(smi, {index, data, tup}, {sub0, sub1}); }));
+    // index_map needs one unique entry per submodule
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("select_module_index",
+                                              {{"index_map", std::vector<std::size_t>{4, 7, 9}}}),
+                            {index, data},
+                            {sub0, sub1});
+    }));
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("select_module_index",
+                                              {{"index_map", std::vector<std::size_t>{4, 4}}}),
+                            {index, data},
+                            {sub0, sub1});
+    }));
+}
+
+TEST_CASE(select_module_index_output_alias)
+{
+    migraphx::shape index_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape data_s{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape out_s{std::vector<migraphx::shape>{data_s}};
+    auto op = migraphx::make_op("select_module_index");
+    EXPECT(op.output_alias({index_s}).empty());
+    EXPECT(op.output_alias({index_s, data_s}).empty());
+    EXPECT(op.output_alias({index_s, data_s, out_s}) == std::vector<std::size_t>{2});
 }
 
 TEST_CASE(slice_static_shape)
@@ -4215,16 +5981,12 @@ TEST_CASE(slice_dyn_shape2)
 
 TEST_CASE(slice_dyn_shape3)
 {
-    // TODO: When non-fixed dimension slicing is allowed, Slice to a size smaller than min.
-    // Until then, this action is an error.
+    // Slicing a non-fixed dynamic dimension relaxes only the sliced axis to {0, max};
+    // non-sliced axes are left unchanged.
     migraphx::shape input{migraphx::shape::int32_type, {{2, 3}, {7, 8}, {2, 3}}};
-    throws_shape(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3}, {0, 8}, {2, 3}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
                  input);
-    // clang-format off
-    //     expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3}, {1, 1}, {2, 3}}},
-    //                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
-    //                  input);
-    // clang-format on
 }
 
 TEST_CASE(slice_dyn_shape4)
@@ -4244,6 +6006,161 @@ TEST_CASE(slice_dyn_shape5)
     throws_shape(
         migraphx::make_op("slice", {{"axes", {0, 20}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
         input);
+}
+
+TEST_CASE(slice_dyn_preserves_optimals)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {dd{2, 4, {3}}, dd{7, 7}, dd{2, 5, {3, 4}}}};
+    migraphx::shape expected{migraphx::shape::int32_type,
+                             {dd{2, 4, {3}}, dd{3, 3}, dd{2, 5, {3, 4}}}};
+    expect_shape(expected,
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_nonfixed_axis)
+{
+    // Slicing a single non-fixed dynamic axis relaxes only that axis to {0, max}.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3}, {7, 8}, {2, 3}}};
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3}, {0, 8}, {2, 3}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_nonfixed_multi_axis)
+{
+    // Slicing multiple axes where one is non-fixed: only the sliced axes are relaxed,
+    // the non-sliced axis (2) is left unchanged.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 4}, {7, 8}, {2, 3}}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::int32_type, {{0, 4}, {0, 8}, {2, 3}}},
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
+        input);
+}
+
+TEST_CASE(slice_dyn_fixed_axis_with_nonfixed_neighbors)
+{
+    // Only a fixed axis (1) is sliced; the non-fixed neighbors (0, 2) are not sliced,
+    // so the relax branch is not taken and the slice computes normally.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 4}, {7, 7}, {2, 5}}};
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 4}, {3, 3}, {2, 5}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_nonfixed_keeps_other_optimals)
+{
+    // Non-sliced axes keep their optimals; the sliced non-fixed axis is relaxed to {0, max}.
+    migraphx::shape input{migraphx::shape::int32_type, {dd{2, 4, {3}}, dd{7, 8}, dd{2, 5, {3, 4}}}};
+    migraphx::shape expected{migraphx::shape::int32_type,
+                             {dd{2, 4, {3}}, dd{0, 8}, dd{2, 5, {3, 4}}}};
+    expect_shape(expected,
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+                 input);
+}
+
+TEST_CASE(slice_sym)
+{
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {1, 16});
+    auto k                                      = var("k", {1, 64});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 3}, {m, 5}, {k, 7}};
+
+    auto expect_matches_static = [&](const migraphx::operation& op,
+                                     const migraphx::shape& sin,
+                                     const migraphx::shape& sym_out) {
+        EXPECT(sym_out.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+    };
+
+    {
+        // Slice axis 0 (first); sym at axis 1.
+        auto op = migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(5)}, dd{n}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+    {
+        // Slice axis 1 (middle); syms at axes 0 and 2.
+        auto op = migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {6}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{lit(8)}, dd{m}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{m}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+    {
+        // Slice axis 3 (last) on a 4D shape; syms at axes 0, 1, 2.
+        auto op = migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {3}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}, dd{lit(10)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}, dd{lit(3)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+}
+
+TEST_CASE(slice_sym_multiple_axes)
+{
+    // Slice axes 0 and 2 at once; sym at axis 1 is untouched.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}};
+
+    auto op = migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {1, 2}}, {"ends", {4, 5}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(6)}, dd{n}, dd{lit(8)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(3)}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(slice_sym_fixed_bound_var)
+{
+    // var("k", {3, 3}) is fixed (collapsed bound), so slicing the axis is allowed.
+    auto k                                      = var("k", {3, 3});
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 5}};
+
+    auto op = migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{k}, dd{lit(4)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(4)}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(slice_sym_non_fixed_throws)
+{
+    // Slicing on a non-fixed symbolic axis is rejected (same contract as range).
+    auto n = var("n", {1, 8});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(4)}, dd{n}, dd{lit(8)}}};
+    throws_shape(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), sin);
+}
+
+TEST_CASE(slice_sym_bound_inputs_throws)
+{
+    // Bounds supplied as inputs would need a symbolic output extent, which the integer bounds
+    // here cannot express. dyn_slice handles these instead.
+    auto n = var("n", {1, 8});
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    throws_shape(migraphx::make_op("slice", {{"axes", {0}}}),
+                 migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}},
+                 bounds,
+                 bounds);
+}
+
+TEST_CASE(slice_sym_nonstandard_layout)
+{
+    // Non-standard symbolic input: the slice must preserve the permutation
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
+
+    auto sin = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(7)}}, {0, 2, 3, 1});
+    auto op   = migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {6}}});
+    auto sout = op.compute_shape({sin});
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
 }
 
 TEST_CASE(test_scan_slice1)
@@ -4300,6 +6217,129 @@ TEST_CASE(softmax_dyn1)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 1}, {3, 3}, {4, 6}, {5, 8, {6}}}};
     expect_shape(input, migraphx::make_op("softmax", {{"axis", 0}}), input);
+}
+
+TEST_CASE(softmax_sym_axis0)
+{
+    // Symbol at axis 0; output shape == input shape (softmax is shape-preserving).
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("softmax", {{"axis", 0}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}}) ==
+           op.compute_shape({input.to_static({{n, 7}})}));
+}
+
+TEST_CASE(softmax_sym_axis_middle)
+{
+    // Symbol in middle axis; softmax across a different axis -> shape unchanged, symbol intact.
+    auto m = var("m", {2, 6});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{m}, dd{lit(5)}}};
+    auto op = migraphx::make_op("softmax", {{"axis", 1}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{m, 4}}) ==
+           op.compute_shape({input.to_static({{m, 4}})}));
+}
+
+TEST_CASE(softmax_sym_axis_neg)
+{
+    // Symbol at last axis; softmax across that symbolic axis -> shape unchanged.
+    auto k = var("k", {1, 12});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{k}}};
+    auto op = migraphx::make_op("softmax", {{"axis", -1}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{k, 9}}) ==
+           op.compute_shape({input.to_static({{k, 9}})}));
+}
+
+TEST_CASE(softmax_sym_all)
+{
+    // Fully symbolic 3D input.
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    auto op = migraphx::make_op("softmax", {{"axis", 2}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}, {m, 5}, {k, 9}}) ==
+           op.compute_shape({input.to_static({{n, 7}, {m, 5}, {k, 9}})}));
+}
+
+TEST_CASE(softmax_sym_unpacked)
+{
+    // Non-packed symbolic input should be rebuilt with default packed sym strides,
+    // mirroring the static non-packed -> packed behavior.
+    auto n = var("n", {1, 8});
+    migraphx::shape input{
+        migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}, {lit(12), lit(4), lit(1)}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    EXPECT(not input.packed());
+    EXPECT(expected.packed());
+    expect_shape(expected, migraphx::make_op("softmax", {{"axis", 1}}), input);
+}
+
+TEST_CASE(logsoftmax_dyn)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 6}, {4, 6}}};
+    expect_shape(input, migraphx::make_op("logsoftmax", {{"axis", 2}}), input);
+}
+
+TEST_CASE(logsoftmax_sym_axis0)
+{
+    // Symbol at axis 0; logsoftmax is shape-preserving.
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", 1}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}}) ==
+           op.compute_shape({input.to_static({{n, 7}})}));
+}
+
+TEST_CASE(logsoftmax_sym_axis_middle)
+{
+    // Symbol in middle axis; logsoftmax across the symbolic axis -> shape unchanged.
+    auto m = var("m", {2, 6});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{m}, dd{lit(5)}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", 2}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{m, 4}}) ==
+           op.compute_shape({input.to_static({{m, 4}})}));
+}
+
+TEST_CASE(logsoftmax_sym_axis_neg)
+{
+    // Symbol at last axis; logsoftmax across a non-symbolic axis -> shape unchanged.
+    auto k = var("k", {1, 12});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{k}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", -2}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{k, 9}}) ==
+           op.compute_shape({input.to_static({{k, 9}})}));
+}
+
+TEST_CASE(logsoftmax_sym_all)
+{
+    // Fully symbolic 3D input.
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", 0}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}, {m, 5}, {k, 9}}) ==
+           op.compute_shape({input.to_static({{n, 7}, {m, 5}, {k, 9}})}));
+}
+
+TEST_CASE(logsoftmax_sym_unpacked)
+{
+    // Non-packed symbolic input should be rebuilt with default packed sym strides.
+    auto n = var("n", {1, 8});
+    migraphx::shape input{
+        migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}, {lit(12), lit(4), lit(1)}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    EXPECT(not input.packed());
+    EXPECT(expected.packed());
+    expect_shape(expected, migraphx::make_op("logsoftmax", {{"axis", 2}}), input);
 }
 
 TEST_CASE(test_argmax)
@@ -4372,6 +6412,83 @@ TEST_CASE(test_argmin)
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         throws_shape(migraphx::make_op("argmin", {{"axis", 4}}), input);
     }
+}
+
+TEST_CASE(argmin_dyn)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 6}, {4, 6}}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {{1, 4}, {3, 3}, {1, 1}, {4, 6}}},
+                 migraphx::make_op("argmin", {{"axis", 2}}),
+                 input);
+}
+
+TEST_CASE(argmin_sym_axis0)
+{
+    // Symbol at axis 0; reduce the symbolic axis -> collapses to lit(1).
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("argmin", {{"axis", 0}});
+    expect_shape(migraphx::shape{migraphx::shape::int64_type,
+                                 {dd{lit(1)}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}},
+                 op,
+                 input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}}) ==
+           op.compute_shape({input.to_static({{n, 7}})}));
+}
+
+TEST_CASE(argmin_sym_axis_middle)
+{
+    // Symbol in middle axis; reduce a different axis -> symbol preserved.
+    auto m = var("m", {2, 6});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{m}, dd{lit(5)}}};
+    auto op = migraphx::make_op("argmin", {{"axis", 2}});
+    expect_shape(migraphx::shape{migraphx::shape::int64_type,
+                                 {dd{lit(2)}, dd{lit(3)}, dd{lit(1)}, dd{lit(5)}}},
+                 op,
+                 input);
+    EXPECT(op.compute_shape({input}).to_static({{m, 4}}) ==
+           op.compute_shape({input.to_static({{m, 4}})}));
+}
+
+TEST_CASE(argmin_sym_axis_neg)
+{
+    // Symbol at last axis; reduce a non-symbolic axis via negative index -> symbol preserved.
+    auto k = var("k", {1, 12});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{k}}};
+    auto op = migraphx::make_op("argmin", {{"axis", -2}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(1)}, dd{k}}},
+        op,
+        input);
+    EXPECT(op.compute_shape({input}).to_static({{k, 9}}) ==
+           op.compute_shape({input.to_static({{k, 9}})}));
+}
+
+TEST_CASE(argmin_sym_two_symbols)
+{
+    // Two distinct symbols (axes 0 and 2); reduce axis 2 -> first preserved, second collapses.
+    auto n = var("n", {1, 16});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{k}}};
+    auto op = migraphx::make_op("argmin", {{"axis", -1}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{n}, dd{lit(3)}, dd{lit(1)}}}, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 4}, {k, 11}}) ==
+           op.compute_shape({input.to_static({{n, 4}, {k, 11}})}));
+}
+
+TEST_CASE(argmin_sym_all)
+{
+    // Fully symbolic 3D input; reduce the first axis -> only that symbol collapses.
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    auto op = migraphx::make_op("argmin", {{"axis", 0}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{lit(1)}, dd{m}, dd{k}}}, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}, {m, 5}, {k, 9}}) ==
+           op.compute_shape({input.to_static({{n, 7}, {m, 5}, {k, 9}})}));
 }
 
 TEST_CASE(test_scalar)
@@ -4601,6 +6718,60 @@ TEST_CASE(test_gathernd_dynamic8)
     expect_shape(s0, migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
 }
 
+TEST_CASE(gathernd_sym_data)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {4, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(4)}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gathernd"), data, indices);
+}
+
+TEST_CASE(gathernd_sym_indices_leading)
+{
+    auto m = var("m", {1, 6}, {3});
+    migraphx::shape data{migraphx::shape::float_type, {7, 3, 5}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{m}, dd{lit(2)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{m}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gathernd"), data, indices);
+}
+
+TEST_CASE(gathernd_sym_both)
+{
+    auto n = var("n", {2, 8}, {4});
+    auto m = var("m", {1, 6}, {3});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{m}, dd{lit(2)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{m}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gathernd"), data, indices);
+}
+
+TEST_CASE(gathernd_sym_batch_dims)
+{
+    auto n = var("n", {2, 6}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{n}, dd{lit(4)}, dd{lit(1)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gathernd", {{"batch_dims", 1}}), data, indices);
+}
+
+TEST_CASE(gathernd_sym_indices_k_must_be_fixed)
+{
+    auto k = var("k", {1, 3});
+    migraphx::shape data{migraphx::shape::float_type, {4, 3, 5}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{lit(2)}, dd{k}}};
+    throws_shape(migraphx::make_op("gathernd"), data, indices);
+}
+
+TEST_CASE(gathernd_sym_scalar_output)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {2}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(1)}}};
+    expect_shape(output, migraphx::make_op("gathernd"), data, indices);
+}
+
 TEST_CASE(test_scatternd0)
 {
     // good
@@ -4742,6 +6913,67 @@ TEST_CASE(test_scatternd_dyn5)
     throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
 }
 
+TEST_CASE(scatternd_sym_data)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{lit(3)}, dd{lit(2)}}};
+    migraphx::shape updates{migraphx::shape::float_type, {dd{lit(3)}}};
+    expect_shape(data, migraphx::make_op("scatternd_none"), data, indices, updates);
+}
+
+TEST_CASE(scatternd_sym_partial_index)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{lit(3)}, dd{lit(1)}}};
+    migraphx::shape updates{migraphx::shape::float_type, {dd{lit(3)}, dd{lit(5)}}};
+    expect_shape(data, migraphx::make_op("scatternd_none"), data, indices, updates);
+}
+
+TEST_CASE(scatternd_sym_mismatch_throws)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{lit(3)}, dd{lit(1)}}};
+    migraphx::shape updates{migraphx::shape::float_type, {dd{lit(3)}, dd{lit(4)}}};
+    throws_shape(migraphx::make_op("scatternd_none"), data, indices, updates);
+}
+
+TEST_CASE(scatter_static)
+{
+    migraphx::shape data{migraphx::shape::float_type, {3, 5}};
+    migraphx::shape indices{migraphx::shape::int32_type, {2, 5}};
+    migraphx::shape updates{migraphx::shape::float_type, {2, 5}};
+    expect_shape(data, migraphx::make_op("scatter_none", {{"axis", 0}}), data, indices, updates);
+}
+
+TEST_CASE(scatter_dyn)
+{
+    migraphx::shape data{migraphx::shape::float_type, {{2, 6, {4}}, {5, 5}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {{1, 4}, {5, 5}}};
+    migraphx::shape updates{migraphx::shape::float_type, {{1, 4}, {5, 5}}};
+    expect_shape(data, migraphx::make_op("scatter_none", {{"axis", 0}}), data, indices, updates);
+}
+
+TEST_CASE(scatter_sym)
+{
+    auto n = var("n", {2, 6}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape updates{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    expect_shape(data, migraphx::make_op("scatter_none", {{"axis", 0}}), data, indices, updates);
+}
+
+TEST_CASE(scatter_dyn_data_sym_indices)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::shape data{migraphx::shape::float_type, {{2, 6, {4}}, {5, 5}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape updates{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    expect_shape(data, migraphx::make_op("scatter_none", {{"axis", 0}}), data, indices, updates);
+}
+
 TEST_CASE(test_squeeze)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
@@ -4813,6 +7045,41 @@ TEST_CASE(test_squeeze_negative_axis)
 TEST_CASE(test_squeeze_wrong_axis)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+    throws_shape(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+}
+
+TEST_CASE(test_squeeze_sym)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{m}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {1}}}), s1);
+}
+
+TEST_CASE(test_squeeze_sym_transpose)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape s1{
+        migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(1)}}, {lit(4), lit(1), lit(4)}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}};
+    expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_squeeze_sym_empty_axes)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{m}, dd{lit(1)}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    expect_shape(s2, migraphx::make_op("squeeze"), s1);
+}
+
+TEST_CASE(test_squeeze_sym_symbolic_axis_throws)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{m}}};
     throws_shape(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
 }
 
@@ -5036,6 +7303,162 @@ TEST_CASE(test_unsqueeze_multiple_axes_step)
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2, 4, 5}}, {"steps", {2}}}), s1);
 }
 
+TEST_CASE(test_unsqueeze_sym)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(3)}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(1)}, dd{lit(3)}}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_sym_symbolic_stride)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{lit(6)}, dd{n}}, {lit(1), lit(6)}};
+    migraphx::shape s2{
+        migraphx::shape::float_type, {dd{lit(1)}, dd{lit(6)}, dd{n}}, {lit(6), lit(1), lit(6)}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {0}}}), s1);
+    EXPECT(not s2.standard());
+}
+
+TEST_CASE(test_unsqueeze_sym_step)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(12)}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(2)}, dd{lit(6)}}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_sym_step_symbolic_divisor)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    migraphx::shape s2{
+        migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{m / lit(2)}}, {m, m / lit(2), lit(1)}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {1}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_sym_step_non_divisible_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(3)}}};
+    throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(topk_sym_shape)
+{
+    // A symbolic input keeps every dimension symbolic, with the sorted axis set to min(k, dim).
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    auto sorted = migraphx::sym::min(lit(3), m);
+    migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{sorted}}};
+    migraphx::shape ind{migraphx::shape::int64_type, {dd{n}, dd{sorted}}};
+    expect_shape(
+        migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}), input);
+    EXPECT(val.to_static({{n, 4}, {m, 8}}) ==
+           migraphx::shape{migraphx::shape::float_type, {4, 3}, {3, 1}});
+}
+
+TEST_CASE(topk_indices_type_shape)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 8}};
+    migraphx::shape val{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape ind{migraphx::shape::int32_type, {4, 3}};
+    expect_shape(
+        migraphx::shape({val, ind}),
+        migraphx::make_op("topk",
+                          {{"k", 3}, {"axis", 1}, {"indices_type", migraphx::shape::int32_type}}),
+        input);
+}
+
+TEST_CASE(topk_transposed_shape)
+{
+    // Both outputs keep the layout of the input
+    migraphx::shape input{migraphx::shape::float_type, {4, 8}, {1, 4}};
+    migraphx::shape val{migraphx::shape::float_type, {4, 3}, {1, 4}};
+    migraphx::shape ind{migraphx::shape::int64_type, {4, 3}, {1, 4}};
+    expect_shape(
+        migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}), input);
+    migraphx::shape index{migraphx::shape::uint16_type, {4, 8}};
+    migraphx::shape ind2{migraphx::shape::uint16_type, {4, 3}, {1, 4}};
+    expect_shape(migraphx::shape({val, ind2}),
+                 migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}),
+                 input,
+                 index);
+}
+
+TEST_CASE(topk_transposed_sym_shape)
+{
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 8});
+    auto input =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {dd{n}, dd{m}}, {1, 0});
+    auto sorted = migraphx::sym::min(lit(3), m);
+    auto val =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {dd{n}, dd{sorted}}, {1, 0});
+    auto ind =
+        migraphx::shape::from_permutation(migraphx::shape::int64_type, {dd{n}, dd{sorted}}, {1, 0});
+    expect_shape(
+        migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}), input);
+}
+
+TEST_CASE(topk_index_input_shape)
+{
+    // The index input decides the type of the indices
+    migraphx::shape input{migraphx::shape::float_type, {4, 8}};
+    migraphx::shape index{migraphx::shape::uint16_type, {4, 8}};
+    migraphx::shape val{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape ind{migraphx::shape::uint16_type, {4, 3}};
+    expect_shape(migraphx::shape({val, ind}),
+                 migraphx::make_op("topk", {{"k", 3}, {"axis", 1}}),
+                 input,
+                 index);
+    expect_shape(
+        migraphx::shape({val, ind}),
+        migraphx::make_op("topk",
+                          {{"k", 3}, {"axis", 1}, {"indices_type", migraphx::shape::int32_type}}),
+        input,
+        index);
+}
+
+TEST_CASE(topk_indices_type_sym_shape)
+{
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    auto sorted = migraphx::sym::min(lit(3), m);
+    migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{sorted}}};
+    migraphx::shape ind{migraphx::shape::uint16_type, {dd{n}, dd{sorted}}};
+    expect_shape(
+        migraphx::shape({val, ind}),
+        migraphx::make_op("topk",
+                          {{"k", 3}, {"axis", 1}, {"indices_type", migraphx::shape::uint16_type}}),
+        input);
+}
+
+TEST_CASE(topk_sym_shape_folded_k)
+{
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    {
+        // `k` at or above the axis maximum can never trim it, so the dimension is unchanged.
+        migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{m}}};
+        migraphx::shape ind{migraphx::shape::int64_type, {dd{n}, dd{m}}};
+        expect_shape(
+            migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 4}, {"axis", 1}}), input);
+    }
+    {
+        // `k` below the axis minimum always trims it, which fixes the sorted axis.
+        migraphx::shape val{migraphx::shape::float_type, {dd{n}, dd{lit(1)}}};
+        migraphx::shape ind{migraphx::shape::int64_type, {dd{n}, dd{lit(1)}}};
+        expect_shape(
+            migraphx::shape({val, ind}), migraphx::make_op("topk", {{"k", 1}, {"axis", 1}}), input);
+    }
+}
+
 TEST_CASE(transpose_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2}};
@@ -5058,6 +7481,45 @@ TEST_CASE(transpose_dyn_shape1)
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {4, 4}}};
     migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {4, 4}, {1, 4}}};
     expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1, 2}}}), input);
+    expect_shape(output, migraphx::make_op("transpose", {{"permutation", {2, 1, 0}}}), input);
+}
+
+TEST_CASE(transpose_sym_identity)
+{
+    auto n = var("N", {1, 64});
+    auto h = var("H", {1, 128});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{h}}};
+    expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1}}}), input);
+}
+
+TEST_CASE(transpose_sym_swap)
+{
+    auto n = var("N", {1, 64});
+    auto h = var("H", {1, 128});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{h}}};
+    auto output =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {dd{h}, dd{n}}, {1, 0});
+    expect_shape(output, migraphx::make_op("transpose", {{"permutation", {1, 0}}}), input);
+}
+
+TEST_CASE(transpose_sym_3d)
+{
+    auto n = var("N", {1, 64});
+    auto c = var("C", {1, 32});
+    auto h = var("H", {1, 128});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{c}, dd{h}}};
+    auto output = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{h}, dd{c}, dd{n}}, {2, 1, 0});
+    expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1, 2}}}), input);
+    expect_shape(output, migraphx::make_op("transpose", {{"permutation", {2, 1, 0}}}), input);
+}
+
+TEST_CASE(transpose_sym_mixed_literal)
+{
+    auto n = var("N", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(8)}, dd{lit(4)}}};
+    auto output = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{lit(4)}, dd{lit(8)}, dd{n}}, {2, 1, 0});
     expect_shape(output, migraphx::make_op("transpose", {{"permutation", {2, 1, 0}}}), input);
 }
 
@@ -5086,6 +7548,135 @@ TEST_CASE(step_test)
     }
 }
 
+TEST_CASE(step_sym)
+{
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {1, 16});
+    auto k                                      = var("k", {1, 64});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 3}, {m, 5}, {k, 7}};
+
+    auto expect_matches_static = [&](const migraphx::operation& op,
+                                     const migraphx::shape& sin,
+                                     const migraphx::shape& sym_out) {
+        EXPECT(sym_out.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+    };
+
+    {
+        // Step axis 0 (first); sym at axis 1.
+        auto op = migraphx::make_op("step", {{"axes", {0}}, {"steps", {2}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(5)}, dd{n}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type,
+            {dd{lit(3)}, dd{n}, dd{lit(4)}},
+            {sin.dyn_strides()[0] * lit(2), sin.dyn_strides()[1], sin.dyn_strides()[2]}};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+    {
+        // Step axis 1 (middle); syms at axes 0 and 2.
+        auto op = migraphx::make_op("step", {{"axes", {1}}, {"steps", {3}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{lit(8)}, dd{m}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type,
+            {dd{n}, dd{lit(3)}, dd{m}},
+            {sin.dyn_strides()[0], sin.dyn_strides()[1] * lit(3), sin.dyn_strides()[2]}};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+    {
+        // Step axis 3 (last) on a 4D shape; syms at axes 0, 1, 2.
+        auto op = migraphx::make_op("step", {{"axes", {3}}, {"steps", {2}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}, dd{lit(10)}}};
+        migraphx::shape sout{migraphx::shape::float_type,
+                             {dd{n}, dd{m}, dd{k}, dd{lit(5)}},
+                             {sin.dyn_strides()[0],
+                              sin.dyn_strides()[1],
+                              sin.dyn_strides()[2],
+                              sin.dyn_strides()[3] * lit(2)}};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+}
+
+TEST_CASE(step_sym_on_sym_axis)
+{
+    // Stepping a symbolic axis: output dim is (n+1)/2 symbolically.
+    auto n                                      = var("n", {2, 32});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 9}};
+
+    auto op = migraphx::make_op("step", {{"axes", {1}}, {"steps", {2}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{lit(2)}, dd{(n + lit(1)) / lit(2)}, dd{lit(4)}},
+        {sin.dyn_strides()[0], sin.dyn_strides()[1] * lit(2), sin.dyn_strides()[2]}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_sym_multiple_axes)
+{
+    // Step two axes at once; one literal, one symbolic; verify both dims and the
+    // stride scaling at each stepped axis.
+    auto m                                      = var("m", {1, 16});
+    std::unordered_map<se, std::size_t> sym_map = {{m, 7}};
+
+    auto op = migraphx::make_op("step", {{"axes", {0, 2}}, {"steps", {2, 3}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(6)}, dd{m}, dd{lit(9)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{lit(3)}, dd{m}, dd{lit(3)}},
+        {sin.dyn_strides()[0] * lit(2), sin.dyn_strides()[1], sin.dyn_strides()[2] * lit(3)}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_sym_fully_symbolic)
+{
+    // Every axis symbolic; step the middle axis. Output dim is (m+1)/2 symbolically.
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {2, 16});
+    auto k                                      = var("k", {1, 64});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}, {m, 11}, {k, 5}};
+
+    auto op = migraphx::make_op("step", {{"axes", {1}}, {"steps", {2}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{n}, dd{(m + lit(1)) / lit(2)}, dd{k}},
+        {sin.dyn_strides()[0], sin.dyn_strides()[1] * lit(2), sin.dyn_strides()[2]}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_sym_nonstandard_layout)
+{
+    // Non-standard symbolic input via from_permutation: step must preserve the
+    // permutation and scale only the stepped axis's stride.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
+
+    auto sin = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(8)}}, {0, 2, 3, 1});
+    auto op = migraphx::make_op("step", {{"axes", {3}}, {"steps", {2}}});
+    migraphx::shape sout{migraphx::shape::float_type,
+                         {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(4)}},
+                         {sin.dyn_strides()[0],
+                          sin.dyn_strides()[1],
+                          sin.dyn_strides()[2],
+                          sin.dyn_strides()[3] * lit(2)}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_dyn)
+{
+    // Range-dynamic input: ceil-divide bounds; fixed-step shifts the optimal.
+    migraphx::shape input{migraphx::shape::float_type, {dd{2, 2}, dd{2, 8, {4}}, dd{4, 4}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{2, 2}, dd{1, 4, {2}}, dd{4, 4}}};
+    expect_shape(expected, migraphx::make_op("step", {{"axes", {1}}, {"steps", {2}}}), input);
+}
+
 TEST_CASE(unary_scalar_input)
 {
     migraphx::shape ss{migraphx::shape::half_type};
@@ -5100,6 +7691,49 @@ TEST_CASE(unary_broadcast_input)
     migraphx::shape ss{migraphx::shape::half_type, {2, 3}, {1, 0}};
     migraphx::shape s{migraphx::shape::half_type, {2, 3}};
     expect_shape(s, migraphx::make_op("sin"), ss);
+}
+
+TEST_CASE(unary_sym_packed)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    expect_shape(s, migraphx::make_op("sin"), s);
+}
+
+TEST_CASE(unary_sym_broadcasted)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims, {lit(0), lit(4), lit(1)}};
+    migraphx::shape sout{migraphx::shape::float_type, dims};
+    expect_shape(sout, migraphx::make_op("sin"), sx);
+}
+
+TEST_CASE(unary_sym_nonpacked_permutation)
+{
+    std::vector<dd> dims{dd{lit(4)}, dd{lit(3)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims, {lit(1), lit(8)}};
+    auto sout = migraphx::shape::from_permutation(migraphx::shape::float_type, dims, {1, 0});
+    expect_shape(sout, migraphx::make_op("sin"), sx);
+}
+
+TEST_CASE(convert_sym_packed)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
+    migraphx::shape sout{migraphx::shape::half_type, {dd{lit(2)}, dd{n}}};
+    expect_shape(
+        sout, migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), s);
+}
+
+TEST_CASE(convert_sym_nonpacked)
+{
+    // Symbolic strides are preserved through convert, mirroring the static path.
+    std::vector<dd> dims{dd{lit(4)}, dd{lit(3)}};
+    migraphx::shape s{migraphx::shape::float_type, dims, {lit(1), lit(8)}};
+    migraphx::shape sout{migraphx::shape::half_type, dims, {lit(1), lit(8)}};
+    expect_shape(
+        sout, migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), s);
 }
 
 TEST_CASE(where_broadcast_input)
@@ -5146,6 +7780,33 @@ TEST_CASE(where_dyn_input3)
     throws_shape(migraphx::make_op("where"), s3, s1, s2);
 }
 
+TEST_CASE(where_sym_same_packed)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape sb{migraphx::shape::bool_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    expect_shape(s, migraphx::make_op("where"), sb, s, s);
+}
+
+TEST_CASE(where_sym_packed_vs_broadcasted)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sb{migraphx::shape::bool_type, dims};
+    migraphx::shape sx{migraphx::shape::float_type, dims};
+    migraphx::shape sy{migraphx::shape::float_type, dims, {lit(0), lit(4), lit(1)}};
+    expect_shape(sx, migraphx::make_op("where"), sb, sx, sy);
+}
+
+TEST_CASE(where_sym_with_range_dyn_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape sb{migraphx::shape::bool_type, {dd{lit(2)}, dd{n}}};
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{2, 2}, dd{2, 8}}};
+    throws_shape(migraphx::make_op("where"), sb, sx, sy);
+}
+
 TEST_CASE(roialign_test)
 {
     migraphx::shape sx{migraphx::shape::float_type, {3, 4, 5, 6}};
@@ -5166,6 +7827,63 @@ TEST_CASE(roialign_test)
 
     migraphx::shape srois2{migraphx::shape::float_type, {2, 3}};
     throws_shape(migraphx::make_op("roialign"), sx, srois2, sbi);
+
+    migraphx::shape sx1{migraphx::shape::float_type, {3, 4, 5}};
+    throws_shape(migraphx::make_op("roialign"), sx1, srois, sbi);
+
+    migraphx::shape srois3{migraphx::shape::half_type, {2, 4}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois3, sbi);
+
+    migraphx::shape sbi3{migraphx::shape::int32_type, {2}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, sbi3);
+}
+
+TEST_CASE(roialign_dynamic_test)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {{1, 4}, {2, 6}, {5, 5}, {6, 6}}};
+    migraphx::shape srois{migraphx::shape::float_type, {{0, 8}, {4, 4}}};
+    migraphx::shape sbi{migraphx::shape::int64_type, std::vector<dd>{{0, 8}}};
+    migraphx::shape sout{migraphx::shape::float_type, {{0, 8}, {2, 6}, {3, 3}, {2, 2}}};
+
+    expect_shape(sout,
+                 migraphx::make_op("roialign",
+                                   {{"output_height", int64_t{3}}, {"output_width", int64_t{2}}}),
+                 sx,
+                 srois,
+                 sbi);
+
+    migraphx::shape sx_static{migraphx::shape::float_type, {1, 4, 5, 6}};
+    migraphx::shape srois_empty{migraphx::shape::float_type, {0, 4}};
+    migraphx::shape sbi_empty{migraphx::shape::int64_type, {0}};
+    migraphx::shape sout_empty{migraphx::shape::float_type, {0, 4, 1, 1}};
+    expect_shape(sout_empty, migraphx::make_op("roialign"), sx_static, srois_empty, sbi_empty);
+
+    migraphx::shape sbi_disjoint{migraphx::shape::int64_type, std::vector<dd>{{9, 12}}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, sbi_disjoint);
+
+    migraphx::shape srois_nonfixed_width{migraphx::shape::float_type, {{0, 8}, {3, 4}}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois_nonfixed_width, sbi);
+}
+
+TEST_CASE(roialign_symbolic_test)
+{
+    auto r = var("r", {0, 258});
+    migraphx::shape sx{migraphx::shape::float_type,
+                       {dd{lit(1)}, dd{lit(4)}, dd{lit(14)}, dd{lit(14)}}};
+    migraphx::shape srois{migraphx::shape::float_type, {dd{r}, dd{lit(4)}}};
+    migraphx::shape sbi{migraphx::shape::int64_type, {dd{r}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{r}, dd{lit(4)}, dd{lit(7)}, dd{lit(7)}}};
+
+    expect_shape(sout,
+                 migraphx::make_op("roialign",
+                                   {{"output_height", int64_t{7}}, {"output_width", int64_t{7}}}),
+                 sx,
+                 srois,
+                 sbi);
+
+    auto other_r = var("other_r", {0, 258});
+    migraphx::shape other_sbi{migraphx::shape::int64_type, {dd{other_r}}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, other_sbi);
 }
 
 TEST_CASE(test_concat)
@@ -5193,6 +7911,18 @@ TEST_CASE(test_concat)
     throws_shape(migraphx::make_op("concat", {{"axis", 0}}));
 }
 
+TEST_CASE(test_concat_nhwc_singleton)
+{
+    // The standard-layout input has a singleton channel, so its layout is
+    // ambiguous and the NHWC input decides the output layout.
+    auto sx =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 47, 8, 8}, {0, 2, 3, 1});
+    migraphx::shape sy{migraphx::shape::float_type, {1, 1, 8, 8}};
+    auto sout =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 48, 8, 8}, {0, 2, 3, 1});
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+}
+
 TEST_CASE(test_dyn_concat)
 {
     migraphx::shape sx{migraphx::shape::float_type, {{1, 3, {3}}, {4, 4}, {1, 5, {5}}, {6, 6}}};
@@ -5200,6 +7930,12 @@ TEST_CASE(test_dyn_concat)
     migraphx::shape sout{migraphx::shape::float_type, {{1, 3, {3}}, {4, 4}, {2, 9}, {6, 6}}};
 
     expect_shape(sout, migraphx::make_op("concat", {{"axis", 2}}), sx, sy);
+
+    // static + range-dynamic with compatible non-axis dims (static lifts to fixed range)
+    migraphx::shape sr{migraphx::shape::float_type, {{2, 2}, {1, 5}, {4, 4}}};
+    migraphx::shape ss{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape sr_out{migraphx::shape::float_type, {{2, 2}, {4, 8}, {4, 4}}};
+    expect_shape(sr_out, migraphx::make_op("concat", {{"axis", 1}}), sr, ss);
 
     // axis out of range
     throws_shape(migraphx::make_op("concat", {{"axis", 4}}), sx, sy);
@@ -5211,9 +7947,133 @@ TEST_CASE(test_dyn_concat)
     // non-matching dimension 2
     throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
 
-    // static and dynamic shapes together
+    // static input with non-axis dim that doesn't match the range-dynamic input
     migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
+}
+
+TEST_CASE(concat_sym)
+{
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {1, 16});
+    auto s                                      = var("s", {1, 128});
+    auto k                                      = var("k", {1, 64});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 3}, {m, 5}, {s, 7}, {k, 9}};
+
+    auto expect_matches_static = [&](const migraphx::operation& op,
+                                     const std::vector<migraphx::shape>& inputs,
+                                     const migraphx::shape& sym_out) {
+        std::vector<migraphx::shape> static_inputs(inputs.size());
+        std::transform(inputs.begin(), inputs.end(), static_inputs.begin(), [&](const auto& sh) {
+            return sh.to_static(sym_map);
+        });
+        EXPECT(sym_out.to_static(sym_map) == op.compute_shape(static_inputs));
+    };
+
+    {
+        // axis 0 (first): distinct symbols on the concat axis.
+        auto op = migraphx::make_op("concat", {{"axis", 0}});
+        migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+        migraphx::shape sy{migraphx::shape::float_type, {dd{m}, dd{lit(4)}}};
+        migraphx::shape sout{migraphx::shape::float_type, {dd{n + m}, dd{lit(4)}}};
+        expect_shape(sout, op, sx, sy);
+        expect_matches_static(op, {sx, sy}, sout);
+    }
+    {
+        // axis 1 (middle): non-axis sym shared, distinct sym on the concat axis.
+        auto op = migraphx::make_op("concat", {{"axis", 1}});
+        migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{s}, dd{lit(8)}}};
+        migraphx::shape sy{migraphx::shape::float_type, {dd{n}, dd{k}, dd{lit(8)}}};
+        migraphx::shape sout{migraphx::shape::float_type, {dd{n}, dd{s + k}, dd{lit(8)}}};
+        expect_shape(sout, op, sx, sy);
+        expect_matches_static(op, {sx, sy}, sout);
+    }
+    {
+        // axis 3 (last) on a 4D shape; sym at axis 0 and at the concat axis.
+        auto op = migraphx::make_op("concat", {{"axis", 3}});
+        migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{s}}};
+        migraphx::shape sy{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{k}}};
+        migraphx::shape sout{migraphx::shape::float_type,
+                             {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{s + k}}};
+        expect_shape(sout, op, sx, sy);
+        expect_matches_static(op, {sx, sy}, sout);
+    }
+}
+
+TEST_CASE(concat_sym_same_var)
+{
+    // Same symbol on the concat axis across both inputs -> 2*s.
+    auto s = var("s", {1, 64});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}, dd{s}, dd{lit(8)}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{lit(4)}, dd{s + s}, dd{lit(8)}}};
+    auto op = migraphx::make_op("concat", {{"axis", 1}});
+    expect_shape(sout, op, sx, sx);
+
+    std::unordered_map<se, std::size_t> sym_map = {{s, 7}};
+    auto static_in                              = sx.to_static(sym_map);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({static_in, static_in}));
+}
+
+TEST_CASE(concat_sym_static_mix)
+{
+    // Static + symbolic: static input lifts to sym-lits; output stays symbolic.
+    auto n = var("n", {1, 16});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {3, 4, 5}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{n + lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("concat", {{"axis", 0}});
+    expect_shape(sout, op, sx, sy);
+
+    std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sx.to_static(sym_map), sy}));
+}
+
+TEST_CASE(concat_sym_three_inputs)
+{
+    // Three inputs with three distinct symbols on the concat axis.
+    auto a = var("a", {1, 8});
+    auto b = var("b", {1, 16});
+    auto c = var("c", {1, 32});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{lit(2)}, dd{a}, dd{lit(4)}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{lit(2)}, dd{b}, dd{lit(4)}}};
+    migraphx::shape s_c{migraphx::shape::float_type, {dd{lit(2)}, dd{c}, dd{lit(4)}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{lit(2)}, dd{a + b + c}, dd{lit(4)}}};
+    auto op = migraphx::make_op("concat", {{"axis", 1}});
+    expect_shape(sout, op, s_a, s_b, s_c);
+
+    std::unordered_map<se, std::size_t> sym_map = {{a, 3}, {b, 5}, {c, 7}};
+    EXPECT(
+        sout.to_static(sym_map) ==
+        op.compute_shape({s_a.to_static(sym_map), s_b.to_static(sym_map), s_c.to_static(sym_map)}));
+}
+
+TEST_CASE(concat_sym_non_axis_mismatch_throws)
+{
+    // Non-axis dim has different symbols -> throws.
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 16});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}, dd{lit(4)}, dd{lit(5)}}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+}
+
+TEST_CASE(concat_sym_with_range)
+{
+    // Symbolic + range-dynamic: sym side materialized to range; output is range.
+    auto n = var("n", {1, 8});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {{2, 2}, {1, 5}, {4, 4}}};
+    migraphx::shape sout{migraphx::shape::float_type, {{2, 2}, {2, 13}, {4, 4}}};
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+}
+
+TEST_CASE(test_binary_nonpacked)
+{
+    auto sx   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 8});
+    auto sy   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 16});
+    auto sout = migraphx::shape::from_permutation(migraphx::shape::float_type, {4, 3}, {1, 0});
+
+    expect_shape(sout, migraphx::make_op("mul"), sx, sy);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

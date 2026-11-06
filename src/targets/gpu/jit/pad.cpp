@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,10 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/op/pad.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,10 +48,10 @@ namespace migraphx {
 extern "C" {
 MIGRAPHX_GLOBAL void pad_kernel(void* input_p, void* output_p) 
 {
-    auto offsets = index_ints<${offsets}>{};
+    auto offsets = diff_ints<${offsets}>{};
     auto idx     = make_index();
     make_tensors()(input_p, output_p)([&](auto input, auto output) {
-        pad(idx, offsets, input, output, ${pad_val});
+        pad(idx, offsets, input, output, ${pad_val}, ${pad_mode});
     });
 }
     
@@ -63,7 +65,7 @@ struct pad_compiler : compiler<pad_compiler>
 {
     std::vector<std::string> names() const { return {"pad"}; }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    hip_src make_src(const context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto padding    = v.at("pads").to_vector<int64_t>();
         auto input_lens = inputs.front().lens();
@@ -98,22 +100,44 @@ struct pad_compiler : compiler<pad_compiler>
         options.kernel_name    = "pad_kernel";
         options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements()));
 
-        auto pad_val        = v.get("value", 0.f);
-        auto pad_val_string = to_string(pad_val);
+        auto pad_val               = v.get("value", 0.f);
+        std::string pad_val_string = to_string(pad_val);
         if(float_equal(pad_val, std::numeric_limits<float>::lowest()))
             pad_val_string = "lowest{}";
-        if(float_equal(pad_val, std::numeric_limits<float>::max()))
+        else if(float_equal(pad_val, std::numeric_limits<float>::max()))
             pad_val_string = "highest{}";
+        else if(auto nonfinite = nonfinite_cpp_literal(pad_val))
+            pad_val_string = *nonfinite;
 
-        auto src = interpolate_string(
-            pointwise_kernel,
-            {{"pad_val", to_string(pad_val_string)}, {"offsets", to_string_range(roffsets)}});
-        return compile_hip_code_object(src, options);
+        // Get pad mode, default to constant
+        auto pad_mode_val           = v.get("mode", static_cast<int>(op::pad::constant_pad));
+        std::string pad_mode_string = "migraphx::pad_constant{}";
+        if(pad_mode_val == op::pad::reflect_pad)
+            pad_mode_string = "migraphx::pad_reflect{}";
+        else if(pad_mode_val == op::pad::edge_pad)
+            pad_mode_string = "migraphx::pad_edge{}";
+
+        auto src = interpolate_string(pointwise_kernel,
+                                      {{"pad_val", pad_val_string},
+                                       {"offsets", to_string_range(roffsets)},
+                                       {"pad_mode", pad_mode_string}});
+        return {src, options};
+    }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        return compile_hip_code_object(ctx, make_src(ctx, inputs, v));
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+    }
+
+    std::string
+    compile_key(const context& ctx, instruction_ref ins, const operation& op, const value&) const
+    {
+        return hip_compile_key(ctx, make_src(ctx, to_shapes(ins->inputs()), op.to_value()));
     }
 };
 } // namespace gpu

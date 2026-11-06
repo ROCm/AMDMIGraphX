@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -87,7 +87,7 @@ struct compilable_op
         return inputs.front();
     }
 
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 
     migraphx::value
     compile(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::shape>&)
@@ -190,6 +190,26 @@ struct final_operation_throw
     }
 };
 
+struct module_final_operation
+{
+    static std::size_t module_count;
+
+    std::string name() const { return "module_final"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        MIGRAPHX_THROW("not computable");
+    }
+    void finalize(migraphx::context&,
+                  const migraphx::shape&,
+                  const std::vector<migraphx::shape>&,
+                  const std::vector<migraphx::module_ref>& modules)
+    {
+        module_count = modules.size();
+    }
+};
+
+std::size_t module_final_operation::module_count = 0;
+
 TEST_CASE(check_has_finalize_simple)
 {
     migraphx::operation op = simple_operation{};
@@ -221,6 +241,15 @@ TEST_CASE(check_run_finalize_throw)
     migraphx::operation op = final_operation_throw{};
     migraphx::context ctx{};
     EXPECT(test::throws([&] { op.finalize(ctx, {}, {}); }));
+}
+
+TEST_CASE(check_run_module_finalize)
+{
+    module_final_operation::module_count = 0;
+    migraphx::operation op               = module_final_operation{};
+    migraphx::context ctx{};
+    op.finalize(ctx, {}, {}, {nullptr});
+    EXPECT(module_final_operation::module_count == 1);
 }
 
 TEST_CASE(check_to_value1)

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,47 +27,16 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/bit_cast.hpp>
+#include <migraphx/bit.hpp>
+#include <migraphx/math.hpp>
 #include <algorithm>
 #include <limits>
 #include <iostream>
 #include <tuple>
+#include <cstdint>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-template <unsigned int N>
-constexpr unsigned int all_ones() noexcept
-{
-    return (1u << N) - 1u;
-}
-
-template <typename T>
-constexpr int countl_zero(T value)
-{
-    unsigned int r = 0;
-    for(; value != 0u; value >>= 1u)
-        r++;
-    return 8 * sizeof(value) - r;
-}
-
-constexpr std::size_t bit_ceil(std::size_t v)
-{
-    if(v <= 1)
-        return 1;
-    v--;
-    v |= v >> 1u;
-    v |= v >> 2u;
-    v |= v >> 4u;
-    v |= v >> 8u;
-    v |= v >> 16u;
-    v |= v >> 32u;
-    return v + 1;
-}
-
-constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
-{
-    return (x + y - std::size_t{1}) / y;
-}
 
 template <unsigned int Bytes>
 struct unsigned_type
@@ -131,9 +100,10 @@ struct __attribute__((packed, may_alias)) generic_float
 
     explicit constexpr generic_float(float f = 0.0) noexcept { from_float(get_parts(f)); }
 
-    constexpr generic_float& operator=(float f) noexcept
+    template <class U, MIGRAPHX_REQUIRES(std::is_convertible<U, float>{})>
+    constexpr generic_float& operator=(U f) noexcept
     {
-        from_float(get_parts(f));
+        *this = generic_float(f);
         return *this;
     }
 
@@ -161,8 +131,8 @@ struct __attribute__((packed, may_alias)) generic_float
             }
             else
             {
-                type shift         = 0;
-                f.mantissa         = mantissa;
+                type shift = 0;
+                f.mantissa = mantissa;
 
                 if(MantissaSize < float32_parts::mantissa_width())
                 {
@@ -189,55 +159,61 @@ struct __attribute__((packed, may_alias)) generic_float
         return f.to_float();
     }
 
+    // Shift `significand` right by `drop` bits, rounding to nearest with ties to even.
+    // This is the rounding the hardware conversions use.
+    static constexpr std::uint32_t rne_shift(std::uint32_t significand, int drop) noexcept
+    {
+        if(drop <= 0)
+            return significand;
+        if(drop >= int(sizeof(std::uint32_t) * 8))
+            return 0;
+        const auto udrop = std::uint32_t(drop);
+        const auto lsb   = (significand >> udrop) & 1u;
+        return (significand + (1u << (udrop - 1u)) - 1u + lsb) >> udrop;
+    }
+
     constexpr void from_float(float32_parts f) noexcept
     {
+        constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
+        constexpr const int drop = int(float32_parts::mantissa_width() - MantissaSize);
+
         sign = f.sign;
 
-        if(f.exponent == 0)
-        {
-            exponent = 0;
-            mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
-        }
-        else if(f.exponent == float32_parts::max_exponent())
+        if(f.exponent == float32_parts::max_exponent())
         {
             exponent = all_ones<ExponentSize>();
-            mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
+            // Narrowing the payload must not turn a nan into an infinity.
+            std::uint32_t payload = f.mantissa >> std::uint32_t(drop);
+            if(f.mantissa != 0 and payload == 0)
+                payload = 1u << (MantissaSize - 1);
+            mantissa = payload;
+            return;
+        }
+
+        // A float32 subnormal has no implicit leading one, but it shares the exponent of the
+        // smallest float32 normal.
+        const bool subnormal = f.exponent == 0;
+        const int e          = int(subnormal ? 1u : f.exponent) - diff;
+        const std::uint32_t significand =
+            f.mantissa | (subnormal ? 0u : 1u << float32_parts::mantissa_width());
+
+        // Every exponent step below the target's minimum drops one more significand bit.
+        const auto m = rne_shift(significand, drop + std::max(0, 1 - e));
+        // The significand's leading one lands in the exponent field, so a rounding carry out of
+        // the significand bumps the exponent for free, and a result that is subnormal in the
+        // target just leaves the exponent field at zero.
+        const std::uint32_t bits = (std::uint32_t(std::max(e, 1) - 1) << MantissaSize) + m;
+
+        if((bits >> MantissaSize) >= all_ones<ExponentSize>())
+        {
+            exponent = all_ones<ExponentSize>();
+            mantissa = 0;
         }
         else
         {
-            constexpr const int diff = float32_parts::exponent_bias() - exponent_bias();
-            auto e                   = int(f.exponent) - diff;
-
-            if(e >= static_cast<int>(all_ones<ExponentSize>()))
-            {
-                exponent = all_ones<ExponentSize>();
-                mantissa = 0;
-            }
-            else if(e < 1)
-            {
-                exponent = 0;
-
-                auto shift        = diff - int(f.exponent);
-                auto shift_amount = shift + (float32_parts::mantissa_width() - MantissaSize) + 1;
-
-                if(shift_amount < (sizeof(unsigned int) * 8))
-                {
-                    mantissa = (f.mantissa | (1u << float32_parts::mantissa_width())) >>
-                               (shift + (float32_parts::mantissa_width() - MantissaSize) + 1);
-                }
-                else
-                {
-                    mantissa = 0;
-                }
-            }
-            else
-            {
-                exponent = int(f.exponent) - diff;
-                mantissa = f.mantissa >> (float32_parts::mantissa_width() - MantissaSize);
-            }
+            exponent = bits >> MantissaSize;
+            mantissa = bits & all_ones<MantissaSize>();
         }
-
-        exponent = std::min<type>(exponent, all_ones<ExponentSize>());
     }
 
     constexpr bool is_normal() const noexcept
@@ -324,14 +300,14 @@ struct __attribute__((packed, may_alias)) generic_float
         return generic_float{x.to_float() - 1.0f};
     }
 // NOLINTNEXTLINE
-#define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                        \
-    constexpr generic_float& operator op(const generic_float & rhs) \
-    {                                                               \
-        float self = *this;                                         \
-        float frhs = rhs;                                           \
-        self op frhs;                                               \
-        *this = generic_float(self);                                \
-        return *this;                                               \
+#define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                       \
+    constexpr generic_float& operator op(const generic_float& rhs) \
+    {                                                              \
+        float self = *this;                                        \
+        float frhs = rhs;                                          \
+        self op frhs;                                              \
+        *this = generic_float(self);                               \
+        return *this;                                              \
     }
     MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(*=)
     MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(-=)
@@ -396,75 +372,75 @@ struct __attribute__((packed, may_alias)) generic_float
 // NOLINTBEGIN(cert-dcl58-cpp)
 namespace std {
 
-template <unsigned int E, unsigned int M, unsigned int F>
-class numeric_limits<migraphx::generic_float<E, M, F>>
+template <unsigned int M, unsigned int E, unsigned int F>
+class numeric_limits<migraphx::generic_float<M, E, F>>
 {
     public:
     static constexpr bool has_infinity = true;
-    static constexpr migraphx::generic_float<E, M, F> epsilon()
+    static constexpr migraphx::generic_float<M, E, F> epsilon()
     {
-        return migraphx::generic_float<E, M, F>::epsilon();
+        return migraphx::generic_float<M, E, F>::epsilon();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> quiet_NaN()
+    static constexpr migraphx::generic_float<M, E, F> quiet_NaN()
     {
-        return migraphx::generic_float<E, M, F>::qnan();
+        return migraphx::generic_float<M, E, F>::qnan();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> signaling_NaN()
+    static constexpr migraphx::generic_float<M, E, F> signaling_NaN()
     {
-        return migraphx::generic_float<E, M, F>::snan();
+        return migraphx::generic_float<M, E, F>::snan();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> max()
+    static constexpr migraphx::generic_float<M, E, F> max()
     {
-        return migraphx::generic_float<E, M, F>::max();
+        return migraphx::generic_float<M, E, F>::max();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> min()
+    static constexpr migraphx::generic_float<M, E, F> min()
     {
-        return migraphx::generic_float<E, M, F>::min();
+        return migraphx::generic_float<M, E, F>::min();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> lowest()
+    static constexpr migraphx::generic_float<M, E, F> lowest()
     {
-        return migraphx::generic_float<E, M, F>::lowest();
+        return migraphx::generic_float<M, E, F>::lowest();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> infinity()
+    static constexpr migraphx::generic_float<M, E, F> infinity()
     {
-        return migraphx::generic_float<E, M, F>::infinity();
+        return migraphx::generic_float<M, E, F>::infinity();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> denorm_min()
+    static constexpr migraphx::generic_float<M, E, F> denorm_min()
     {
-        return migraphx::generic_float<E, M, F>::denorm_min();
+        return migraphx::generic_float<M, E, F>::denorm_min();
     }
 };
 
-template <unsigned int E, unsigned int M, unsigned int F, class T>
-struct common_type<migraphx::generic_float<E, M, F>, T> : std::common_type<float, T>
+template <unsigned int M, unsigned int E, unsigned int F, class T>
+struct common_type<migraphx::generic_float<M, E, F>, T> : std::common_type<float, T>
 {
 };
 
-template <unsigned int E, unsigned int M, unsigned int F, class T>
-struct common_type<T, migraphx::generic_float<E, M, F>> : std::common_type<float, T>
+template <unsigned int M, unsigned int E, unsigned int F, class T>
+struct common_type<T, migraphx::generic_float<M, E, F>> : std::common_type<float, T>
 {
 };
 
-template <unsigned int E, unsigned int M, unsigned int F>
-struct common_type<migraphx::generic_float<E, M, F>, migraphx::generic_float<E, M, F>>
+template <unsigned int M, unsigned int E, unsigned int F>
+struct common_type<migraphx::generic_float<M, E, F>, migraphx::generic_float<M, E, F>>
 {
-    using type = migraphx::generic_float<E, M, F>;
+    using type = migraphx::generic_float<M, E, F>;
 };
 
-template <unsigned int E1,
-          unsigned int M1,
+template <unsigned int M1,
+          unsigned int E1,
           unsigned int F1,
-          unsigned int E2,
           unsigned int M2,
+          unsigned int E2,
           unsigned int F2>
-struct common_type<migraphx::generic_float<E1, M1, F1>, migraphx::generic_float<E2, M2, F2>>
+struct common_type<migraphx::generic_float<M1, E1, F1>, migraphx::generic_float<M2, E2, F2>>
 {
     using type = float;
 };

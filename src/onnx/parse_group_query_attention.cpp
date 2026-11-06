@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,9 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/float_equal.hpp>
+#include <migraphx/op/builder/insert.hpp>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,17 +37,41 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
 
-    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
-                                       const onnx_parser& parser,
-                                       const onnx_parser::node_info& info,
-                                       const std::vector<instruction_ref>& args) const
+    static bool has_input(const std::vector<instruction_ref>& args, std::size_t index)
+    {
+        return args.size() > index and not args.at(index)->is_undefined();
+    }
+
+    static instruction_ref insert_rotary(module& m,
+                                         bool interleaved,
+                                         std::size_t sequence_length,
+                                         std::vector<instruction_ref> args)
+    {
+        // GQA position semantics: prefill starts from 0, decode uses seqlens_k
+        auto& pos_ids = args.at(1);
+        if(sequence_length > 1)
+        {
+            pos_ids = m.add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
+        }
+        return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
+    }
+
+    struct gqa_attributes
     {
         bool do_rotary           = false;
         std::size_t kv_num_heads = 0;
         int local_window_size    = -1;
-        std::size_t num_heads    = 1;
+        std::size_t num_heads    = 0;
         bool rotary_interleaved  = false;
         float scale              = 0.0;
+    };
+
+    static gqa_attributes parse_attributes(const onnx_parser& parser,
+                                           const onnx_parser::node_info& info)
+    {
+        gqa_attributes attrs;
+        auto& [do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale] =
+            attrs;
         if(contains(info.attributes, "do_rotary"))
         {
             do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();
@@ -52,6 +79,11 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         if(contains(info.attributes, "kv_num_heads"))
         {
             kv_num_heads = parser.parse_value(info.attributes.at("kv_num_heads")).at<std::size_t>();
+        }
+        else
+        {
+            MIGRAPHX_THROW(
+                "GroupQueryAttention: Attribute 'kv_num_heads' is required but was not provided.");
         }
         if(contains(info.attributes, "local_window_size"))
         {
@@ -62,6 +94,11 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         {
             num_heads = parser.parse_value(info.attributes.at("num_heads")).at<std::size_t>();
         }
+        else
+        {
+            MIGRAPHX_THROW(
+                "GroupQueryAttention: Attribute 'num_heads' is required but was not provided.");
+        }
         if(contains(info.attributes, "rotary_interleaved"))
         {
             rotary_interleaved =
@@ -71,26 +108,277 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         {
             scale = parser.parse_value(info.attributes.at("scale")).at<float>();
         }
+        if(contains(info.attributes, "softcap") and
+           not float_equal(parser.parse_value(info.attributes.at("softcap")).at<float>(), 0.0))
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: non-zero softcap is not yet supported.");
+        }
+        return attrs;
+    }
 
-        if(args.size() < 7 or args.size() > 9)
+    static void validate_inputs(const std::vector<instruction_ref>& args)
+    {
+        if(args.size() < 7 or args.size() > 12)
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
         }
+        if(has_input(args, 9))
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: position_ids input is not yet supported.");
+        }
+        if(has_input(args, 10))
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: attention_bias input is not yet supported.");
+        }
+    }
 
-        auto gqa             = info.add_instruction(make_op("group_query_attention",
-                                                            {{"do_rotary", do_rotary},
-                                                             {"kv_num_heads", kv_num_heads},
-                                                             {"local_window_size", local_window_size},
-                                                             {"num_heads", num_heads},
-                                                             {"rotary_interleaved", rotary_interleaved},
-                                                             {"scale", scale}}),
-                                        args);
-        auto gqa_output      = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), gqa);
-        auto gqa_present_key = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), gqa);
-        auto gqa_present_value =
-            info.add_instruction(make_op("get_tuple_elem", {{"index", 2}}), gqa);
+    // head_sink adds a per-head logit to the softmax denominator only (attention sinks):
+    // append it as an extra score column, then drop that column after the softmax
+    static instruction_ref insert_softmax_with_head_sink(const onnx_parser::node_info& info,
+                                                         instruction_ref scores,
+                                                         instruction_ref sink)
+    {
+        const auto lens            = scores->get_shape().lens();
+        const std::size_t nheads   = lens.at(1);
+        const std::int64_t columns = lens.at(3);
+        if(sink->get_shape().elements() != nheads)
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: head_sink must have num_heads elements");
+        }
+        if(sink->get_shape().type() != scores->get_shape().type())
+        {
+            sink = info.add_instruction(
+                make_op("convert", {{"target_type", scores->get_shape().type()}}), sink);
+        }
+        sink = info.add_instruction(make_op("reshape", {{"dims", {1, nheads, 1, 1}}}), sink);
+        sink = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", {lens.at(0), nheads, lens.at(2), 1}}}), sink);
+        auto padded  = info.add_instruction(make_op("concat", {{"axis", 3}}), scores, sink);
+        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), padded);
+        return info.add_instruction(
+            make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {columns}}}), softmax);
+    }
 
-        return {gqa_output, gqa_present_key, gqa_present_value};
+    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
+                                       const onnx_parser& parser,
+                                       const onnx_parser::node_info& info,
+                                       const std::vector<instruction_ref>& args) const
+    {
+        auto [do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale] =
+            parse_attributes(parser, info);
+        validate_inputs(args);
+
+        auto qkv = args.at(0);
+        if(args.at(1)->get_shape().lens().size() > 1)
+        {
+            qkv = info.add_instruction(
+                make_op("concat", {{"axis", 2}}), args.at(0), args.at(1), args.at(2));
+        }
+
+        auto q_shape                      = qkv->get_shape();
+        const auto& q_lens                = q_shape.lens();
+        const std::size_t batch_size      = q_lens[0];
+        const std::size_t sequence_length = q_lens[1];
+        std::size_t q_hidden_size         = q_lens[2];
+        std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);
+
+        std::vector<std::size_t> bsnh{
+            batch_size, sequence_length, num_heads + 2 * kv_num_heads, head_size};
+
+        auto transposed_qkv = info.add_instruction(make_op("reshape", {{"dims", bsnh}}), qkv);
+
+        transposed_qkv = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
+                                              transposed_qkv);
+
+        auto qk = info.add_instruction(
+            make_op("slice",
+                    {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads + kv_num_heads}}}),
+            transposed_qkv);
+        auto cur_v = info.add_instruction(make_op("slice",
+                                                  {{"axes", {1}},
+                                                   {"starts", {num_heads + kv_num_heads}},
+                                                   {"ends", {num_heads + (2 * kv_num_heads)}}}),
+                                          transposed_qkv);
+
+        if(do_rotary)
+        {
+            qk = insert_rotary(*info.mod,
+                               rotary_interleaved,
+                               sequence_length,
+                               {qk, args.at(5), args.at(7), args.at(8)});
+        }
+
+        auto q = info.add_instruction(
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), qk);
+        auto cur_k = info.add_instruction(
+            make_op("slice",
+                    {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+            qk);
+
+        auto k   = args.at(3);
+        auto v   = args.at(4);
+        auto slk = args.at(5);
+        std::vector<instruction_ref> concat_k_inputs{cur_k, slk, k};
+        std::vector<instruction_ref> concat_v_inputs{cur_v, slk, v};
+
+        k = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
+                                 concat_k_inputs);
+        v = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
+                                 concat_v_inputs);
+
+        auto k_out = k;
+        auto v_out = v;
+
+        auto kv_num_heads_factor = num_heads / kv_num_heads;
+        auto max_seq_len         = k->get_shape().lens()[2];
+        auto past_sl             = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
+
+        if(kv_num_heads_factor != 1)
+        {
+            auto kv_new_lens  = k->get_shape().lens();
+            kv_new_lens.at(1) = num_heads;
+            k                 = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), k);
+            v                 = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), v);
+            auto kv_unsqueezed_lens  = k->get_shape().lens();
+            kv_unsqueezed_lens.at(2) = kv_num_heads_factor;
+            k = info.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}),
+                                     k);
+            v = info.add_instruction(make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}),
+                                     v);
+            k = info.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), k);
+            v = info.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), v);
+        }
+        auto kt    = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        auto gemm1 = info.add_instruction(make_op("dot"), q, kt);
+
+        std::vector<int> range_vec(max_seq_len);
+        std::iota(range_vec.begin(), range_vec.end(), 0);
+        shape range_s{past_sl->get_shape().type(), {max_seq_len}};
+        auto range = info.add_literal(range_s, range_vec);
+        std::vector<std::size_t> bnsm{batch_size, num_heads, sequence_length, max_seq_len};
+        auto bc_range =
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), range);
+
+        auto scalar_s = shape{transposed_qkv->get_shape().type(), {1}};
+        auto ninf = info.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
+        ninf      = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
+
+        if(float_equal(scale, 0.0))
+        {
+            scale = 1.0f / std::sqrt(static_cast<float>(head_size));
+        }
+        auto scale_ins = info.add_literal(literal{scalar_s, {scale}});
+        scale_ins =
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
+        auto mul = info.add_instruction(make_op("mul"), gemm1, scale_ins);
+
+        instruction_ref seq_range;
+        if(sequence_length > 1)
+        {
+            std::vector<int> seq_range_vec(sequence_length);
+            std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
+            shape seq_range_s{past_sl->get_shape().type(), {sequence_length}};
+            seq_range = info.add_literal(seq_range_s, seq_range_vec);
+            seq_range = info.add_instruction(make_op("reshape", {{"dims", {sequence_length, 1}}}),
+                                             seq_range);
+            seq_range =
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
+            auto causal_mask = info.add_instruction(make_op("greater"), bc_range, seq_range);
+            causal_mask      = info.add_instruction(
+                make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
+            mul = info.add_instruction(make_op("where"), causal_mask, ninf, mul);
+        }
+
+        auto bc_past_sl = info.add_instruction(
+            make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
+        auto mask_comp =
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
+        if(local_window_size > 0)
+        {
+            bool is_prompt       = sequence_length > 1;
+            auto window_size_lit = info.add_literal(
+                migraphx::literal{migraphx::shape{past_sl->get_shape().type(), {1}},
+                                  {is_prompt ? -local_window_size : -(local_window_size + 1)}});
+            window_size_lit = info.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
+            auto window_comp = info.add_instruction(
+                migraphx::make_op("add"), is_prompt ? seq_range : mask_comp, window_size_lit);
+            auto window_mask =
+                info.add_instruction(migraphx::make_op("greater"), window_comp, bc_range);
+            window_mask = info.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+                window_mask);
+            mul = info.add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
+        }
+        auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
+        mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
+        auto where   = info.add_instruction(make_op("where"), mask, ninf, mul);
+        auto softmax = has_input(args, 11)
+                           ? insert_softmax_with_head_sink(info, where, args.at(11))
+                           : info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+        auto scores  = info.add_instruction(make_op("dot"), softmax, v);
+        auto out =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
+        out = info.add_instruction(
+            make_op("reshape", {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
+            out);
+
+        return {out, k_out, v_out};
+    }
+};
+
+// com.ryzenai.GQO: GroupQueryAttention fused with o_proj MatMulNBits.
+// Inputs 0-11 match microsoft GroupQueryAttention, including optional
+// position_ids, attention_bias, and head_sink. o_proj qweight/scales/qzeros
+// stay at 12-14 when bias or the NPU-only packed input is omitted.
+// Outputs: present_key, present_value, o_proj_output
+struct parse_gqo : op_parser<parse_gqo>
+{
+    std::vector<op_desc> operators() const { return {{"GQO"}}; }
+
+    std::vector<instruction_ref> parse(const op_desc& opd,
+                                       const onnx_parser& parser,
+                                       onnx_parser::node_info info,
+                                       const std::vector<instruction_ref>& args) const
+    {
+        // 12 attention slots plus qweight, scales, and qzeros.
+        constexpr std::size_t weight_index = 12;
+        if(args.size() < weight_index + 3)
+            MIGRAPHX_THROW("GQO: expects at least 15 inputs, got " + std::to_string(args.size()));
+
+        std::vector<instruction_ref> gqa_args(args.begin(), args.begin() + weight_index);
+        parse_group_query_attention gqa;
+        auto gqa_outs = gqa.parse(opd, parser, info, gqa_args);
+        assert(gqa_outs.size() == 3);
+
+        auto attn_out = gqa_outs[0];
+        auto k_out    = gqa_outs[1];
+        auto v_out    = gqa_outs[2];
+
+        if(not contains(info.attributes, "o_proj_N") or not contains(info.attributes, "o_proj_K") or
+           not contains(info.attributes, "o_proj_bits") or
+           not contains(info.attributes, "o_proj_block_size"))
+            MIGRAPHX_THROW("GQO: o_proj_N/K/bits/block_size attributes are required");
+
+        std::vector<instruction_ref> mm_args{
+            attn_out, args[weight_index], args[weight_index + 1], args[weight_index + 2]};
+        if(args.size() > weight_index + 3)
+            mm_args.push_back(args[weight_index + 3]);
+        // packed at weight_index + 4 is NPU-only and ignored.
+
+        auto o_proj =
+            op::builder::add(
+                "matmulnbits",
+                *info.mod,
+                mm_args,
+                {{"N", parser.parse_value(info.attributes.at("o_proj_N")).at<int>()},
+                 {"K", parser.parse_value(info.attributes.at("o_proj_K")).at<int>()},
+                 {"bits", parser.parse_value(info.attributes.at("o_proj_bits")).at<int>()},
+                 {"block_size",
+                  parser.parse_value(info.attributes.at("o_proj_block_size")).at<int>()}})
+                .at(0);
+        return {k_out, v_out, o_proj};
     }
 };
 

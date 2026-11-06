@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,9 +26,14 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/pack_args.hpp>
+#include <migraphx/pmr/vector.hpp>
 #include <hip/hip_runtime_api.h>
+#include <array>
+#include <cstddef>
+#include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -36,16 +41,85 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct kernel_impl;
+struct code_module_impl;
+
+// GPU memory each loaded code object takes, regardless of its image size
+constexpr std::size_t code_module_bytes = 2 * 1024 * 1024;
+
+// A loaded code object, which the kernels built from it share
+struct MIGRAPHX_GPU_EXPORT code_module
+{
+    code_module() = default;
+    explicit code_module(const char* image);
+    template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
+    explicit code_module(const std::vector<T>& image)
+        : code_module(reinterpret_cast<const char*>(image.data()))
+    {
+    }
+
+    bool empty() const;
+    // The handle of the kernel called name in this module
+    hipFunction_t get_function(const std::string& name) const;
+
+    private:
+    std::shared_ptr<code_module_impl> impl;
+};
+
+// Kernels launch through hipExtModuleLaunchKernel with a packed byte buffer
+// (a mix of pointer slots and inlined scalars) described by an `extra` config
+// array of (tag, value) pairs. These functions are the single definition of
+// that array: pack_kernel_config builds it (the pointed-to `size` must outlive
+// any use), and unpack_kernel_config returns a copy of the packed buffer
+// (empty for any other argument-passing scheme).
+MIGRAPHX_GPU_EXPORT std::array<void*, 5> pack_kernel_config(char* buffer, std::size_t* size);
+MIGRAPHX_GPU_EXPORT std::vector<char> unpack_kernel_config(void** extra);
+
+// The byte offset and current value of each pointer slot in a packed buffer,
+// per the kernel_args layout (see for_each_kernarg_slot), skipping the inlined
+// scalars. An empty kernel_args is the all-pointer launch path (every 8-byte
+// word is a pointer).
+MIGRAPHX_GPU_EXPORT std::vector<std::pair<std::size_t, char*>>
+unpack_pointer_args(const std::vector<char>& buffer,
+                    const std::map<std::size_t, kernel_argument_value>& kernel_args);
+
+// Store a pointer value at a byte position in a packed kernarg buffer.
+MIGRAPHX_GPU_EXPORT void write_pointer(char* pos, const char* p);
 
 struct MIGRAPHX_GPU_EXPORT kernel
 {
+    struct pointers
+    {
+        pointers() {}
+
+        pointers(void** pp, std::size_t pn) : p(pp), n(pn) {}
+
+        pointers(std::vector<void*>& v) : p(v.data()), n(v.size()) {}
+        pointers(pmr::vector<void*>& v) : p(v.data()), n(v.size()) {}
+
+        void** data() const { return p; }
+
+        std::size_t size() const { return n; }
+
+        std::size_t bytes() const { return n * sizeof(void*); }
+
+        private:
+        void** p      = nullptr;
+        std::size_t n = 0;
+    };
     kernel() = default;
     kernel(const char* image, const std::string& name);
+    kernel(const code_module& m, const std::string& name);
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
     kernel(const std::vector<T>& image, const std::string& name)
         : kernel(reinterpret_cast<const char*>(image.data()), name)
     {
     }
+
+    bool empty() const;
+
+    // The underlying HIP function handle, used to correlate a captured graph
+    // kernel node back to this kernel. Null when the kernel is empty.
+    hipFunction_t get_function() const;
 
     void launch(hipStream_t stream,
                 std::size_t global,
@@ -57,11 +131,19 @@ struct MIGRAPHX_GPU_EXPORT kernel
     void launch(hipStream_t stream,
                 std::size_t global,
                 std::size_t local,
-                std::vector<void*> args,
+                pointers args,
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
 
-    template <class... Ts>
+    void launch(hipStream_t stream,
+                std::size_t global,
+                std::size_t local,
+                void* kernargs,
+                std::size_t kernargs_size,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const;
+
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {
         return [=](auto&&... xs) {

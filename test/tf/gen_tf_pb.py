@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@
 # This script generates tf pb files for MIGraphX tf operator tests.
 # To generate an individual pb file, you can use the following
 # command: python -c "import gen_tf_pb; gen_tf_pb.{test_name}_test()"
+import struct
 import tensorflow as tf
 
 
@@ -69,6 +70,36 @@ def add_bcast_test(g1):
         g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='0')
         g2_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 1), name='1')
         tf.math.add(g1_input, g2_input, name='add_bcast1')
+
+
+@tf_test
+def addn_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='0')
+        g2_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='1')
+        g3_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='2')
+
+        tf.math.add_n([g1_input, g2_input, g3_input], name='addn1')
+
+
+@tf_test
+def addn_single_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='0')
+
+        tf.math.add_n([g1_input], name='addn1')
+
+
+@tf_test
+def addn_with_many_elements_test(g1):
+    with g1.as_default():
+        input_list = []
+        for i in range(10):
+            input_list.append(
+                tf.compat.v1.placeholder(tf.float32,
+                                         shape=(1, 1648),
+                                         name=str(i)))
+        tf.math.add_n(input_list, name='addn1')
 
 
 @tf_test
@@ -230,6 +261,39 @@ def concat_test(g1):
 def const_test(g1):
     with g1.as_default():
         tf.constant(1.0, dtype=tf.float32, name='constant1')
+
+
+def float_val_too_many_test():
+    g = tf.compat.v1.GraphDef()
+    node = g.node.add()
+    node.name = 'constant1'
+    node.op = 'Const'
+    node.attr['dtype'].type = tf.float32.as_datatype_enum
+    tensor = node.attr['value'].tensor
+    tensor.dtype = tf.float32.as_datatype_enum
+    tensor.tensor_shape.dim.add(size=2)
+    tensor.float_val.extend(range(1024))
+    tf.io.write_graph(g,
+                      './models',
+                      'float_val_too_many_test.pb',
+                      as_text=False)
+
+
+def tensor_content_short_test():
+    g = tf.compat.v1.GraphDef()
+    node = g.node.add()
+    node.name = 'constant1'
+    node.op = 'Const'
+    node.attr['dtype'].type = tf.float32.as_datatype_enum
+    tensor = node.attr['value'].tensor
+    tensor.dtype = tf.float32.as_datatype_enum
+    tensor.tensor_shape.dim.add(size=1024)
+    tensor.tensor_shape.dim.add(size=1024)
+    tensor.tensor_content = struct.pack('<f', 1.0)
+    tf.io.write_graph(g,
+                      './models',
+                      'tensor_content_short_test.pb',
+                      as_text=False)
 
 
 @tf_test
@@ -554,6 +618,15 @@ def shape_test(g1):
                                             shape=(1, 3, 16, 16),
                                             name='0')
     g1.create_op(op_type='Shape', inputs=[g1_input])
+
+
+@tf_test
+def sigmoid_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(1, 3, 16, 16),
+                                            name='0')
+        tf.math.sigmoid(g1_input, 'sigmoid')
 
 
 @tf_test

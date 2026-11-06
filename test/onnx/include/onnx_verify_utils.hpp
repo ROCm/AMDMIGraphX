@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,7 +33,9 @@ template <typename T = float>
 std::vector<T> norm_test(const std::vector<size_t>& x_dims,
                          std::vector<T>& scale,
                          std::vector<T>& bias,
-                         migraphx::program p)
+                         migraphx::program p,
+                         const std::string& scale_str = std::string{"scale"},
+                         const std::string& bias_str  = std::string{"bias"})
 {
     p.compile(migraphx::make_target("ref"));
 
@@ -46,8 +48,8 @@ std::vector<T> norm_test(const std::vector<size_t>& x_dims,
 
     migraphx::parameter_map pp;
     pp["x"]     = migraphx::argument(s_x, x.data());
-    pp["scale"] = migraphx::argument(s_s, scale.data());
-    pp["bias"]  = migraphx::argument(s_b, bias.data());
+    pp[scale_str] = migraphx::argument(s_s, scale.data());
+    pp[bias_str]  = migraphx::argument(s_b, bias.data());
 
     auto result = p.eval(pp).back();
 

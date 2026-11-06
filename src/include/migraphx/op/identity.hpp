@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <migraphx/op/unary.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/sym_argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,11 +36,15 @@ struct identity
 {
     std::string name() const { return "identity"; }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
+    sym_argument symbolic_compute(const shape&, const std::vector<sym_argument>& args) const
+    {
+        return args[0];
+    }
     argument compute(shape, std::vector<argument> args) const { return args[0]; }
 
     value attributes() const { return {{"pointwise", true}, {"point_op", "${0}"}}; }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 } // namespace op

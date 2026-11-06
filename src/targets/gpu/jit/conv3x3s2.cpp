@@ -132,12 +132,13 @@ struct conv3x3s2_compiler : compiler<conv3x3s2_compiler>
     {
         tuning_config tc;
         auto shapes = to_shapes(ins->inputs());
-        tc.problem  = value{{"version", 1},
-                            {"shapes", to_value(shapes)},
-                            {"post", ins->module_inputs().empty()
-                                         ? std::string{}
-                                         : generate_pointwise(*ins->module_inputs().front(),
-                                                              "post_conv3x3s2")}};
+        tc.problem =
+            value{{"version", 1},
+                  {"shapes", to_value(shapes)},
+                  {"post",
+                   ins->module_inputs().empty()
+                       ? std::string{}
+                       : generate_pointwise(*ins->module_inputs().front(), "post_conv3x3s2")}};
         // Candidates: TK=8 with TP (output columns per lane) 1/2/4 and NW (waves splitting the
         // input channels) 1/2/4/8, plus TK=16, TP=2. Small outputs need more waves to fill the
         // GPU; large ones prefer bigger tiles. The fastest is picked by benchmarking.

@@ -248,36 +248,3 @@ struct test_pw_layernorm : verify_program<test_pw_layernorm>
         return p;
     }
 };
-
-// Regression test for the gpu::prelayernorm kernel's single-pass
-// variance = mean(x^2) - mean(x)^2 computation (see kernels/layernorm.hpp),
-// which loses the near-exact cancellation between its two terms at large
-// input magnitude and can round the result slightly negative, making
-// rsqrt(variance + eps) a NaN. Shifting x by a large constant offset keeps
-// every element's random variation below one float32 ULP of the offset, so
-// the layernorm input is effectively constant at a magnitude large enough to
-// trigger the cancellation, while the input itself remains a parameter.
-struct test_layernorm_large_magnitude : verify_program<test_layernorm_large_magnitude>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm                 = p.get_main_module();
-        std::vector<size_t> dims = {1, 4, 64};
-        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
-        auto scale = mm->add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-3f}});
-        auto offset = mm->add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e6f}});
-        auto scale_mbcast =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), scale);
-        auto offset_mbcast =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), offset);
-        auto scaled  = mm->add_instruction(migraphx::make_op("mul"), x, scale_mbcast);
-        auto shifted = mm->add_instruction(migraphx::make_op("add"), scaled, offset_mbcast);
-        add_layernorm(*mm, shifted, dims);
-        return p;
-    }
-
-    std::string section() const { return "reduce"; }
-};

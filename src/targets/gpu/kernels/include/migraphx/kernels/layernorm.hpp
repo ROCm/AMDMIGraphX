@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -81,12 +81,9 @@ __device__ void generic_binary_layernorm(
             return make_array(x_out, x2_sqrt * x2_sqrt);
         })(input);
 
-        auto mean_x  = means[0];
-        auto mean_x2 = means[1];
-        // mean_x2 - mean_x^2 can round slightly negative when the true variance is
-        // near zero relative to x's magnitude (catastrophic cancellation), which
-        // would otherwise make rsqrt(variance + eps) a NaN.
-        auto variance          = migraphx::max(mean_x2 - (mean_x * mean_x), vec_value_type{0});
+        auto mean_x            = means[0];
+        auto mean_x2           = means[1];
+        auto variance          = mean_x2 - (mean_x * mean_x);
         vec_value_type eps_val = implicit_conversion(eps);
         auto rsqrt_val         = rsqrt(variance + eps_val);
 

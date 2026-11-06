@@ -119,6 +119,55 @@ TEST_CASE(accumulate_single_element)
     EXPECT(sum == 12);
 }
 
+TEST_CASE(partial_sum_basic)
+{
+    migraphx::array<int, 4> arr = {1, 2, 3, 4};
+    migraphx::array<int, 4> out = {};
+    auto* last                  = migraphx::partial_sum(arr.begin(), arr.end(), out.begin());
+    EXPECT(last == out.end());
+    migraphx::array<int, 4> expected = {1, 3, 6, 10};
+    EXPECT(out == expected);
+}
+TEST_CASE(partial_sum_empty_range)
+{
+    empty_range arr             = {};
+    migraphx::array<int, 2> out = {7, 7};
+    auto* last                  = migraphx::partial_sum(arr.begin(), arr.end(), out.begin());
+    EXPECT(last == out.begin());
+    migraphx::array<int, 2> expected = {7, 7};
+    EXPECT(out == expected);
+}
+TEST_CASE(partial_sum_single_element)
+{
+    migraphx::array<int, 1> arr = {5};
+    migraphx::array<int, 1> out = {};
+    auto* last                  = migraphx::partial_sum(arr.begin(), arr.end(), out.begin());
+    EXPECT(last == out.end());
+    EXPECT(out[0] == 5);
+}
+// Writing the sums one past the start turns the inclusive scan into an exclusive one
+TEST_CASE(partial_sum_exclusive_scan)
+{
+    migraphx::array<int, 4> arr = {3, 5, 2, 4};
+    migraphx::array<int, 4> out = {};
+    migraphx::partial_sum(arr.begin(), arr.end() - 1, out.begin() + 1);
+    migraphx::array<int, 4> expected = {0, 3, 8, 10};
+    EXPECT(out == expected);
+}
+
+constexpr migraphx::array<int, 3> partial_sum_of(migraphx::array<int, 3> arr)
+{
+    migraphx::array<int, 3> out = {};
+    migraphx::partial_sum(arr.begin(), arr.end(), out.begin());
+    return out;
+}
+TEST_CASE(partial_sum_constexpr)
+{
+    constexpr auto out = partial_sum_of({1, 2, 3});
+    static_assert(out == migraphx::array<int, 3>{1, 3, 6}, "Usable in constant expressions");
+    EXPECT(out == migraphx::array<int, 3>{1, 3, 6});
+}
+
 TEST_CASE(copy_basic)
 {
     migraphx::array<int, 4> src = {1, 2, 3, 4};

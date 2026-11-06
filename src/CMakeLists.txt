@@ -152,6 +152,7 @@ add_library(migraphx
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
     split_sym_dim.cpp
+    stack_segment.cpp
     sym.cpp
     sym_argument.cpp
     target.cpp

@@ -24,9 +24,15 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_FUNCTIONAL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FUNCTIONAL_HPP
 
+#include <cstddef>
+#include <exception>
+#include <functional>
+#include <type_traits>
 #include <utility>
 #include <migraphx/config.hpp>
+#include <migraphx/optional.hpp>
 #include <migraphx/returns.hpp>
+#include <migraphx/stack_segment.hpp>
 
 // Lifts an expression into a function object so it can be passed to a higher-order function
 // NOLINTNEXTLINE
@@ -57,11 +63,62 @@ template <class R, class F>
 struct fix_f
 {
     F f;
+    std::size_t depth = 0;
+
+    // Frames per segment. The first segment runs on the calling thread, whose
+    // stack is 1MB on Windows, so this stays small enough for heavy frames.
+    // Later segments are 4MB and are entered from run_on_new_stack.
+    static constexpr std::size_t max_depth = 64;
 
     template <class... Ts>
     R operator()(Ts&&... xs) const
     {
-        return f(*this, std::forward<Ts>(xs)...);
+        fix_f next{f, depth + 1};
+        if(next.depth % max_depth == 0)
+            return continue_on_new_stack(next, std::forward<Ts>(xs)...);
+        return f(next, std::forward<Ts>(xs)...);
+    }
+
+    template <class G>
+    static void run_segment(G g)
+    {
+        std::exception_ptr error;
+        run_on_new_stack([&] {
+            try
+            {
+                g();
+            }
+            catch(...)
+            {
+                error = std::current_exception();
+            }
+        });
+        if(error)
+            std::rethrow_exception(error);
+    }
+
+    // Continue the recursion on a heap-allocated stack segment so deep
+    // recursion grows into new segments instead of overflowing the stack
+    template <class... Ts>
+    static R continue_on_new_stack(const fix_f& next, Ts&&... xs)
+    {
+        if constexpr(std::is_void<R>{})
+        {
+            run_segment([&] { next.f(next, std::forward<Ts>(xs)...); });
+        }
+        else if constexpr(std::is_reference<R>{})
+        {
+            // optional cant store a reference, so store a reference_wrapper
+            optional<std::reference_wrapper<std::remove_reference_t<R>>> result;
+            run_segment([&] { result.emplace(next.f(next, std::forward<Ts>(xs)...)); });
+            return result->get();
+        }
+        else
+        {
+            optional<R> result;
+            run_segment([&] { result.emplace(next.f(next, std::forward<Ts>(xs)...)); });
+            return std::move(*result);
+        }
     }
 };
 

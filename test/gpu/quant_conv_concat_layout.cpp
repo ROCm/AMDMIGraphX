@@ -57,9 +57,9 @@ bool is_inner(migraphx::instruction_ref ins, const std::string& name)
 
 } // namespace
 
-// A channel-concat slice is not the packed layout a quant_convolution kernel was
-// compiled for. Pinning that slice is the output-buffer mismatch.
-TEST_CASE(quant_convolution_concat_keeps_native_layout)
+// rocMLIR and the JIT compile from the output buffer, so a channel-concat slice
+// is a legal pinned layout for quant_convolution too.
+TEST_CASE(quant_convolution_concat_pins_slice_layout)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -89,11 +89,24 @@ TEST_CASE(quant_convolution_concat_keeps_native_layout)
                             add_alloc(*mm, cat_s));
     mm->add_return({cat});
 
-    migraphx::program original = p;
     migraphx::run_passes(
         p, {migraphx::eliminate_concat{migraphx::gpu::concat_gpu_optimization{}},
             migraphx::dead_code_elimination{}});
-    EXPECT(p == original);
+
+    bool pinned = false;
+    for(auto ins : migraphx::iterator_for(*p.get_main_module()))
+    {
+        EXPECT(not is_inner(ins, "concat"));
+        if(not is_inner(ins, "quant_convolution"))
+            continue;
+        auto out = migraphx::from_value<migraphx::shape>(
+            ins->get_operator().to_value().at("output_shape"));
+        // Super-buffer {1, 16, 8, 8} has stride 1024 on axis 0; the packed
+        // conv stride is 512.
+        if(out.strides().at(0) == 1024)
+            pinned = true;
+    }
+    EXPECT(pinned);
 }
 
 // The same slice is a legal output for a JIT pointwise kernel, which reads the
@@ -138,7 +151,7 @@ TEST_CASE(pointwise_concat_still_pins_slice_layout)
     EXPECT(pinned);
 }
 
-TEST_CASE(mlir_quant_convolution_output_shape_not_pinnable)
+TEST_CASE(mlir_quant_convolution_output_shape_is_pinnable)
 {
     if(not migraphx::has_op("gpu::mlir_op"))
         return;
@@ -155,7 +168,7 @@ TEST_CASE(mlir_quant_convolution_output_shape_not_pinnable)
     auto alloc = add_alloc(*mm, conv_s);
     auto ins   = mm->add_instruction(precompile(mlir, conv_s), alloc);
     migraphx::gpu::concat_gpu_optimization opt;
-    EXPECT(not opt.supports_output_shape(ins, slice_s));
+    EXPECT(opt.supports_output_shape(ins, slice_s));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

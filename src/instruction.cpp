@@ -39,7 +39,6 @@
 #include <queue>
 #include <type_traits>
 #include <unordered_map>
-#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -391,46 +390,19 @@ bool instruction::can_eval() const
 #else
     pmr::unordered_map<const instruction*, bool> cache;
 #endif
-    // Heap stack. Context-free chains can be thousands deep.
-    std::vector<const instruction*> pending{this};
-    while(not pending.empty())
-    {
-        const instruction* ins = pending.back();
-        if(contains(cache, ins))
-        {
-            pending.pop_back();
-            continue;
-        }
-        if(ins->name() == "@literal")
-        {
-            cache.emplace(ins, true);
-            pending.pop_back();
-            continue;
-        }
-        if(not is_context_free(ins->get_operator()) or has_finalize(ins->get_operator()))
-        {
-            cache.emplace(ins, false);
-            pending.pop_back();
-            continue;
-        }
-        bool ready = true;
-        for(auto arg : ins->inputs())
-        {
-            if(not contains(cache, std::addressof(*arg)))
-            {
-                pending.push_back(std::addressof(*arg));
-                ready = false;
-            }
-        }
-        if(not ready)
-            continue;
-        bool evaluable = std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto arg) {
-            return cache.at(std::addressof(*arg));
-        });
-        cache.emplace(ins, evaluable);
-        pending.pop_back();
-    }
-    return cache.at(this);
+    return fix<bool>([&](auto self, const instruction& ins) -> bool {
+        auto it = cache.find(&ins);
+        if(it != cache.end())
+            return it->second;
+        bool evaluable = false;
+        if(ins.name() == "@literal")
+            evaluable = true;
+        else if(is_context_free(ins.get_operator()) and not has_finalize(ins.get_operator()))
+            evaluable = std::all_of(
+                ins.inputs().begin(), ins.inputs().end(), [&](auto arg) { return self(*arg); });
+        cache.emplace(&ins, evaluable);
+        return evaluable;
+    })(*this);
 }
 
 argument instruction::eval(bool check_eval) const
@@ -448,49 +420,23 @@ argument instruction::eval(bool check_eval) const
 #else
     pmr::unordered_map<const instruction*, argument> cache;
 #endif
-    // Heap stack. Same deep context-free chains as can_eval.
-    std::vector<const instruction*> pending{this};
-    while(not pending.empty())
-    {
-        const instruction* ins = pending.back();
-        if(contains(cache, ins))
-        {
-            pending.pop_back();
-            continue;
-        }
-        if(ins->name() == "@literal")
-        {
-            cache.emplace(ins, ins->get_literal().get_argument());
-            pending.pop_back();
-            continue;
-        }
-        if(not is_context_free(ins->get_operator()))
-        {
-            cache.emplace(ins, argument{});
-            pending.pop_back();
-            continue;
-        }
-        bool ready = true;
-        for(auto arg : ins->inputs())
-        {
-            if(not contains(cache, std::addressof(*arg)))
-            {
-                pending.push_back(std::addressof(*arg));
-                ready = false;
-            }
-        }
-        if(not ready)
-            continue;
+    return fix<argument>([&](auto self, const instruction& ins) -> argument {
+        if(ins.name() == "@literal")
+            return ins.get_literal().get_argument();
+        if(not is_context_free(ins.get_operator()))
+            return {};
+        auto it = cache.find(&ins);
+        if(it != cache.end())
+            return it->second;
         std::vector<argument> args;
-        std::transform(ins->inputs().begin(),
-                       ins->inputs().end(),
+        std::transform(ins.inputs().begin(),
+                       ins.inputs().end(),
                        std::back_inserter(args),
-                       [&](auto arg) { return cache.at(std::addressof(*arg)); });
-        auto value = ins->normalized_operator().compute(ins->get_shape(), args);
-        cache.emplace(ins, value);
-        pending.pop_back();
-    }
-    return cache.at(this);
+                       [&](auto arg) { return self(*arg); });
+        auto value = ins.normalized_operator().compute(ins.get_shape(), args);
+        cache.emplace(&ins, value);
+        return value;
+    })(*this);
 }
 
 static sym_argument lift_sym_argument(const argument& value)
@@ -658,40 +604,37 @@ void instruction::debug_print() const
     std::cout << std::endl;
 }
 
+static std::vector<instruction_ref> direct_output_aliases(instruction_ref cur)
+{
+    auto alias_indices = cur->get_operator().output_alias(to_shapes(cur->inputs()));
+    std::vector<instruction_ref> aliases;
+    std::transform(alias_indices.begin(),
+                   alias_indices.end(),
+                   std::back_inserter(aliases),
+                   [&](auto i) { return cur->inputs().at(i); });
+    return aliases;
+}
+
 std::vector<instruction_ref> instruction::get_output_alias(instruction_ref ins, bool shallow)
 {
+    auto aliases = direct_output_aliases(ins);
+    if(aliases.empty())
+        return {ins};
     if(shallow)
-    {
-        auto alias_indices = ins->get_operator().output_alias(to_shapes(ins->inputs()));
-        if(alias_indices.empty())
-            return {ins};
-        std::vector<instruction_ref> result;
-        for(auto i : alias_indices)
-            result.push_back(ins->inputs().at(i));
-        return result;
-    }
-
-    // Iterative. A long chain of views (reshape/identity/slice) is thousands
-    // deep on an unrolled recurrence and overflows the C stack.
-    std::vector<instruction_ref> result;
-    std::vector<instruction_ref> pending{ins};
-    std::unordered_set<instruction_ref> seen;
-    while(not pending.empty())
-    {
-        auto cur = pending.back();
-        pending.pop_back();
-        if(not seen.insert(cur).second)
-            continue;
-        auto alias_indices = cur->get_operator().output_alias(to_shapes(cur->inputs()));
-        if(alias_indices.empty())
-        {
-            result.push_back(cur);
-            continue;
-        }
-        for(auto i : alias_indices)
-            pending.push_back(cur->inputs().at(i));
-    }
-    return result;
+        return aliases;
+    return fix<std::vector<instruction_ref>>(
+        [&](auto self, instruction_ref cur) -> std::vector<instruction_ref> {
+            auto next = direct_output_aliases(cur);
+            if(next.empty())
+                return {cur};
+            std::vector<instruction_ref> result;
+            for(auto alias : next)
+            {
+                auto nested = self(alias);
+                result.insert(result.end(), nested.begin(), nested.end());
+            }
+            return result;
+        })(ins);
 }
 
 void instruction::set_normalized(bool value) { normalized = value; }

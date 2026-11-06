@@ -2445,6 +2445,22 @@ TEST_CASE(sort_long_chain)
     EXPECT(std::prev(m.end())->name() == "@return");
 }
 
+TEST_CASE(replace_long_chain)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    auto x = m.add_parameter("x", s);
+    auto y = x;
+    for(int i = 0; i < 6000; ++i)
+        y = m.add_instruction(migraphx::make_op("neg"), y);
+    m.add_debug_symbols(y, {"tail"});
+    auto ret = m.add_return({y});
+    auto rep = m.insert_instruction(y, migraphx::make_op("relu"), x);
+    // Used to recurse the sole-dependent input chain and overflow the C stack.
+    m.replace_instruction(y, rep);
+    EXPECT(ret->inputs().front() == rep);
+}
+
 TEST_CASE(move_output_long_chain)
 {
     migraphx::module m;

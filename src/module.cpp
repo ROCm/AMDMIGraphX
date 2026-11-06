@@ -750,29 +750,21 @@ void module::move_output_instructions_after(instruction_ref src, instruction_ref
             return it->second;
         return this->end();
     };
-    // Heap stack. Output chains on an unrolled recurrence are thousands deep,
-    // and the recursive walk overflows the C stack during fusion.
-    std::vector<instruction_ref> pending{src};
-    std::unordered_set<instruction_ref> seen;
-    while(not pending.empty())
-    {
-        auto ins = pending.back();
-        pending.pop_back();
+    fix([&](auto self, instruction_ref ins) {
         for(auto output : ins->outputs())
         {
             output = resolve_output(output);
             if(is_end(output, this->end()))
                 continue;
-            if(contains(seen, output))
+            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
                 continue;
             auto i = std::distance(src, output);
             if(i >= d)
                 continue;
-            seen.insert(output);
             instructions.emplace_back(i, output);
-            pending.push_back(output);
+            self(output);
         }
-    }
+    })(src);
     std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) {
                   return p.first;
               }));
@@ -1129,29 +1121,17 @@ instruction_ref module::validate() const
 
 static bool is_borrowed(instruction_ref ins)
 {
-    // Iterative. Shallow aliases still form chains thousands deep on an
-    // unrolled recurrence; the recursive form overflows the C stack during
-    // program::compile's dangling-reference check.
-    std::vector<instruction_ref> pending{ins};
-    std::unordered_set<instruction_ref> seen;
-    while(not pending.empty())
-    {
-        auto cur = pending.back();
-        pending.pop_back();
-        if(not seen.insert(cur).second)
-            continue;
+    return fix<bool>([](auto self, instruction_ref cur) -> bool {
         auto aliases = instruction::get_output_alias(cur, true);
         if(aliases.size() == 1 and aliases.front() == cur)
-            continue;
-        for(auto alias : aliases)
-        {
+            return false;
+        return std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
             lifetime l = alias->get_operator().get_lifetime();
             if(l == lifetime::borrow)
                 return true;
-            pending.push_back(alias);
-        }
-    }
-    return false;
+            return self(alias);
+        });
+    })(ins);
 }
 
 static bool is_global(instruction_ref ins)
@@ -1964,53 +1944,24 @@ module& module::sort()
     });
     for(auto last : lasts)
     {
-        // Heap stack. write_literals sorts the whole program after GPU
-        // codegen, and an unrolled recurrence is thousands of ops deep.
-        struct frame
-        {
-            instruction_ref ins = {};
-            std::vector<instruction_ref> inputs;
-            std::size_t next = 0;
-            bool entered     = false;
-        };
-        std::vector<frame> stack;
-        stack.push_back({last, {}, 0, false});
-        while(not stack.empty())
-        {
-            if(not stack.back().entered)
+        fix([&](auto self, auto ins) {
+            if(visited.insert(ins).second == false)
+                return;
+            auto ins_inputs = ins->inputs();
+            if(implicit_deps.find(ins) != implicit_deps.end())
             {
-                auto ins = stack.back().ins;
-                if(visited.insert(ins).second == false)
-                {
-                    stack.pop_back();
+                auto ins_implict_inputs = implicit_deps.at(ins);
+                ins_inputs.insert(
+                    ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
+            }
+            for(auto child : ins_inputs)
+            {
+                if(not contains(this->impl->instructions, child))
                     continue;
-                }
-                auto ins_inputs = ins->inputs();
-                if(implicit_deps.find(ins) != implicit_deps.end())
-                {
-                    auto ins_implict_inputs = implicit_deps.at(ins);
-                    ins_inputs.insert(
-                        ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
-                }
-                std::vector<instruction_ref> kids;
-                for(auto child : ins_inputs)
-                {
-                    if(not contains(this->impl->instructions, child))
-                        continue;
-                    kids.push_back(child);
-                }
-                stack.back().inputs  = std::move(kids);
-                stack.back().entered = true;
+                self(child);
             }
-            if(stack.back().next == stack.back().inputs.size())
-            {
-                this->move_instruction(stack.back().ins, this->end());
-                stack.pop_back();
-                continue;
-            }
-            auto child = stack.back().inputs[stack.back().next++];
-            stack.push_back({child, {}, 0, false});
-        }
+            this->move_instruction(ins, this->end());
+        })(last);
     }
     assert(this->validate() == this->end());
     return *this;

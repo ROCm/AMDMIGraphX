@@ -56,19 +56,15 @@ void dead_code_elimination::apply(module& m) const
             continue;
         assert(std::distance(m.begin(), i) <= std::distance(m.begin(), last));
         std::unordered_set<instruction_ref> visited;
-        std::vector<instruction_ref> pending{i};
-        while(not pending.empty())
-        {
-            auto leaf = pending.back();
-            pending.pop_back();
+        fix([&](auto self, auto leaf) {
             if(not m.has_instruction(leaf))
-                continue;
+                return;
 
             if(leaf->outputs().empty())
             {
                 // Dont visit inputs twice
                 if(not visited.insert(leaf).second)
-                    continue;
+                    return;
                 std::unordered_set<instruction_ref> args(leaf->inputs().begin(),
                                                          leaf->inputs().end());
                 leaf->clear_arguments();
@@ -76,9 +72,10 @@ void dead_code_elimination::apply(module& m) const
                 assert(leaf != ins);
                 if(leaf->name() != "@param" and leaf->name() != "@comment")
                     m.move_instruction(leaf, m.end());
-                pending.insert(pending.end(), args.begin(), args.end());
+                for(auto arg : args)
+                    self(arg);
             }
-        }
+        })(i);
     }
     m.remove_instructions(std::next(last), m.end());
 }

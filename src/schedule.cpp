@@ -69,56 +69,31 @@ struct stream_info
 
     void accumulate_weights(instruction_ref last, const schedule_model& model)
     {
-        // Heap stack. An unrolled recurrence is thousands of instructions deep
-        // and the recursive form overflows the C stack.
-        struct frame
-        {
-            instruction_ref ins = {};
-            std::vector<instruction_ref> inputs;
-            std::size_t next = 0;
-            std::size_t acc  = 0;
-        };
-        std::vector<frame> stack;
-        auto push = [&](instruction_ref ins) {
-            std::size_t weight = 0;
-            auto&& op          = ins->get_operator();
-            if(not is_context_free(op) and op.name()[0] != '@')
-                weight = model.weight(op);
-            // This will ensure a stream will be assigned to return
-            if(op.name() == "@return")
-                weight = 1;
-            iweights[ins] = weight;
-            frame f;
-            f.ins    = ins;
-            f.acc    = weight;
-            f.inputs = ins->inputs();
-            if(contains(mod_implicit_deps, ins))
+        fix<std::size_t>([&](auto self, auto ins) -> std::size_t {
+            if(not contains(weights, ins))
             {
-                const auto& impl_deps = mod_implicit_deps.at(ins);
-                f.inputs.insert(f.inputs.end(), impl_deps.begin(), impl_deps.end());
+                std::size_t weight = 0;
+                auto&& op          = ins->get_operator();
+                if(not is_context_free(op) and op.name()[0] != '@')
+                    weight = model.weight(op);
+                // This will ensure a stream will be assigned to return
+                if(op.name() == "@return")
+                    weight = 1;
+                iweights[ins] = weight;
+                auto inputs   = ins->inputs();
+                if(contains(mod_implicit_deps, ins))
+                {
+                    const auto& impl_deps = mod_implicit_deps.at(ins);
+                    inputs.insert(inputs.end(), impl_deps.begin(), impl_deps.end());
+                }
+
+                weights[ins] = std::accumulate(
+                    inputs.begin(), inputs.end(), weight, [&](std::size_t w, instruction_ref i) {
+                        return w + self(i);
+                    });
             }
-            stack.push_back(std::move(f));
-        };
-        if(not contains(weights, last))
-            push(last);
-        while(not stack.empty())
-        {
-            if(stack.back().next == stack.back().inputs.size())
-            {
-                auto w   = stack.back().acc;
-                auto ins = stack.back().ins;
-                weights[ins] = w;
-                stack.pop_back();
-                if(not stack.empty())
-                    stack.back().acc += w;
-                continue;
-            }
-            auto child = stack.back().inputs[stack.back().next++];
-            if(contains(weights, child))
-                stack.back().acc += weights.at(child);
-            else
-                push(child);
-        }
+            return weights[ins];
+        })(last);
     }
 
     template <class Compare>
@@ -170,55 +145,37 @@ struct stream_info
         partition critical;
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
-        // Heap stack. The recursive walk follows the critical path, which is
-        // thousands of instructions deep on an unrolled recurrence.
-        struct frame
-        {
-            instruction_ref ins = {};
-            partition* part     = nullptr;
-            bool finish         = false;
-        };
-        std::vector<frame> stack;
-        stack.push_back({std::prev(m.end()), &critical, false});
-        while(not stack.empty())
-        {
-            if(stack.back().finish)
-            {
-                m.move_instruction(stack.back().ins, m.end());
-                stack.pop_back();
-                continue;
-            }
-            auto ins   = stack.back().ins;
-            auto* part = stack.back().part;
+        fix([&](auto self, auto ins, auto& part) {
             assert(not is_end(ins, m.end()));
-            if(not m.has_instruction(ins) or contains(partitions, ins))
-            {
-                stack.pop_back();
-                continue;
-            }
+            if(not m.has_instruction(ins))
+                return;
+            if(contains(partitions, ins))
+                return;
 
             // Add an entry so we know the instruction was visited
             partitions[ins];
-            part->add(ins, this->iweights[ins]);
+            part.add(ins, this->iweights[ins]);
 
             auto args         = ins->inputs();
             auto threshold_it = this->sort_args(args);
-            stack.back().finish = true;
-            if(args.empty())
-                continue;
 
-            assert(threshold_it != args.begin());
-            std::vector<frame> children;
-            children.push_back({args.front(), part, false});
-            for(auto i : range(std::next(args.begin()), threshold_it))
+            if(not args.empty())
             {
-                partitions[ins].emplace_back();
-                children.push_back({i, &partitions[ins].back(), false});
+                assert(threshold_it != args.begin());
+                self(args.front(), part);
+                for(auto i : range(std::next(args.begin()), threshold_it))
+                {
+                    partitions[ins].emplace_back();
+                    self(i, partitions[ins].back());
+                }
+                for(auto i : range(threshold_it, args.end()))
+                {
+                    self(i, part);
+                }
             }
-            for(auto i : range(threshold_it, args.end()))
-                children.push_back({i, part, false});
-            stack.insert(stack.end(), children.rbegin(), children.rend());
-        }
+            // Sort instructions
+            m.move_instruction(ins, m.end());
+        })(std::prev(m.end()), critical);
 
         // Set the critical partition to stream 0
         set_stream(critical, 0);
@@ -267,9 +224,6 @@ struct stream_info
     {
         std::set<weight_ins, compare_weight_ins> children;
         std::unordered_map<instruction_ref, std::size_t> visited;
-        // Inputs are followed once. Repeating that walk revisits a node once
-        // per path, which does not finish on an unrolled recurrence.
-        std::unordered_set<instruction_ref> walked;
         auto last      = std::prev(m.end());
         auto mw        = this->weights.at(last);
         auto nw        = mw / (m.size() + 1);
@@ -292,8 +246,6 @@ struct stream_info
             auto top = children.begin()->second;
             children.erase(children.begin());
             m.move_instruction(top, m.begin());
-            if(not walked.insert(top).second)
-                continue;
             for(auto ins : top->inputs())
             {
                 if(not m.has_instruction(ins))
@@ -373,33 +325,14 @@ struct stream_info
     auto get_streams_from(instruction_ref start, Selector select) const
     {
         return [=](auto f) {
-            struct frame
-            {
-                instruction_ref ins = {};
-                std::vector<instruction_ref> inputs;
-                std::size_t next = 0;
-            };
-            std::vector<frame> stack;
-            stack.push_back({start, select(start), 0});
-            while(not stack.empty())
-            {
-                if(stack.back().next >= stack.back().inputs.size())
-                {
-                    stack.pop_back();
-                    continue;
-                }
-                auto i = stack.back().inputs[stack.back().next++];
-                if(has_stream(i))
-                {
-                    if(not f(this->get_stream(i)))
-                        return false;
-                }
-                else
-                {
-                    stack.push_back({i, select(i), 0});
-                }
-            }
-            return true;
+            return fix<bool>([&](auto self, auto ins) {
+                return all_of(select(ins), [&](auto i) {
+                    if(has_stream(i))
+                        return f(this->get_stream(i));
+                    else
+                        return self(i);
+                });
+            })(start);
         };
     }
 
@@ -431,18 +364,12 @@ struct stream_info
     {
         std::vector<instruction_ref> result;
         std::unordered_map<std::size_t, instruction_ref> m;
-        std::unordered_set<instruction_ref> seen;
-        std::vector<instruction_ref> pending{start};
-        while(not pending.empty())
-        {
-            auto ins = pending.back();
-            pending.pop_back();
+        fix([&](auto self, auto ins) {
             for(auto i : ins->inputs())
             {
                 if(iweights.at(i) == 0)
                 {
-                    if(seen.insert(i).second)
-                        pending.push_back(i);
+                    self(i);
                     continue;
                 }
                 auto stream = this->get_stream(i);
@@ -453,7 +380,7 @@ struct stream_info
                                              return std::distance(x, start);
                                          }));
             }
-        }
+        })(start);
         std::transform(
             m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.second; });
         return result;

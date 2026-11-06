@@ -25,6 +25,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/load_save.hpp>
@@ -33,11 +34,11 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
 #include <test.hpp>
 
 #include <algorithm>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -96,13 +97,6 @@ static recompile_record& last_recompile()
     return record;
 }
 
-// Makes the recompile pass leave an instruction before the input it uses
-static bool& break_recompile()
-{
-    static bool b = false;
-    return b;
-}
-
 struct recompile_test_context
 {
     std::string device = current_device();
@@ -121,6 +115,8 @@ struct record_device_pass
 struct record_recompile_pass
 {
     bool exhaustive_tune = false;
+    // Leave an instruction before the input it uses, which makes the module invalid
+    bool break_module = false;
 
     std::string name() const { return "record_recompile"; }
     void apply(migraphx::module& m) const
@@ -133,8 +129,7 @@ struct record_recompile_pass
         last_recompile().exhaustive_tune = exhaustive_tune;
         last_recompile().runs++;
         record_device(m, current_device());
-        // cppcheck-suppress knownConditionTrueFalse
-        if(break_recompile())
+        if(break_module)
         {
             auto x = std::find_if(
                 m.begin(), m.end(), [](const auto& ins) { return ins.name() == "@param"; });
@@ -154,7 +149,9 @@ struct recompile_test_target
     std::vector<migraphx::pass> get_recompile_passes(migraphx::context&,
                                                      const migraphx::compile_options& options) const
     {
-        return {record_recompile_pass{options.exhaustive_tune}};
+        return {
+            record_recompile_pass{options.exhaustive_tune,
+                                  migraphx::contains(options.backend_options, "break_recompile")}};
     }
     migraphx::context get_context() const { return recompile_test_context{}; }
 };
@@ -236,20 +233,20 @@ TEST_CASE(recompile_runs_recompile_passes)
 
 TEST_CASE(recompile_invalid_module_refused)
 {
-    auto p            = compile_for("dev_a");
-    current_device()  = "dev_b";
-    break_recompile() = true;
+    auto p           = compile_for("dev_a");
+    current_device() = "dev_b";
+    migraphx::compile_options options;
+    options.backend_options["break_recompile"] = true;
     // Debug builds already reject the module after the pass, with their own message
     std::string error;
     try
     {
-        p.recompile(make_recompile_target());
+        p.recompile(make_recompile_target(), options);
     }
     catch(const migraphx::exception& e)
     {
         error = e.what();
     }
-    break_recompile() = false;
     EXPECT(error.find("Invalid module") != std::string::npos or
            error.find("produces invalid program") != std::string::npos);
     // The program is unchanged when recompiling fails
@@ -341,40 +338,23 @@ TEST_CASE(bypass_survives_serialization)
     EXPECT(not q.get_main_module()->bypass());
 }
 
-TEST_CASE(print_skips_bypassed_modules)
+TEST_CASE(perf_report_without_timing_for_bypassed_modules)
 {
-    auto p = make_bypass_program();
-    std::vector<std::string> printed;
-    p.print([&](auto ins, const auto&) { printed.push_back(ins->name()); });
-    EXPECT(std::count(printed.begin(), printed.end(), "neg") == 0);
-    EXPECT(std::count(printed.begin(), printed.end(), "abs") == 1);
-    EXPECT(std::count(printed.begin(), printed.end(), "relu") == 1);
-}
-
-static void add_bypassed_module(migraphx::program& p, const std::string& op)
-{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), mm->add_parameter("x", s))});
+    p.compile(migraphx::make_target("ref"));
     auto* sub = p.create_module("sub");
-    auto sx   = sub->add_parameter("sx", migraphx::shape{migraphx::shape::float_type, {4}});
-    sub->add_return({sub->add_instruction(migraphx::make_op(op), sx)});
+    sub->add_return({sub->add_instruction(migraphx::make_op("neg"), sub->add_parameter("sx", s))});
     sub->set_bypass();
-}
 
-TEST_CASE(stream_skips_bypassed_modules_when_compiled)
-{
-    // Uncompiled programs still show their fused modules
-    EXPECT(migraphx::contains(migraphx::to_string(make_bypass_program()), "module: \"sub\""));
-
-    auto p = compile_for("dev_a");
-    add_bypassed_module(p, "neg");
-    auto printed = migraphx::to_string(p);
-    EXPECT(not migraphx::contains(printed, "module: \"sub\""));
-    EXPECT(migraphx::contains(printed, "module: \"main\""));
-
-    // Equality still compares the bypassed modules
-    auto q = compile_for("dev_a");
-    add_bypassed_module(q, "abs");
-    EXPECT(migraphx::to_string(p) == migraphx::to_string(q));
-    EXPECT(p != q);
+    std::stringstream ss;
+    p.perf_report(ss, 2, {{"x", migraphx::generate_argument(s)}});
+    auto report = ss.str();
+    // The bypassed module is printed, but it is never run, so it has no timing
+    EXPECT(migraphx::contains(report, "neg"));
+    EXPECT(not migraphx::contains(report, "nan"));
 }
 
 TEST_CASE(older_program_version_refused)

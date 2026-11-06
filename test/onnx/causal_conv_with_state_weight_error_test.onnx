@@ -1,0 +1,38 @@
+
+(causal_conv_with_state_weight_error_test:¼
+\
+input
+weight
+bias
+
+past_stateoutputpresent_state"CausalConvWithState:com.microsoft(causal_conv_with_state_weight_error_testZ
+input
+
+
+
+Z
+weight
+
+
+
+Z
+bias
+
+
+Z 
+
+past_state
+
+
+
+b
+output
+
+
+
+b#
+present_state
+
+
+
+B

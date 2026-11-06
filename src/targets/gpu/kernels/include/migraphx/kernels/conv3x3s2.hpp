@@ -180,8 +180,8 @@ __device__ void conv3x3s2_fp32(F f, Output output, Input x, Weights weights, Inp
         rows xr;
         repeat_c<3>([&](auto r) {
             // Window column 0 is image column 2*ow0 - 1, only 4-byte aligned: one b32.
-            xr[r][0] = bit_cast<float>(
-                __builtin_amdgcn_raw_buffer_load_b32(x_rsrc, left_off[r], soff, 0));
+            xr[r][0] =
+                bit_cast<float>(__builtin_amdgcn_raw_buffer_load_b32(x_rsrc, left_off[r], soff, 0));
             repeat_c<TP>([&](auto j) {
                 // Columns 2*ow0 + 2j and 2*ow0 + 2j + 1 are an 8-byte aligned pair: one b64.
                 auto v = bit_cast<vec<float, 2>>(__builtin_amdgcn_raw_buffer_load_b64(

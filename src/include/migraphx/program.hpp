@@ -115,6 +115,15 @@ struct MIGRAPHX_EXPORT program
     void compile(const std::vector<target>& targets,
                  std::vector<compile_options> compile_opts = {});
 
+    /**
+     * Recompile the kernels of a compiled program for the target `t` from the recipes kept with
+     * compile_options::recompilable. Only kernels change: the graph, literals, memory plan and
+     * schedule are kept. The tuning level recorded with each kernel is kept unless
+     * `options.exhaustive_tune` is set. The program is unchanged if recompiling fails. Throws if
+     * `t` does not support recompiling.
+     */
+    void recompile(const target& t, compile_options options = compile_options{});
+
     bool is_compiled() const;
 
     void finalize();
@@ -134,6 +143,10 @@ struct MIGRAPHX_EXPORT program
 
     value to_value() const;
     void from_value(const value& v);
+    /// When `finalize` is false only the targets of a compiled program are restored: its contexts
+    /// are created and its kernels loaded by finalize() or recompile(), so a program compiled for
+    /// another device can be opened.
+    void from_value(const value& v, bool finalize);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
@@ -183,7 +196,7 @@ struct MIGRAPHX_EXPORT program
     // program file version is for the data structure or format of the MXR
     // file. Version should be bumped if any changes occur to the format of
     // the MXR file. This does not apply to changes made to operators.
-    static constexpr int program_file_version = 8;
+    static constexpr int program_file_version = 9;
 };
 
 /// Lets a program be a member of a reflected type, using the same conversion as saving one.

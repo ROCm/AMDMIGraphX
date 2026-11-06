@@ -63,6 +63,15 @@ struct target
      */
     std::vector<pass> get_passes(context& ctx, const compile_options& options) const;
     /**
+     * @brief The passes that recompile the kernels of an already compiled program, used by
+     * program::recompile. Targets that cannot recompile throw.
+     *
+     * @param ctx The context of the device to recompile for
+     * @param options Compiling options passed in by the user
+     * @return The passes to be ran
+     */
+    std::vector<pass> get_recompile_passes(context& ctx, const compile_options& options) const;
+    /**
      * @brief Construct a context for the target.
      * @return The context to be used during compilation and execution.
      */
@@ -107,6 +116,13 @@ argument target_allocate(T& x, const shape&)
 }
 
 template <class T>
+std::vector<pass> target_get_recompile_passes(T& x, context&, const compile_options&)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("recompile: the " + name + " target does not support recompile");
+}
+
+template <class T>
 argument copy_to_target(T&, const argument& arg)
 {
     return arg;
@@ -147,6 +163,8 @@ struct MIGRAPHX_EXPORT target
     std::string name() const;
     //
     std::vector<pass> get_passes(context& ctx, const compile_options& options) const;
+    // (optional)
+    std::vector<pass> get_recompile_passes(context& ctx, const compile_options& options) const;
     //
     context get_context() const;
     // (optional)
@@ -168,6 +186,23 @@ struct MIGRAPHX_EXPORT target
 struct target
 {
     private:
+    template <class T>
+    static auto private_detail_te_default_get_recompile_passes(char,
+                                                               T&& private_detail_te_self,
+                                                               context& ctx,
+                                                               const compile_options& options)
+        -> decltype(private_detail_te_self.get_recompile_passes(ctx, options))
+    {
+        return private_detail_te_self.get_recompile_passes(ctx, options);
+    }
+
+    template <class T>
+    static std::vector<pass> private_detail_te_default_get_recompile_passes(
+        float, T&& private_detail_te_self, context& ctx, const compile_options& options)
+    {
+        return target_get_recompile_passes(private_detail_te_self, ctx, options);
+    }
+
     template <class T>
     static auto private_detail_te_default_find_supported(char,
                                                          T&& private_detail_te_self,
@@ -278,6 +313,11 @@ struct target
         decltype(std::declval<PrivateDetailTypeErasedT>().name(),
                  std::declval<PrivateDetailTypeErasedT>().get_passes(
                      std::declval<context&>(), std::declval<const compile_options&>()),
+                 private_detail_te_default_get_recompile_passes(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<context&>(),
+                     std::declval<const compile_options&>()),
                  std::declval<PrivateDetailTypeErasedT>().get_context(),
                  private_detail_te_default_find_supported(char(0),
                                                           std::declval<PrivateDetailTypeErasedT>(),
@@ -383,6 +423,12 @@ struct target
         return (*this).private_detail_te_get_handle().get_passes(ctx, options);
     }
 
+    std::vector<pass> get_recompile_passes(context& ctx, const compile_options& options) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().get_recompile_passes(ctx, options);
+    }
+
     context get_context() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -441,6 +487,8 @@ struct target
         virtual std::string name() const                                                        = 0;
         virtual std::vector<pass> get_passes(context& ctx,
                                              const compile_options& options) const              = 0;
+        virtual std::vector<pass> get_recompile_passes(context& ctx,
+                                                       const compile_options& options) const    = 0;
         virtual context get_context() const                                                     = 0;
         virtual supported_segments find_supported(const_module_ref mod, support_metric m) const = 0;
         virtual argument copy_to(const argument& input) const                                   = 0;
@@ -483,6 +531,14 @@ struct target
         {
 
             return private_detail_te_value.get_passes(ctx, options);
+        }
+
+        std::vector<pass> get_recompile_passes(context& ctx,
+                                               const compile_options& options) const override
+        {
+
+            return private_detail_te_default_get_recompile_passes(
+                char(0), private_detail_te_value, ctx, options);
         }
 
         context get_context() const override { return private_detail_te_value.get_context(); }

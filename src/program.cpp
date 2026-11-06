@@ -225,8 +225,19 @@ std::vector<shape> program::get_output_shapes() const
     return mm->get_output_shapes();
 }
 
+// A program loaded without finalizing has targets but no contexts until it is used
+static void create_contexts(std::vector<context>& contexts, const std::vector<target>& targets)
+{
+    if(not contexts.empty())
+        return;
+    std::transform(targets.begin(), targets.end(), std::back_inserter(contexts), [](auto&& t) {
+        return t.get_context();
+    });
+}
+
 context& program::get_context() const
 {
+    create_contexts(impl->contexts, impl->targets);
     assert(impl->contexts.size() == 1);
     return impl->contexts.front();
 }
@@ -235,6 +246,35 @@ void program::clear_context()
 {
     impl->contexts.clear();
     impl->targets.clear();
+}
+
+void program::recompile(const target& t, compile_options options)
+{
+    if(not this->is_compiled())
+        MIGRAPHX_THROW("recompile: the program is not compiled");
+    if(impl->targets.size() != 1 or impl->targets.front().name() != t.name())
+        MIGRAPHX_THROW("recompile: the program was not compiled for the " + t.name() + " target");
+
+    if(enabled(MIGRAPHX_TRACE_COMPILE{}))
+        options.trace = tracer{std::cout};
+
+    // Recompile a copy so the program is unchanged when recompiling fails
+    program p                     = *this;
+    std::vector<context> contexts = {t.get_context()};
+    auto passes                   = t.get_recompile_passes(contexts.front(), options);
+    run_passes(p, passes, options.trace);
+    for(const auto* mod : p.get_modules())
+    {
+        auto invalid = mod->validate();
+        if(invalid != mod->end())
+            MIGRAPHX_THROW("Invalid module " + mod->name() + " from recompile at instruction " +
+                           std::to_string(std::distance(mod->begin(), invalid)));
+    }
+    p.impl->targets  = {t};
+    p.impl->contexts = contexts;
+    if(not is_cross_compiling(p.impl->contexts.front()))
+        p.finalize();
+    *this = std::move(p);
 }
 
 instruction_ref program::validate() const
@@ -286,7 +326,7 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     return p;
 }
 
-bool program::is_compiled() const { return not this->impl->contexts.empty(); }
+bool program::is_compiled() const { return not this->impl->targets.empty(); }
 
 void program::compile(const std::vector<target>& targets, std::vector<compile_options> compile_opts)
 {
@@ -415,6 +455,7 @@ void program::compile(const target& t, compile_options options)
 
 void program::finalize()
 {
+    create_contexts(impl->contexts, impl->targets);
     auto* mm = this->get_main_module();
     mm->finalize(this->impl->contexts);
 }
@@ -613,7 +654,7 @@ static std::vector<argument> generic_eval(const module* mod,
                 });
             const auto& mod_args = ins->module_inputs();
             auto module_eval     = [&](module_ref smod,
-                                   const std::unordered_map<std::string, argument>& inputs) {
+                                       const std::unordered_map<std::string, argument>& inputs) {
                 return generic_eval(smod, ctx, inputs, results, trace);
             };
 
@@ -697,6 +738,8 @@ static bool is_inspectable(const std::string& op)
 std::vector<argument> program::eval(const parameter_map& params,
                                     execution_environment exec_env) const
 {
+    if(this->impl->contexts.empty() and not this->impl->targets.empty())
+        MIGRAPHX_THROW("The program was loaded without finalizing; call finalize() before eval");
     auto& contexts = this->impl->contexts;
     auto& targets  = this->impl->targets;
 
@@ -858,7 +901,9 @@ value program::to_value() const
                 nodes.push_back(node);
             },
             names);
-        mod_val["nodes"]         = nodes;
+        mod_val["nodes"] = nodes;
+        if(mod->bypass())
+            mod_val["bypass"] = true;
         module_vals[mod->name()] = mod_val;
     }
 
@@ -940,7 +985,9 @@ static void mod_from_val(module_ref mod,
     }
 }
 
-void program::from_value(const value& v)
+void program::from_value(const value& v) { this->from_value(v, true); }
+
+void program::from_value(const value& v, bool finalize)
 {
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
@@ -962,10 +1009,17 @@ void program::from_value(const value& v)
 
     migraphx::from_value(v.at("targets"), this->impl->targets);
 
-    for(auto i : range(this->impl->targets.size()))
+    // Without finalizing only the targets are restored; the contexts are created when the
+    // program is finalized or recompiled
+    if(finalize)
     {
-        this->impl->contexts.push_back(this->impl->targets[i].get_context());
-        this->impl->contexts.back().from_value(v.at("contexts")[i]);
+        const auto& ctx_vals = v.at("contexts");
+        for(auto i : range(this->impl->targets.size()))
+        {
+            this->impl->contexts.push_back(this->impl->targets[i].get_context());
+            if(i < ctx_vals.size())
+                this->impl->contexts.back().from_value(ctx_vals[i]);
+        }
     }
 
     auto module_vals = v.at("modules");
@@ -981,13 +1035,19 @@ void program::from_value(const value& v)
                    impl->modules.end(),
                    std::inserter(map_mods, map_mods.end()),
                    [&](auto&& pp) { return std::make_pair(pp.first, &pp.second); });
+    // Set before any instruction is added, since some ops check it in compute_shape
+    for(const auto& vv : module_vals)
+    {
+        if(vv.contains("bypass") and vv.at("bypass").to<bool>())
+            map_mods.at(vv.get_key())->set_bypass();
+    }
 
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto* mm = get_main_module();
     mod_from_val(mm, module_vals, map_insts, map_mods);
 
     // Finalize a compiled model
-    if(not this->impl->contexts.empty())
+    if(finalize and not this->impl->contexts.empty())
         this->finalize();
 }
 
@@ -1130,11 +1190,15 @@ void program::perf_report(
     this->print(names, [&](auto ins, const auto& ins_names) {
         instruction::print(os, ins, ins_names);
 
-        // skip return instruction
-        if(ins->name() == "@return")
+        // Return instructions, and instructions that are not run such as those in bypassed
+        // modules, have no timing
+        auto it = ins_vec.find(ins);
+        if(ins->name() == "@return" or it == ins_vec.end() or it->second.empty())
+        {
+            os << std::endl;
             return;
-
-        double avg     = common_average(ins_vec[ins]);
+        }
+        double avg     = common_average(it->second);
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << ": " << avg << "ms, " << percent << "%";
         os << std::endl;

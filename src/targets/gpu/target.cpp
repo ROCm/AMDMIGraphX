@@ -86,6 +86,8 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/gpu/recompile.hpp>
+#include <migraphx/gpu/record_compiled_for.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -169,7 +171,7 @@ struct backend_options
 
 // The backend options passed to compile, with any key set by MIGRAPHX_GPU_OPTIONS (a json-like
 // object such as "{convolution_layout:channels_last}") overriding it.
-backend_options get_backend_options(const compile_options& options)
+value backend_options_value(const compile_options& options)
 {
     auto opts = options.backend_options;
     auto env  = string_value_of(MIGRAPHX_GPU_OPTIONS{});
@@ -181,7 +183,18 @@ backend_options get_backend_options(const compile_options& options)
         for(const auto& opt : v)
             opts[opt.get_key()] = opt.without_key();
     }
-    return from_value<backend_options>(value(opts));
+    return opts;
+}
+
+backend_options get_backend_options(const compile_options& options)
+{
+    return from_value<backend_options>(backend_options_value(options));
+}
+
+// The options recorded with a recompilable program
+value recorded_options(const compile_options& options)
+{
+    return compile_options_value(options, backend_options_value(options));
 }
 
 struct pipeline_factory
@@ -342,7 +355,8 @@ struct pipeline_factory
             compile_ops{get_context(),
                         options.exhaustive_tune,
                         options.compile_mode == compile_modes::eager,
-                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{})},
+                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}),
+                        options.recompilable},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -361,6 +375,8 @@ struct pipeline_factory
             normalize_ops{},
             dead_code_elimination{},
             eliminate_identity{},
+            enable_pass(options.recompilable,
+                        record_compiled_for{get_context(), recorded_options(options)}),
         };
     }
 };
@@ -373,11 +389,11 @@ static migraphx::context make_context(const target& t)
     return context(gpu::get_device_id());
 }
 
-std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
+// Configure the context for compiling with these options. The context predates the compile
+// options, so the binary cache and problem caches they configure are installed here.
+static void
+setup_context(context& ctx, const compile_options& options, const backend_options& backend_opts)
 {
-    auto backend_opts = get_backend_options(options);
-    auto& ctx         = any_cast<context>(gctx);
-    // The context predates the compile options, so the cache they configure is installed here.
     ctx.set_binary_cache(std::make_shared<binary_cache>(
         binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
@@ -388,6 +404,32 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
                             backend_opts.problem_cache_files);
+}
+
+std::vector<pass> target::get_recompile_passes(migraphx::context& gctx,
+                                               const compile_options& options) const
+{
+    auto& ctx = any_cast<context>(gctx);
+    setup_context(ctx, options, get_backend_options(options));
+    auto user_options = recorded_options(options);
+    // Dead code elimination must not run on a compiled program: kernels that write into part of a
+    // buffer are not used by anything
+    return {restore_recipes{&ctx, user_options},
+            compile_ops{.ctx                     = &ctx,
+                        .exhaustive_tune         = options.exhaustive_tune,
+                        .skip_benchmark          = options.compile_mode == compile_modes::eager,
+                        .recompilable            = true,
+                        .exhaustive_from_context = true},
+            remove_recompile_leftovers{},
+            check_recompiled_memory{},
+            record_compiled_for{&ctx, user_options}};
+}
+
+std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
+{
+    auto backend_opts = get_backend_options(options);
+    auto& ctx         = any_cast<context>(gctx);
+    setup_context(ctx, options, backend_opts);
 
     pipeline_factory p{&gctx, options, backend_opts};
 

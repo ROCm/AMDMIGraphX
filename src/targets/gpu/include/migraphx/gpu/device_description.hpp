@@ -25,6 +25,8 @@
 #define MIGRAPHX_GUARD_GPU_DEVICE_DESCRIPTION_HPP
 
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/reflect.hpp>
 #include <cstddef>
 #include <string>
 
@@ -35,7 +37,7 @@ namespace gpu {
 /// The properties of a GPU that are needed to compile for it. It can either be
 /// queried from a local device or filled in by the user to compile for a device
 /// that is not present.
-struct MIGRAPHX_GPU_EXPORT device_description
+struct MIGRAPHX_GPU_EXPORT device_description : reflect_equality<device_description>
 {
     /// Query the properties of the device with the given hip device id.
     static device_description from_device(std::size_t device);
@@ -51,6 +53,17 @@ struct MIGRAPHX_GPU_EXPORT device_description
     std::size_t max_threads_per_cu    = 2048;
     std::size_t max_threads_per_block = 1024;
     std::size_t wavefront_size        = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.arch, "arch"),
+                    f(self.num_cu, "num_cu"),
+                    f(self.num_chiplets, "num_chiplets"),
+                    f(self.max_threads_per_cu, "max_threads_per_cu"),
+                    f(self.max_threads_per_block, "max_threads_per_block"),
+                    f(self.wavefront_size, "wavefront_size"));
+    }
 };
 
 } // namespace gpu

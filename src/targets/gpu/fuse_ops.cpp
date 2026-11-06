@@ -1063,6 +1063,38 @@ struct find_winograd_conv_pointwise
     }
 };
 
+// Same as find_winograd_conv_pointwise, for gpu::conv3x3s2: the kernel
+// applies the pointwise function to each output while writing it.
+struct find_direct_conv_pointwise
+{
+    auto matcher() const
+    {
+        return precompile_name("pointwise")(
+            match::not_tuple(),
+            match::arg(0)(precompile_name("gpu::conv3x3s2").bind("conv")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto pw_ins   = r.result;
+        auto conv_ins = r.instructions["conv"];
+        if(not conv_ins->module_inputs().empty())
+            return;
+        auto* pm       = pw_ins->module_inputs().front();
+        auto pw_inputs = pw_ins->inputs();
+        pw_inputs.erase(std::find(pw_inputs.begin(), pw_inputs.end(), conv_ins));
+        // Direct-conv inputs are (x, w, output_alloc): drop that alloc and append the
+        // pointwise's other inputs, whose own output_alloc stays last.
+        auto inputs = conv_ins->inputs();
+        inputs.pop_back();
+        inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
+
+        auto op_val            = conv_ins->get_operator().to_value();
+        op_val["output_shape"] = to_value(pw_ins->get_shape());
+        m.replace_instruction(pw_ins, make_op(conv_ins->name(), op_val), inputs, {pm});
+    }
+};
+
 struct find_concat_pointwise
 {
     auto matcher() const
@@ -1117,6 +1149,7 @@ void fuse_ops::apply(module& m) const
                         find_layernorm_pointwise{},
                         find_channelwise_conv_pointwise{},
                         find_winograd_conv_pointwise{},
+                        find_direct_conv_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_transpose_rocblas_gemm{},
 #if MIGRAPHX_USE_HIPBLASLT

@@ -6504,6 +6504,37 @@ TEST_CASE(test_scalar_nelemnts)
     throws_shape(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 3, 4, 5}}}), input);
 }
 
+TEST_CASE(triangular_solve)
+{
+    migraphx::shape a{migraphx::shape::float_type, {2, 3, 3}};
+    migraphx::shape b{migraphx::shape::float_type, {2, 3, 4}};
+    expect_shape(b, migraphx::make_op("triangular_solve"), a, b);
+    // batch dims only need matching lens, so a broadcast A is fine
+    migraphx::shape a_broadcast{migraphx::shape::float_type, {2, 3, 3}, {0, 3, 1}};
+    expect_shape(
+        b, migraphx::make_op("triangular_solve", {{"unit_diagonal", true}}), a_broadcast, b);
+    // not square
+    throws_shape(migraphx::make_op("triangular_solve"),
+                 migraphx::shape{migraphx::shape::float_type, {2, 3, 2}},
+                 b);
+    // rows differ
+    throws_shape(migraphx::make_op("triangular_solve"),
+                 a,
+                 migraphx::shape{migraphx::shape::float_type, {2, 4, 4}});
+    // batch dims differ
+    throws_shape(migraphx::make_op("triangular_solve"),
+                 a,
+                 migraphx::shape{migraphx::shape::float_type, {3, 3, 4}});
+    // needs matrices
+    throws_shape(migraphx::make_op("triangular_solve"),
+                 migraphx::shape{migraphx::shape::float_type, {3}},
+                 migraphx::shape{migraphx::shape::float_type, {3}});
+    // types must match
+    throws_shape(migraphx::make_op("triangular_solve"),
+                 a,
+                 migraphx::shape{migraphx::shape::half_type, {2, 3, 4}});
+}
+
 TEST_CASE(test_gathernd)
 {
     {

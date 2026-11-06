@@ -162,7 +162,11 @@ find_expression_sources(const module& m,
 
     auto ordered_variables = find_ordered_variables(expressions);
     if(ordered_variables.empty() and not unique_inputs.empty())
+    {
+        // An instruction_ref points into the module and not into the local vector.
+        // cppcheck-suppress returnDanglingLifetime
         return std::vector<instruction_ref>{unique_inputs.front()};
+    }
 
     std::vector<shape> input_shapes;
     std::transform(unique_inputs.begin(),
@@ -181,6 +185,8 @@ find_expression_sources(const module& m,
     {
         if(candidates.empty())
             return std::nullopt;
+        // An instruction_ref points into the module and not into the local vector.
+        // cppcheck-suppress returnDanglingLifetime
         return std::vector<instruction_ref>{candidates.front()};
     }
 

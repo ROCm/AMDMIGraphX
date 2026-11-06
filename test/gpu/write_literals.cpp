@@ -605,7 +605,7 @@ TEST_CASE(indexed_literal_stays_when_memory_fits)
         auto i   = m1.add_parameter("i", idx);
         m1.add_return({m1.add_instruction(indexed_op{}, lit, i)});
     }
-    run_pass(m1, {.max_memory = 1 << 30});
+    run_pass(m1, {.max_memory = std::size_t{1} << 30u});
 
     migraphx::module m2;
     {

@@ -182,10 +182,9 @@ TEST_CASE(conv3x3s2_matcher)
 
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_instruction(
-        migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}),
-        mm->add_parameter("x", {shape::float_type, x}),
-        mm->add_parameter("w", {shape::float_type, {8, 8, 3, 3}}));
+    mm->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}),
+                        mm->add_parameter("x", {shape::float_type, x}),
+                        mm->add_parameter("w", {shape::float_type, {8, 8, 3, 3}}));
     EXPECT(not rewritten(p));
 }
 

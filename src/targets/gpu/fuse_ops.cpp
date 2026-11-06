@@ -1070,8 +1070,7 @@ struct find_direct_conv_pointwise
     auto matcher() const
     {
         return precompile_name("pointwise")(
-            match::not_tuple(),
-            match::arg(0)(precompile_name("gpu::conv3x3s2").bind("conv")));
+            match::not_tuple(), match::arg(0)(precompile_name("gpu::conv3x3s2").bind("conv")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

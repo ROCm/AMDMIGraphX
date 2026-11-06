@@ -258,9 +258,8 @@ __device__ void conv3x3s2_fp32(F f, Output output, Input x, Weights weights, Inp
         auto partials = make_tensor_view(partial_storage.data(), partial_shape);
         // Write this wave's acc to partials[wave][k * TP + t][lane].
         repeat_c<TK>([&](auto k) {
-            repeat_c<TP>([&](auto t) {
-                partials[array<index_int, 3>{wave, k * TP + t, lane}] = acc[k][t];
-            });
+            repeat_c<TP>(
+                [&](auto t) { partials[array<index_int, 3>{wave, k * TP + t, lane}] = acc[k][t]; });
         });
         __syncthreads(); // all waves must have written before any wave reads
         // The TK output channels are shared out over the waves. With a full channel tile and

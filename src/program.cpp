@@ -1190,11 +1190,15 @@ void program::perf_report(
     this->print(names, [&](auto ins, const auto& ins_names) {
         instruction::print(os, ins, ins_names);
 
-        // skip return instruction
-        if(ins->name() == "@return")
+        // Return instructions, and instructions that are not run such as those in bypassed
+        // modules, have no timing
+        auto it = ins_vec.find(ins);
+        if(ins->name() == "@return" or it == ins_vec.end() or it->second.empty())
+        {
+            os << std::endl;
             return;
-
-        double avg     = common_average(ins_vec[ins]);
+        }
+        double avg     = common_average(it->second);
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << ": " << avg << "ms, " << percent << "%";
         os << std::endl;
@@ -1271,10 +1275,6 @@ void program::print(
 {
     for(const auto& pp : this->impl->modules)
     {
-        // Bypassed modules (fused pointwise/reduce/mlir bodies, recompile recipe submodules, etc.)
-        // are never evaluated directly, so they have no timing to report and just add noise.
-        if(pp.second.bypass())
-            continue;
         names = pp.second.print(print_func, names);
     }
 }
@@ -1561,14 +1561,17 @@ program& program::sort()
     return *this;
 }
 
-static void print_modules(std::ostream& os, const program& p, bool skip_bypassed)
+bool operator==(const program& x, const program& y)
+{
+    return migraphx::to_string(x) == migraphx::to_string(y);
+}
+
+std::ostream& operator<<(std::ostream& os, const program& p)
 {
     auto vec_modules = p.get_modules();
     std::unordered_map<instruction_ref, std::string> names;
     for(auto& mod : vec_modules)
     {
-        if(skip_bypassed and mod->bypass())
-            continue;
         os << "module: \"" << mod->name() << "\"" << std::endl;
         names = mod->print(
             [&](auto ins, const auto& ins_names) {
@@ -1578,21 +1581,7 @@ static void print_modules(std::ostream& os, const program& p, bool skip_bypassed
             names);
         os << std::endl;
     }
-}
 
-bool operator==(const program& x, const program& y)
-{
-    std::stringstream xs;
-    std::stringstream ys;
-    print_modules(xs, x, false);
-    print_modules(ys, y, false);
-    return xs.str() == ys.str();
-}
-
-std::ostream& operator<<(std::ostream& os, const program& p)
-{
-    // A compiled program never runs its bypassed modules (such as recompile recipes) directly
-    print_modules(os, p, p.is_compiled());
     return os;
 }
 

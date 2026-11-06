@@ -40,6 +40,47 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+optional<std::pair<std::vector<operation>, shape>> invert_view_chain(
+    const std::vector<operation>& chain, const shape& input_shape, const shape& view_shape)
+{
+    std::vector<operation> fwd;
+    std::transform(chain.begin(), chain.end(), std::back_inserter(fwd), [](const operation& op) {
+        if(op.name() == "reshape_lazy")
+            return make_op("reshape", {{"dims", op.to_value().at("dims")}});
+        return op;
+    });
+    auto inv = shape_transform_descriptor::create(input_shape.lens(), fwd).invert();
+    if(inv.empty())
+        return std::nullopt;
+    auto result = inv.generate();
+    // Reshapes need to be lazy so the view is aliased instead of copied at runtime
+    std::transform(result.begin(), result.end(), result.begin(), [](const operation& op) {
+        if(op.name() != "reshape")
+            return op;
+        return make_op("reshape_lazy", op.to_value());
+    });
+    try
+    {
+        auto s = std::accumulate(
+            result.begin(), result.end(), view_shape, [](const shape& acc, const operation& op) {
+                std::vector<shape> inputs = {acc};
+                if(op.output_alias(inputs).empty())
+                    MIGRAPHX_THROW("Not a view operator: " + op.name());
+                auto next = op.compute_shape(inputs);
+                if(next.elements() != acc.elements())
+                    MIGRAPHX_THROW("Not an element-preserving view: " + op.name());
+                return next;
+            });
+        if(s.lens() != input_shape.lens())
+            return std::nullopt;
+        return std::make_pair(std::move(result), s);
+    }
+    catch(const migraphx::exception&)
+    {
+        return std::nullopt;
+    }
+}
+
 namespace {
 
 const std::unordered_set<std::string>& invertible_view_names()
@@ -100,55 +141,6 @@ struct concat_optimizer
     {
         auto alias = get_output_alias(producer);
         return is_allocation(alias) and alias->get_shape().lens() == producer->get_shape().lens();
-    }
-
-    // Build the view ops that turn a slice of the super buffer (shaped like
-    // the concat input) into the producer's output shape by inverting the
-    // view chain. Returns the ops and the resulting view shape; nullopt when
-    // the inverse does not exist or would require a data movement.
-    static std::optional<std::pair<std::vector<operation>, shape>> invert_view_chain(
-        const std::vector<operation>& chain, const shape& producer_shape, const shape& slice_shape)
-    {
-        std::vector<operation> fwd;
-        std::transform(
-            chain.begin(), chain.end(), std::back_inserter(fwd), [](const operation& op) {
-                if(op.name() == "reshape_lazy")
-                    return make_op("reshape", {{"dims", op.to_value().at("dims")}});
-                return op;
-            });
-        auto inv = shape_transform_descriptor::create(producer_shape.lens(), fwd).invert();
-        if(inv.empty())
-            return std::nullopt;
-        auto result = inv.generate();
-        // Reshapes need to be lazy so the slice is aliased instead of copied at runtime
-        std::transform(result.begin(), result.end(), result.begin(), [](const operation& op) {
-            if(op.name() != "reshape")
-                return op;
-            return make_op("reshape_lazy", op.to_value());
-        });
-        try
-        {
-            auto s = std::accumulate(result.begin(),
-                                     result.end(),
-                                     slice_shape,
-                                     [](const shape& acc, const operation& op) {
-                                         std::vector<shape> inputs = {acc};
-                                         if(op.output_alias(inputs).empty())
-                                             MIGRAPHX_THROW("Not a view operator: " + op.name());
-                                         auto next = op.compute_shape(inputs);
-                                         if(next.elements() != acc.elements())
-                                             MIGRAPHX_THROW("Not an element-preserving view: " +
-                                                            op.name());
-                                         return next;
-                                     });
-            if(s.lens() != producer_shape.lens())
-                return std::nullopt;
-            return std::make_pair(std::move(result), s);
-        }
-        catch(const migraphx::exception&)
-        {
-            return std::nullopt;
-        }
     }
 
     struct plan

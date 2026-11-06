@@ -467,7 +467,8 @@ bool hip_can_compile(const std::string& src, const std::vector<std::string>& fla
     try
     {
         std::string arch = "gfx900";
-        compile_hip_src(srcs, flags, arch, false, true);
+        // Probes are short and not run in parallel, so always compile them in-process.
+        compile_hip_src(srcs, flags, arch, /* disable_processes */ true, /* quiet */ true);
         return true;
     }
     catch(...)

@@ -25,14 +25,26 @@
 #define MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONCAT_HPP
 
 #include <string>
+#include <utility>
+#include <vector>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/concat_opt.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/operation.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/shape.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
+
+// Build the view ops that re-index a view shaped like the output of a chain
+// of view ops back into the shape of its input by inverting the chain.
+// Returns the ops and the resulting view shape; nullopt when the inverse
+// does not exist or would need a copy.
+MIGRAPHX_EXPORT optional<std::pair<std::vector<operation>, shape>> invert_view_chain(
+    const std::vector<operation>& chain, const shape& input_shape, const shape& view_shape);
 
 /**
  * Remove concat operators by having each operator write to different chunk of memory.

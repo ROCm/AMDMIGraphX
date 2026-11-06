@@ -422,14 +422,14 @@ struct match_find_quantizable_add_concat
                           [](const auto& b, auto arg) {
                               auto between = get_between_ins(b.instructions["dq"], arg);
                               return std::none_of(between.begin(), between.end(), [](auto ins) {
-                                  return ins->name() == "convert" and
-                                         shape::is_integral(ins->get_shape().type());
-                              });
-                          }))
-            return;
-
-        std::vector<instruction_ref> scales;
-        std::transform(branches.begin(),
+        if(not std::equal(
+               branches.begin(), branches.end(), op->inputs().begin(), [](const auto& b, auto arg) {
+                   auto between = get_between_ins(b.instructions["dq"], arg);
+                   return std::none_of(between.begin(), between.end(), [](auto ins) {
+                       return ins->name() == "convert" and
+                              shape::is_integral(ins->get_shape().type());
+                   });
+               }))
                        branches.end(),
                        std::back_inserter(scales),
                        [](const auto& b) { return b.instructions["scale"]; });

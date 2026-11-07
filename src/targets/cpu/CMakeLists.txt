@@ -64,7 +64,7 @@ if(MIGRAPHX_ENABLE_ZENDNN)
     find_library(ZENDNN_LIB amdZenDNN)
     find_library(BLIS_LIB blis)
 else()
-    find_package(dnnl REQUIRED)
+    find_package(dnnl 3 REQUIRED)
 endif()
 
 rocm_clang_tidy_check(migraphx_cpu)

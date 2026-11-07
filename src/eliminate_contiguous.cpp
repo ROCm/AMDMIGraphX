@@ -30,7 +30,6 @@
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/par_for.hpp>
-#include <migraphx/reshape_dims.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -48,13 +47,6 @@ static bool try_compute_shape(instruction_ref ins,
 
         // Cannot tell if a dynamic shape will need to be made contiguous
         if(new_shape.dynamic())
-        {
-            return false;
-        }
-        // A reshape that cannot alias its input as a view copies it, so the
-        // contiguous is still needed
-        if(ins->name() == "reshape" and
-           not reshape_dims(inputs.front(), new_shape.lens(), {.lazy = true}).has_value())
         {
             return false;
         }

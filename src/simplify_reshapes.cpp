@@ -2593,17 +2593,23 @@ struct find_layout_passthrough
         return *it;
     }
 
+    // Follows the carried inputs from ins while each op is single-use; the last
+    // element is the one the layout cannot move above
+    static auto get_carried_input_path(const operation& layout_op, instruction_ref ins)
+    {
+        return unfold(ins, [=](instruction_ref x) -> std::optional<instruction_ref> {
+            if(x->outputs().size() != 1)
+                return std::nullopt;
+            return carried_input(layout_op, x);
+        });
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto layout    = r.result;
         auto layout_op = layout->get_operator();
         // The ops the layout moves above, nearest first, ending at the layout's new input
-        auto path = unfold(layout->inputs().front(),
-                           [&](instruction_ref x) -> std::optional<instruction_ref> {
-                               if(x->outputs().size() != 1)
-                                   return std::nullopt;
-                               return carried_input(layout_op, x);
-                           });
+        auto path = get_carried_input_path(layout_op, layout->inputs().front());
         std::vector<instruction_ref> chain(path.begin(), path.end());
         auto x = chain.back();
         chain.pop_back();

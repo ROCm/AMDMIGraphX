@@ -365,7 +365,6 @@ struct dnnl_op : auto_register_op<Derived>
                 {
                     dnnl::algorithm algo;
                     dnnl::memory::desc mdesc;
-                    float scale = 0;
                     if(kind == dnnl::primitive::kind::binary)
                     {
                         pos.get_params_binary(i, algo, mdesc);
@@ -382,6 +381,7 @@ struct dnnl_op : auto_register_op<Derived>
                     }
                     else if(kind == dnnl::primitive::kind::sum)
                     {
+                        float scale = 0;
                         pos.get_params_sum(i, scale);
                         algo = dnnl::algorithm::binary_add;
                     }

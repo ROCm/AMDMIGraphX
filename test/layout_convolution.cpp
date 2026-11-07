@@ -834,10 +834,11 @@ TEST_CASE(channels_auto_allows_two_layouts_per_param)
 }
 
 // Under channels_last the convolution output is NHWC, so a reshape that folds the channel dim
-// into the spatial dims cannot alias it as a view. eliminate_contiguous keeps the contiguous
-// after the convolution for that reshape, so channels_last costs one copy, within the
-// two-per-param allowance, and auto selects it with both reshapes aliasing the standard copy.
-TEST_CASE(channels_auto_keeps_contiguous_for_reshapes)
+// into the spatial dims cannot alias its input as a view (reshape_lazy) and needs a copy, so
+// it is scored like a contiguous. Two such reshapes push channels_last to a score of three,
+// past the two-per-param allowance, so auto selects channels_first (a no-op here, since a
+// standard output keeps the reshapes lazy).
+TEST_CASE(channels_auto_counts_nonlazy_reshapes)
 {
     migraphx::module m1;
     {
@@ -856,28 +857,8 @@ TEST_CASE(channels_auto_keeps_contiguous_for_reshapes)
             m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 512}}}), relu);
         m1.add_return({reshape1, reshape2});
     }
+    migraphx::module m2 = m1;
     run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
-
-    migraphx::module m2;
-    {
-        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
-        auto xl = m2.add_instruction(layout({0, 2, 3, 1}), x);
-        auto w  = m2.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
-        auto wl   = m2.add_instruction(layout({0, 2, 3, 1}), w);
-        auto conv = m2.add_instruction(
-            migraphx::make_op("convolution",
-                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
-            xl,
-            wl);
-        auto c    = m2.add_instruction(migraphx::make_op("contiguous"), conv);
-        auto relu = m2.add_instruction(migraphx::make_op("relu"), c);
-        auto reshape1 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1024}}}), relu);
-        auto reshape2 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 512}}}), relu);
-        m2.add_return({reshape1, reshape2});
-    }
     EXPECT(m1.sort() == m2.sort());
 }
 

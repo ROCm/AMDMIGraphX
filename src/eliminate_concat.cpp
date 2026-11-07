@@ -30,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/algorithm.hpp>
 
 #include <migraphx/dfor.hpp>
 #include <migraphx/tune_axis.hpp>
@@ -90,6 +91,11 @@ const std::unordered_set<std::string>& invertible_view_names()
     return names;
 }
 
+bool is_invertible_view(instruction_ref ins)
+{
+    return contains(invertible_view_names(), ins->name()) and ins->inputs().size() == 1;
+}
+
 // Walk up from a concat input through single-use invertible view ops to the
 // instruction that actually writes the data. Returns the producer and the
 // view ops in producer-to-input order.
@@ -97,8 +103,7 @@ std::pair<instruction_ref, std::vector<operation>> get_view_chain(instruction_re
 {
     std::vector<operation> ops;
     auto producer = input;
-    while(contains(invertible_view_names(), producer->name()) and producer->inputs().size() == 1 and
-          producer->outputs().size() == 1)
+    while(is_invertible_view(producer) and producer->outputs().size() == 1)
     {
         ops.push_back(producer->get_operator());
         producer = producer->inputs().front();
@@ -222,20 +227,33 @@ struct concat_optimizer
             {
                 if(out->inputs().front() != cur or not is_allocation(out->inputs().back()))
                     return std::nullopt;
+                // The view ops are inserted on the allocation, so it must have the
+                // shape the chain was inverted over
+                assert(out->inputs().back()->get_shape() == out->get_shape());
                 auto inverse = invert_view_chain(chain, ins->get_shape(), out->get_shape());
                 if(not inverse.has_value())
                     return std::nullopt;
-                // The chain over the view must land on the copy's layout exactly
+                // invert_view_chain only matches lens; the strides must match the
+                // copy's buffer too
                 if(apply_views(chain, inverse->second) != out->get_shape())
                     return std::nullopt;
-                return sink{out, inverse->first, inverse->second};
+                return sink{out, std::move(inverse->first), std::move(inverse->second)};
             }
-            if(not contains(invertible_view_names(), out->name()) or out->inputs().size() != 1)
+            if(not is_invertible_view(out))
                 return std::nullopt;
             chain.push_back(out->get_operator());
             cur = out;
         }
         return std::nullopt;
+    }
+
+    // Thread a chain of view ops after ins, returning the last view
+    instruction_ref insert_views(instruction_ref ins, const std::vector<operation>& ops) const
+    {
+        return std::accumulate(
+            ops.begin(), ops.end(), ins, [&](instruction_ref view, const operation& op) {
+                return m->insert_instruction(std::next(view), op, view);
+            });
     }
     instruction_ref insert_copy(const operation& op,
                                 instruction_ref input,
@@ -249,10 +267,7 @@ struct concat_optimizer
             // producer never reports a shape out of sync with its buffer
             if(p->producer->get_shape() != p->view_shape)
                 opt->set_output_shape(p->producer, p->view_shape);
-            auto view = slice;
-            for(const auto& vop : p->view_ops)
-                view = m->insert_instruction(std::next(view), vop, view);
-            m->replace_instruction(get_output_alias(p->producer), view);
+            m->replace_instruction(get_output_alias(p->producer), insert_views(slice, p->view_ops));
             return input;
         }
         auto copy = m->insert_instruction(std::next(input), make_op(am.copy()), input, slice);
@@ -273,7 +288,10 @@ struct concat_optimizer
         if(not is_allocation(last))
             return;
         if(sk.has_value())
+        {
             last = sk->copy->inputs().back();
+            assert(is_allocation(last));
+        }
         // Where are the allocations for the tensors to be concatenated?
         std::vector<instruction_ref> allocations;
 
@@ -298,10 +316,7 @@ struct concat_optimizer
         auto first = sorted_allocations.front();
         auto super = m->move_instruction(last, first);
         if(sk.has_value())
-        {
-            for(const auto& vop : sk->view_ops)
-                super = m->insert_instruction(std::next(super), vop, super);
-        }
+            super = insert_views(super, sk->view_ops);
         // Replace the concat before rewiring its producers, so it never reports
         // a shape its allocation does not match; a copied input is swapped into
         // the identity by insert_copy
@@ -309,15 +324,17 @@ struct concat_optimizer
         std::vector<instruction_ref> args = {super};
         args.insert(args.end(), inputs.begin(), inputs.end());
         m->replace_instruction(ins, migraphx::make_op("identity"), args);
-        std::accumulate(inputs.begin(),
-                        inputs.end(),
-                        std::size_t{0},
-                        [&](std::size_t start, instruction_ref input) {
-                            auto x =
-                                insert_copy(make_slice(input, axis, start), input, super, axis);
-                            return start + x->get_shape().lens()[axis];
-                        });
-        // The view chain now reads the written super buffer in the copy's layout
+        // Each input's slice starts where the previous inputs end along the axis
+        std::vector<std::size_t> starts(inputs.size());
+        std::transform(inputs.begin(), inputs.end(), starts.begin(), [&](instruction_ref input) {
+            return input->get_shape().lens()[axis];
+        });
+        migraphx::exclusive_scan(starts.begin(), starts.end(), starts.begin(), std::size_t{0});
+        migraphx::for_each(
+            inputs.begin(), inputs.end(), starts.begin(), [&](instruction_ref input, auto start) {
+                insert_copy(make_slice(input, axis, start), input, super, axis);
+            });
+        // The producers wrote the copy's buffer, so its input already is the result
         if(sk.has_value())
             m->replace_instruction(sk->copy, sk->copy->inputs().front());
     }

@@ -2506,7 +2506,7 @@ struct find_layout_reshape
         auto x           = reshape->inputs().front();
         const auto& xs   = x->get_shape();
         const auto& outs = layout->get_shape();
-        // Derive the memory order of x from which the output layout is a view
+        // Strides for x's lens that the output layout is a lazy reshape of
         auto relayout = reshape_dims(outs, xs.lens(), {.lazy = true});
         if(not relayout.has_value())
             return;
@@ -2523,17 +2523,16 @@ struct find_layout_reshape
 // Move a layout above the ops that carry their input's layout unchanged (pad and
 // pointwise ops with one non-broadcast input), and above a slice of a copying
 // reshape, so the layout reaches that reshape for find_layout_reshape to fold
-// into a single copy. The whole chain is walked in one step since each
-// simplify_reshapes iteration visits an instruction once.
+// into a single copy. The whole chain is moved at once: the moved layout lands
+// before the cursor, so one hop per pass would cost a repeat round each.
 struct find_layout_passthrough
 {
     static bool keeps_input_layout(instruction_ref ins)
     {
         if(ins->name() == "pad")
             return true;
-        if(contains({"layout", "contiguous"}, ins->name()) or not ins->module_inputs().empty())
-            return false;
-        return ins->get_operator().attributes().get("pointwise", false);
+        // layout carries the unary pointwise attribute but changes the layout
+        return ins->name() != "layout" and ins->get_operator().attributes().get("pointwise", false);
     }
 
     static bool is_data_input(instruction_ref ins)
@@ -2562,22 +2561,9 @@ struct find_layout_passthrough
             match::any(match::used_once(), match::make_basic_pred_matcher(&is_passthrough))));
     }
 
-    // The input whose layout the op carries to its output
-    static std::optional<instruction_ref> data_input(instruction_ref ins)
-    {
-        const auto& args = ins->inputs();
-        if(slices_copying_reshape(ins))
-            return args.front();
-        if(std::count_if(args.begin(), args.end(), &is_data_input) != 1)
-            return std::nullopt;
-        return *std::find_if(args.begin(), args.end(), &is_data_input);
-    }
-
     // Whether applying the layout to x before op yields the same shape as after it
     static bool carries_layout(const operation& layout_op, instruction_ref op, instruction_ref x)
     {
-        if(slices_copying_reshape(op))
-            return true;
         std::vector<shape> shapes;
         std::transform(op->inputs().begin(),
                        op->inputs().end(),
@@ -2590,6 +2576,23 @@ struct find_layout_passthrough
                layout_op.compute_shape({op->get_shape()});
     }
 
+    // The input whose layout op carries to its output when the layout moves above it
+    static std::optional<instruction_ref> carried_input(const operation& layout_op,
+                                                        instruction_ref op)
+    {
+        const auto& args = op->inputs();
+        if(slices_copying_reshape(op))
+            return args.front();
+        if(not keeps_input_layout(op))
+            return std::nullopt;
+        auto it = std::find_if(args.begin(), args.end(), &is_data_input);
+        if(it == args.end() or std::any_of(std::next(it), args.end(), &is_data_input))
+            return std::nullopt;
+        if(not carries_layout(layout_op, op, *it))
+            return std::nullopt;
+        return *it;
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto layout    = r.result;
@@ -2597,10 +2600,10 @@ struct find_layout_passthrough
         // Collect the ops the layout moves above, nearest first
         std::vector<instruction_ref> chain;
         auto x = layout->inputs().front();
-        while(x->outputs().size() == 1 and is_passthrough(x))
+        while(x->outputs().size() == 1)
         {
-            auto input = data_input(x);
-            if(not input.has_value() or not carries_layout(layout_op, x, *input))
+            auto input = carried_input(layout_op, x);
+            if(not input.has_value())
                 break;
             chain.push_back(x);
             x = *input;

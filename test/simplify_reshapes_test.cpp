@@ -7076,8 +7076,7 @@ TEST_CASE(layout_reshape_transposed)
     EXPECT(m1 == m2);
 }
 
-// A permuted layout maps back to the memory order of the reshape input that
-// the reshape aliases into that layout
+// A permuted layout becomes the input strides that the reshape aliases into it
 TEST_CASE(layout_reshape_transposed_permuted_layout)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -7175,7 +7174,7 @@ TEST_CASE(layout_slice_lazy_reshape_unchanged)
     EXPECT(m1 == m2);
 }
 
-// A slice with another consumer keeps its packed layout output
+// A slice with another consumer is not moved, so the layout stays
 TEST_CASE(layout_slice_shared_unchanged)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -7261,7 +7260,7 @@ TEST_CASE(layout_passthrough_two_inputs_unchanged)
     EXPECT(m1 == m2);
 }
 
-// A pointwise op with another consumer keeps its own output
+// A pointwise op with another consumer is not moved, so the layout stays
 TEST_CASE(layout_passthrough_shared_unchanged)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};

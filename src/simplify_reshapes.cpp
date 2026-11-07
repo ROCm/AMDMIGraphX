@@ -2597,17 +2597,16 @@ struct find_layout_passthrough
     {
         auto layout    = r.result;
         auto layout_op = layout->get_operator();
-        // Collect the ops the layout moves above, nearest first
-        std::vector<instruction_ref> chain;
-        auto x = layout->inputs().front();
-        while(x->outputs().size() == 1)
-        {
-            auto input = carried_input(layout_op, x);
-            if(not input.has_value())
-                break;
-            chain.push_back(x);
-            x = *input;
-        }
+        // The ops the layout moves above, nearest first, ending at the layout's new input
+        auto path = unfold(layout->inputs().front(),
+                           [&](instruction_ref x) -> std::optional<instruction_ref> {
+                               if(x->outputs().size() != 1)
+                                   return std::nullopt;
+                               return carried_input(layout_op, x);
+                           });
+        std::vector<instruction_ref> chain(path.begin(), path.end());
+        auto x = chain.back();
+        chain.pop_back();
         if(chain.empty())
             return;
         // Rebuild the chain on top of the moved layout

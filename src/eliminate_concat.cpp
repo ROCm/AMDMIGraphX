@@ -30,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/algorithm.hpp>
 
 #include <migraphx/dfor.hpp>
@@ -101,15 +102,9 @@ bool is_invertible_view(instruction_ref ins)
 // view ops in producer-to-input order.
 std::pair<instruction_ref, std::vector<operation>> get_view_chain(instruction_ref input)
 {
-    std::vector<operation> ops;
-    auto producer = input;
-    while(is_invertible_view(producer) and producer->outputs().size() == 1)
-    {
-        ops.push_back(producer->get_operator());
-        producer = producer->inputs().front();
-    }
-    std::reverse(ops.begin(), ops.end());
-    return {producer, ops};
+    return get_input_ops_if(input, [](instruction_ref ins) {
+        return is_invertible_view(ins) and ins->outputs().size() == 1;
+    });
 }
 
 struct concat_optimizer
@@ -218,33 +213,34 @@ struct concat_optimizer
     }
     std::optional<sink> plan_sink(instruction_ref ins) const
     {
+        // The concat and the views must be single-use, but the copy need not be
+        auto path = get_output_path(ins);
+        auto it   = std::find_if_not(path.begin(), path.end(), [&](instruction_ref x) {
+            return x == ins or is_invertible_view(x);
+        });
+        if(it == path.end())
+            return std::nullopt;
+        auto out = *it;
+        std::vector<instruction_ref> views(path.begin(), it);
+        if(not opt->is_copy(out) or out->inputs().front() != views.back() or
+           not is_allocation(out->inputs().back()))
+            return std::nullopt;
+        // The view ops are inserted on the allocation, so it must have the
+        // shape the chain was inverted over
+        assert(out->inputs().back()->get_shape() == out->get_shape());
         std::vector<operation> chain;
-        auto cur = ins;
-        while(cur->outputs().size() == 1)
-        {
-            auto out = cur->outputs().front();
-            if(opt->is_copy(out))
-            {
-                if(out->inputs().front() != cur or not is_allocation(out->inputs().back()))
-                    return std::nullopt;
-                // The view ops are inserted on the allocation, so it must have the
-                // shape the chain was inverted over
-                assert(out->inputs().back()->get_shape() == out->get_shape());
-                auto inverse = invert_view_chain(chain, ins->get_shape(), out->get_shape());
-                if(not inverse.has_value())
-                    return std::nullopt;
-                // invert_view_chain only matches lens; the strides must match the
-                // copy's buffer too
-                if(apply_views(chain, inverse->second) != out->get_shape())
-                    return std::nullopt;
-                return sink{out, std::move(inverse->first), std::move(inverse->second)};
-            }
-            if(not is_invertible_view(out))
-                return std::nullopt;
-            chain.push_back(out->get_operator());
-            cur = out;
-        }
-        return std::nullopt;
+        std::transform(std::next(views.begin()),
+                       views.end(),
+                       std::back_inserter(chain),
+                       [](instruction_ref x) { return x->get_operator(); });
+        auto inverse = invert_view_chain(chain, ins->get_shape(), out->get_shape());
+        if(not inverse.has_value())
+            return std::nullopt;
+        // invert_view_chain only matches lens; the strides must match the
+        // copy's buffer too
+        if(apply_views(chain, inverse->second) != out->get_shape())
+            return std::nullopt;
+        return sink{out, std::move(inverse->first), std::move(inverse->second)};
     }
 
     // Thread a chain of view ops after ins, returning the last view

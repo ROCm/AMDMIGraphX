@@ -95,6 +95,21 @@ OutputIterator transform_partial_sum(
     return ++d_first;
 }
 
+/// Like std::exclusive_scan: each output is the sum of init and all inputs before it
+template <class Iterator, class OutputIterator, class T, class BinaryOperation = std::plus<>>
+OutputIterator exclusive_scan(
+    Iterator first, Iterator last, OutputIterator d_first, T init, BinaryOperation binop = {})
+{
+    for(; first != last; ++first, ++d_first)
+    {
+        // Read the input before writing so the scan can run in place
+        auto next = binop(init, *first);
+        *d_first  = std::move(init);
+        init      = std::move(next);
+    }
+    return d_first;
+}
+
 /// Like std::unique but removes all duplicates instead of only adjacent ones, so the
 /// input need not be sorted. The order of first appearance is preserved. Returns the
 /// new logical end; elements in [result, last) are left in a moved-from state.

@@ -58,6 +58,9 @@ struct concat_optimization
     bool supports_output_shape(instruction_ref ins, const shape& s) const;
     /// Update the instruction so it reports `s` as its output shape
     void set_output_shape(instruction_ref ins, const shape& s) const;
+    /// Return true if the instruction copies its first input unchanged into
+    /// the allocation it takes as its last input
+    bool is_copy(instruction_ref ins) const;
 };
 
 #else
@@ -79,6 +82,8 @@ struct MIGRAPHX_EXPORT concat_optimization
     bool supports_output_shape(instruction_ref ins, const shape& s) const;
     //
     void set_output_shape(instruction_ref ins, const shape& s) const;
+    //
+    bool is_copy(instruction_ref ins) const;
     //
     allocation_model allocation() const;
 };
@@ -115,6 +120,7 @@ struct concat_optimization
                      std::declval<instruction_ref>(), std::declval<const shape&>()),
                  std::declval<PrivateDetailTypeErasedT>().set_output_shape(
                      std::declval<instruction_ref>(), std::declval<const shape&>()),
+                 std::declval<PrivateDetailTypeErasedT>().is_copy(std::declval<instruction_ref>()),
                  std::declval<PrivateDetailTypeErasedT>().allocation(),
                  void());
 
@@ -228,6 +234,12 @@ struct concat_optimization
         (*this).private_detail_te_get_handle().set_output_shape(ins, s);
     }
 
+    bool is_copy(instruction_ref ins) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().is_copy(ins);
+    }
+
     allocation_model allocation() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -254,6 +266,7 @@ struct concat_optimization
         virtual bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const  = 0;
         virtual bool supports_output_shape(instruction_ref ins, const shape& s) const        = 0;
         virtual void set_output_shape(instruction_ref ins, const shape& s) const             = 0;
+        virtual bool is_copy(instruction_ref ins) const                                      = 0;
         virtual allocation_model allocation() const                                          = 0;
     };
 
@@ -314,6 +327,12 @@ struct concat_optimization
         {
 
             private_detail_te_value.set_output_shape(ins, s);
+        }
+
+        bool is_copy(instruction_ref ins) const override
+        {
+
+            return private_detail_te_value.is_copy(ins);
         }
 
         allocation_model allocation() const override

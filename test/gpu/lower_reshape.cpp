@@ -350,9 +350,8 @@ TEST_CASE(propagate_reshape_layout)
             m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 256, 4, 256, 4}}}), x);
         auto t = m1.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 4, 1, 3}}}), r1);
-        auto c = add_contiguous(m1, t);
         auto r2 =
-            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 256, 256}}}), c);
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 256, 256}}}), t);
         m1.add_return({add_contiguous(m1, r2)});
     }
     run_pass(m1);

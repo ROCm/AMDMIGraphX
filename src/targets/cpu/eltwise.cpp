@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,13 +58,14 @@ struct dnnl_eltwise : dnnl_op<dnnl_eltwise, dnnl::eltwise_forward>
         return r;
     }
 
-    dnnl::eltwise_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    auto get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {dnnl::prop_kind::forward_inference,
-                to_dnnl_algo(algo),
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_0)),
-                alpha,
-                beta};
+        return std::make_tuple(dnnl::prop_kind::forward_inference,
+                               to_dnnl_algo(algo),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_0)),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
+                               alpha,
+                               beta);
     }
 };
 

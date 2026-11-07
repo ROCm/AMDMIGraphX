@@ -29,6 +29,7 @@
 #include <migraphx/reflect.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <tuple>
 #include <unordered_map>
 #include <migraphx/errors.hpp>
 #include <migraphx/assert.hpp>
@@ -63,6 +64,9 @@ dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t);
 
 // oneDNN has no bool, int64, double or fp8 memory types
 bool is_dnnl_supported_type(shape::type_t t);
+
+// oneDNN rejects memory descriptors whose strides make two elements share an address
+bool is_dnnl_supported_layout(const shape& s);
 
 dnnl::memory::format_tag to_dnnl_memory_format_tag(std::size_t n);
 
@@ -262,7 +266,7 @@ struct dnnl_op : auto_register_op<Derived>
         for_each_post_op([&](auto&& op, auto arg) {
             if(contains(op.algo, "binary_add"))
             {
-                auto desc = m.at(arg);
+                const auto& desc = m.at(arg);
                 if(desc == m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)))
                     po.append_sum(1.0f);
                 else
@@ -273,18 +277,24 @@ struct dnnl_op : auto_register_op<Derived>
                 po.append_binary(to_dnnl_algo(op.algo), m.at(arg));
             }
             else if(contains(op.algo, "eltwise"))
-                po.append_eltwise(1.0f, to_dnnl_algo(op.algo), op.alpha, op.beta);
+                po.append_eltwise(to_dnnl_algo(op.algo), op.alpha, op.beta);
             else
                 MIGRAPHX_THROW("Unknown post op algo: " + op.algo);
         });
         result.set_post_ops(po);
         return result;
     }
-    template <class T>
-    auto get_primitive_desc(const T& desc, const dnnl::primitive_attr& attr) const
-        -> decltype(typename Primitive::primitive_desc(desc, attr, get_dnnl_context().engine))
+    // oneDNN 3 has no operation descriptors, so get_desc returns the primitive_desc
+    // constructor arguments that go between the engine and the attributes
+    template <class... Ts>
+    typename Primitive::primitive_desc get_primitive_desc(const std::tuple<Ts...>& desc,
+                                                          const dnnl::primitive_attr& attr) const
     {
-        return typename Primitive::primitive_desc(desc, attr, get_dnnl_context().engine);
+        return std::apply(
+            [&](const auto&... xs) {
+                return typename Primitive::primitive_desc(get_dnnl_context().engine, xs..., attr);
+            },
+            desc);
     }
     Primitive get_primitive(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
@@ -368,7 +378,7 @@ struct dnnl_op : auto_register_op<Derived>
                     {
                         float alpha = 0;
                         float beta  = 0;
-                        pos.get_params_eltwise(i, scale, algo, alpha, beta);
+                        pos.get_params_eltwise(i, algo, alpha, beta);
                     }
                     else if(kind == dnnl::primitive::kind::sum)
                     {

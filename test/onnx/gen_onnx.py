@@ -17282,6 +17282,26 @@ def scatternd_nonpacked_indices_test():
 
 
 @onnx_test()
+def selu_bf16_test():
+    x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [6])
+    y = helper.make_tensor_value_info('y', TensorProto.BFLOAT16, [6])
+
+    node = onnx.helper.make_node('Selu', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def selu_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8])
+
+    node = onnx.helper.make_node('Selu', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def selu_test():
     x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [2, 3])
     y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [2, 3])

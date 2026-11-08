@@ -86,7 +86,9 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
-#include <migraphx/gpu/recompile.hpp>
+#include <migraphx/gpu/check_recompiled_memory.hpp>
+#include <migraphx/gpu/eliminate_recompile_anchors.hpp>
+#include <migraphx/gpu/restore_recipes.hpp>
 #include <migraphx/gpu/record_compiled_for.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
@@ -480,15 +482,17 @@ std::vector<pass> target::get_recompile_passes(migraphx::context& gctx,
     auto& ctx = any_cast<context>(gctx);
     setup_context(ctx, options, get_backend_options(options));
     auto user_options = recorded_options(options);
-    // Dead code elimination must not run on a compiled program: kernels that write into part of a
-    // buffer are not used by anything
+    // Dead code elimination is safe only while the anchors restore_recipes adds are in the
+    // program: kernels that write into part of a buffer are not used by anything
     return {restore_recipes{&ctx, user_options},
+            dead_code_elimination{},
             compile_ops{.ctx                     = &ctx,
                         .exhaustive_tune         = options.exhaustive_tune,
                         .skip_benchmark          = options.compile_mode == compile_modes::eager,
                         .recompilable            = true,
                         .exhaustive_from_context = true},
-            remove_recompile_leftovers{},
+            dead_code_elimination{},
+            eliminate_recompile_anchors{},
             check_recompiled_memory{},
             record_compiled_for{&ctx, user_options}};
 }

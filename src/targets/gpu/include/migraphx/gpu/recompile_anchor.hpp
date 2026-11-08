@@ -1,0 +1,57 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+#ifndef MIGRAPHX_GUARD_GPU_RECOMPILE_ANCHOR_HPP
+#define MIGRAPHX_GUARD_GPU_RECOMPILE_ANCHOR_HPP
+
+#include <migraphx/gpu/config.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/shape.hpp>
+#include <string>
+#include <vector>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+
+/// Uses the instructions of a compiled module that nothing uses, so that dead code elimination
+/// keeps them while the module is recompiled. A compiled module has such instructions on purpose:
+/// a kernel that writes its result into part of a buffer, such as an input of an eliminated
+/// concat, is not used by the instruction that reads the buffer. Added by restore_recipes and
+/// removed by eliminate_recompile_anchors.
+struct recompile_anchor
+{
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "gpu::recompile_anchor"; }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
+};
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_RECOMPILE_ANCHOR_HPP

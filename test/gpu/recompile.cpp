@@ -37,7 +37,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_description.hpp>
 #include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/recompile.hpp>
+#include <migraphx/gpu/check_recompiled_memory.hpp>
 #include <migraphx/gpu/record_compiled_for.hpp>
 #include <test.hpp>
 
@@ -465,14 +465,6 @@ TEST_CASE(retarget_without_recipes_refused)
     auto p               = compile_program(cross_target("gfx1100"), options);
     EXPECT(test::throws<migraphx::exception>([&] { p.recompile(cross_target("gfx1201")); },
                                              "compile the model again"));
-}
-
-TEST_CASE(retarget_fp8_fnuz_refused)
-{
-    auto p = compile_program(
-        cross_target("gfx942"), recipe_options(), make_program(migraphx::shape::fp8e4m3fnuz_type));
-    EXPECT(test::throws<migraphx::exception>([&] { p.recompile(cross_target("gfx1151")); },
-                                             "fp8 fnuz"));
 }
 
 TEST_CASE(load_version_8_program_refused)

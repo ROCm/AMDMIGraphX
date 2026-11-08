@@ -1,0 +1,63 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+#ifndef MIGRAPHX_GUARD_GPU_RESTORE_RECIPES_HPP
+#define MIGRAPHX_GUARD_GPU_RESTORE_RECIPES_HPP
+
+#include <migraphx/gpu/config.hpp>
+#include <migraphx/value.hpp>
+#include <string>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module_pass_manager;
+
+namespace gpu {
+
+struct context;
+
+/**
+ * The first recompile pass: replace each gpu::code_object kernel of a compiled program with the
+ * gpu::precompile_op of its recipe, with the inputs the op had, so compile_ops compiles it again
+ * for the device of ctx. The graph, literals, memory plan and schedule are not changed. The
+ * instructions that nothing uses are anchored with recompile_anchor, so dead code elimination
+ * keeps them. Runs from the root module only.
+ *
+ * The device the program was compiled for and its options are read from the comments that
+ * record_compiled_for writes with recompilable. Kernels are tuned exhaustively when the recorded
+ * or the given options ask for it, see merge_compile_options.
+ */
+struct MIGRAPHX_GPU_EXPORT restore_recipes
+{
+    context* ctx = nullptr;
+    /// The options recompile is called with, as made by compile_options_value
+    value options = {};
+    std::string name() const { return "gpu::restore_recipes"; }
+    void apply(module_pass_manager& mpm) const;
+};
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_RESTORE_RECIPES_HPP

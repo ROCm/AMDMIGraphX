@@ -831,6 +831,154 @@ TEST_CASE(input_used_non_packed_unsupported)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// A copy that is not a view of its input, like the copy to host inserted for offload_copy
+struct copy_to_host_op
+{
+    std::string name() const { return "copy_to_host"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+    {
+        migraphx::check_shapes{inputs, *this}.has(1);
+        return inputs.at(0);
+    }
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>& args) const
+    {
+        return args.at(0);
+    }
+};
+
+// AIMIGRAPHX-1371: a concat input is also returned through an unsqueeze. Writing it into the
+// strided slice of the concat buffer would make the program output non-standard, so it is
+// copied into the slice instead.
+TEST_CASE(returned_input_is_copied)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 6));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto u2 = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), s2);
+        m1.add_return({c1, u2});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(2, 6));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto a2     = m2.add_instruction(make_allocate(2, 3));
+        auto s2     = m2.add_instruction(simple_op{}, a2);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), super);
+        auto copy2 = m2.add_instruction(migraphx::make_op("test::copy"), s2, slice2);
+        auto id    = m2.add_instruction(migraphx::make_op("identity"), super, s1, copy2);
+        auto u2    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), s2);
+        m2.add_return({id, u2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+    EXPECT(std::prev(m1.end())->inputs().back()->get_shape().standard());
+}
+
+// A returned input that has to be copied anyway keeps its own buffer as the program output
+TEST_CASE(returned_param_keeps_its_buffer)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", create_shape(2, 3));
+        auto a2 = m1.add_instruction(make_allocate(2, 3));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 6));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), x, s2, a3);
+        m1.add_return({c1, x});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(2, 6));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), super);
+        auto x      = m2.add_parameter("x", create_shape(2, 3));
+        auto copy1  = m2.add_instruction(migraphx::make_op("test::copy"), x, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), super);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto id = m2.add_instruction(migraphx::make_op("identity"), super, copy1, s2);
+        m2.add_return({id, x});
+    }
+    EXPECT(m1.sort() == m2.sort());
+    EXPECT(std::prev(m1.end())->inputs().back()->get_shape().standard());
+}
+
+// The returned value goes through a copy that keeps the layout of its input
+TEST_CASE(returned_through_copy_input_is_copied)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 6));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto h2 = m1.add_instruction(copy_to_host_op{}, s2);
+        m1.add_return({c1, h2});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(2, 6));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto a2     = m2.add_instruction(make_allocate(2, 3));
+        auto s2     = m2.add_instruction(simple_op{}, a2);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), super);
+        auto copy2 = m2.add_instruction(migraphx::make_op("test::copy"), s2, slice2);
+        auto id    = m2.add_instruction(migraphx::make_op("identity"), super, s1, copy2);
+        auto h2    = m2.add_instruction(copy_to_host_op{}, s2);
+        m2.add_return({id, h2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+    EXPECT(std::prev(m1.end())->inputs().back()->get_shape().standard());
+}
+
+// Slices on the first axis are standard, so a returned input is still written in place
+TEST_CASE(returned_input_standard_slice)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(4, 3));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, a3);
+        auto u2 = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), s2);
+        m1.add_return({c1, u2});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(4, 3));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), super);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto id = m2.add_instruction(migraphx::make_op("identity"), super, s1, s2);
+        auto u2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), s2);
+        m2.add_return({id, u2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(invert_view_chain_reshape)
 {
     // A strided view of {2, 4} re-indexed to the {2, 2, 2} input of a reshape

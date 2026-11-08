@@ -107,6 +107,20 @@ std::pair<instruction_ref, std::vector<operation>> get_view_chain(instruction_re
     return {producer, ops};
 }
 
+// True if the buffer of `ins` is a program output: it is one of the module returns, or it is
+// passed on unchanged to one, through an alias such as unsqueeze or through a single-input
+// op that keeps the shape of its input, such as the copy to host inserted for offload_copy.
+bool reaches_return(const std::vector<instruction_ref>& returns, instruction_ref ins)
+{
+    if(contains(returns, ins))
+        return true;
+    return std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref out) {
+        const bool forwards = contains(instruction::get_output_alias(out, true), ins) or
+                              (out->inputs().size() == 1 and out->get_shape() == ins->get_shape());
+        return forwards and reaches_return(returns, out);
+    });
+}
+
 struct concat_optimizer
 {
     module* m = nullptr;
@@ -133,6 +147,14 @@ struct concat_optimizer
     bool is_allocation(instruction_ref ins) const
     {
         return ins->name() == "allocate" or ins->name() == am.name();
+    }
+
+    // Moving `ins` into a slice of the super buffer gives it the layout `s` of that slice.
+    // Program outputs must keep a standard layout, so that is only allowed when it does not
+    // make a returned value non-standard.
+    bool changes_output_layout(instruction_ref ins, const shape& s) const
+    {
+        return not s.standard() and ins->get_shape() != s and reaches_return(m->get_returns(), ins);
     }
 
     // The producer can write into a view of the super buffer only when it
@@ -164,7 +186,8 @@ struct concat_optimizer
         // they support non-packed inputs
         if(chain.empty())
         {
-            if(not producer_reports_shape(producer, slice_shape))
+            if(not producer_reports_shape(producer, slice_shape) or
+               changes_output_layout(producer, slice_shape))
                 return std::nullopt;
             return plan{producer, {}, slice_shape};
         }
@@ -173,7 +196,8 @@ struct concat_optimizer
         auto inverse = invert_view_chain(chain, producer->get_shape(), slice_shape);
         if(not inverse.has_value())
             return std::nullopt;
-        if(not producer_reports_shape(producer, inverse->second))
+        if(not producer_reports_shape(producer, inverse->second) or
+           changes_output_layout(producer, inverse->second))
             return std::nullopt;
         return plan{producer, inverse->first, inverse->second};
     }
@@ -207,7 +231,9 @@ struct concat_optimizer
             return input;
         }
         auto copy = m->insert_instruction(std::next(input), make_op(am.copy()), input, slice);
-        m->replace_instruction(input, copy);
+        // Other users read the copy, unless that would make a returned value non-standard
+        if(not changes_output_layout(input, copy->get_shape()))
+            m->replace_instruction(input, copy);
         return copy;
     }
 

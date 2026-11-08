@@ -622,7 +622,7 @@ TEST_CASE(allocate_out_shared_alloc_copy)
 TEST_CASE(allocate_out_broadcast_copy)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 1}};
-    migraphx::shape out_s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 4}, {1, 0}};
     migraphx::module m1;
     {
         auto alloc =
@@ -652,7 +652,7 @@ TEST_CASE(allocate_out_broadcast_copy)
 TEST_CASE(allocate_out_slice_copy)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 4}};
-    migraphx::shape out_s{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape out_s{migraphx::shape::float_type, {2, 2}, {4, 1}};
     migraphx::module m1;
     {
         auto alloc =

@@ -239,11 +239,8 @@ instruction_ref insert_output_copy(module& m,
                                    instruction_ref input)
 {
     auto input_shape = input->get_shape();
-    // The output buffer must be dense: keeping the strides of a view (e.g. a slice of a concat
-    // buffer) makes the output parameter larger than its elements, and callers that allocate it
-    // from the lengths alone get out-of-bounds writes
-    auto alloc_shape = shape{input_shape.type(),
-                             input_shape.dynamic() ? input_shape.max_lens() : input_shape.lens()};
+    auto alloc_shape =
+        input_shape.dynamic() ? shape{input_shape.type(), input_shape.max_lens()} : input_shape;
     auto output = m.insert_instruction(
         pos, make_op("allocate", migraphx::value{{"shape", to_value(alloc_shape)}}));
     if(input_shape.dynamic())

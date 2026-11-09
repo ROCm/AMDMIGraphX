@@ -132,15 +132,14 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
     return args[get_output_arg(args.size())];
 }
 
-hipGraphNode_t code_object_op::add_to_graph(hipGraph_t graph,
-                                            const std::vector<hipGraphNode_t>& deps,
-                                            const std::vector<argument>& args) const
+std::vector<char> code_object_op::pack_kernargs(const std::vector<argument>& args) const
 {
-    hipGraphNode_t node = nullptr;
+    std::vector<char> result;
     visit_kernargs(*this, args, [&](void* kernargs, std::size_t size) {
-        node = k.add_to_graph(graph, deps, global, local, kernargs, size);
+        auto* first = static_cast<char*>(kernargs);
+        result.assign(first, first + size);
     });
-    return node;
+    return result;
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
 {

@@ -38,6 +38,7 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <thread>
 #include <tuple>
@@ -252,9 +253,12 @@ static hipGraphNode_t add_fill_node(hipGraph_t graph,
     return node;
 }
 
-// The graph nodes of one eval of p, or none if p does more than launch kernels and fill
-static std::vector<add_graph_node> make_graph_nodes(const program& p,
-                                                    const parameter_map& param_map)
+// The graph nodes of one eval of p, or none if p does more than launch kernels and fill. The
+// nodes' kernargs are added to kernargs.
+static std::vector<add_graph_node>
+make_graph_nodes(const program& p,
+                 const parameter_map& param_map,
+                 std::vector<std::unique_ptr<graph_kernargs>>& kernargs)
 {
     const auto* mm = p.get_main_module();
     // Arguments are resolved once, so every replay reuses the same buffers as an eval would
@@ -279,10 +283,12 @@ static std::vector<add_graph_node> make_graph_nodes(const program& p,
         {
             const auto& op = any_cast<code_object_op>(ins->get_operator());
             results[ins]   = args.at(op.get_output_arg(args.size()));
-            nodes.emplace_back(
-                [&op, args](hipGraph_t graph, const std::vector<hipGraphNode_t>& deps) {
-                    return op.add_to_graph(graph, deps, args);
-                });
+            // The bundle copies of this launch share one buffer, as their arguments are the same
+            kernargs.push_back(std::make_unique<graph_kernargs>(op.pack_kernargs(args)));
+            nodes.emplace_back([&op, &ka = *kernargs.back()](
+                                   hipGraph_t graph, const std::vector<hipGraphNode_t>& deps) {
+                return op.k.add_to_graph(graph, deps, op.global, op.local, ka);
+            });
         }
         else if(ins->name() == "hip::fill")
         {
@@ -299,14 +305,23 @@ static std::vector<add_graph_node> make_graph_nodes(const program& p,
     return nodes;
 }
 
-// Builds bundle evals of p as one graph node by node, or null if p cannot be a graph. Stream
+struct benchmark_graph
+{
+    // Owned here, so the nodes do not rely on HIP copying their kernargs
+    std::vector<std::unique_ptr<graph_kernargs>> kernargs;
+    // Declared last so it is destroyed before the kernargs
+    hip_graph_exec_ptr exec;
+};
+
+// Builds bundle evals of p as one graph node by node; exec is null if p cannot be a graph. Stream
 // capture would record the same graph, but HIP fails other threads' synchronous calls meanwhile.
-static hip_graph_exec_ptr
+static benchmark_graph
 make_benchmark_graph(const program& p, const parameter_map& param_map, int bundle)
 {
-    auto nodes = make_graph_nodes(p, param_map);
+    benchmark_graph result;
+    auto nodes = make_graph_nodes(p, param_map, result.kernargs);
     if(nodes.empty())
-        return nullptr;
+        return result;
     hipGraph_t raw_graph = nullptr;
     check_graph(hipGraphCreate(&raw_graph, 0), "hipGraphCreate");
     hip_graph_ptr graph{raw_graph};
@@ -321,7 +336,8 @@ make_benchmark_graph(const program& p, const parameter_map& param_map, int bundl
     hipGraphExec_t raw_exec = nullptr;
     check_graph(hipGraphInstantiate(&raw_exec, graph.get(), nullptr, nullptr, 0),
                 "hipGraphInstantiate");
-    return hip_graph_exec_ptr{raw_exec};
+    result.exec = hip_graph_exec_ptr{raw_exec};
+    return result;
 }
 
 static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
@@ -333,22 +349,22 @@ static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
 {
     auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
     // Evals leave the GPU idle between few-microsecond kernels and time the host, so replay a graph
-    hip_graph_exec_ptr exec;
+    benchmark_graph graph;
     try
     {
-        exec = make_benchmark_graph(p, param_map, bundle);
+        graph = make_benchmark_graph(p, param_map, bundle);
     }
     catch(const std::exception&)
     {
         // Host timing only measures slower, so a candidate that is not a graph is never favored
         (void)hipGetLastError();
     }
-    if(exec != nullptr)
+    if(graph.exec != nullptr)
     {
         auto* stream = gctx.get_stream().get();
-        // One launch already runs bundle evals
+        // One launch already runs bundle evals; time_loop finishes the stream before returning
         auto t = time_loop(gctx, 1, nruns, [&] {
-            check_graph(hipGraphLaunch(exec.get(), stream), "hipGraphLaunch");
+            check_graph(hipGraphLaunch(graph.exec.get(), stream), "hipGraphLaunch");
         });
         return t / bundle;
     }

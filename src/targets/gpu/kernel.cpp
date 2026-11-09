@@ -241,25 +241,27 @@ void kernel::launch(hipStream_t stream,
     launch_kernel(impl->fun, stream, global, local, kernargs, kernargs_size, start, stop);
 }
 
+graph_kernargs::graph_kernargs(std::vector<char> b)
+    : buffer(std::move(b)), size(buffer.size()), config(pack_kernel_config(buffer.data(), &size))
+{
+}
+
 hipGraphNode_t kernel::add_to_graph(hipGraph_t graph,
                                     const std::vector<hipGraphNode_t>& deps,
                                     std::size_t global,
                                     std::size_t local,
-                                    void* kernargs,
-                                    std::size_t kernargs_size) const
+                                    graph_kernargs& kernargs) const
 {
     assert(impl != nullptr);
     // Unlike hipExtModuleLaunchKernel, a node only launches whole workgroups
     if(local == 0 or global % local != 0)
         MIGRAPHX_THROW("Cannot add a launch of " + std::to_string(global) +
                        " threads in workgroups of " + std::to_string(local) + " to a graph");
-    auto config = pack_kernel_config(static_cast<char*>(kernargs), &kernargs_size);
     hipKernelNodeParams params{};
-    params.func     = impl->fun;
-    params.gridDim  = dim3(static_cast<uint32_t>(global / local));
-    params.blockDim = dim3(static_cast<uint32_t>(local));
-    // HIP copies the kernargs into the node, so the caller's buffer need not outlive this call
-    params.extra        = config.data();
+    params.func         = impl->fun;
+    params.gridDim      = dim3(static_cast<uint32_t>(global / local));
+    params.blockDim     = dim3(static_cast<uint32_t>(local));
+    params.extra        = kernargs.config.data();
     hipGraphNode_t node = nullptr;
     auto status         = hipGraphAddKernelNode(&node, graph, deps.data(), deps.size(), &params);
     if(status != hipSuccess)

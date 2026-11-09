@@ -44,9 +44,9 @@ namespace migraphx {
 //
 // Who computes what (example: x [1,16,8,8], K=8 -> output [1,8,4,4], TK=8, TP=2, NW=4):
 //  - A lane (one thread of a 32-wide wave) owns a TK x TP register tile: TK output channels
-//    k0..k0+TK-1 times TP neighbouring output columns ow0..ow0+TP-1 of one output row oh.
+//    k0..k0+TK-1 times TP neighboring output columns ow0..ow0+TP-1 of one output row oh.
 //    Example: lane 0 computes channels 0..7 at output pixels (0,0) and (0,1).
-//  - Per input channel the lane loads one window of 3 rows x (2*TP+1) columns (neighbouring
+//  - Per input channel the lane loads one window of 3 rows x (2*TP+1) columns (neighboring
 //    outputs share a column) and does 9*TK*TP FMAs with it (144 in the example), so every
 //    loaded pixel is reused by all TK output channels.
 //  - The 9*TK weights of one input channel do not depend on the lane, so the whole wave reads
@@ -59,7 +59,7 @@ namespace migraphx {
 // (5) apply f (fused bias, SiLU, ...) and store.
 //
 // Weights: host-transposed and zero padded to [C, 9, KPAD] (KPAD = K rounded up to 16, a
-// multiple of TK): the TK weights of one tap are neighbours in memory, and a partial last
+// multiple of TK): the TK weights of one tap are neighbors in memory, and a partial last
 // block of TK channels reads zeros instead of the next tap's weights.
 // Input: NCHW rows contiguous, even H and W (so the bottom/right padding is never read).
 // NOLINTBEGIN(readability-function-size)
@@ -229,7 +229,7 @@ __device__ void conv3x3s2_fp32(F f, Output output, Input x, Weights weights, Inp
         fma_channel(c, load(c));
 
     // Step 5 helper. store(k, v): apply the post-op f and write the lane's TP outputs of
-    // channel k. The TP values are neighbours in one output row, so they go to consecutive
+    // channel k. The TP values are neighbors in one output row, so they go to consecutive
     // addresses; the last group of a row may run past out_w, and that column is skipped.
     // Each output element is written by exactly one lane. Example, out_w=7, TP=2, row oh=0:
     //   ow      0  1 |  2  3 |  4  5 |  6  x      (x = column 7 >= out_w, skipped)

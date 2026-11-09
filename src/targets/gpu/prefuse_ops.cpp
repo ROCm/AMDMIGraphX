@@ -956,8 +956,8 @@ literal compute_conv3x3s2_weights(const argument& w_arg)
 }
 
 // Measured on the YOLO26n stride-2 shapes (640x480 down to 40x30 input) against rocmlirTriton:
-// 1.7-3.9x faster from 16 input channels up, slightly slower with 3, so few-channel inputs
-// stay on MLIR.
+// 1.4-3.7x faster from 16 input channels up, slower with 3, so few-channel inputs stay on
+// rocmlirTriton.
 MIGRAPHX_PRED_MATCHER(conv_3x3s2_fp32, instruction_ref ins)
 {
     if(ins->name() != "convolution")

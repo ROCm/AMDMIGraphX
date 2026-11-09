@@ -817,7 +817,7 @@ struct compile_manager
     /// Store compiled results in the binary cache. When the problem cache persists its choices,
     /// later compiles only reuse the chosen solutions, so the results are returned instead for
     /// compile() to store the winners.
-    cell_set store_results(const std::vector<task>& tasks) const
+    static cell_set store_results(const std::vector<task>& tasks)
     {
         if(tasks.empty())
             return {};

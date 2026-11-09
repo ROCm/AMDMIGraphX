@@ -296,6 +296,15 @@ def rocmtest = { Map conf = [:], Closure body ->
                         body()
                     }
                 }
+            }
+            catch (java.io.IOException ex) {
+                // `docker stop --time=1` fails when a process cannot be reaped in time, which
+                // happens on the GPU nodes when a thread is stuck in the kernel driver. The body
+                // has already passed by then, so a lost container should not fail the build.
+                if (!ex.message?.startsWith('Failed to kill container')) {
+                    throw ex
+                }
+                echo "WARNING: ignoring container teardown failure: ${ex.message}"
             } finally {
                 sh 'rm -rf build'
             }
@@ -504,7 +513,6 @@ pipeline {
                         MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION = '1'
                         MIGRAPHX_ENABLE_MLIR_CEG_FUSION = '1'
                         MIGRAPHX_ENABLE_SPLIT_REDUCE = '1'
-                        MIGRAPHX_DISABLE_LAYERNORM_FUSION = '1'
                     }
                     steps {
                         script {

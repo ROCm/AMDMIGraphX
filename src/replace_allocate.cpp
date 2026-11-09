@@ -115,24 +115,17 @@ get_output_debug_symbols(const module& mod)
     return mod_output_debug_symbols;
 }
 
-void insert_copy(module& m, const allocation_model& model, bool is_root)
+void insert_copy(module& m, const allocation_model& model)
 {
     auto returns = m.get_returns();
     std::unordered_set<instruction_ref> returns_set(returns.begin(), returns.end());
     for(auto ins : returns_set)
     {
-        if(is_root and (ins->name() == "@param" or ins->name() == "@literal"))
-            continue;
         if(ins->get_shape().any_of_dynamic())
             continue;
         auto aliases = instruction::get_output_alias(ins);
         if(std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
-               if(alias->get_shape() != ins->get_shape())
-                   return false;
-               if(alias->name() == "allocate" or alias->name() == model.name())
-                   return true;
-               return alias->name() == "@param" and alias != ins and
-                      not ins->get_operator().is_context_free();
+               return alias->get_shape() == ins->get_shape();
            }))
             continue;
         auto insert_ins = std::next(ins);
@@ -183,7 +176,7 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         insert_submod_allocations(ins, m, model);
     }
     if(not root_offload_copy and model.needs_out_params())
-        insert_copy(m, model, is_root);
+        insert_copy(m, model);
     auto mod_output_names         = create_output_names(m);
     auto mod_output_debug_symbols = get_output_debug_symbols(m);
     for(auto ins : iterator_for(m))

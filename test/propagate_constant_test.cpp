@@ -25,7 +25,6 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <basic_ops.hpp>
 
@@ -663,9 +662,14 @@ TEST_CASE(propagate_widening_convert_of_broadcast_scalar)
         m1.add_instruction(non_const_pass_op{}, conv);
     }
     run_pass(m1);
-    EXPECT(std::none_of(m1.begin(), m1.end(), [](const migraphx::instruction& ins) {
-        return ins.name() == "convert";
-    }));
+    // The folded literal keeps the broadcast, so it still stores a single element
+    migraphx::module m2;
+    {
+        auto lit = m2.add_literal(
+            migraphx::literal{{migraphx::shape::int64_type, {2, 4}, {0, 0}}, {int64_t{2}}});
+        m2.add_instruction(non_const_pass_op{}, lit);
+    }
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -67,10 +67,6 @@ Test each fusion type individually:
 
 - Disables element-wise operations fusion (add, mul, relu)
 
-**LayerNorm Fusion**: ``MIGRAPHX_DISABLE_LAYERNORM_FUSION=1``
-
-- Disables layer normalization fusion
-
 **Reduce Fusion**: ``MIGRAPHX_DISABLE_REDUCE_FUSION=1``
 
 - Disables reduction operations fusion (sum, mean)

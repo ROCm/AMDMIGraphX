@@ -49,7 +49,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_WINOGRAD);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_WINOGRAD_FP32_SSTORE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_WINOGRAD);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_WINOGRAD_FULL_TRANSFORM);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_CONV3X3S2);
 
 namespace {
 
@@ -913,94 +912,6 @@ struct find_winograd_f23
     }
 };
 
-// FP32 3x3 stride-2 padding-1 convolution as a direct convolution (kernels/conv3x3s2.hpp).
-// Inputs are the NCHW activation and the transposed, zero-padded weight [C, 9, KPAD].
-struct conv3x3s2
-{
-    std::size_t out_channels = 0;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.out_channels, "out_channels"));
-    }
-
-    std::string name() const { return "gpu::conv3x3s2"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(2);
-        const auto& x_lens = inputs.front().lens();
-        return {inputs.front().type(), {x_lens[0], out_channels, x_lens[2] / 2, x_lens[3] / 2}};
-    }
-};
-MIGRAPHX_REGISTER_OP(conv3x3s2);
-
-// [K, C, 3, 3] -> [C, 9, KPAD] with tap = r*3 + s: the kernel reads the TK weights of one
-// (channel, tap) as one contiguous block, the same for every lane. KPAD rounds K up to 16 so
-// every TK (8 or 16) divides it; the extra channels are 0 and are never stored.
-literal compute_conv3x3s2_weights(const argument& w_arg)
-{
-    const auto& lens        = w_arg.get_shape().lens(); // [K, C, 3, 3]
-    const std::size_t out_c = lens[0];
-    const std::size_t in_c  = lens[1];
-    const std::size_t kpad  = (out_c + 15) / 16 * 16;
-    std::vector<float> wt(in_c * 9 * kpad, 0.0f);
-    w_arg.visit([&](auto w) {
-        for(std::size_t k = 0; k < out_c; ++k)
-            for(std::size_t c = 0; c < in_c; ++c)
-                for(std::size_t t = 0; t < 9; ++t)
-                    wt[(c * 9 + t) * kpad + k] = static_cast<float>(w[(k * in_c + c) * 9 + t]);
-    });
-    return literal{shape{shape::float_type, {in_c, 9, kpad}}, wt};
-}
-
-// Measured on the YOLO26n stride-2 shapes (640x480 down to 40x30 input) against rocmlirTriton:
-// 1.7-3.9x faster from 16 input channels up, slightly slower with 3, so few-channel inputs
-// stay on MLIR.
-MIGRAPHX_PRED_MATCHER(conv_3x3s2_fp32, instruction_ref ins)
-{
-    if(ins->name() != "convolution")
-        return false;
-    auto v = ins->get_operator().to_value();
-    if(v.at("group").to<std::size_t>() != 1)
-        return false;
-    auto all_equal = [&](const char* key, std::size_t x) {
-        return all_of(v.at(key), [&](const value& e) { return e.to<std::size_t>() == x; });
-    };
-    if(not all_equal("stride", 2) or not all_equal("dilation", 1) or not all_equal("padding", 1))
-        return false;
-    const auto& x_s = ins->inputs().front()->get_shape();
-    const auto& w_s = ins->inputs().back()->get_shape();
-    if(x_s.dynamic() or w_s.dynamic() or x_s.type() != shape::float_type)
-        return false;
-    if(x_s.lens().size() != 4 or w_s.lens().size() != 4 or w_s.lens()[2] != 3 or w_s.lens()[3] != 3)
-        return false;
-    const auto& xl = x_s.lens();
-    const auto& xs = x_s.strides();
-    if(xl[1] < 8 or xl[2] % 2 != 0 or xl[3] % 2 != 0)
-        return false;
-    if(xs[3] != 1 or xs[2] != xl[3] or not ins->get_shape().standard())
-        return false;
-    if(not ins->inputs().back()->can_eval())
-        return false;
-    return not enabled(MIGRAPHX_DISABLE_CONV3X3S2{});
-}
-
-struct find_conv3x3s2
-{
-    auto matcher() const { return conv_3x3s2_fp32(); }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins     = r.result;
-        auto weights = ins->inputs().back();
-        auto wt      = m.add_literal(compute_conv3x3s2_weights(weights->eval()));
-        m.replace_instruction(
-            ins, conv3x3s2{weights->get_shape().lens()[0]}, ins->inputs().front(), wt);
-    }
-};
-
 void inline_group_sub_module(module_pass_manager& mpm)
 {
     auto& m = mpm.get_module();
@@ -1041,7 +952,6 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     if(is_gfx12)
     {
         match::find_matches(mpm.get_module(), find_winograd_f23{});
-        match::find_matches(mpm.get_module(), find_conv3x3s2{});
         mpm.run_pass(dead_code_elimination{});
     }
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))

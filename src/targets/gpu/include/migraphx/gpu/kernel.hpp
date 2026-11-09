@@ -119,6 +119,14 @@ struct MIGRAPHX_GPU_EXPORT kernel
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
 
+    // Add the launch to graph after deps; the node keeps its own copy of the kernargs
+    hipGraphNode_t add_to_graph(hipGraph_t graph,
+                                const std::vector<hipGraphNode_t>& deps,
+                                std::size_t global,
+                                std::size_t local,
+                                void* kernargs,
+                                std::size_t kernargs_size) const;
+
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {

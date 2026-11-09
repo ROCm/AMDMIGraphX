@@ -22,8 +22,9 @@
  * THE SOFTWARE.
  */
 #include <migraphx/program.hpp>
+#include <migraphx/builtin.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/ranges.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/context.hpp>
@@ -31,8 +32,8 @@
 #include <migraphx/time.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/gpu/hip.hpp>
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -219,69 +220,108 @@ static parameter_map make_benchmark_arguments(std::vector<migraphx::context>& ct
     return make_parameter_map(mm, args);
 }
 
-// Timing host-issued evals of p leaves the GPU idle between few-microsecond kernels, so every
-// candidate measures the host overhead and the winner is noise. Replaying bundle evals captured
-// as one HIP graph keeps the GPU busy. Returns nullopt when p cannot be captured.
-static optional<double> time_benchmark_graph(std::vector<migraphx::context>& ctx_vec,
-                                             const program& p,
-                                             const parameter_map& param_map,
-                                             int bundle,
-                                             int nruns,
-                                             bool warmup)
+using hip_graph_ptr      = MIGRAPHX_MANAGE_PTR(hipGraph_t, hipGraphDestroy);
+using hip_graph_exec_ptr = MIGRAPHX_MANAGE_PTR(hipGraphExec_t, hipGraphExecDestroy);
+using add_graph_node =
+    std::function<hipGraphNode_t(hipGraph_t, const std::vector<hipGraphNode_t>&)>;
+
+static void check_graph(hipError_t status, const std::string& what)
 {
-    auto& gctx  = any_cast<migraphx::gpu::context>(ctx_vec.front());
-    auto stream = gctx.get_stream().get();
-    if(warmup)
-        p.eval_with_context(ctx_vec, param_map);
-    gctx.finish();
-    if(hipStreamBeginCapture(stream, hipStreamCaptureModeThreadLocal) != hipSuccess)
-        return nullopt;
-    bool captured = true;
-    try
-    {
-        for(auto i : range(bundle))
-        {
-            (void)i;
-            p.eval_with_context(ctx_vec, param_map);
-        }
-    }
-    catch(...)
-    {
-        captured = false;
-    }
-    hipGraph_t raw_graph = nullptr;
-    auto status          = hipStreamEndCapture(stream, &raw_graph);
-    MIGRAPHX_MANAGE_PTR(hipGraph_t, hipGraphDestroy) graph{raw_graph};
-    if(not captured or status != hipSuccess or raw_graph == nullptr)
-    {
-        (void)hipGetLastError();
-        return nullopt;
-    }
-    hipGraphExec_t raw_exec = nullptr;
-    if(hipGraphInstantiate(&raw_exec, graph.get(), nullptr, nullptr, 0) != hipSuccess)
-    {
-        (void)hipGetLastError();
-        return nullopt;
-    }
-    MIGRAPHX_MANAGE_PTR(hipGraphExec_t, hipGraphExecDestroy) exec{raw_exec};
-    auto t = time_loop(gctx, 1, nruns, [&] {
-        auto launch = hipGraphLaunch(exec.get(), stream);
-        if(launch != hipSuccess)
-            MIGRAPHX_THROW("Graph benchmarking failed: " + hip_error(launch));
-    });
-    return t / bundle;
+    if(status != hipSuccess)
+        MIGRAPHX_THROW(what + " failed: " + hip_error(status));
 }
 
-// Graph timing measures GPU work only, so it is used when the candidate just launches kernels
-// (hip::fill zeroes split-K outputs on the stream); anything else (e.g. ops that also work on the
-// host) keeps host-launch timing.
-static bool only_launches_kernels(const program& p)
+static hipGraphNode_t add_fill_node(hipGraph_t graph,
+                                    const std::vector<hipGraphNode_t>& deps,
+                                    const argument& dst,
+                                    int value)
+{
+    // Only these fills are memsets in gpu_fill
+    if(not dst.get_sub_objects().empty() or not dst.get_shape().packed())
+        MIGRAPHX_THROW("Cannot add a fill of " + to_string(dst.get_shape()) + " to a graph");
+    hipMemsetParams params{};
+    params.dst          = dst.data();
+    params.elementSize  = 1;
+    params.width        = dst.get_shape().bytes();
+    params.height       = 1;
+    params.pitch        = params.width;
+    params.value        = static_cast<unsigned int>(value);
+    hipGraphNode_t node = nullptr;
+    check_graph(hipGraphAddMemsetNode(&node, graph, deps.data(), deps.size(), &params),
+                "hipGraphAddMemsetNode");
+    return node;
+}
+
+// The graph nodes of one eval of p, or none if p does more than launch kernels and fill
+static std::vector<add_graph_node> make_graph_nodes(const program& p,
+                                                    const parameter_map& param_map)
 {
     const auto* mm = p.get_main_module();
-    return std::all_of(mm->begin(), mm->end(), [](const instruction& ins) {
-        return starts_with(ins.name(), "@") or
-               contains({"gpu::code_object", "load", "hip::fill"}, ins.name());
-    });
+    // Arguments are resolved once, so every replay reuses the same buffers as an eval would
+    std::unordered_map<instruction_ref, argument> results;
+    std::vector<add_graph_node> nodes;
+    for(auto ins : iterator_for(*mm))
+    {
+        if(ins->name() == "@return")
+            continue;
+        std::vector<argument> args;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(args),
+                       [&](instruction_ref input) { return results.at(input); });
+        if(ins->name() == "@param")
+            results[ins] = param_map.at(any_cast<builtin::param>(ins->get_operator()).parameter);
+        else if(ins->name() == "@literal")
+            results[ins] = ins->get_literal().get_argument();
+        else if(ins->name() == "load")
+            results[ins] = ins->get_operator().compute(ins->get_shape(), args);
+        else if(ins->name() == "gpu::code_object")
+        {
+            const auto& op = any_cast<code_object_op>(ins->get_operator());
+            results[ins]   = args.at(op.get_output_arg(args.size()));
+            nodes.emplace_back(
+                [&op, args](hipGraph_t graph, const std::vector<hipGraphNode_t>& deps) {
+                    return op.add_to_graph(graph, deps, args);
+                });
+        }
+        else if(ins->name() == "hip::fill")
+        {
+            results[ins] = args.front();
+            nodes.emplace_back(
+                [value = any_cast<hip_fill>(ins->get_operator()).value,
+                 dst   = args.front()](hipGraph_t graph, const std::vector<hipGraphNode_t>& deps) {
+                    return add_fill_node(graph, deps, dst, value);
+                });
+        }
+        else
+            return {};
+    }
+    return nodes;
+}
+
+// Builds bundle evals of p as one graph node by node, or null if p cannot be a graph. Stream
+// capture would record the same graph, but HIP fails other threads' synchronous calls meanwhile.
+static hip_graph_exec_ptr
+make_benchmark_graph(const program& p, const parameter_map& param_map, int bundle)
+{
+    auto nodes = make_graph_nodes(p, param_map);
+    if(nodes.empty())
+        return nullptr;
+    hipGraph_t raw_graph = nullptr;
+    check_graph(hipGraphCreate(&raw_graph, 0), "hipGraphCreate");
+    hip_graph_ptr graph{raw_graph};
+    std::vector<hipGraphNode_t> deps;
+    for(auto i : range(bundle))
+    {
+        (void)i;
+        // Each node depends on the previous one, so they run in stream order like the evals
+        for(const auto& add : nodes)
+            deps = {add(graph.get(), deps)};
+    }
+    hipGraphExec_t raw_exec = nullptr;
+    check_graph(hipGraphInstantiate(&raw_exec, graph.get(), nullptr, nullptr, 0),
+                "hipGraphInstantiate");
+    return hip_graph_exec_ptr{raw_exec};
 }
 
 static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
@@ -291,15 +331,29 @@ static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
                              int nruns,
                              bool warmup = true)
 {
-    if(only_launches_kernels(p))
-    {
-        if(auto t = time_benchmark_graph(ctx_vec, p, param_map, bundle, nruns, warmup))
-            return *t;
-        warmup = false;
-    }
-    // Host launches only add overhead, so a candidate that cannot be captured is never favored
     auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
-    return time_loop(gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); }, warmup);
+    // Evals leave the GPU idle between few-microsecond kernels and time the host, so replay a graph
+    hip_graph_exec_ptr exec;
+    try
+    {
+        exec = make_benchmark_graph(p, param_map, bundle);
+    }
+    catch(const std::exception&)
+    {
+        // Host timing only measures slower, so a candidate that is not a graph is never favored
+        (void)hipGetLastError();
+    }
+    if(exec != nullptr)
+    {
+        auto* stream = gctx.get_stream().get();
+        // One launch already runs bundle evals
+        auto t = time_loop(gctx, 1, nruns, [&] {
+            check_graph(hipGraphLaunch(exec.get(), stream), "hipGraphLaunch");
+        });
+        return t / bundle;
+    }
+    return time_loop(
+        gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); }, warmup);
 }
 
 const benchmark_candidate&

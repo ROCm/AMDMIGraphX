@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 
-#include "migraphx.h"
 #include <algorithm>
 #include <cstring>
 #include <initializer_list>
@@ -35,10 +34,11 @@
 #include <array>
 #include <utility>
 #include <vector>
+#include <string>
+#include <unordered_map>
 #include <cassert>
 #include <iostream>
 #include <sstream>
-#include <string>
 
 namespace migraphx {
 #ifndef DOXYGEN
@@ -93,13 +93,13 @@ std::string compute_type_name()
 
     name = __PRETTY_FUNCTION__;
 
-    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
-#if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
+    auto begin = name.find(parameter_name) + sizeof(parameter_name);
+#if (defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
     auto length = name.find_last_of(",") - begin;
 #else
     auto length = name.find_first_of("];", begin) - begin;
 #endif
-    name        = name.substr(begin, length);
+    name = name.substr(begin, length);
 #endif
     return name;
 }
@@ -624,10 +624,22 @@ struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
             &migraphx_dynamic_dimension_create_min_max_optimals, min, max, opts.get_handle_ptr());
     }
 
+    /// Build a symbolic dimension by parsing an expression string. Variables can carry metadata
+    /// inline; the optional map binds bounds/optimals to bare variable names.
+    dynamic_dimension(const std::string& expression,
+                      const std::unordered_map<std::string, dynamic_dimension>& symbols = {});
+
     bool is_fixed() const
     {
         bool result = false;
         call(&migraphx_dynamic_dimension_is_fixed, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    bool is_symbolic() const
+    {
+        bool result = false;
+        call(&migraphx_dynamic_dimension_is_symbolic, &result, this->get_handle_ptr());
         return result;
     }
 
@@ -643,6 +655,33 @@ struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
         return not(x == y);
     }
 };
+
+/**
+ * Maps symbol names to the bounds/optimals used when building a symbolic dynamic_dimension.
+ */
+struct symbol_bounds : MIGRAPHX_HANDLE_BASE(symbol_bounds)
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(symbol_bounds)
+
+    symbol_bounds() { this->make_handle(&migraphx_symbol_bounds_create); }
+
+    void add(const std::string& name, const dynamic_dimension& dd)
+    {
+        call(
+            &migraphx_symbol_bounds_add, this->get_handle_ptr(), name.c_str(), dd.get_handle_ptr());
+    }
+};
+
+inline dynamic_dimension::dynamic_dimension(
+    const std::string& expression,
+    const std::unordered_map<std::string, dynamic_dimension>& symbols)
+{
+    symbol_bounds bounds;
+    for(const auto& [name, dd] : symbols)
+        bounds.add(name, dd);
+    this->make_handle(
+        &migraphx_dynamic_dimension_create_symbolic, expression.c_str(), bounds.get_handle_ptr());
+}
 
 /**
  * Container to hold dynamic_dimension objects.
@@ -721,6 +760,42 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
     shape(migraphx_shape_datatype_t type, const dynamic_dimensions& dyn_dims)
     {
         this->make_handle(&migraphx_shape_create_dynamic, type, dyn_dims.get_handle_ptr());
+    }
+
+    /// Construct a symbolic shape from dimension and optional stride expression strings. The
+    /// strides are packed standard when omitted.
+    shape(migraphx_shape_datatype_t type,
+          const std::vector<std::string>& dims,
+          const std::vector<std::string>& strides = {})
+    {
+        auto to_c = [](const std::vector<std::string>& xs) {
+            std::vector<const char*> result;
+            std::transform(xs.begin(),
+                           xs.end(),
+                           std::back_inserter(result),
+                           [](const std::string& x) { return x.c_str(); });
+            return result;
+        };
+        auto cdims    = to_c(dims);
+        auto cstrides = to_c(strides);
+        this->make_handle(&migraphx_shape_create_symbolic,
+                          type,
+                          cdims.data(),
+                          cdims.size(),
+                          cstrides.data(),
+                          cstrides.size());
+    }
+
+    shape(migraphx_shape_datatype_t type, std::initializer_list<std::string> dims)
+        : shape(type, std::vector<std::string>(dims))
+    {
+    }
+
+    shape(migraphx_shape_datatype_t type,
+          std::initializer_list<std::string> dims,
+          std::initializer_list<std::string> strides)
+        : shape(type, std::vector<std::string>(dims), std::vector<std::string>(strides))
+    {
     }
 
     std::vector<size_t> lengths() const
@@ -1207,6 +1282,12 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
         call(&migraphx_compile_options_set_exhaustive_tune_flag, this->get_handle_ptr(), value);
     }
 
+    /// Set compilation mode (0-100). 0 = fast compile, low performance.
+    /// 100 = best compile with max optimizations, best performance.
+    void set_compile_mode(int8_t value = migraphx_compile_mode_balanced)
+    {
+        call(&migraphx_compile_options_set_compile_mode, this->get_handle_ptr(), value);
+    }
     /// Set backend-specific options that targets can read to configure
     /// compilation. `json_str` is a relaxed JSON object (bare identifiers are
     /// treated as strings) and accepts printf-style format specifiers followed
@@ -1253,6 +1334,162 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     }
 };
 
+struct program_verify_options : MIGRAPHX_HANDLE_BASE(program_verify_options)
+{
+    program_verify_options() { this->make_handle(&migraphx_program_verify_options_create); }
+
+    MIGRAPHX_HANDLE_CONSTRUCTOR(program_verify_options)
+
+    void set_compile_options(const compile_options& options)
+    {
+        call(&migraphx_program_verify_options_set_compile_options,
+             this->get_handle_ptr(),
+             options.get_handle_ptr());
+    }
+
+    void set_rms_tolerance(double value)
+    {
+        call(&migraphx_program_verify_options_set_rms_tolerance, this->get_handle_ptr(), value);
+    }
+
+    void set_absolute_tolerance(double value)
+    {
+        call(
+            &migraphx_program_verify_options_set_absolute_tolerance, this->get_handle_ptr(), value);
+    }
+
+    void set_relative_tolerance(double value)
+    {
+        call(
+            &migraphx_program_verify_options_set_relative_tolerance, this->get_handle_ptr(), value);
+    }
+
+    void set_precision(migraphx_program_verify_precision_t precision)
+    {
+        call(&migraphx_program_verify_options_set_precision, this->get_handle_ptr(), precision);
+    }
+
+    void set_ref_use_double(bool value = true)
+    {
+        call(&migraphx_program_verify_options_set_ref_use_double, this->get_handle_ptr(), value);
+    }
+
+    void set_compiled_model(const std::string& value)
+    {
+        call(&migraphx_program_verify_options_set_compiled_model,
+             this->get_handle_ptr(),
+             value.c_str());
+    }
+
+    void set_name(const std::string& value)
+    {
+        call(&migraphx_program_verify_options_set_name, this->get_handle_ptr(), value.c_str());
+    }
+};
+
+struct program_verify_layer_result : MIGRAPHX_CONST_HANDLE_BASE(program_verify_layer_result)
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(program_verify_layer_result)
+
+    std::string get_name() const
+    {
+        const char* result;
+        call(&migraphx_program_verify_layer_result_get_name, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    std::string get_operator() const
+    {
+        const char* result;
+        call(&migraphx_program_verify_layer_result_get_operator, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    std::string get_message() const
+    {
+        const char* result;
+        call(&migraphx_program_verify_layer_result_get_message, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    std::size_t get_index() const
+    {
+        std::size_t result;
+        call(&migraphx_program_verify_layer_result_get_index, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    double get_rms_error() const
+    {
+        double result;
+        call(&migraphx_program_verify_layer_result_get_rms_error, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    bool passed() const
+    {
+        bool result;
+        call(&migraphx_program_verify_layer_result_passed, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    bool threw_exception() const
+    {
+        bool result;
+        call(
+            &migraphx_program_verify_layer_result_threw_exception, &result, this->get_handle_ptr());
+        return result;
+    }
+};
+
+struct program_verify_result : MIGRAPHX_HANDLE_BASE(program_verify_result),
+                               array_base<program_verify_result>
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(program_verify_result)
+
+    bool passed() const
+    {
+        bool result;
+        call(&migraphx_program_verify_result_passed, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    migraphx_program_verify_mode_t get_mode() const
+    {
+        migraphx_program_verify_mode_t result;
+        call(&migraphx_program_verify_result_get_mode, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    std::size_t size() const
+    {
+        std::size_t result;
+        call(&migraphx_program_verify_result_size, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    program_verify_layer_result operator[](std::size_t index) const
+    {
+        const_migraphx_program_verify_layer_result_t result;
+        call(&migraphx_program_verify_result_get, &result, this->get_handle_ptr(), index);
+        return {result, this->share_handle()};
+    }
+
+    bool has_failure_step() const
+    {
+        bool result;
+        call(&migraphx_program_verify_result_has_failure_step, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    std::size_t get_failure_step() const
+    {
+        std::size_t result;
+        call(&migraphx_program_verify_result_get_failure_step, &result, this->get_handle_ptr());
+        return result;
+    }
+};
+
 /// A program represents the all computation graphs to be compiled and executed
 struct program : MIGRAPHX_HANDLE_BASE(program)
 {
@@ -1276,6 +1513,23 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
              this->get_handle_ptr(),
              ptarget.get_handle_ptr(),
              migraphx::compile_options{}.get_handle_ptr());
+    }
+
+    program_verify_result
+    verify(const target& ptarget,
+           migraphx_program_verify_mode_t mode   = migraphx_program_verify_mode_outputs,
+           const program_parameters& params      = program_parameters{},
+           const program_verify_options& options = program_verify_options{}) const
+    {
+        migraphx_program_verify_result_t result;
+        call(&migraphx_program_verify,
+             &result,
+             this->get_handle_ptr(),
+             ptarget.get_handle_ptr(),
+             mode,
+             params.get_handle_ptr(),
+             options.get_handle_ptr());
+        return {result, own{}};
     }
 
     /// Return the shapes for the input parameters
@@ -1422,6 +1676,8 @@ inline void save(const program& p, const char* filename)
     call(&migraphx_save, p.get_handle_ptr(), filename, migraphx::file_options{}.get_handle_ptr());
 }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 /// Options for parsing onnx options
 struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 {
@@ -1485,6 +1741,14 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     {
         call(&migraphx_onnx_options_set_use_debug_symbols, this->get_handle_ptr(), value);
     }
+
+    void set_dim_param(const std::string& name, const dynamic_dimension& dd)
+    {
+        call(&migraphx_onnx_options_set_dim_param,
+             this->get_handle_ptr(),
+             name.c_str(),
+             dd.get_handle_ptr());
+    }
 };
 
 /// Parse an onnx file into a migraphx program
@@ -1538,6 +1802,10 @@ inline program parse_onnx_buffer(const std::string& buffer)
             &migraphx_parse_onnx_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
         own{});
 }
+
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
 
 /// Options for parsing tf options
 struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
@@ -1628,6 +1896,8 @@ inline program parse_tf_buffer(const std::string& buffer)
             &migraphx_parse_tf_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
         own{});
 }
+
+#endif
 
 struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
 {

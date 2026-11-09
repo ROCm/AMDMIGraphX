@@ -101,75 +101,74 @@ struct reshape_lazy
         return {s0.type(), output_dyn_dims};
     }
 
-    shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
+    // Resolves the output layout for static and symbolic input through one path.
+    shape symbolic_compute_shape(const shape& s0) const
     {
-        check_shapes{inputs, *this}.has(1);
-        auto&& idims = inputs.front().lens();
-        std::vector<std::size_t> rdims(dims.size());
-        std::transform(dims.begin(), dims.end(), rdims.begin(), [](const dim_like& d) {
-            return std::get<int64_t>(d);
-        });
+        // Lift static input to symbolic literals so the same dd arithmetic resolves both.
+        auto sym_in          = s0.to_symbolic();
+        auto output_dyn_dims = resolve_reshape_dims(sym_in, dims);
+        const bool has_inferred_dim =
+            std::find(dims.begin(), dims.end(), dim_like{-1}) != dims.end();
 
-        for(std::size_t i = 0; i < dims.size(); i++)
-        {
-            if(dims[i] == dim_like{0})
-                rdims[i] = idims[i];
+        std::vector<sym::expr> target(output_dyn_dims.size());
+        std::transform(output_dyn_dims.begin(),
+                       output_dyn_dims.end(),
+                       target.begin(),
+                       [](const auto& dd) { return dd.sym_expr; });
 
-            // since rdims using size_t type, -1 is the max value
-            // is size_t that cause later compuation incorrect
-            if(dims[i] == dim_like{-1})
-                rdims[i] = 1;
-        }
-
-        if(n_neg_dims > 0)
-        {
-            size_t missing_dim =
-                inputs.front().elements() /
-                std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
-            for(std::size_t i = 0; i < rdims.size(); i++)
-            {
-                if(dims[i] == dim_like{-1})
-                    rdims[i] = missing_dim;
-            }
-        }
-
-        auto s = reshape_dims(inputs.front(), rdims, {.lazy = true});
+        // Lazy reshape is a no-copy view: when the permutation can't be preserved we
+        // cannot fall back to a repacked standard layout the way reshape does.
+        auto s = reshape_dims(sym_in, target, {.lazy = true});
         if(not s.has_value())
             MIGRAPHX_THROW("reshape_lazy on axis that is not packed.");
 
-        if(s->elements() != inputs.front().elements())
-            MIGRAPHX_THROW(
-                "reshape_lazy: Wrong number of elements for reshape_lazy: reshape_lazy has " +
-                std::to_string(s->elements()) + " elements whereas the input has " +
-                std::to_string(inputs.front().elements()));
-
-        assert(s->bytes() == inputs.front().bytes());
+        const bool dims_have_symbolic = std::any_of(dims.begin(), dims.end(), is_symbolic);
+        // Only a static input with integer dims is fully literal; evaluate it back to
+        // the concrete layout (static results stay byte-identical). Else stays symbolic.
+        if(not s0.symbolic() and not dims_have_symbolic)
+        {
+            auto result = s->to_static();
+            if(result.elements() != s0.elements())
+                MIGRAPHX_THROW(
+                    "reshape_lazy: Wrong number of elements for reshape_lazy: reshape_lazy has " +
+                    std::to_string(result.elements()) + " elements whereas the input has " +
+                    std::to_string(s0.elements()));
+            assert(result.bytes() == s0.bytes());
+            return result;
+        }
+        // An inferred -1 over a symbolic input is a floor division, so its element
+        // count is only resolvable at runtime; otherwise throw on a provably
+        // mismatched count (strict_less either way), letting indeterminate ones pass.
+        if(not(s0.symbolic() and has_inferred_dim))
+        {
+            auto out_elems = s->sym_elements();
+            auto in_elems  = s0.sym_elements();
+            if(sym::strict_less(out_elems, in_elems).value_or(false) or
+               sym::strict_less(in_elems, out_elems).value_or(false))
+                MIGRAPHX_THROW(
+                    "reshape_lazy: Wrong number of elements for reshape_lazy: reshape_lazy has " +
+                    to_string(out_elems) + " elements whereas the input has " +
+                    to_string(in_elems));
+        }
         return *s;
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        if(std::any_of(dims.begin(), dims.end(), [](const auto& d) {
-               return std::holds_alternative<shape::dynamic_dimension>(d);
-           }))
-            MIGRAPHX_THROW(
-                "reshape_lazy: dynamic_dimension dim entries are not currently supported");
 
-        auto n_neg_dims = std::count(dims.begin(), dims.end(), dim_like{-1});
-        if(n_neg_dims > 1)
-            MIGRAPHX_THROW("reshape_lazy: Dimensions for reshape_lazy can only have one -1 dim but "
-                           "given {" +
-                           to_string_range(dims) + "} with " + to_string(n_neg_dims) + " -1 dims");
-        const auto& s0 = inputs[0];
-        if(s0.dynamic())
+        validate_reshape_dims(name(), dims);
+
+        const auto& s0 = inputs.front();
+        if(s0.dynamic() and not s0.symbolic())
         {
+            // A symbolic dim has no range interpretation, so it cannot target a
+            // range-based input.
+            if(std::any_of(dims.begin(), dims.end(), is_symbolic))
+                MIGRAPHX_THROW("reshape_lazy: range-based input only supports int64 dim entries");
             return dyn_compute_shape(s0);
         }
-        else
-        {
-            return static_compute_shape(inputs, n_neg_dims);
-        }
+        return symbolic_compute_shape(s0);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

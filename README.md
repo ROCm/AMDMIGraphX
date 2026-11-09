@@ -158,12 +158,23 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
 ### Use Docker
 
-The easiest way to set up the development environment is to use Docker.
+The easiest way to set up the development environment is to use Docker. ROCm's
+underlying drivers and libraries, known as "TheRock", now support multi-arch
+packaging, meaning it only installs device-code packages for the GPU architecture
+present on the system. Setting `GPU_ARCH` reduces the image size; leaving it
+unset installs device code for all supported architectures, which is useful when
+the same Docker image needs to run on different ROCm-supported GPUs.
 
 1. With the Dockerfile, build a Docker image:
 
     ```bash
         docker build -t migraphx .
+    ```
+
+    or
+
+    ```bash
+        docker build -t migraphx --build-arg GPU_ARCH=$(rocminfo | grep -o -m1 'gfx.*') .
     ```
 
 2. Enter the development environment using `docker run`:
@@ -214,8 +225,17 @@ Where `myApp` is the CMake target in your project.
 
 ## Other Dockerfiles
 
+The default `Dockerfile` builds against ROCm 7.13 and newer using TheRock
+(`amdrocm-*`) packages.  To build against ROCm 7.2.x and older, use the legacy
+dockerfile instead:
+
+```bash
+docker build -t migraphx:legacy -f tools/docker/legacy.dockerfile .
+```
+
 Alternative Dockerfiles are available under `tools/docker/`:
 
+* `tools/docker/legacy.dockerfile` — ROCm 7.2.x and older (Ubuntu 22.04); use this when building against ROCm releases that predate TheRock packages
 * `tools/docker/ubuntu_2404.dockerfile` — Ubuntu 24.04 with ROCm 7.1.1
 * `tools/docker/ubuntu_2204.dockerfile` — Ubuntu 22.04 with ROCm 6.4.2
 

@@ -24,6 +24,8 @@
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
+#include <migraphx/convert_to_json.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_concat.hpp>
@@ -35,8 +37,10 @@
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
+#include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
+#include <migraphx/json.hpp>
 #include <migraphx/layout_convolution.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
@@ -44,6 +48,7 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/promote_storage_type.hpp>
 #include <migraphx/propagate_precision.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/register_target.hpp>
@@ -56,16 +61,18 @@
 #include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/rewrite_resize.hpp>
 #include <migraphx/rewrite_quantization.hpp>
-#include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/rewrite_topk.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_symbolic_dimensions.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/split_sym_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -74,24 +81,27 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
+#include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/propagate_reshape_layout.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIONS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
@@ -99,6 +109,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR)
 
 namespace {
 // Backend options recognized by the GPU target, supplied via
@@ -106,13 +117,122 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    /// Where compiled kernels are cached between runs. Defaults to ``MIGRAPHX_BINARY_CACHE``.
+    std::string binary_cache = binary_cache_settings{}.path;
+    /// Compile even when a kernel could be reused, and fail if the two disagree.
+    bool binary_cache_verify = false;
+    // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
+    bool hip_graph = false;
+    // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
+    // prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
+    // priority over this. Attention fusion is enabled by default on every device: an
+    // "attention" entry additionally fuses every attention block, bypassing the attn_*
+    // profitability gate below, and "!attention" disables the fusion.
+    std::vector<std::string> mlir_use_specific_ops = {};
+    // Widest attention head dim fuse_attention will fuse when the kv length is past
+    // attn_wide_head_kv_len; wider attention blocks run as separate gemm and softmax
+    // kernels. 0 picks the device default: 512 on wave64 devices, 256 on wave32.
+    std::size_t attn_max_head_dim = 0;
+    // Fewest total q rows (batch * heads * seq) fuse_attention will fuse; blocks with
+    // less parallelism run as separate kernels, and the pass scales the requirement
+    // down for head dims under 128. 0 picks the device default of 24 rows per CU.
+    std::size_t attn_min_q_rows = 0;
+    // Longest kv length where head dims past attn_max_head_dim still fuse. 0 picks the
+    // device default: 1024 on wave64 devices, no exception on wave32.
+    std::size_t attn_wide_head_kv_len = 0;
+    // Problem caches that new tuning solutions are saved back to.
+    std::vector<std::string> problem_cache_files = {};
+    // System-level problem caches, searched after the writable ones and never written.
+    std::vector<std::string> read_only_problem_cache_files = {};
+    // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
+    layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
+    // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with pointwise ops.
+    bool enable_skinny_dot   = false;
+    bool standardize_outputs = false;
+    // Keep range-based dynamic shapes for runtime compilation instead of specializing ranges.
+    bool disable_range_based_splitting = false;
+    // When true, kernels compile in-process, not in migraphx-hiprtc-driver.
+    // Not honoured by binary_cache's compiler-version probe, which still spawns the driver.
+    bool hiprtc_disable_processes = false;
+    // Fuse the concat_past_present kv-cache append into its producer kernel.
+    bool eliminate_concat_past_present = true;
+    // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
+    // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
+    std::size_t literal_staging_peak_percent = 5;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"));
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.binary_cache, "binary_cache"),
+                    f(self.binary_cache_verify, "binary_cache_verify"),
+                    f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
+                    f(self.attn_max_head_dim, "attn_max_head_dim"),
+                    f(self.attn_min_q_rows, "attn_min_q_rows"),
+                    f(self.attn_wide_head_kv_len, "attn_wide_head_kv_len"),
+                    f(self.hip_graph, "hip_graph"),
+                    f(self.convolution_layout, "convolution_layout"),
+                    f(self.enable_skinny_dot, "enable_skinny_dot"),
+                    f(self.standardize_outputs, "standardize_outputs"),
+                    f(self.disable_range_based_splitting, "disable_range_based_splitting"),
+                    f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
+                    f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
+                    f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
+                    f(self.problem_cache_files, "problem_cache_files"),
+                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
 };
+
+// The backend options passed to compile, with any key set by MIGRAPHX_GPU_OPTIONS (a json-like
+// object such as "{convolution_layout:channels_last}") overriding it.
+backend_options get_backend_options(const compile_options& options)
+{
+    auto opts = options.backend_options;
+    auto env  = string_value_of(MIGRAPHX_GPU_OPTIONS{});
+    if(not env.empty())
+    {
+        auto v = from_json_string(convert_to_json(env));
+        if(not v.is_object())
+            MIGRAPHX_THROW("MIGRAPHX_GPU_OPTIONS must be a json object");
+        for(const auto& opt : v)
+            opts[opt.get_key()] = opt.without_key();
+    }
+    return from_value<backend_options>(value(opts));
+}
+
+// Wave64 devices (accvgprs double the per-lane register budget) fuse head dims up to 512
+// unconditionally: measured on gfx942 they win 30-45% at kv lengths <= 1024 and lose at most
+// ~1.5x at long kv, a bounded cost preferred over disabling a winning fusion. On wave32
+// (gfx1201) head dims past 256 lose at every kv length.
+std::size_t default_attn_max_head_dim(const context& ctx)
+{
+    return ctx.get_current_device().get_wavefront_size() == 64 ? 512 : 256;
+}
+
+// Head dims past attn_max_head_dim stay profitable while the kv loop is short: on gfx942
+// the fused win at kv lengths <= 1024 (1.3-1.5x loss past 4096) held up to the widest
+// measured d of 512, and is assumed to extend past the limit. No such window was measured
+// on wave32 (gfx1201), where wide head dims lose at every kv length.
+std::size_t default_attn_wide_head_kv_len(const context& ctx)
+{
+    return ctx.get_current_device().get_wavefront_size() == 64 ? 1024 : 0;
+}
+
+// A backend option set to 0 picks the device default
+std::size_t option_or(std::size_t option, std::size_t device_default)
+{
+    return option == 0 ? device_default : option;
+}
+
+// The fused kernel needs enough q rows to fill the device while the separate gemms also
+// parallelize over the kv length: the measured crossover sits between 16 and 27 q rows per
+// CU on both gfx942 and gfx1201. Wave32 devices report workgroup processors (two CUs each)
+// rather than CUs, so normalize the count by the wavefront size.
+std::size_t default_attn_min_q_rows(const context& ctx)
+{
+    const auto& device = ctx.get_current_device();
+    return 24 * device.get_cu_count() * 64 / device.get_wavefront_size();
+}
 
 struct pipeline_factory
 {
@@ -128,7 +248,13 @@ struct pipeline_factory
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
-            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+            dead_code_elimination{},
+            simplify_symbolic_dimensions{},
+            dead_code_elimination{},
+            split_sym_dim{},
+            enable_pass(not backend_opts.disable_range_based_splitting and
+                            disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
+                        split_single_dyn_dim{}),
             dead_code_elimination{},
             simplify_dyn_ops{},
             dead_code_elimination{},
@@ -151,8 +277,6 @@ struct pipeline_factory
             simplify_qdq{.use_mx_quant = gpu::gfx_has_mx_intrinsics(*get_context())},
             enable_pass(not mlir_enabled(), rewrite_quantization{}),
             dead_code_elimination{},
-            rewrite_rnn{},
-            dead_code_elimination{},
             eliminate_data_type_for_gpu{.disable_64bit = options.fast_math, .ctx = get_context()},
             rewrite_resize{.affine_only = true},
             dead_code_elimination{},
@@ -172,24 +296,31 @@ struct pipeline_factory
 
     std::vector<pass> optimize_rewrite_pipeline() const
     {
+        auto gfx_name = get_context()->get_current_device().get_gfx_name();
+        const bool missing_fp32_mma =
+            starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
+        const bool bf16_missing_valu = not starts_with(gfx_name, "gfx125");
         return {
             rewrite_convolution{},
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
-            layout_convolution{.order = enabled(MIGRAPHX_ENABLE_NHWC{})
-                                            ? layout_convolution::channels_last
-                                            : layout_convolution::channels_auto},
+            layout_convolution{.order                          = backend_opts.convolution_layout,
+                               .output_channels_last_threshold = missing_fp32_mma ? 8u : 0u,
+                               .output_channels_last_types     = {shape::float_type}},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},
             prefuse_ops{get_context()},
             dead_code_elimination{},
             dead_code_elimination{},
-            rewrite_reduce{},
+            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                           .fast_math         = options.fast_math},
             rewrite_topk{},
             rewrite_low_precision{},
             enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
+            dead_code_elimination{},
+            enable_pass(bf16_missing_valu, promote_storage_type{{shape::bf16_type}}),
             dead_code_elimination{},
             propagate_precision{},
             dead_code_elimination{},
@@ -198,12 +329,31 @@ struct pipeline_factory
         };
     }
 
+    // Requesting "attention" (env var or mlir_use_specific_ops) fuses every attention block,
+    // bypassing the profitability gate; otherwise the gate picks fused or separate per block.
+    fuse_attention make_fuse_attention() const
+    {
+        if(mlir_attention_requested(backend_opts.mlir_use_specific_ops))
+            return {.attn_enabled           = true,
+                    .attn_max_head_dim      = std::numeric_limits<std::size_t>::max(),
+                    .attn_min_q_rows        = 1,
+                    .flash_decoding_enabled = mlir_flash_decoding_enabled()};
+        const auto& ctx = *get_context();
+        return {.attn_enabled = mlir_attention_enabled(backend_opts.mlir_use_specific_ops),
+                .attn_max_head_dim =
+                    option_or(backend_opts.attn_max_head_dim, default_attn_max_head_dim(ctx)),
+                .attn_min_q_rows =
+                    option_or(backend_opts.attn_min_q_rows, default_attn_min_q_rows(ctx)),
+                .attn_wide_head_kv_len  = option_or(backend_opts.attn_wide_head_kv_len,
+                                                    default_attn_wide_head_kv_len(ctx)),
+                .flash_decoding_enabled = mlir_flash_decoding_enabled()};
+    }
+
     std::vector<pass> fusion_pipeline() const
     {
         return {
-            enable_pass(mlir_enabled(),
-                        fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
-                                       .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+            enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
+                        make_fuse_attention()),
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
@@ -213,7 +363,11 @@ struct pipeline_factory
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
             dead_code_elimination{},
-            enable_pass(mlir_enabled(), fuse_mlir{get_context()}),
+            enable_pass(mlir_enabled(),
+                        fuse_mlir{.ctx              = get_context(),
+                                  .use_specific_ops = backend_opts.mlir_use_specific_ops}),
+            dead_code_elimination{},
+            fuse_topk{},
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},
@@ -225,12 +379,12 @@ struct pipeline_factory
         std::size_t max_memory =
             get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
         return {
-            auto_contiguous{},
+            auto_contiguous{.standardize_outputs = backend_opts.standardize_outputs},
             dead_code_elimination{},
             lowering{get_context(), options.offload_copy},
             eliminate_contiguous{"gpu::contiguous"},
             dead_code_elimination{},
-            propagate_reshape_layout{},
+            lower_reshape{},
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{.use_hip_allocate = false}},
             dead_code_elimination{},
@@ -242,6 +396,8 @@ struct pipeline_factory
 #endif
             fuse_ops{get_context(), options.fast_math},
             dead_code_elimination{},
+            enable_pass(backend_opts.eliminate_concat_past_present, fuse_concat_past_present{}),
+            dead_code_elimination{},
 #if MIGRAPHX_USE_HIPBLASLT
             compile_hipblaslt{get_generic_context()},
             dead_code_elimination{},
@@ -251,14 +407,20 @@ struct pipeline_factory
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
             lower_device_ops{},
-            compile_ops{get_context(), options.exhaustive_tune},
+            compile_ops{get_context(),
+                        options.exhaustive_tune,
+                        options.compile_mode == compile_modes::eager,
+                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{})},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{.max_memory = max_memory},
+            write_literals{.max_memory           = max_memory,
+                           .staging_peak_percent = backend_opts.literal_staging_peak_percent},
+            enable_pass(backend_opts.hip_graph, hipgraphify{}),
+            dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
-            memory_coloring{"hip::allocate"},
+            memory_coloring{gpu_allocation_model{}},
             sync_device{},
             preallocate_param{"scratch", gpu_allocation_model{}},
             dead_code_elimination{},
@@ -272,21 +434,58 @@ struct pipeline_factory
 };
 } // namespace
 
+static migraphx::context make_context(const target& t)
+{
+    if(t.is_cross_compile())
+        return context(t.desc);
+    return context(gpu::get_device_id());
+}
+
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto& ctx = any_cast<context>(gctx);
+    auto backend_opts = get_backend_options(options);
+    auto& ctx         = any_cast<context>(gctx);
+    // The context predates the compile options, so the cache they configure is installed here.
+    ctx.set_binary_cache(std::make_shared<binary_cache>(
+        binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
-    ctx.load_problem_cache(); // TODO: update load_problem_cache to include gpu arch
+    ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
 
-    pipeline_factory p{&gctx, options, from_value<backend_options>(value(options.backend_options))};
+    if(options.compile_mode == compile_modes::max)
+        ctx.set_exhaustive_tune_flag(true);
 
-    std::vector<std::vector<pass>> pipelines = {
-        p.dynamic_shapes_pipeline(),
-        p.required_pipeline(),
-        p.optimize_rewrite_pipeline(),
-        p.fusion_pipeline(),
-        p.backend_pipeline(),
-    };
+    ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
+                            backend_opts.problem_cache_files);
+
+    pipeline_factory p{&gctx, options, backend_opts};
+
+    std::vector<std::vector<pass>> pipelines;
+
+    if(options.compile_mode == compile_modes::eager)
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            {optimize_module{},
+             dead_code_elimination{},
+             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                            .fast_math         = options.fast_math},
+             rewrite_topk{},
+             dead_code_elimination{}},
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
+    else
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            p.optimize_rewrite_pipeline(),
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
 
     std::vector<pass> passes;
     std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));
@@ -295,17 +494,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 std::string target::name() const { return "gpu"; }
 
-migraphx::context target::get_context() const
-{
-    if(is_cross_compile())
-        return context(gpu_arch,
-                       gpu_num_cu,
-                       gpu_num_chiplets,
-                       gpu_max_threads_per_cu,
-                       gpu_max_threads_per_block,
-                       gpu_wavefront_size);
-    return context(gpu::get_device_id());
-}
+migraphx::context target::get_context() const { return make_context(*this); }
 
 argument target::copy_to(const argument& arg) const
 {

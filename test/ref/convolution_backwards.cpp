@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <cstdint>
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -253,6 +254,27 @@ TEST_CASE(convolution_backwards_2d_group)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(convolution_backwards_2d_group_multiple_input_channels)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {1, 4, 1, 1}};
+    migraphx::shape weights_shape{migraphx::shape::float_type, {4, 1, 1, 1}};
+    std::vector<float> input_data{1.0f, 2.0f, 4.0f, 8.0f};
+    std::vector<float> weights_data(4, 1.0f);
+    std::vector<float> gold{3.0f, 12.0f};
+
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto input   = mm->add_literal(migraphx::literal{input_shape, input_data});
+    auto weights = mm->add_literal(migraphx::literal{weights_shape, weights_data});
+    mm->add_instruction(migraphx::make_op("convolution_backwards", {{"group", 2}}), input, weights);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> results_vector;
+    p.eval({}).back().visit(
+        [&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(convolution_backwards_dyn_batch1)
 {
     migraphx::program p;
@@ -320,4 +342,80 @@ TEST_CASE(convolution_backwards_dyn_batch2)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+// A 1x1 kernel over a 1x1 input makes the single output element one dot product over the input
+// channels, which is the shortest way to observe the accumulator's precision.
+static std::vector<float> conv_backwards_channel_dot(migraphx::shape::type_t type, float small)
+{
+    migraphx::shape xs{type, {1, 5, 1, 1}};
+    migraphx::shape ws{type, {5, 1, 1, 1}};
+    std::vector<float> x_data{1.0f, small, small, small, small};
+    std::vector<float> w_data(x_data.size(), 1.0f);
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(migraphx::literal{xs, x_data});
+    auto w   = mm->add_literal(migraphx::literal{ws, w_data});
+    mm->add_instruction(migraphx::make_op("convolution_backwards"), x, w);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> results_vector;
+    p.eval({}).back().visit(
+        [&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    return results_vector;
+}
+
+// The reference sums floating-point values in double. Each small term below sits exactly on the tie
+// one half-ULP under the running total, so an accumulator in the tensor type rounds every one of
+// them away and returns a bare 1.0; the double sum keeps all four. Both the terms and the expected
+// total are exactly representable, so the check is exact rather than tolerance-bounded.
+TEST_CASE(convolution_backwards_half_accumulate)
+{
+    // 1/2048 is half an ULP of half at 1.0, and the four of them total 1/512.
+    auto results = conv_backwards_channel_dot(migraphx::shape::half_type, 1.0f / 2048.0f);
+    EXPECT(results.size() == 1);
+    EXPECT(migraphx::float_equal(results.front(), 1.0f + 1.0f / 512.0f));
+}
+
+TEST_CASE(convolution_backwards_bf16_accumulate)
+{
+    // 1/256 is half an ULP of bf16 at 1.0, and the four of them total 1/64.
+    auto results = conv_backwards_channel_dot(migraphx::shape::bf16_type, 1.0f / 256.0f);
+    EXPECT(results.size() == 1);
+    EXPECT(migraphx::float_equal(results.front(), 1.0f + 1.0f / 64.0f));
+}
+
+TEST_CASE(convolution_backwards_int64_accumulate)
+{
+    constexpr std::int64_t value = -9007199254740993LL;
+    migraphx::shape s{migraphx::shape::int64_type, {1, 1, 1, 1}};
+    auto input_data   = std::vector<std::int64_t>{value};
+    auto weights_data = std::vector<std::int64_t>{1};
+
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto input   = mm->add_literal(migraphx::literal{s, input_data});
+    auto weights = mm->add_literal(migraphx::literal{s, weights_data});
+    mm->add_instruction(migraphx::make_op("convolution_backwards"), input, weights);
+    p.compile(migraphx::make_target("ref"));
+
+    EXPECT(p.eval({}).back().at<std::int64_t>() == value);
+}
+
+TEST_CASE(convolution_backwards_uint64_accumulate)
+{
+    constexpr std::uint64_t value = 9007199254740993ULL;
+    migraphx::shape s{migraphx::shape::uint64_type, {1, 1, 1, 1}};
+    auto input_data   = std::vector<std::uint64_t>{value};
+    auto weights_data = std::vector<std::uint64_t>{1};
+
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto input   = mm->add_literal(migraphx::literal{s, input_data});
+    auto weights = mm->add_literal(migraphx::literal{s, weights_data});
+    mm->add_instruction(migraphx::make_op("convolution_backwards"), input, weights);
+    p.compile(migraphx::make_target("ref"));
+
+    EXPECT(p.eval({}).back().at<std::uint64_t>() == value);
 }

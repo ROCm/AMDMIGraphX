@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,12 @@ function(migraphx_generate_export_header TARGET)
     else()
         string(REPLACE "_" "/" __directory ${TARGET})
         string(TOLOWER ${__directory} __directory)
+    endif()
+    if(NOT WIN32)
+        set_target_properties(${TARGET} PROPERTIES
+            C_VISIBILITY_PRESET hidden
+            CXX_VISIBILITY_PRESET hidden
+            VISIBILITY_INLINES_HIDDEN YES)
     endif()
     set(__file_name ${CMAKE_CURRENT_BINARY_DIR}/include/${__directory}/export.h)
     generate_export_header(${TARGET} EXPORT_FILE_NAME ${__file_name})

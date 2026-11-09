@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <functional>
 #include <string>
 #include <memory>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,6 +60,14 @@ struct MIGRAPHX_EXPORT process
     void exec();
     void write(std::function<void(writer)> pipe_in);
     void read(const writer& output) const;
+
+    /// Writes the bytes `pipe_in` produces to the child's stdin while concurrently draining its
+    /// stdout; done in sequence, a request larger than the pipe buffer would deadlock. `output` is
+    /// invoked exactly once, with the whole of stdout. Spawns directly rather than through a shell
+    /// and never merges stderr into stdout, so stdout stays a clean binary channel; cwd() and env()
+    /// are unsupported. Throws if the child cannot be spawned, exits non-zero, or terminates
+    /// abnormally.
+    void read_write(const std::function<void(writer)>& pipe_in, const writer& output);
 
     private:
     std::unique_ptr<process_impl> impl;

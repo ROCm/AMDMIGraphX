@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,22 +29,63 @@
 #include <migraphx/value.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/gpu/export.h>
+#include <migraphx/gpu/cache_device_key.hpp>
+#include <migraphx/gpu/problem_cache_backend.hpp>
+#include <string>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+struct context;
+
 struct MIGRAPHX_GPU_EXPORT problem_cache
 {
+    // Seeds an in-memory JSON writable cache, used until load() configures files.
+    problem_cache();
+
+    // Build and store this cache's device key from the owning context.
+    void set_device_key(const context& ctx);
+    // Directly set the device key (used by tests and multi-cache setup).
+    void set_device_key(const cache_device_key& key);
+    const cache_device_key& get_device_key() const;
+
+    /// Look up a problem. The writable caches are searched first, then the
+    /// read-only caches in priority order; first hit wins.
     bool has(const std::string& name, const value& problem) const;
     void insert(const std::string& name, const value& problem, const value& solution);
     void mark(const std::string& name, const value& problem);
     optional<value> get(const std::string& name, const value& problem) const;
-    void load();
+    /// Configure both cache tiers: the read-only caches (searched after the
+    /// writable caches, first hit wins, never written) and the read/write caches
+    /// (every writable file is loaded and saved back to).
+    void load(const std::vector<std::string>& read_only_paths,
+              const std::vector<std::string>& writable_paths);
     void save() const;
-    std::unordered_map<value, value> cache;
+
+    private:
+    // Read/write caches (one per writable file), searched before the read-only
+    // layers. Always holds at least one entry: an in-memory JSON cache when no
+    // writable file is configured. New solutions are inserted into the first.
+    std::vector<problem_cache_backend> writable_backends{};
+
+    // Save-back path for each writable file cache, parallel to the leading
+    // entries of writable_backends. Empty means nothing is written (save() is a
+    // no-op); the in-memory cache has no path.
+    std::vector<std::string> save_paths{};
+
+    // Lower-priority read-only layers searched after the writable caches; within
+    // the list the first hit wins. Populated from the read-only paths in load().
+    std::vector<problem_cache_backend> read_only_backends{};
+
+    // Device these entries were tuned on; set by the owning context. Empty
+    // key = unidentified device, entries land in a single bucket.
+    cache_device_key device_key{};
 };
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
 #endif // MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP

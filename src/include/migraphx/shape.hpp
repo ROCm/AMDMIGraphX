@@ -172,18 +172,13 @@ struct MIGRAPHX_EXPORT shape
         bool has_optimal() const;
 
         /**
-         * Return a dynamic_dimension with the intersection of two dynamic_dimension ranges if
-         * possible. When both dimensions are symbolic, they are compatible only if they
-         * share the same symbolic expression.
+         * Return a dynamic_dimension with the intersection of two range-based dynamic dimensions
+         * if possible. Symbolic dimensions cannot be intersected.
          */
         std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
         {
-            if(this->is_symbolic() and other.is_symbolic())
-            {
-                if(this->sym_expr == other.sym_expr)
-                    return *this;
-                return nullopt;
-            }
+            if(this->is_symbolic() or other.is_symbolic())
+                MIGRAPHX_THROW("dynamic_dimension: cannot intersect symbolic dimensions");
             auto this_interval  = this->get_interval();
             auto other_interval = other.get_interval();
             auto left           = std::max(this_interval.min, other_interval.min);
@@ -235,6 +230,7 @@ struct MIGRAPHX_EXPORT shape
 
     static bool is_integral(type_t t);
     static bool is_compatible(const shape& actual, const shape& expected);
+    static bool is_compatible_type_and_lens(const shape& actual, const shape& expected);
     static bool is_compatible_lens(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
@@ -250,6 +246,8 @@ struct MIGRAPHX_EXPORT shape
     shape(type_t t, std::initializer_list<std::size_t> d);
     shape(type_t t, std::initializer_list<std::size_t> l, std::initializer_list<std::size_t> s);
 
+    // A dynamic shape's dimensions must be either all symbolic or all range-based. Explicit
+    // dynamic strides are supported only for symbolic dimensions.
     shape(type_t t, std::vector<dynamic_dimension> dims);
     shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<sym::expr> dstrides);
 
@@ -318,6 +316,13 @@ struct MIGRAPHX_EXPORT shape
     sym::expr sym_elements() const;
 
     /*!
+     * Return each dimension as a symbolic expression. Works for any shape kind:
+     * static dimensions become literals; symbolic dimensions return their
+     * expression.
+     */
+    std::vector<sym::expr> sym_dims() const;
+
+    /*!
      * Return the number of total bytes used for storage of the tensor data; includes subshapes.
      * For dynamic shape, returns the maximum number of bytes presuming a packed shape.
      */
@@ -333,6 +338,7 @@ struct MIGRAPHX_EXPORT shape
 
     bool symbolic() const;
     const std::vector<sym::expr>& dyn_strides() const;
+    bool has_fixed_strides() const;
 
     /*!
      * Minimum lengths for dynamic shape.
@@ -453,6 +459,13 @@ struct MIGRAPHX_EXPORT shape
     shape with_lens(type_t t, const std::vector<dynamic_dimension>& dds) const;
     shape with_lens(const std::vector<dynamic_dimension>& dds) const;
 
+    /**
+     * Shape of an elementwise result over two broadcasted shapes with the same
+     * dims: packed over the axes either input varies along and broadcast on the
+     * rest, so it stays broadcasted rather than materializing a full layout.
+     */
+    static shape merge_broadcasts(const shape& x, const shape& y);
+
     shape with_type(type_t t) const;
 
     // convert the shape to an equivalent range-based dynamic shape: each static len becomes
@@ -476,6 +489,20 @@ struct MIGRAPHX_EXPORT shape
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
     shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map = {}) const;
+
+    // Build a symbolic dynamic_dimension by parsing an expression string. Variable constraints
+    // and optimals can be carried inline by the expression; the optional symbols map binds
+    // metadata to bare variable names for compatibility with existing callers.
+    static dynamic_dimension make_symbolic_dynamic_dimension(
+        const std::string& expression,
+        const std::unordered_map<std::string, dynamic_dimension>& symbols = {});
+
+    /// Build a symbolic shape from dimension and optional stride expression strings. Variable
+    /// constraints and optimals are parsed from the expressions themselves. Without explicit
+    /// symbolic strides the shape is packed standard.
+    static shape make_symbolic_shape(type_t t,
+                                     const std::vector<std::string>& dims,
+                                     const std::vector<std::string>& strides = {});
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);

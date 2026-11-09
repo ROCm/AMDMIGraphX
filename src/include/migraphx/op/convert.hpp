@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/unary.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <cmath>
 
 namespace migraphx {
@@ -34,6 +35,8 @@ namespace op {
 
 struct convert : unary<convert>
 {
+    static constexpr bool enable_symbolic_compute = true;
+
     shape::type_t target_type = shape::half_type;
 
     template <class Self, class F>
@@ -58,6 +61,31 @@ struct convert : unary<convert>
         {
             return {target_type, input.lens(), input.strides()};
         }
+    }
+
+    bool supports_symbolic_compute(const shape& output_shape,
+                                   const std::vector<sym_argument>& args) const
+    {
+        return args.size() == 1 and args[0].get_shape().type() == shape::int64_type and
+               output_shape.type() == target_type and
+               (target_type == shape::int64_type or target_type == shape::bool_type);
+    }
+
+    auto apply() const
+    {
+        return [target = target_type](const sym::expr& x) {
+            if(target == shape::int64_type)
+                return x;
+            if(target != shape::bool_type)
+                return sym::expr{};
+            const auto value = sym::fixed_value(x);
+            if(not value.has_value())
+                return sym::expr{};
+            const auto integer = sym::to<int64_t>(*value);
+            if(integer != 0 and integer != 1)
+                return sym::expr{};
+            return x;
+        };
     }
 
     std::string point_op() const

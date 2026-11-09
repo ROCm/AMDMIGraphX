@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,8 +31,17 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/argument.hpp>
 #include <cmath>
+#include <cstdint>
 #include <utility>
 
+/**
+ *  nonzero(data);
+ *  Outputs tuple of {
+ *  tensor int64_t[rank of data, max elements of data]: indices,
+ *  scalar int64_t: num_nonzero}
+ *  Only the leading `num_nonzero` columns of `indices` hold an index; the rest are zero. Sizing
+ *  for the largest input the shape allows keeps the output static for a dynamic input.
+ */
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
@@ -43,39 +52,36 @@ struct nonzero
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).standard();
-        auto elem_num                     = inputs[0].elements();
-        auto dim_num                      = inputs[0].lens().size();
-        std::vector<std::size_t> out_lens = {dim_num, elem_num};
-
-        return {shape::int64_type, out_lens};
+        check_shapes{inputs, *this, true}.has(1);
+        // Pad the indices for the largest input the shape allows, so a dynamic input still gets
+        // a fixed output buffer.
+        shape max_input{inputs[0].type(), inputs[0].max_lens()};
+        shape s_ind{shape::int64_type, {inputs[0].ndim(), max_input.elements()}};
+        shape s_num_nonzero{shape::int64_type, {1}};
+        return shape({s_ind, s_num_nonzero});
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        std::vector<std::vector<std::size_t>> vec_idx;
-        auto s = args.front().get_shape();
+        auto s             = args.front().get_shape();
+        const auto& vec_ss = output_shape.sub_shapes();
+        argument result{vec_ss.front()};
+        argument num_nonzero_result{vec_ss.back()};
+        auto output = result.get<std::int64_t>();
+        std::fill(output.begin(), output.end(), 0);
+        std::size_t nonzero_idx = 0;
         args.front().visit([&](auto v) {
-            shape_for_each(s, [&](const auto& idx_v, size_t idx) {
-                if(not float_equal(v[idx], 0))
+            shape_for_each(s, [&](const auto& idx_v) {
+                if(not float_equal(v[idx_v], 0))
                 {
-                    vec_idx.push_back(idx_v);
+                    auto out_idx = nonzero_idx++;
+                    par_for(idx_v.size(), [&](auto i) { output(i, out_idx) = idx_v[i]; });
                 }
             });
         });
+        num_nonzero_result.visit([&](auto num_nonzero) { num_nonzero[0] = nonzero_idx; });
 
-        argument result{output_shape};
-        result.visit([&](auto output) {
-            std::fill(output.begin(), output.end(), 0);
-            par_for(vec_idx.size(), [&](auto i) {
-                for(std::size_t j = 0; j < vec_idx.front().size(); ++j)
-                {
-                    output[output_shape.index({j, i})] = vec_idx[i][j];
-                }
-            });
-        });
-
-        return result;
+        return {{result, num_nonzero_result}};
     }
 };
 

@@ -27,6 +27,7 @@
 #include <migraphx/kernels/group_query_attention.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/vectorize.hpp>
 
 namespace migraphx {
 
@@ -55,13 +56,17 @@ struct concat_state_chunk
     }
 };
 
+// head_size is passed separately since it may be scaled to vector units
 template <class Present, class SeqLensK, class Cache, class Params>
-__device__ void
-update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params params, index_int idx)
+__device__ void update_cache(const Present present,
+                             SeqLensK seqlens_k,
+                             Cache cache,
+                             Params params,
+                             index_int head_size,
+                             index_int idx)
 {
     const index_int batch_size                     = params.batch_size;
     const index_int sequence_length                = params.sequence_length;
-    const index_int head_size                      = params.head_size;
     const index_int past_buffer_sequence_length    = params.seqlen_present_kv_cache;
     const index_int present_buffer_sequence_length = past_buffer_sequence_length;
     const index_int kv_num_heads                   = params.kv_num_heads;
@@ -92,15 +97,20 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     }
 }
 
-template <class Past, class Present, class SeqLensK, class Params>
+// N is the vector width along head_size chosen by the JIT, which sizes the launch to match
+template <index_int N, class Past, class Present, class SeqLensK, class Params>
 __device__ void
 concat_past_present(Past past, const Present present, SeqLensK seqlens_k, Params params)
 {
-    auto ind = make_index();
+    auto ind                          = make_index();
+    constexpr index_int head_size     = params.head_size;
+    constexpr index_int vec_head_size = head_size / N;
+    auto cache                        = as_vec<N>(past, _c<3>);
+    auto current                      = as_vec<N>(present, _c<3>);
     auto elements =
-        params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
+        params.batch_size * params.kv_num_heads * params.sequence_length * vec_head_size;
     ind.global_stride(elements, [&](auto idx) {
-        update_cache(present.begin(), seqlens_k, past.begin(), params, idx);
+        update_cache(current.begin(), seqlens_k, cache.begin(), params, vec_head_size, idx);
     });
 }
 

@@ -31,9 +31,11 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/functional.hpp>
+#include <algorithm>
 #include <numeric>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <tuple>
 #include <iterator>
 
@@ -54,10 +56,45 @@ inline namespace MIGRAPHX_INLINE_NS {
 //       — fuse a group, return one replacement instruction per original op
 //
 // Then pass an instance to fuse_horizontal_ops().
-// The framework handles scanning, grouping independent instructions by key,
-// filtering inter-dependent instructions, dispatching to fuse(), and replacing
-// originals with results.
+// The framework handles scanning, grouping instructions by key, partitioning
+// each key group into independent subgroups, dispatching to fuse(), and
+// replacing originals with results.
 // ---------------------------------------------------------------------------
+
+// Fuse one group of mutually-independent candidates and replace the originals.
+template <class Finder>
+static void fuse_group(module& m, const Finder& finder, const std::vector<instruction_ref>& group)
+{
+    if(group.size() < finder.min_group_size())
+        return;
+
+    // Earlier fusions can move dependent instructions past this group's last
+    // member, so locate the insertion point from the current module order.
+    std::unordered_set<instruction_ref> remaining(group.begin(), group.end());
+    auto r    = iterator_for(m);
+    auto last = std::find_if(r.begin(), r.end(), [&](instruction_ref ins) {
+        remaining.erase(ins);
+        return remaining.empty();
+    });
+    assert(last != r.end());
+
+    auto insert_pt    = std::next(*last);
+    auto replacements = finder.fuse(m, group, insert_pt);
+    if(replacements.empty())
+        return;
+
+    assert(replacements.size() == group.size());
+
+    // Move outputs of the original instructions to after the new instructions
+    // so that replace_instruction's validity assertions hold.
+    std::for_each(group.begin(), group.end(), [&](auto g) {
+        m.move_output_instructions_after(g, replacements.back());
+    });
+
+    migraphx::for_each(group.begin(), group.end(), replacements.begin(), [&](auto g, auto rep) {
+        m.replace_instruction(g, rep);
+    });
+}
 
 template <class Finder>
 static void apply_horizontal_finder(module& m, const Finder& finder)
@@ -77,14 +114,9 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
         pos[ins] = p++;
     }
 
+    // group_by partitions against one seed, so its predicate must be an equivalence relation.
     auto pred = [&](instruction_ref x, instruction_ref y) {
-        if(x == y)
-            return true;
-        if(finder.group_key(x) != finder.group_key(y))
-            return false;
-        if(pos.at(x) < pos.at(y))
-            return not reaches(x, y);
-        return not reaches(y, x);
+        return finder.group_key(x) == finder.group_key(y);
     };
 
     auto each = [&](auto start, auto last) {
@@ -97,22 +129,26 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
         std::sort(
             group.begin(), group.end(), [&](auto a, auto b) { return pos.at(a) < pos.at(b); });
 
-        auto insert_pt    = std::next(group.back());
-        auto replacements = finder.fuse(m, group, insert_pt);
-        if(replacements.empty())
-            return;
-
-        assert(replacements.size() == group.size());
-
-        // Move outputs of the original instructions to after the new instructions
-        // so that replace_instruction's validity assertions hold.
-        std::for_each(group.begin(), group.end(), [&](auto g) {
-            m.move_output_instructions_after(g, replacements.back());
+        // Independence is not transitive: one key group can span several dependency
+        // levels (e.g. the per-step dots of an unrolled recurrent network). Partition
+        // the topologically-ordered candidates into independent subgroups by placing
+        // each one into the first subgroup none of whose members reaches it. First-fit
+        // keeps dependencies flowing only from earlier subgroups to later ones, so
+        // fusing each subgroup in order cannot create a cycle.
+        std::vector<std::vector<instruction_ref>> subgroups;
+        std::for_each(group.begin(), group.end(), [&](instruction_ref ins) {
+            auto it = std::find_if(subgroups.begin(), subgroups.end(), [&](const auto& sg) {
+                return std::none_of(
+                    sg.begin(), sg.end(), [&](instruction_ref x) { return reaches(x, ins); });
+            });
+            if(it == subgroups.end())
+                subgroups.push_back({ins});
+            else
+                it->push_back(ins);
         });
 
-        migraphx::for_each(group.begin(), group.end(), replacements.begin(), [&](auto g, auto r) {
-            m.replace_instruction(g, r);
-        });
+        std::for_each(
+            subgroups.begin(), subgroups.end(), [&](const auto& sg) { fuse_group(m, finder, sg); });
     };
 
     group_by(candidates.begin(), candidates.end(), each, pred);
@@ -444,18 +480,75 @@ struct gather_horizontal_fusion
 };
 
 // ---------------------------------------------------------------------------
-// Future: add more horizontal fusion finders here, e.g.
+// Generic dot horizontal fusion
 //
-// struct pointwise_horizontal_fusion
-// {
-//     std::size_t min_group_size() const { return 2; }
-//     bool is_candidate(instruction_ref ins) const { ... }
-//     std::string group_key(instruction_ref ins) const { ... }
-//     std::vector<instruction_ref>
-//         fuse(module& m, const std::vector<instruction_ref>& ops,
-//              instruction_ref insert_pt) const { ... }
-// };
+// Batches structurally-identical dot operations into a single batched GEMM by
+// stacking activations and weights along a new leading dimension (axis 0).  The
+// batched dot output is sliced and squeezed back into the individual results.
+//
+// Parallel MoE-style expert heads (dot + bias/activation epilogue) are batched
+// here too: the dots collapse into one GEMM and the per-slice epilogues are
+// re-fused afterwards by find_splits in simplify_algebra, so nothing is stranded
+// behind the slice.
 // ---------------------------------------------------------------------------
+
+struct dot_horizontal_fusion
+{
+    // Batching adds N unsqueeze + 1 concat + N slice + N squeeze of glue, so only
+    // pay it for groups large enough to be worthwhile.
+    std::size_t min_group_size() const { return 3; }
+
+    bool is_candidate(instruction_ref ins) const
+    {
+        if(ins->name() != "dot")
+            return false;
+        if(ins->get_shape().dynamic())
+            return false;
+        if(ins->get_shape().ndim() < 2)
+            return false;
+        // Only fold when the weight is a compile-time constant so the batched
+        // weight tensor can be materialized.
+        return ins->inputs().at(1)->can_eval();
+    }
+
+    auto group_key(instruction_ref ins) const
+    {
+        return std::make_tuple(ins->inputs().at(0)->get_shape().lens(),
+                               ins->inputs().at(1)->get_shape().lens(),
+                               ins->get_shape().type());
+    }
+
+    std::vector<instruction_ref>
+    fuse(module& m, const std::vector<instruction_ref>& dots, instruction_ref insert_pt) const
+    {
+        // Stack input `input_idx` of every dot along a new leading axis.
+        auto stack = [&](std::size_t input_idx) {
+            std::vector<instruction_ref> unsqueezed(dots.size());
+            std::transform(dots.begin(), dots.end(), unsqueezed.begin(), [&](auto d) {
+                return m.insert_instruction(
+                    insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(input_idx));
+            });
+            return m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), unsqueezed);
+        };
+
+        auto batched_act = stack(0);
+        auto batched_wt  = stack(1);
+        auto batched_dot = m.insert_instruction(insert_pt, make_op("dot"), batched_act, batched_wt);
+
+        // Slice each original result back out of the batched dot.
+        std::vector<instruction_ref> results(dots.size());
+        for(std::size_t i = 0; i < dots.size(); ++i)
+        {
+            auto sliced = m.insert_instruction(
+                insert_pt,
+                make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
+                batched_dot);
+            results[i] =
+                m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced);
+        }
+        return results;
+    }
+};
 
 void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
@@ -463,7 +556,10 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
 
     // Fuse across distinct tables first, then same-table groups.  Running same-table
     // fusion first can shrink cross-table groups below their size threshold and miss it.
-    fuse_horizontal_ops(m, gather_horizontal_fusion{}, same_table_gather_horizontal_fusion{});
+    fuse_horizontal_ops(m,
+                        gather_horizontal_fusion{},
+                        same_table_gather_horizontal_fusion{},
+                        dot_horizontal_fusion{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_GATHER_HPP
 #define MIGRAPHX_GUARD_OPERATORS_GATHER_HPP
 
+#include <algorithm>
 #include <array>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/dyn_output.hpp>
@@ -34,6 +35,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <cmath>
 #include <utility>
 
@@ -83,6 +85,33 @@ struct gather
         if(inputs[0].dynamic() or inputs[1].dynamic())
             return result;
         return result.to_static();
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        if(args.size() != 2 or args[0].get_shape().ndim() != 1 or axis != 0 or args[0].empty() or
+           args[1].empty())
+            return {};
+        auto indices = sym::fixed_values<int64_t>(args[1].get());
+        if(not indices.has_value() or indices->size() != output_shape.elements())
+            return {};
+
+        sym_argument result{output_shape};
+        const auto data         = args[0].get();
+        auto output             = result.get();
+        const int64_t data_size = data.size();
+        for(auto& index : *indices)
+        {
+            if(index < 0)
+                index += data_size;
+            if(index < 0 or index >= data_size)
+                return {};
+        }
+        std::transform(indices->begin(), indices->end(), output.begin(), [&](auto index) {
+            return data[index];
+        });
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

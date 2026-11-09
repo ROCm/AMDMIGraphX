@@ -26,9 +26,9 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/onnx.hpp>
-#include <migraphx/tf.hpp>
+#include <migraphx/program_verify.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
@@ -45,6 +45,13 @@
 #include <algorithm>
 #include <cstdarg>
 #include <sstream>
+
+#ifdef MIGRAPHX_ENABLE_ONNX
+#include <migraphx/onnx.hpp>
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+#include <migraphx/tf.hpp>
+#endif
 
 namespace migraphx {
 
@@ -126,6 +133,44 @@ static migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 
+static verify::program_mode to_program_verify_mode(migraphx_program_verify_mode_t mode)
+{
+    switch(mode)
+    {
+    case migraphx_program_verify_mode_outputs: return verify::program_mode::outputs;
+    case migraphx_program_verify_mode_instructions: return verify::program_mode::instructions;
+    case migraphx_program_verify_mode_reduce: return verify::program_mode::reduce;
+    case migraphx_program_verify_mode_bisect: return verify::program_mode::bisect;
+    case migraphx_program_verify_mode_layerwise: return verify::program_mode::layerwise;
+    }
+    MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown program verification mode");
+}
+
+static migraphx_program_verify_mode_t to_program_verify_mode(verify::program_mode mode)
+{
+    switch(mode)
+    {
+    case verify::program_mode::outputs: return migraphx_program_verify_mode_outputs;
+    case verify::program_mode::instructions: return migraphx_program_verify_mode_instructions;
+    case verify::program_mode::reduce: return migraphx_program_verify_mode_reduce;
+    case verify::program_mode::bisect: return migraphx_program_verify_mode_bisect;
+    case verify::program_mode::layerwise: return migraphx_program_verify_mode_layerwise;
+    }
+    MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown program verification mode");
+}
+
+static verify::program_precision
+to_program_verify_precision(migraphx_program_verify_precision_t precision)
+{
+    switch(precision)
+    {
+    case migraphx_program_verify_precision_fp32: return verify::program_precision::fp32;
+    case migraphx_program_verify_precision_fp16: return verify::program_precision::fp16;
+    case migraphx_program_verify_precision_bf16: return verify::program_precision::bf16;
+    }
+    MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown program verification precision");
+}
+
 template <class T>
 static auto to_obj_vector(const T* x, std::size_t n)
 {
@@ -189,6 +234,25 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+static void set_compile_mode(compile_options& options, int8_t value)
+{
+    options.compile_mode = convert_to_compile_mode(value);
+}
+
+static void set_program_verify_compiled_model(verify::program_options& options, const char* value)
+{
+    if(value == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Compiled model path cannot be null");
+    options.compiled_model = value;
+}
+
+static void set_program_verify_name(verify::program_options& options, const char* value)
+{
+    if(value == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Verification name cannot be null");
+    options.name = value;
+}
+
 // Parse the backend options from `options_json` and merge them into the
 // compile options. See migraphx::set_backend_options for the merge semantics.
 static void set_backend_options(compile_options& options, const char* options_json, va_list vlist)
@@ -199,6 +263,44 @@ static void set_backend_options(compile_options& options, const char* options_js
 }
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
+
+// Parse an expression string and bind each provided symbol name to the bounds/optimals
+// carried by its range dynamic_dimension, producing a symbolic dynamic_dimension.
+static shape::dynamic_dimension make_symbolic_dynamic_dimension(
+    const char* expression,
+    const std::unordered_map<std::string, shape::dynamic_dimension>& symbols)
+{
+    return shape::make_symbolic_dynamic_dimension(expression, symbols);
+}
+
+// Build a symbolic shape from self-contained expression strings. The C API takes explicit string
+// arrays and sizes because declaring std::vector<std::string> in the API generator would select
+// its global migraphx_quantize_op_names_t mapping and expose that unrelated opaque handle here.
+static std::vector<std::string>
+make_expression_strings(const char* const* expressions, std::size_t size, const std::string& name)
+{
+    if(size == 0)
+        return {};
+    if(expressions == nullptr or
+       std::any_of(expressions, expressions + size, [](const char* expression) {
+           return expression == nullptr;
+       }))
+        MIGRAPHX_THROW("CREATE_SYMBOLIC_SHAPE: Null " + name + " expression");
+    return {expressions, expressions + size};
+}
+
+static shape create_symbolic_shape(shape::type_t t,
+                                   const char* const* dims,
+                                   std::size_t ndims,
+                                   const char* const* strides,
+                                   std::size_t nstrides)
+{
+    return shape::make_symbolic_shape(t,
+                                      make_expression_strings(dims, ndims, "dimension"),
+                                      make_expression_strings(strides, nstrides, "stride"));
+}
+
+#ifdef MIGRAPHX_ENABLE_ONNX
 
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
@@ -232,9 +334,23 @@ static void set_use_debug_symbols(onnx_options& options, bool value)
     options.use_debug_symbols = value;
 }
 
+static void
+set_dim_param(onnx_options& options, const char* name, const shape::dynamic_dimension& dd)
+{
+    options.dim_params[std::string(name)] = dd;
+}
+
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 static void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
+
+#endif
+
+#ifdef MIGRAPHX_ENABLE_ONNX
 
 static void
 set_input_parameter_shape(onnx_options& options, const char* name, std::vector<std::size_t> dims)
@@ -249,6 +365,10 @@ static void set_dyn_input_parameter_shape(onnx_options& options,
     options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 static void
 set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
 {
@@ -259,6 +379,8 @@ static void set_output_names(tf_options& options, std::vector<const char*> names
 {
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
+
+#endif
 
 static std::vector<argument>
 run_async(program& p, const parameter_map& params, void* s, std::string_view name)
@@ -343,12 +465,16 @@ static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_optio
     migraphx::quantize_fp8(prog, t, options.calibration);
 }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 static size_t get_onnx_operators_size() { return migraphx::get_onnx_operators().size(); }
 
 static char* get_onnx_operator_name_at_index(std::size_t index)
 {
     return const_cast<char*>(get_onnx_operators().at(index).c_str()); // NOLINT
 }
+
+#endif
 
 #ifdef __clang__
 #pragma clang diagnostic push
@@ -391,6 +517,12 @@ static void print_module(const module& m) { std::cout << m << std::endl; }
 static migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s)
 {
     return m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}), {});
+}
+
+static migraphx::instruction_ref
+add_literal(module& m, const migraphx::shape& s, const char* buffer)
+{
+    return m.add_literal(migraphx::literal::from_raw_buffer(s, buffer));
 }
 
 struct experimental_custom_op
@@ -554,6 +686,17 @@ struct migraphx_optimals
     std::set<size_t> object;
 };
 
+extern "C" struct migraphx_symbol_bounds;
+struct migraphx_symbol_bounds
+{
+    template <class... Ts>
+    migraphx_symbol_bounds(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    std::unordered_map<std::string, migraphx::shape::dynamic_dimension> object;
+};
+
 extern "C" struct migraphx_dynamic_dimension;
 struct migraphx_dynamic_dimension
 {
@@ -706,6 +849,39 @@ struct migraphx_trace_info
     {
     }
     migraphx::trace_info object;
+};
+
+extern "C" struct migraphx_program_verify_options;
+struct migraphx_program_verify_options
+{
+    template <class... Ts>
+    migraphx_program_verify_options(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::verify::program_options object;
+};
+
+extern "C" struct migraphx_program_verify_layer_result;
+struct migraphx_program_verify_layer_result
+{
+    template <class... Ts>
+    migraphx_program_verify_layer_result(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::verify::layer_result object;
+};
+
+extern "C" struct migraphx_program_verify_result;
+struct migraphx_program_verify_result
+{
+    template <class... Ts>
+    migraphx_program_verify_result(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::verify::program_result object;
 };
 
 extern "C" struct migraphx_program;
@@ -948,6 +1124,42 @@ migraphx_optimals_create(migraphx_optimals_t* optimals, const size_t* ptr, size_
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_symbol_bounds_destroy(migraphx_symbol_bounds_t symbol_bounds)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((symbol_bounds)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_symbol_bounds_assign_to(migraphx_symbol_bounds_t output,
+                                                            const_migraphx_symbol_bounds_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_symbol_bounds_create(migraphx_symbol_bounds_t* symbol_bounds)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *symbol_bounds = object_cast<migraphx_symbol_bounds_t>(
+            allocate<std::unordered_map<std::string, migraphx::shape::dynamic_dimension>>());
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_symbol_bounds_add(migraphx_symbol_bounds_t symbol_bounds,
+                                                      const char* name,
+                                                      const_migraphx_dynamic_dimension_t dd)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(symbol_bounds == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter symbol_bounds: Null pointer");
+        if(dd == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dd: Null pointer");
+        (symbol_bounds->object)[(name)] = (dd->object);
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension)
 {
@@ -989,6 +1201,21 @@ migraphx_dynamic_dimension_create_min_max_optimals(migraphx_dynamic_dimension_t*
 }
 
 extern "C" migraphx_status
+migraphx_dynamic_dimension_create_symbolic(migraphx_dynamic_dimension_t* dynamic_dimension,
+                                           const char* expression,
+                                           const_migraphx_symbol_bounds_t symbols)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(symbols == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter symbols: Null pointer");
+        *dynamic_dimension =
+            object_cast<migraphx_dynamic_dimension_t>(allocate<migraphx::shape::dynamic_dimension>(
+                migraphx::make_symbolic_dynamic_dimension((expression), (symbols->object))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
 migraphx_dynamic_dimension_is_fixed(bool* out, const_migraphx_dynamic_dimension_t dynamic_dimension)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -996,6 +1223,19 @@ migraphx_dynamic_dimension_is_fixed(bool* out, const_migraphx_dynamic_dimension_
             MIGRAPHX_THROW(migraphx_status_bad_param,
                            "Bad parameter dynamic_dimension: Null pointer");
         *out = (dynamic_dimension->object).is_fixed();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimension_is_symbolic(bool* out,
+                                       const_migraphx_dynamic_dimension_t dynamic_dimension)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(dynamic_dimension == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter dynamic_dimension: Null pointer");
+        *out = (dynamic_dimension->object).is_symbolic();
     });
     return api_error_result;
 }
@@ -1138,6 +1378,21 @@ extern "C" migraphx_status migraphx_shape_create_dynamic(migraphx_shape_t* shape
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
         *shape = object_cast<migraphx_shape_t>(
             allocate<migraphx::shape>((migraphx::to_shape_type(type)), (dims->object)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_create_symbolic(migraphx_shape_t* shape,
+                                                          migraphx_shape_datatype_t type,
+                                                          const char* const* dims,
+                                                          size_t ndims,
+                                                          const char* const* strides,
+                                                          size_t nstrides)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *shape =
+            object_cast<migraphx_shape_t>(allocate<migraphx::shape>(migraphx::create_symbolic_shape(
+                (migraphx::to_shape_type(type)), (dims), (ndims), (strides), (nstrides))));
     });
     return api_error_result;
 }
@@ -1703,7 +1958,7 @@ extern "C" migraphx_status migraphx_module_add_literal(migraphx_instruction_t* o
         if(shape == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
         *out = allocate<migraphx_instruction_t>(
-            (module->object).add_literal((shape->object), (buffer)));
+            migraphx::add_literal((module->object), (shape->object), (buffer)));
     });
     return api_error_result;
 }
@@ -1809,6 +2064,333 @@ extern "C" migraphx_status migraphx_trace_info_get_result(const_migraphx_argumen
     return api_error_result;
 }
 
+extern "C" migraphx_status
+migraphx_program_verify_options_destroy(migraphx_program_verify_options_t program_verify_options)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((program_verify_options)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_program_verify_options_assign_to(migraphx_program_verify_options_t output,
+                                          const_migraphx_program_verify_options_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_program_verify_options_create(migraphx_program_verify_options_t* program_verify_options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *program_verify_options = object_cast<migraphx_program_verify_options_t>(
+            allocate<migraphx::verify::program_options>());
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_options_set_compile_options(
+    migraphx_program_verify_options_t program_verify_options,
+    const_migraphx_compile_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_options: Null pointer");
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        (program_verify_options->object).compile = (options->object);
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_options_set_rms_tolerance(
+    migraphx_program_verify_options_t program_verify_options, double value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_options: Null pointer");
+        (program_verify_options->object).tols.rms_tol = (value);
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_options_set_absolute_tolerance(
+    migraphx_program_verify_options_t program_verify_options, double value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_options: Null pointer");
+        (program_verify_options->object).tols.atol = (value);
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_options_set_relative_tolerance(
+    migraphx_program_verify_options_t program_verify_options, double value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_options: Null pointer");
+        (program_verify_options->object).tols.rtol = (value);
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_options_set_precision(
+    migraphx_program_verify_options_t program_verify_options,
+    migraphx_program_verify_precision_t precision)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_options: Null pointer");
+        (program_verify_options->object).quantize =
+            (migraphx::to_program_verify_precision(precision));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_options_set_ref_use_double(
+    migraphx_program_verify_options_t program_verify_options, bool value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_options: Null pointer");
+        (program_verify_options->object).ref_use_double = (value);
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_options_set_compiled_model(
+    migraphx_program_verify_options_t program_verify_options, const char* value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_options: Null pointer");
+        migraphx::set_program_verify_compiled_model((program_verify_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_program_verify_options_set_name(migraphx_program_verify_options_t program_verify_options,
+                                         const char* value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_options: Null pointer");
+        migraphx::set_program_verify_name((program_verify_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_layer_result_destroy(
+    migraphx_program_verify_layer_result_t program_verify_layer_result)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((program_verify_layer_result)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_program_verify_layer_result_assign_to(migraphx_program_verify_layer_result_t output,
+                                               const_migraphx_program_verify_layer_result_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_layer_result_get_name(
+    const char** out, const_migraphx_program_verify_layer_result_t program_verify_layer_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(program_verify_layer_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_layer_result: Null pointer");
+        *out = (program_verify_layer_result->object).name.c_str();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_layer_result_get_operator(
+    const char** out, const_migraphx_program_verify_layer_result_t program_verify_layer_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(program_verify_layer_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_layer_result: Null pointer");
+        *out = (program_verify_layer_result->object).op.c_str();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_layer_result_get_message(
+    const char** out, const_migraphx_program_verify_layer_result_t program_verify_layer_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(program_verify_layer_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_layer_result: Null pointer");
+        *out = (program_verify_layer_result->object).message.c_str();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_layer_result_get_index(
+    size_t* out, const_migraphx_program_verify_layer_result_t program_verify_layer_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_layer_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_layer_result: Null pointer");
+        *out = (program_verify_layer_result->object).index;
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_layer_result_get_rms_error(
+    double* out, const_migraphx_program_verify_layer_result_t program_verify_layer_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_layer_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_layer_result: Null pointer");
+        *out = (program_verify_layer_result->object).rms_error;
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_layer_result_passed(
+    bool* out, const_migraphx_program_verify_layer_result_t program_verify_layer_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_layer_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_layer_result: Null pointer");
+        *out = (program_verify_layer_result->object).passed;
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_layer_result_threw_exception(
+    bool* out, const_migraphx_program_verify_layer_result_t program_verify_layer_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_layer_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_layer_result: Null pointer");
+        *out = (program_verify_layer_result->object).exception;
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_program_verify_result_destroy(migraphx_program_verify_result_t program_verify_result)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((program_verify_result)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_program_verify_result_assign_to(migraphx_program_verify_result_t output,
+                                         const_migraphx_program_verify_result_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_program_verify_result_passed(bool* out,
+                                      const_migraphx_program_verify_result_t program_verify_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_result: Null pointer");
+        *out = (program_verify_result->object).passed();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_result_get_mode(
+    migraphx_program_verify_mode_t* out,
+    const_migraphx_program_verify_result_t program_verify_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(program_verify_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_result: Null pointer");
+        *out = migraphx::to_program_verify_mode((program_verify_result->object).mode);
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_program_verify_result_size(size_t* out,
+                                    const_migraphx_program_verify_result_t program_verify_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_result: Null pointer");
+        *out = (program_verify_result->object).results.size();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_program_verify_result_get(const_migraphx_program_verify_layer_result_t* out,
+                                   const_migraphx_program_verify_result_t program_verify_result,
+                                   size_t index)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_result: Null pointer");
+        *out = object_cast<const_migraphx_program_verify_layer_result_t>(
+            &((program_verify_result->object).results.at((index))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_result_has_failure_step(
+    bool* out, const_migraphx_program_verify_result_t program_verify_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_result: Null pointer");
+        *out = (program_verify_result->object).failure_step.has_value();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify_result_get_failure_step(
+    size_t* out, const_migraphx_program_verify_result_t program_verify_result)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_verify_result == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_verify_result: Null pointer");
+        *out = (program_verify_result->object).failure_step.value();
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_program_destroy(migraphx_program_t program)
 {
     auto api_error_result = migraphx::try_([&] { destroy((program)); });
@@ -1907,6 +2489,32 @@ extern "C" migraphx_status migraphx_program_sort(migraphx_program_t program)
         if(program == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
         (program->object).sort();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_verify(migraphx_program_verify_result_t* out,
+                                                   const_migraphx_program_t program,
+                                                   const_migraphx_target_t target,
+                                                   migraphx_program_verify_mode_t mode,
+                                                   const_migraphx_program_parameters_t params,
+                                                   const_migraphx_program_verify_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        if(target == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter target: Null pointer");
+        if(params == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_verify_result_t>(
+            migraphx::verify::verify_program((program->object),
+                                             (target->object),
+                                             (migraphx::to_program_verify_mode(mode)),
+                                             (params->object),
+                                             (options->object)));
     });
     return api_error_result;
 }
@@ -2178,6 +2786,44 @@ migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_onnx_options_set_dim_param(
+    migraphx_onnx_options_t onnx_options, const char* name, const_migraphx_dynamic_dimension_t dd)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        if(dd == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dd: Null pointer");
+        migraphx::set_dim_param((onnx_options->object), (name), (dd->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_t>(migraphx::parse_onnx((name), (options->object)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
+                                                      const void* data,
+                                                      size_t size,
+                                                      migraphx_onnx_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_t>(
+            migraphx::parse_onnx_buffer((data), (size), (options->object)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_file_options_destroy(migraphx_file_options_t file_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((file_options)); });
@@ -2272,6 +2918,18 @@ migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t com
     return api_error_result;
 }
 
+extern "C" migraphx_status
+migraphx_compile_options_set_compile_mode(migraphx_compile_options_t compile_options, int8_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_compile_mode((compile_options->object), (value));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_compile_options_set_advance_backend_options(
     migraphx_compile_options_t compile_options, const char* options_json, ...)
 {
@@ -2284,31 +2942,6 @@ extern "C" migraphx_status migraphx_compile_options_set_advance_backend_options(
         migraphx::set_backend_options((compile_options->object), (options_json), (vlist));
     });
     va_end(vlist);
-    return api_error_result;
-}
-
-extern "C" migraphx_status
-migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(options == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
-        *out = allocate<migraphx_program_t>(migraphx::parse_onnx((name), (options->object)));
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
-                                                      const void* data,
-                                                      size_t size,
-                                                      migraphx_onnx_options_t options)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(options == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
-        *out = allocate<migraphx_program_t>(
-            migraphx::parse_onnx_buffer((data), (size), (options->object)));
-    });
     return api_error_result;
 }
 

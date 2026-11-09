@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_CONFIG_HPP
 #define MIGRAPHX_GUARD_CONFIG_HPP
 
+#include <migraphx/config.h>
 #include <migraphx/export.h>
 #include <ciso646>
 

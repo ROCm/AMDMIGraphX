@@ -103,6 +103,16 @@ static bool insert_mlss_conv(module& m,
        (cur_padding[0] != cur_padding[2] or cur_padding[1] != cur_padding[3]))
         return false;
 
+    // mlss_conv does not implement grouped convolution. The jit compiler passes
+    // G=1 in the kernel args, cg as the full channel count rather than C/g, and
+    // the batch strides as the group strides; the launch would also be short by
+    // a factor of `group`, since AMDMLSS reports its grid as nGroups * group
+    // while the dispatch derives its workgroup count with G=1. AMDMLSS may
+    // still return a binary for the group it sees, so reject here before
+    // fusing.
+    if(cur_group != 1)
+        return false;
+
     // Check if AMDMLSS has a kernel for this configuration
     auto info = query_mlss_conv_binary(*ctx,
                                        act_lens,

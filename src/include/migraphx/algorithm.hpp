@@ -50,6 +50,23 @@ void transform_if(Iterator start, Iterator last, Output out, Predicate pred, F f
     }
 }
 
+/// Two-range overload; the second range must have at least as many elements as [first1, last1)
+template <class Iterator1, class Iterator2, class Output, class Predicate, class F>
+void transform_if(
+    Iterator1 first1, Iterator1 last1, Iterator2 first2, Output out, Predicate pred, F f)
+{
+    while(first1 != last1)
+    {
+        if(pred(*first1, *first2))
+        {
+            *out = f(*first1, *first2);
+            ++out;
+        }
+        ++first1;
+        ++first2;
+    }
+}
+
 /// Similiar to std::accumulate but a projection can be applied to the elements first
 template <class Iterator, class T, class BinaryOp, class UnaryOp>
 T transform_accumulate(Iterator first, Iterator last, T init, BinaryOp binop, UnaryOp unaryop)
@@ -178,6 +195,20 @@ Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
     *first = std::move(*i);
     ++first;
     return first;
+}
+
+/// Similiar to std::transform but instead pass adjacent pairs to the function. Unlike
+/// std::adjacent_difference, the first element is not copied to the output, so one less element is
+/// written and the output can have a different type than the input.
+template <class Iterator, class Output, class F>
+Output adjacent_transform(Iterator first, Iterator last, Output out, F f)
+{
+    if(first == last)
+        return out;
+    // Transform the range offset by one with the original range to get the adjacent pairs
+    return std::transform(std::next(first), last, first, out, [&](auto&& after, auto&& before) {
+        return f(before, after);
+    });
 }
 
 /// Similiar to std::for_each but instead pass adjacent pairs to the function

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_TEST_RUN_VERIFY_HPP
 
 #include <migraphx/program.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <functional>
 #include <map>
 
@@ -36,6 +37,7 @@ struct target_info
     bool parallel = true;
     validation_function validate;
     std::vector<std::string> disabled_tests;
+    std::vector<migraphx::compile_modes> compile_modes = {migraphx::compile_modes::balanced};
 };
 
 struct run_verify
@@ -60,6 +62,8 @@ struct run_verify
     void disable_parallel_for(const std::string& name);
     void add_validation_for(const std::string& name, target_info::validation_function v);
     void disable_test_for(const std::string& name, const std::vector<std::string>& tests);
+    void set_compile_modes_for(const std::string& name,
+                               const std::vector<migraphx::compile_modes>& modes);
 
     private:
     std::map<std::string, target_info> info{};

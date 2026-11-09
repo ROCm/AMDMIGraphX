@@ -90,21 +90,21 @@ The cross-compile target and context
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The GPU ``target`` (``src/targets/gpu/include/migraphx/gpu/target.hpp``) stores
-the requested architecture and synthetic device parameters. It reports
+the requested architecture and device parameters in a ``device_description``
+(``src/targets/gpu/include/migraphx/gpu/device_description.hpp``). It reports
 cross-compile mode when an architecture is set:
 
 .. code-block:: cpp
 
-    bool is_cross_compile() const { return not gpu_arch.empty(); }
+    bool is_cross_compile() const { return not desc.arch.empty(); }
 
-In cross-compile mode, ``target::get_context()`` builds a context backed by a
-synthetic ``hipDeviceProp_t`` instead of querying a real device. The synthetic
-properties are filled in by ``make_cross_compile_device_props``
-(``src/targets/gpu/cross_compile_device.cpp``), which sets the arch name, compute
-unit count, chiplet count, max threads, and wavefront size. When
-``gpu_wavefront_size`` is ``0``, wavefront size is inferred from the architecture
-(wave32 for RDNA ``gfx10``/``gfx11``/``gfx12``, wave64 otherwise); otherwise the
-explicit ``32`` or ``64`` override is used.
+In cross-compile mode, ``target::get_context()`` builds a context from that
+description instead of querying a real device with
+``device_description::from_device``. The description is completed by
+``device_description::normalize``, so when ``gpu_wavefront_size`` is ``0`` the
+wavefront size is inferred from the architecture (wave32 for RDNA
+``gfx10``/``gfx11``/``gfx12``, wave64 otherwise); otherwise the explicit ``32``
+or ``64`` override is used.
 
 A cross-compile context cannot touch a device. The target's ``copy_to``,
 ``copy_from``, and ``allocate`` all throw in this mode, and the context's

@@ -41,6 +41,7 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/lifetime.hpp>
+#include <migraphx/sym_argument.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -62,6 +63,9 @@ struct operation
     /// operation cannot be run with input shapes, then it should throw an
     /// exception.
     shape compute_shape(const std::vector<shape>& input) const;
+    /// Optionally compute exact symbolic values stored in a tensor.
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const;
     /**
      * @brief This performs the operation's computation.
      *
@@ -165,6 +169,29 @@ template <class T>
 shape compute_shape_op(const T& x, const std::vector<shape>& inputs)
 {
     return compute_shape_op(rank<3>{}, x, inputs);
+}
+
+template <class T>
+auto symbolic_compute_op(rank<1>,
+                         const T& x,
+                         const shape& output_shape,
+                         const std::vector<sym_argument>& args)
+    -> decltype(x.symbolic_compute(output_shape, args))
+{
+    return x.symbolic_compute(output_shape, args);
+}
+
+template <class T>
+sym_argument symbolic_compute_op(rank<0>, const T&, const shape&, const std::vector<sym_argument>&)
+{
+    return {};
+}
+
+template <class T>
+sym_argument
+symbolic_compute_op(const T& x, const shape& output_shape, const std::vector<sym_argument>& args)
+{
+    return symbolic_compute_op(rank<1>{}, x, output_shape, args);
 }
 
 template <class T>
@@ -413,39 +440,81 @@ std::vector<std::size_t> output_alias_op(const T&, const std::vector<shape>&)
 }
 
 template <class T>
-auto finalize_op(
-    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+auto finalize_op(rank<2>,
+                 T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input,
+                 const std::vector<module_ref>& mod_args)
+    -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input, mod_args), void())
+{
+    x.finalize(auto_any_cast(ctx), output_shape, input, mod_args);
+}
+
+template <class T>
+auto finalize_op(rank<1>,
+                 T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input,
+                 const std::vector<module_ref>&)
     -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input), void())
 {
     x.finalize(auto_any_cast(ctx), output_shape, input);
 }
 
 template <class T>
-void finalize_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+void finalize_op(
+    rank<0>, T&, context&, const shape&, const std::vector<shape>&, const std::vector<module_ref>&)
 {
+}
+
+template <class T>
+void finalize_op(T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input,
+                 const std::vector<module_ref>& mod_args)
+{
+    finalize_op(rank<2>{}, x, ctx, output_shape, input, mod_args);
 }
 
 template <class T>
 void finalize_op(T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
 {
-    finalize_op(rank<1>{}, x, ctx, output_shape, input);
+    finalize_op(rank<1>{}, x, ctx, output_shape, input, {});
 }
 
 template <class T>
-auto has_finalize_op(
-    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+auto has_finalize_op(rank<2>,
+                     T& x,
+                     context& ctx,
+                     const shape& output_shape,
+                     const std::vector<shape>& input,
+                     const std::vector<module_ref>& mod_args)
+    -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input, mod_args), std::true_type{});
+
+template <class T>
+auto has_finalize_op(rank<1>,
+                     T& x,
+                     context& ctx,
+                     const shape& output_shape,
+                     const std::vector<shape>& input,
+                     const std::vector<module_ref>&)
     -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input), std::true_type{});
 
 template <class T>
-auto has_finalize_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+auto has_finalize_op(
+    rank<0>, T&, context&, const shape&, const std::vector<shape>&, const std::vector<module_ref>&)
     -> std::false_type;
 
 template <class T>
-auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
+auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<2>{},
                                                            std::declval<T&>(),
                                                            std::declval<context&>(),
                                                            std::declval<const shape&>(),
-                                                           std::declval<std::vector<shape>>()))
+                                                           std::declval<std::vector<shape>>(),
+                                                           std::declval<std::vector<module_ref>>()))
 {
     return {};
 }
@@ -523,10 +592,18 @@ struct MIGRAPHX_EXPORT operation
     // (optional)
     void finalize(context& ctx, const shape& output, const std::vector<shape>& input);
     // (optional)
+    void finalize(context& ctx,
+                  const shape& output,
+                  const std::vector<shape>& input,
+                  const std::vector<module_ref>& mod_args);
+    // (optional)
     shape compute_shape(const std::vector<shape>& input) const;
     // (optional)
     shape compute_shape(const std::vector<shape>& inputs,
                         const std::vector<module_ref>& mod_args) const;
+    // (optional)
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const;
     // (optional)
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
     // (optional)
@@ -672,6 +749,29 @@ struct operation
     }
 
     template <class T>
+    static auto private_detail_te_default_finalize(char,
+                                                   T&& private_detail_te_self,
+                                                   context& ctx,
+                                                   const shape& output,
+                                                   const std::vector<shape>& input,
+                                                   const std::vector<module_ref>& mod_args)
+        -> decltype(private_detail_te_self.finalize(ctx, output, input, mod_args))
+    {
+        private_detail_te_self.finalize(ctx, output, input, mod_args);
+    }
+
+    template <class T>
+    static void private_detail_te_default_finalize(float,
+                                                   T&& private_detail_te_self,
+                                                   context& ctx,
+                                                   const shape& output,
+                                                   const std::vector<shape>& input,
+                                                   const std::vector<module_ref>& mod_args)
+    {
+        detail::finalize_op(private_detail_te_self, ctx, output, input, mod_args);
+    }
+
+    template <class T>
     static auto private_detail_te_default_compute_shape(char,
                                                         T&& private_detail_te_self,
                                                         const std::vector<shape>& input)
@@ -705,6 +805,26 @@ struct operation
                                                          const std::vector<module_ref>& mod_args)
     {
         return detail::mod_compute_shape_op(private_detail_te_self, inputs, mod_args);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_symbolic_compute(char,
+                                                           T&& private_detail_te_self,
+                                                           const shape& output_shape,
+                                                           const std::vector<sym_argument>& args)
+        -> decltype(private_detail_te_self.symbolic_compute(output_shape, args))
+    {
+        return private_detail_te_self.symbolic_compute(output_shape, args);
+    }
+
+    template <class T>
+    static sym_argument
+    private_detail_te_default_symbolic_compute(float,
+                                               T&& private_detail_te_self,
+                                               const shape& output_shape,
+                                               const std::vector<sym_argument>& args)
+    {
+        return detail::symbolic_compute_op(private_detail_te_self, output_shape, args);
     }
 
     template <class T>
@@ -884,6 +1004,12 @@ struct operation
                                                     std::declval<context&>(),
                                                     std::declval<const shape&>(),
                                                     std::declval<const std::vector<shape>&>()),
+                 private_detail_te_default_finalize(char(0),
+                                                    std::declval<PrivateDetailTypeErasedT>(),
+                                                    std::declval<context&>(),
+                                                    std::declval<const shape&>(),
+                                                    std::declval<const std::vector<shape>&>(),
+                                                    std::declval<const std::vector<module_ref>&>()),
                  private_detail_te_default_compute_shape(char(0),
                                                          std::declval<PrivateDetailTypeErasedT>(),
                                                          std::declval<const std::vector<shape>&>()),
@@ -892,6 +1018,11 @@ struct operation
                      std::declval<PrivateDetailTypeErasedT>(),
                      std::declval<const std::vector<shape>&>(),
                      std::declval<const std::vector<module_ref>&>()),
+                 private_detail_te_default_symbolic_compute(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<const shape&>(),
+                     std::declval<const std::vector<sym_argument>&>()),
                  private_detail_te_default_compute(char(0),
                                                    std::declval<PrivateDetailTypeErasedT>(),
                                                    std::declval<context&>(),
@@ -1047,6 +1178,15 @@ struct operation
         (*this).private_detail_te_get_handle().finalize(ctx, output, input);
     }
 
+    void finalize(context& ctx,
+                  const shape& output,
+                  const std::vector<shape>& input,
+                  const std::vector<module_ref>& mod_args)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().finalize(ctx, output, input, mod_args);
+    }
+
     shape compute_shape(const std::vector<shape>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -1058,6 +1198,13 @@ struct operation
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().compute_shape(inputs, mod_args);
+    }
+
+    sym_argument symbolic_compute(const shape& output_shape,
+                                  const std::vector<sym_argument>& args) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().symbolic_compute(output_shape, args);
     }
 
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const
@@ -1147,10 +1294,16 @@ struct operation
         virtual value
         compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
         virtual void
-        finalize(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
-        virtual shape compute_shape(const std::vector<shape>& input) const           = 0;
+        finalize(context& ctx, const shape& output, const std::vector<shape>& input)       = 0;
+        virtual void finalize(context& ctx,
+                              const shape& output,
+                              const std::vector<shape>& input,
+                              const std::vector<module_ref>& mod_args)                     = 0;
+        virtual shape compute_shape(const std::vector<shape>& input) const                 = 0;
         virtual shape compute_shape(const std::vector<shape>& inputs,
-                                    const std::vector<module_ref>& mod_args) const   = 0;
+                                    const std::vector<module_ref>& mod_args) const         = 0;
+        virtual sym_argument symbolic_compute(const shape& output_shape,
+                                              const std::vector<sym_argument>& args) const = 0;
         virtual argument
         compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
         virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
@@ -1247,6 +1400,16 @@ struct operation
                 char(0), private_detail_te_value, ctx, output, input);
         }
 
+        void finalize(context& ctx,
+                      const shape& output,
+                      const std::vector<shape>& input,
+                      const std::vector<module_ref>& mod_args) override
+        {
+
+            private_detail_te_default_finalize(
+                char(0), private_detail_te_value, ctx, output, input, mod_args);
+        }
+
         shape compute_shape(const std::vector<shape>& input) const override
         {
 
@@ -1259,6 +1422,14 @@ struct operation
 
             return private_detail_te_default_compute_shape(
                 char(0), private_detail_te_value, inputs, mod_args);
+        }
+
+        sym_argument symbolic_compute(const shape& output_shape,
+                                      const std::vector<sym_argument>& args) const override
+        {
+
+            return private_detail_te_default_symbolic_compute(
+                char(0), private_detail_te_value, output_shape, args);
         }
 
         argument compute(context& ctx,
@@ -1332,6 +1503,8 @@ struct operation
             return private_detail_te_value == y;
         }
 
+        // A reference when type-erasing a std::reference_wrapper for reference semantics.
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
         PrivateDetailTypeErasedT private_detail_te_value;
     };
 

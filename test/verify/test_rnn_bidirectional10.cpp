@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-
-#include <migraphx/serialize.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 #include <migraphx/op/common.hpp>
 
@@ -40,7 +39,6 @@ struct test_rnn_bidirectional10 : verify_program<test_rnn_bidirectional10>
         std::size_t hidden_size = 4;
         std::size_t input_size  = 3;
         std::size_t num_dirct   = 2;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -56,22 +54,13 @@ struct test_rnn_bidirectional10 : verify_program<test_rnn_bidirectional10>
         auto bias   = mm->add_parameter("bias", b_shape);
         auto ih     = mm->add_parameter("ih", ih_shape);
         auto und    = mm->add_instruction(migraphx::make_op("undefined"));
-        auto output = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), output);
+        migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"actv_func",
+              migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
 
         return p;
     }

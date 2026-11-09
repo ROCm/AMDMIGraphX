@@ -66,14 +66,14 @@ channelwise_conv_accumulate(Halo x_ch, Weights wregs, Pos out_multi, Stride, Dil
     constexpr auto dilation       = Dilation{};
     constexpr index_int halo_rows = (NRows - 1) * stride[2] + (kh - 1) * dilation[2] + 1;
     static_assert(halo_rows <= get_shape_c<Halo>{}.lens[2], "Row run reads past the halo");
-    constexpr auto col_shape      = make_shape(return_array_c([] {
+    constexpr auto col_shape = make_shape(return_array_c([] {
         auto result = get_shape_c<Weights>{}.lens;
         result[0]   = 1;
         result[2]   = 1;
         return result;
     }));
-    constexpr auto acc_shape      = make_shape(index_ints<NRows, ChannelVec>{});
-    constexpr auto col_rows       = make_shape(index_ints<halo_rows, ChannelVec>{});
+    constexpr auto acc_shape = make_shape(index_ints<NRows, ChannelVec>{});
+    constexpr auto col_rows  = make_shape(index_ints<halo_rows, ChannelVec>{});
     array<float, acc_shape.elements()> acc{};
     auto in_multi = out_multi * stride;
     repeat(col_shape.elements(), [&](auto j) {

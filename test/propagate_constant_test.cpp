@@ -25,6 +25,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <basic_ops.hpp>
 
@@ -629,6 +630,42 @@ TEST_CASE(propagate_narrowing_convert)
         m2.add_instruction(non_const_pass_op{}, lit);
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(propagate_widening_convert_of_scalar)
+{
+    migraphx::module m1;
+    {
+        auto lit  = m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {5.0f}});
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), lit);
+        m1.add_instruction(non_const_pass_op{}, conv);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto lit =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{5}}});
+        m2.add_instruction(non_const_pass_op{}, lit);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(propagate_widening_convert_of_broadcast_scalar)
+{
+    migraphx::module m1;
+    {
+        auto lit = m1.add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {2}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), lit);
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), mb);
+        m1.add_instruction(non_const_pass_op{}, conv);
+    }
+    run_pass(m1);
+    EXPECT(std::none_of(m1.begin(), m1.end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "convert";
+    }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

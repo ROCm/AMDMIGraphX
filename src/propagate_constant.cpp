@@ -41,9 +41,13 @@ static bool skip_propagate(instruction_ref ins)
     if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
         return skip_propagate(ins->inputs().front());
     // Folding a convert to a wider type would enlarge the literal and lose
-    // the smaller storage type, so keep it as a runtime conversion instead
+    // the smaller storage type, so keep it as a runtime conversion instead.
+    // A single element is still folded since fuse_pointwise does not create a
+    // pointwise module when every input is a scalar constant, which would
+    // leave the convert unlowered.
     if(ins->name() == "convert" and
-       ins->get_shape().type_size() > ins->inputs().front()->get_shape().type_size())
+       ins->get_shape().type_size() > ins->inputs().front()->get_shape().type_size() and
+       ins->inputs().front()->get_shape().element_space() > 1)
         return true;
     if(contains({"unpack_int4", "unpack_fp4"}, ins->name()))
         return true;

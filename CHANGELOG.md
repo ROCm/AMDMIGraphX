@@ -24,6 +24,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed parsing ONNX models whose sibling subgraphs (for example the bodies of two `Loop` nodes) use the same parameter names, which failed with "subgraph ... has parameter name ... existing in parent graph" (#5103).
 * Fixed `lower_reshape` returning a strided view as a program output when a reshape of a non-standard input (for example the last row sliced out of a KV-cache `concat`) reaches `@return`, which made `run` reject standard caller-provided output buffers (#5237).
 * Fixed `migraphx.argument` created from a Python buffer (for example a NumPy array) not keeping that buffer alive, which left a dangling pointer when the buffer was a temporary (ROCm/TheRock#8939).
 * Fixed `simplify_reshapes` generating invalid inverse shape transforms when moving an element-expanding shape-transform chain through a shared reduction (#5360).

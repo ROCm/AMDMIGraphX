@@ -247,9 +247,8 @@ TEST_CASE(gather_dot_unpack_int4)
         auto wd = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), w);
         auto wu = m2.add_instruction(migraphx::make_op("unpack_int4", {{"axis", 3}}), wd);
         auto sd = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), scales);
-        auto su = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), sd);
         auto sb = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 5, 4}}}), su);
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {4, 1, 5, 4}}}), sd);
         auto zb = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 5, 4}}}), zero);
         auto dq = m2.add_instruction(migraphx::make_op("dequantizelinear"), wu, sb, zb);

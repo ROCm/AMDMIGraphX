@@ -30,9 +30,9 @@
 
 #include <test.hpp>
 
-static void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m, const migraphx::rewrite_gather_dot& pass = {})
 {
-    migraphx::run_passes(m, {migraphx::rewrite_gather_dot{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {pass, migraphx::dead_code_elimination{}});
 }
 
 // Each of the 4 tokens is multiplied with the matrices of 2 of the 4 entries
@@ -325,6 +325,70 @@ TEST_CASE(gather_dot_fewer_rows)
     }
     migraphx::module m2 = m1;
     run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// A lower crossover uses the batched dot with fewer rows than entries: 6 rows
+// from 8 entries
+TEST_CASE(gather_dot_lower_crossover)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {3, 3}});
+        auto w   = m1.add_parameter("w", {migraphx::shape::float_type, {8, 3, 5}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {6}});
+        auto xu  = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto xb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 3}}}), xu);
+        auto xr  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 1, 3}}}), xb);
+        auto wg  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), xr, wg);
+        m1.add_return({dot});
+    }
+    run_pass(m1, {.min_rows_per_entry = 0.75f});
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", {migraphx::shape::float_type, {3, 3}});
+        auto w      = m2.add_parameter("w", {migraphx::shape::float_type, {8, 3, 5}});
+        auto idx    = m2.add_parameter("idx", {migraphx::shape::int32_type, {6}});
+        auto tokens = m2.add_literal(
+            migraphx::literal{{migraphx::shape::int32_type, {6, 1}}, {0, 0, 1, 1, 2, 2}});
+        auto xu = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto wd = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), w);
+        auto xm = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 3}}}), xu);
+        auto xe =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 3, 3}}}), xm);
+        auto wm      = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), wd);
+        auto dot     = m2.add_instruction(migraphx::make_op("dot"), xe, wm);
+        auto du      = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), dot);
+        auto entries = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), idx);
+        auto nd   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), entries, tokens);
+        auto rows = m2.add_instruction(migraphx::make_op("gathernd"), du, nd);
+        m2.add_return({rows});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A higher crossover keeps the gathered dots: 8 rows from 4 entries is 2 rows
+// per entry
+TEST_CASE(gather_dot_higher_crossover)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+        auto w   = m1.add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto xu  = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto xb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 2, 3}}}), xu);
+        auto xr  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {8, 1, 3}}}), xb);
+        auto wg  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), xr, wg);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.min_rows_per_entry = 2.5f});
     EXPECT(m1 == m2);
 }
 

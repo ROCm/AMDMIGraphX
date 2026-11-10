@@ -77,6 +77,7 @@ struct lifted_rows
 /// the table, as long as each row is computed from the same row of the inputs
 struct row_lifter
 {
+    float min_rows_per_entry = 1.0f;
     std::unordered_map<instruction_ref, row_group> groups;
     std::unordered_map<instruction_ref, lifted_rows> lifted;
 
@@ -218,8 +219,8 @@ struct row_lifter
             return nullopt;
         auto entries = dshape.lens().front();
         auto rows    = ishape.elements();
-        // With fewer rows than entries the gathers read less than the table
-        if(entries < 2 or rows < entries)
+        // With too few rows per entry the gathers read less than the whole table costs
+        if(entries < 2 or rows < min_rows_per_entry * entries)
             return nullopt;
         auto it = groups.emplace(indices, row_group{indices, entries, rows}).first;
         if(it->second.entries != entries)
@@ -420,7 +421,10 @@ struct row_lifter
 
 } // namespace
 
-void rewrite_gather_dot::apply(module& m) const { row_lifter{}.apply(m); }
+void rewrite_gather_dot::apply(module& m) const
+{
+    row_lifter{.min_rows_per_entry = min_rows_per_entry}.apply(m);
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

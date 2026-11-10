@@ -3235,19 +3235,16 @@ struct find_gather_op
 {
     auto matcher() const
     {
-        auto gather = match::name("gather")(match::used_once());
-        return match::any_of(match::pointwise(),
-                             reduction())(match::any_of[match::inputs()](gather));
+        auto gather = match::name("gather")(match::used_once()).bind("gather");
+        return match::all_of(match::any_of[match::inputs()](gather),
+                             match::any_of(match::pointwise(), reduction()));
     }
 
     static bool is_gather(instruction_ref ins) { return ins->name() == "gather"; }
 
     static std::size_t gather_axis(instruction_ref gather)
     {
-        auto axis = gather->get_operator().to_value().at("axis").to<std::int64_t>();
-        if(axis < 0)
-            axis += gather->inputs().front()->get_shape().ndim();
-        return axis;
+        return gather->normalized_operator().to_value().at("axis").to<std::size_t>();
     }
 
     /// Whether the input can be applied to the table: it is gathered the same
@@ -3256,32 +3253,29 @@ struct find_gather_op
     {
         if(input->get_shape().dynamic())
             return false;
-        if(not is_gather(input) and input->name() != "multibroadcast")
-            return false;
-        const auto& table  = gather->inputs().front()->get_shape();
-        const auto& source = input->inputs().front()->get_shape();
+        const auto& table = gather->inputs().front()->get_shape();
         if(is_gather(input))
             return input->outputs().size() == 1 and
                    input->get_operator() == gather->get_operator() and
                    input->inputs().back() == gather->inputs().back() and
-                   source.lens() == table.lens();
-        return input->get_shape().lens() == gather->get_shape().lens() and not source.dynamic() and
+                   input->inputs().front()->get_shape().lens() == table.lens();
+        if(input->name() != "multibroadcast")
+            return false;
+        const auto& source = input->inputs().front()->get_shape();
+        return input->get_shape().lens() == gather->get_shape().lens() and
                source.elements() == 1 and source.ndim() <= table.ndim();
     }
 
     /// The reduction applied to the table, if it does not reduce the gathered axis
     static optional<operation> table_reduce_op(instruction_ref ins, instruction_ref gather)
     {
-        auto v = ins->get_operator().to_value();
+        auto v = ins->normalized_operator().to_value();
         if(not v.contains("axes"))
             return nullopt;
-        std::int64_t ndim   = gather->get_shape().ndim();
         std::int64_t first  = gather_axis(gather);
         std::int64_t nindex = gather->inputs().back()->get_shape().ndim();
-        auto axes           = v.at("axes").to_vector<std::int64_t>();
-        std::transform(axes.begin(), axes.end(), axes.begin(), [&](std::int64_t axis) {
-            return axis < 0 ? axis + ndim : axis;
-        });
+        assert(nindex > 0);
+        auto axes = v.at("axes").to_vector<std::int64_t>();
         if(std::any_of(axes.begin(), axes.end(), [&](std::int64_t axis) {
                return axis >= first and axis < first + nindex;
            }))
@@ -3294,7 +3288,7 @@ struct find_gather_op
         return make_op(ins->name(), v);
     }
 
-    /// Whether the operator does less work or moves less data on the table
+    /// Whether the operator costs no more on the table than on the gathered rows
     static bool is_profitable(instruction_ref ins,
                               instruction_ref gather,
                               const std::vector<instruction_ref>& gathers)
@@ -3322,28 +3316,28 @@ struct find_gather_op
         if(not ins->module_inputs().empty() or ins->get_shape().dynamic())
             return;
         const auto& inputs = ins->inputs();
-        auto gather        = *std::find_if(inputs.begin(), inputs.end(), &is_gather);
+        auto gather        = r.instructions["gather"];
         auto indices       = gather->inputs().back();
-        // A scalar index removes the axis, which find_gather_scalar rewrites first
+        // Scalar indices remove the gathered axis, while table_reduce_op assumes they replace it
         if(indices->get_shape().dynamic() or indices->get_shape().scalar())
             return;
         if(not std::all_of(inputs.begin(), inputs.end(), [&](instruction_ref input) {
                return is_table_input(input, gather);
            }))
             return;
-        std::vector<instruction_ref> gathers;
-        std::copy_if(inputs.begin(), inputs.end(), std::back_inserter(gathers), &is_gather);
-        if(not is_profitable(ins, gather, gathers))
-            return;
 
         auto op = ins->get_operator();
         if(not op.attributes().contains("pointwise"))
         {
+            if(inputs.size() != 1)
+                return;
             auto reduce_op = table_reduce_op(ins, gather);
-            if(inputs.size() != 1 or not reduce_op.has_value())
+            if(not reduce_op.has_value())
                 return;
             op = *reduce_op;
         }
+        if(not is_profitable(ins, gather, find_all(inputs, &is_gather)))
+            return;
 
         const auto& table_lens = gather->inputs().front()->get_shape().lens();
         std::vector<instruction_ref> args;

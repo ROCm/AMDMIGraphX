@@ -271,8 +271,8 @@ TEST_CASE(gather_dot_unpack_int4)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Rows gathered for both inputs of the dot are the same for every token, so
-// the result is gathered with the indices alone
+// Both inputs of the dot are gathered, so each row depends only on its entry
+// and the result is gathered with the indices alone
 TEST_CASE(gather_dot_gathered_rows)
 {
     migraphx::module m1;

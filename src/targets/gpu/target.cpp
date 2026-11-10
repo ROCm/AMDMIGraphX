@@ -405,7 +405,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             p.dynamic_shapes_pipeline(),
             p.required_pipeline(),
             {optimize_module{},
-             dead_code_elimination{},
              rewrite_gather_dot{.min_rows_per_entry = backend_opts.gather_dot_min_rows_per_entry},
              dead_code_elimination{},
              rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,

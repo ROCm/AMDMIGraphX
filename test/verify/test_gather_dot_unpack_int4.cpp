@@ -24,13 +24,11 @@
 
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/instruction.hpp>
 
-// The gathered dot of a quantized MoE layer with as many rows as experts: the
-// packed weights of every expert are dequantized with float scales and
-// converted to the type of the dot
+// The gathered dot of a quantized MoE layer with 2 rows per expert: the packed
+// weights of every expert are dequantized with float scales and converted to
+// the type of the dot
 struct test_gather_dot_unpack_int4 : verify_program<test_gather_dot_unpack_int4>
 {
     migraphx::program create_program() const

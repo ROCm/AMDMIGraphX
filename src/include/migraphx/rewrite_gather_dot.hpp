@@ -33,17 +33,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 
-/// Rewrite dots whose matrices are gathered per row from a table, eg the
-/// weights of the experts selected for each token of a mixture of experts
-/// layer, into one batched dot over the whole table followed by a gather of
-/// the selected rows of the result. With enough rows per table entry the
-/// gathers read every matrix several times, whereas the batched dot reads
-/// each matrix once.
+/// Rewrites dots on matrices gathered per row from a table, such as MoE expert
+/// weights, into one batched dot over the whole table and a gather of its rows,
+/// so each matrix is read once instead of once per gathered row.
 struct MIGRAPHX_EXPORT rewrite_gather_dot
 {
-    /// The number of gathered rows per table entry from which the batched dot
-    /// is used. This is the crossover where the gathered dots become slower
-    /// than a dot over the whole table, which depends on the target.
+    /// Gathered rows per table entry from which the batched dot is used; the
+    /// crossover where it beats the gathered dots depends on the target.
     float min_rows_per_entry = 1.0f;
 
     std::string name() const { return "rewrite_gather_dot"; }

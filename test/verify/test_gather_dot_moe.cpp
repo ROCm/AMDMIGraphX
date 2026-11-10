@@ -24,12 +24,10 @@
 
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/instruction.hpp>
 
-// A MoE layer with as many rows as experts: each of the 4 tokens runs through
-// 2 of the 4 experts, so the gathered dots are computed for every expert
+// A MoE layer where each of the 4 tokens runs through 2 of the 4 experts: with
+// 2 rows per expert the gathered dots are computed for every expert
 struct test_gather_dot_moe : verify_program<test_gather_dot_moe>
 {
     migraphx::program create_program() const

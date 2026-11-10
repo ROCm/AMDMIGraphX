@@ -42,8 +42,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 
 /// The rows gathered with one index vector from tables of the same length.
-/// The rows may repeat over tokens, with the same number of rows for each
-/// token: row r then belongs to token r / (rows / tokens).
+/// Each token owns rows / tokens consecutive rows, so row r belongs to token
+/// r / (rows / tokens).
 struct row_group
 {
     instruction_ref indices;
@@ -81,39 +81,33 @@ struct row_lifter
     std::unordered_map<instruction_ref, row_group> groups;
     std::unordered_map<instruction_ref, lifted_rows> lifted;
 
-    /// The axes after inserting the token axis, which is not one of them
-    static optional<std::vector<std::int64_t>> shift_axes(std::vector<std::int64_t> result,
-                                                          std::size_t ndim)
+    /// The normalized axes shifted past the token axis, unless empty or
+    /// including the row axis
+    static optional<std::vector<std::int64_t>> shift_axes(std::vector<std::int64_t> result)
     {
-        if(result.empty())
-            return nullopt;
-        std::transform(result.begin(), result.end(), result.begin(), [&](std::int64_t axis) {
-            return axis < 0 ? axis + ndim : axis;
-        });
-        if(contains(result, 0))
+        if(result.empty() or contains(result, 0))
             return nullopt;
         std::transform(
             result.begin(), result.end(), result.begin(), [](auto axis) { return axis + 1; });
         return result;
     }
 
-    /// The operator computing a view of the rows for every entry, if the view
-    /// keeps the rows apart
+    /// The single-input operator applied to the rows of every entry, if it keeps
+    /// the rows apart
     static optional<operation> dense_view_op(instruction_ref ins,
                                              const std::vector<std::size_t>& out_lens)
     {
-        auto input = ins->inputs().front();
-        auto v     = ins->get_operator().to_value();
         if(ins->name() == "contiguous")
             return ins->get_operator();
         if(ins->name() == "reshape")
             return make_op("reshape", {{"dims", out_lens}});
         if(ins->name() == "multibroadcast")
         {
-            if(input->get_shape().ndim() != ins->get_shape().ndim())
+            if(ins->inputs().front()->get_shape().ndim() != ins->get_shape().ndim())
                 return nullopt;
             return make_op("multibroadcast", {{"out_lens", out_lens}});
         }
+        auto v = ins->normalized_operator().to_value();
         if(ins->name() == "broadcast")
         {
             if(v.at("axis").to<std::int64_t>() != 0)
@@ -132,10 +126,7 @@ struct row_lifter
         }
         if(contains({"squeeze", "unsqueeze", "slice"}, ins->name()))
         {
-            // The axes of an unsqueeze are those of the output
-            auto ndim =
-                ins->name() == "unsqueeze" ? ins->get_shape().ndim() : input->get_shape().ndim();
-            auto axes = shift_axes(v.at("axes").to_vector<std::int64_t>(), ndim);
+            auto axes = shift_axes(v.at("axes").to_vector<std::int64_t>());
             if(not axes.has_value())
                 return nullopt;
             v["axes"] = *axes;
@@ -143,7 +134,7 @@ struct row_lifter
         }
         if(ins->name() == "unpack_int4")
         {
-            auto axes = shift_axes({v.at("axis").to<std::int64_t>()}, input->get_shape().ndim());
+            auto axes = shift_axes({v.at("axis").to<std::int64_t>()});
             if(not axes.has_value())
                 return nullopt;
             v["axis"] = axes->front();
@@ -176,9 +167,17 @@ struct row_lifter
         if(input->name() != "multibroadcast")
             return false;
         const auto& s = input->inputs().front()->get_shape();
-        if(s.dynamic())
-            return false;
         return s.ndim() < input->get_shape().ndim() or s.lens().front() == 1;
+    }
+
+    /// Whether any lifted input has the flag set
+    bool any_lifted(instruction_ref ins, bool lifted_rows::* flag) const
+    {
+        const auto& inputs = ins->inputs();
+        return std::any_of(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+            auto it = lifted.find(input);
+            return it != lifted.end() and it->second.*flag;
+        });
     }
 
     /// An input of a pointwise operator for every entry: either lifted rows,
@@ -197,6 +196,7 @@ struct row_lifter
                 return dense;
             return m.insert_instruction(ins, bcast, dense);
         }
+        assert(is_row_broadcast(input));
         auto row = input->inputs().front();
         // Keep the row axis apart from the token axis
         if(row->get_shape().ndim() == input->get_shape().ndim())
@@ -212,14 +212,11 @@ struct row_lifter
         const auto& ishape = indices->get_shape();
         if(dshape.dynamic() or ishape.dynamic() or ishape.ndim() != 1)
             return nullopt;
-        auto axis = ins->get_operator().to_value().at("axis").to<std::int64_t>();
-        if(axis < 0)
-            axis += dshape.ndim();
-        if(axis != 0)
+        if(ins->normalized_operator().to_value().at("axis").to<std::int64_t>() != 0)
             return nullopt;
         auto entries = dshape.lens().front();
         auto rows    = ishape.elements();
-        // With too few rows per entry the gathers read less than the whole table costs
+        // With too few rows per entry the gathered dots cost less than a dot over the table
         if(entries < 2 or rows < min_rows_per_entry * entries)
             return nullopt;
         auto it = groups.emplace(indices, row_group{indices, entries, rows}).first;
@@ -229,11 +226,12 @@ struct row_lifter
         return lifted_rows{dense, indices};
     }
 
-    optional<lifted_rows> lift_pointwise(module& m, instruction_ref ins, const row_group& group)
+    optional<lifted_rows>
+    lift_pointwise(module& m, instruction_ref ins, const row_group& group) const
     {
         const auto& lens   = ins->get_shape().lens();
         const auto& inputs = ins->inputs();
-        // The other inputs must be the same for every row
+        // Inputs that are not lifted must be the same for every row
         if(not std::all_of(inputs.begin(), inputs.end(), [&](instruction_ref input) {
                const auto& s = input->get_shape();
                if(s.dynamic() or s.lens() != lens)
@@ -241,12 +239,8 @@ struct row_lifter
                return contains(lifted, input) or is_row_broadcast(input);
            }))
             return nullopt;
-        bool per_token = std::any_of(inputs.begin(), inputs.end(), [&](instruction_ref input) {
-            return contains(lifted, input) and lifted.at(input).per_token;
-        });
-        bool has_dot   = std::any_of(inputs.begin(), inputs.end(), [&](instruction_ref input) {
-            return contains(lifted, input) and lifted.at(input).has_dot;
-        });
+        bool per_token = any_lifted(ins, &lifted_rows::per_token);
+        bool has_dot   = any_lifted(ins, &lifted_rows::has_dot);
         auto out_lens  = group.dense_lens(lens, per_token);
         std::vector<instruction_ref> args;
         std::transform(inputs.begin(),
@@ -265,7 +259,6 @@ struct row_lifter
         if(not op.has_value())
             return nullopt;
         rows.dense = m.insert_instruction(ins, *op, rows.dense);
-        assert(rows.dense->get_shape().lens() == out_lens);
         return rows;
     }
 
@@ -281,7 +274,7 @@ struct row_lifter
             return nullopt;
         auto x            = bcast->inputs().front();
         const auto& blens = bcast->get_shape().lens();
-        if(x->get_shape().dynamic() or x->get_shape().ndim() != blens.size())
+        if(x->get_shape().ndim() != blens.size())
             return nullopt;
         // The leading axes that make up the rows
         std::vector<std::size_t> sizes(blens.size());
@@ -290,14 +283,14 @@ struct row_lifter
         if(it == sizes.end())
             return nullopt;
         // The last of them must be the only broadcast, over the rows of a token
-        auto axis   = std::distance(sizes.begin(), it);
-        auto xlens  = x->get_shape().lens();
-        auto tokens = group.rows / blens[axis];
+        auto axis  = std::distance(sizes.begin(), it);
+        auto xlens = x->get_shape().lens();
         if(blens[axis] < 2 or xlens[axis] != 1)
             return nullopt;
         xlens[axis] = blens[axis];
         if(xlens != blens)
             return nullopt;
+        auto tokens = group.rows / blens[axis];
         if(group.tokens != 0 and group.tokens != tokens)
             return nullopt;
         group.tokens                  = tokens;
@@ -317,14 +310,14 @@ struct row_lifter
         if(ib == lifted.end() or ib->second.per_token)
             return nullopt;
         const auto& alens = a->get_shape().lens();
-        if(a->get_shape().dynamic() or alens.size() != 3 or alens[1] != 1)
+        if(alens.size() != 3 or alens[1] != 1)
             return nullopt;
-        lifted_rows result{ins, group.indices, true, true};
+        bool per_token = true;
         instruction_ref a_matrix;
         auto ia = lifted.find(a);
         if(ia != lifted.end())
         {
-            result.per_token = ia->second.per_token;
+            per_token = ia->second.per_token;
             a_matrix =
                 m.insert_instruction(ins, make_op("squeeze", {{"axes", {2}}}), ia->second.dense);
         }
@@ -337,9 +330,9 @@ struct row_lifter
         }
         auto b_matrix =
             m.insert_instruction(ins, make_op("squeeze", {{"axes", {1}}}), ib->second.dense);
-        auto dot     = m.insert_instruction(ins, make_op("dot"), a_matrix, b_matrix);
-        result.dense = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {2}}}), dot);
-        return result;
+        auto dot   = m.insert_instruction(ins, make_op("dot"), a_matrix, b_matrix);
+        auto dense = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {2}}}), dot);
+        return lifted_rows{dense, group.indices, per_token, true};
     }
 
     optional<lifted_rows> lift(module& m, instruction_ref ins)
@@ -383,10 +376,12 @@ struct row_lifter
             return m.insert_instruction(
                 ins, make_op("gather", {{"axis", 0}}), table, group.indices);
         }
+        assert(group.tokens > 0 and group.rows % group.tokens == 0);
+        shape token_rows{shape::uint64_type, {group.tokens, group.rows / group.tokens}};
         std::vector<std::size_t> token_ids(group.rows);
         std::iota(token_ids.begin(), token_ids.end(), 0);
         std::transform(token_ids.begin(), token_ids.end(), token_ids.begin(), [&](auto row) {
-            return row / (group.rows / group.tokens);
+            return token_rows.multi(row).front();
         });
         auto tokens = m.add_literal(
             literal{shape{group.indices->get_shape().type(), {group.rows, 1}}, token_ids});
@@ -405,15 +400,13 @@ struct row_lifter
             auto rows = lift(m, ins);
             if(not rows.has_value())
                 continue;
+            assert(rows->dense->get_shape().lens() ==
+                   groups.at(rows->indices).dense_lens(ins->get_shape().lens(), rows->per_token));
             lifted.emplace(ins, *rows);
             if(rows->has_dot)
                 computed.push_back(ins);
         }
-        std::vector<instruction_ref> reads;
-        std::copy_if(computed.begin(),
-                     computed.end(),
-                     std::back_inserter(reads),
-                     [&](instruction_ref ins) { return is_read(ins); });
+        auto reads = find_all(computed, [&](instruction_ref ins) { return is_read(ins); });
         for(auto ins : reads)
             m.replace_instruction(ins, insert_select(m, ins, lifted.at(ins)));
     }

@@ -39,7 +39,16 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 static bool skip_propagate(instruction_ref ins)
 {
     if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
+    {
+        // These produce a dense output, so folding them on broadcasted inputs
+        // (such as a folded convert of a broadcast scalar) would materialize
+        // the broadcast into a much larger literal
+        if(std::none_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref input) {
+               return input->get_shape().element_space() >= ins->get_shape().element_space();
+           }))
+            return true;
         return skip_propagate(ins->inputs().front());
+    }
     // Folding a convert to a wider type would enlarge the literal and lose
     // the smaller storage type, so keep it as a runtime conversion instead.
     // A single element is still folded since fuse_pointwise does not create a

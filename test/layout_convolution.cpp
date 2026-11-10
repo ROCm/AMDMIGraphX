@@ -713,8 +713,8 @@ TEST_CASE(group_conv_follows_order)
     EXPECT(m3.sort() == m4.sort());
 }
 
-// channels_auto runs both layouts and keeps whichever leaves fewer layout/contiguous ops.
-// This graph is already in channels-last form, so channels_last is a no-op while
+// channels_auto runs both layouts and keeps whichever leaves fewer bytes of layout/contiguous
+// copies. This graph is already in channels-last form, so channels_last is a no-op while
 // channels_first would insert layout ops, so auto must select channels_last.
 TEST_CASE(channels_auto_selects_channels_last)
 {
@@ -741,8 +741,8 @@ TEST_CASE(channels_auto_selects_channels_last)
 
 // A grouped convolution uses the same layout as the dense ones, so a normal-group-normal
 // chain needs only the two layouts at the ends under channels_last (the weight layouts fold
-// and are not scored). That is within the two-per-param allowance, so auto selects
-// channels_last and the whole chain runs NHWC.
+// and are not scored). Both copy a tensor the size of x, within the allowance of two copies
+// of each parameter, so auto selects channels_last and the whole chain runs NHWC.
 TEST_CASE(channels_auto_group_conv_channels_last)
 {
     migraphx::module m1;
@@ -790,9 +790,9 @@ TEST_CASE(channels_auto_group_conv_channels_last)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// channels_first would need one layout (on the transposed weights) versus three for
-// channels_last, but the two-layouts-per-param allowance offsets that difference, so auto
-// selects channels_last. The expected module is the non-trivial channels_last result.
+// channels_last copies x in and the smaller strided output back out (the weight layouts fold
+// and are not scored). Together that is less than two copies of x, so auto selects
+// channels_last. The expected module is the non-trivial channels_last result.
 TEST_CASE(channels_auto_allows_two_layouts_per_param)
 {
     migraphx::module m1;
@@ -833,12 +833,10 @@ TEST_CASE(channels_auto_allows_two_layouts_per_param)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Under channels_last the convolution output is NHWC, so a reshape that folds the channel dim
-// into the spatial dims cannot alias its input as a view (reshape_lazy) and needs a copy, so
-// it is scored like a contiguous. Two such reshapes push channels_last to a score of three,
-// past the two-per-param allowance, so auto selects channels_first (a no-op here, since a
-// standard output keeps the reshapes lazy).
-TEST_CASE(channels_auto_counts_nonlazy_reshapes)
+// Flattening the NHWC conv output copies, because C is not contiguous with H and W.
+// That output is twice x; together with the NHWC copy of x it exceeds two copies of x,
+// so auto keeps channels_first, where the standard reshape stays lazy.
+TEST_CASE(channels_auto_weighs_copies_by_bytes)
 {
     migraphx::module m1;
     {
@@ -847,15 +845,36 @@ TEST_CASE(channels_auto_counts_nonlazy_reshapes)
             migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
         auto conv = m1.add_instruction(
             migraphx::make_op("convolution",
-                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+                              {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
             x,
             w);
         auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
-        auto reshape1 =
-            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1024}}}), relu);
-        auto reshape2 =
-            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 512}}}), relu);
-        m1.add_return({reshape1, reshape2});
+        auto reshape =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4096}}}), relu);
+        m1.add_return({reshape});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The pass never lays out a rank-1 tensor, but flattening the NHWC output still copies
+// all of it. That plus the copy of x exceeds two copies of x, so auto keeps channels_first.
+TEST_CASE(channels_auto_weighs_rank1_copies)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+            x,
+            w);
+        auto relu    = m1.add_instruction(migraphx::make_op("relu"), conv);
+        auto reshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4096}}}), relu);
+        m1.add_return({reshape});
     }
     migraphx::module m2 = m1;
     run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});

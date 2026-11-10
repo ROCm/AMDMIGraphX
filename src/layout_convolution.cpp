@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/layout_convolution.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -149,22 +150,33 @@ void remove_layout(module& m)
     }
 }
 
+bool is_copy(const instruction& ins)
+{
+    if(ins.can_eval())
+        return false;
+    if(contains({"layout", "contiguous"}, ins.name()))
+        return true;
+    // Collapsed dims that are not contiguous cannot be reshape_lazy, so the reshape copies.
+    if(ins.name() == "reshape")
+        return not reshape_dims(
+                       ins.inputs().front()->get_shape(), ins.get_shape().lens(), {.lazy = true})
+                       .has_value();
+    return false;
+}
+
+// Weigh each copy by the bytes it moves. A dynamic shape scores 0: its byte count is
+// only an upper bound. A rank-1 copy still counts, since skip_layout means "do not
+// permute", not "this copy is free".
 std::size_t score(const module& m)
 {
-    return std::count_if(m.begin(), m.end(), [](const instruction& ins) {
-        if(ins.can_eval())
-            return false;
-        if(contains({"layout", "contiguous"}, ins.name()))
-            return true;
-        // A reshape whose collapsed dims are not contiguous cannot alias its input as a view
-        // (reshape_lazy) and needs a copy, so count it the same as a contiguous.
-        if(ins.name() == "reshape")
-            return not reshape_dims(ins.inputs().front()->get_shape(),
-                                    ins.get_shape().lens(),
-                                    {.lazy = true})
-                           .has_value();
-        return false;
-    });
+    return transform_accumulate(
+        m.begin(), m.end(), std::size_t{0}, std::plus<>{}, [](const instruction& ins) {
+            const auto& s = ins.get_shape();
+            // Checked before is_copy: a dynamic reshape's lens() throw would abort the pass.
+            if(s.dynamic() or not is_copy(ins))
+                return std::size_t{0};
+            return s.bytes();
+        });
 }
 } // namespace
 
@@ -195,8 +207,14 @@ void layout_convolution::apply(module_pass_manager& mpm) const
         module m_last           = mpm.get_module();
         last.apply_layout(m_last);
         // channels_last converts each parameter to NHWC and back, so allow up to two extra
-        // layouts per parameter before preferring channels_first.
-        auto allowance     = 2 * mpm.get_module().get_parameters().size();
+        // copies of each parameter before preferring channels_first.
+        auto params      = mpm.get_module().get_parameters();
+        auto param_bytes = transform_accumulate(
+            params.begin(), params.end(), std::size_t{0}, std::plus<>{}, [](instruction_ref p) {
+                const auto& s = p->get_shape();
+                return skip_layout(s) ? std::size_t{0} : s.bytes();
+            });
+        auto allowance     = 2 * param_bytes;
         const auto& chosen = (score(m_first) + allowance < score(m_last)) ? first : last;
         chosen.apply_layout(mpm.get_module());
     }

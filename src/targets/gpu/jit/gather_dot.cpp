@@ -105,13 +105,22 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
         return result;
     }
 
-    // name(x, e0..) calling the generated name_impl with the arguments
+    // The element of the other input e of a submodule: i is the element of
+    // the row and t that of the entry the row gathers, which a table holds
+    static std::string
+    element(const std::string& e, std::size_t pos, const std::vector<std::size_t>& tables)
+    {
+        return e + (contains(tables, pos) ? "[t]" : "[i]");
+    }
+
+    // name(x, i, t, e0..) calling the generated name_impl with the arguments
     static std::string
     wrapper(const std::string& name, std::size_t nextras, const std::vector<std::string>& args)
     {
         const auto es                   = extras(nextras, "E");
         std::vector<std::string> types  = {"class X"};
-        std::vector<std::string> params = {"X x"};
+        std::vector<std::string> params = {
+            "X x", "[[maybe_unused]] index_int i", "[[maybe_unused]] index_int t"};
         std::transform(es.begin(), es.end(), std::back_inserter(types), [](const auto& e) {
             return "class " + e;
         });
@@ -123,35 +132,49 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
                join_strings(args, ", ") + "); }\n";
     }
 
-    // gather_dot_column(x, e0..): the column submodule with the sum x among
-    // its other inputs, the sum itself without the submodule
+    // gather_dot_column(x, i, t, e0..): the column submodule with the sum x
+    // among the elements of its other inputs, the sum itself without the
+    // submodule
     static std::string column_function(const module* m, const value& v)
     {
         if(m == nullptr)
-            return "template <class X>\n__device__ X gather_dot_column(X x) { return x; }\n";
-        const auto n = v.at("column_inputs").to<std::size_t>();
-        auto args    = extras(n, "e");
+            return "template <class X>\n"
+                   "__device__ X gather_dot_column(X x, index_int, index_int) { return x; }\n";
+        const auto n      = v.at("column_inputs").to<std::size_t>();
+        const auto tables = v.at("column_tables").to_vector<std::size_t>();
+        const auto es     = extras(n, "e");
+        std::vector<std::string> args;
+        // the arguments so far are the other inputs before this one
+        std::transform(es.begin(), es.end(), std::back_inserter(args), [&](const auto& e) {
+            return element(e, args.size(), tables);
+        });
         args.insert(args.begin() + v.at("column_dot").to<std::size_t>(), "x");
         return gen::generate_pointwise(*m, "gather_dot_column_impl") +
                wrapper("gather_dot_column", n, args);
     }
 
-    // gather_dot_output(x, e0..): the group submodule with the columns x[g]
-    // of a group among its other inputs, the one column without the submodule
+    // gather_dot_output(x, i, t, e0..): the group submodule with the columns
+    // x[g] of a group among the elements of its other inputs, the one column
+    // without the submodule
     static std::string output_function(const module* m, const value& v)
     {
         if(m == nullptr)
-            return "template <class X>\n__device__ auto gather_dot_output(X x) { return x[0]; }\n";
+            return "template <class X>\n"
+                   "__device__ auto gather_dot_output(X x, index_int, index_int) "
+                   "{ return x[0]; }\n";
         const auto group_args = v.at("group_args").to_vector<std::int64_t>();
+        const auto tables     = v.at("group_tables").to_vector<std::size_t>();
         std::size_t n         = 0;
         std::vector<std::string> args;
         std::transform(group_args.begin(),
                        group_args.end(),
                        std::back_inserter(args),
                        [&](std::int64_t column) {
-                           if(column < 0)
-                               return "e" + std::to_string(n++);
-                           return "x[" + std::to_string(column) + "]";
+                           if(column >= 0)
+                               return "x[" + std::to_string(column) + "]";
+                           auto arg = element("e" + std::to_string(n), n, tables);
+                           n++;
+                           return arg;
                        });
         return gen::generate_pointwise(*m, "gather_dot_output_impl") +
                wrapper("gather_dot_output", n, args);

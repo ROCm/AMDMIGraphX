@@ -342,8 +342,8 @@ TEST_CASE(compile_gather_dot_unpack_int4)
 }
 
 // The add of the gathered bias and the pointwise operator over pairs of
-// columns are computed in the grouped kernel too, which leaves the gather of
-// the bias
+// columns are computed in the grouped kernel too, which reads the bias of
+// the entry of a row instead of the gathered one
 TEST_CASE(compile_gather_dot_bias_pairs)
 {
     migraphx::program p;
@@ -368,7 +368,7 @@ TEST_CASE(compile_gather_dot_bias_pairs)
     p.compile(migraphx::make_target("gpu"));
 
     auto kernels = get_kernel_names(p);
-    EXPECT(kernels == std::vector<std::string>{"gather_kernel", "gather_dot_kernel"});
+    EXPECT(kernels == std::vector<std::string>{"gather_dot_kernel"});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1218,6 +1218,46 @@ struct find_gather_dot_weights
     }
 };
 
+// The other inputs of a pointwise operator fused in a gather_dot. An input
+// gathering its rows with the indices of the gather_dot becomes the table it
+// gathers from, which the kernel reads by the entry of the row.
+struct gather_dot_inputs
+{
+    std::vector<instruction_ref> inputs = {};
+    // the inputs that are tables
+    std::vector<std::size_t> tables = {};
+
+    static optional<instruction_ref> find_table(instruction_ref dot, instruction_ref input)
+    {
+        if(not input->get_shape().standard())
+            return nullopt;
+        // the views of a standard tensor that keep it standard keep its order
+        auto gather = input;
+        while(contains({"reshape_lazy", "squeeze", "unsqueeze"}, gather->name()))
+            gather = gather->inputs().front();
+        if(not find_gather_dot_weights::is_precompile(gather, "gather") or
+           not gather->get_shape().standard())
+            return nullopt;
+        auto table       = gather->inputs().front();
+        const auto& lens = table->get_shape().lens();
+        auto axis        = precompile_attributes(gather).at("axis").to<std::int64_t>();
+        auto entries = from_value<shape>(precompile_attributes(dot).at("layout")).lens().front();
+        if(axis < 0)
+            axis += lens.size();
+        if(axis != 0 or lens.front() != entries or gather->inputs().at(1) != dot->inputs().at(1))
+            return nullopt;
+        return table;
+    }
+
+    void add(instruction_ref dot, instruction_ref input)
+    {
+        auto table = find_table(dot, input);
+        if(table.has_value())
+            tables.push_back(inputs.size());
+        inputs.push_back(table.has_value() ? *table : input);
+    }
+};
+
 // Fuse a pointwise operator applied to the sums of a gather_dot, eg the bias
 // add, as its column submodule
 struct find_gather_dot_pointwise
@@ -1246,13 +1286,19 @@ struct find_gather_dot_pointwise
         auto pos            = std::find(pw_inputs.begin(), pw_inputs.end(), dot);
         attrs["column_dot"] = std::distance(pw_inputs.begin(), pos);
         pw_inputs.erase(pos);
-        // the other inputs but the output buffer, which stays last
-        attrs["column_inputs"] = pw_inputs.size() - 1;
+        // the other inputs, then the output buffer
+        gather_dot_inputs others;
+        std::for_each(pw_inputs.begin(), std::prev(pw_inputs.end()), [&](auto input) {
+            others.add(dot, input);
+        });
+        attrs["column_inputs"] = others.inputs.size();
+        attrs["column_tables"] = to_value(others.tables);
         modules.emplace_back("column");
         attrs["modules"] = to_value(modules);
         auto inputs      = dot->inputs();
         inputs.pop_back();
-        inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
+        inputs.insert(inputs.end(), others.inputs.begin(), others.inputs.end());
+        inputs.push_back(pw_inputs.back());
         auto mods = dot->module_inputs();
         mods.push_back(pw->module_inputs().front());
         auto v            = with_precompile_attributes(dot, attrs).to_value();
@@ -1347,17 +1393,20 @@ struct find_gather_dot_group
             columns.end(),
             std::back_inserter(group_args),
             [](const auto& c) -> std::int64_t { return c.has_value() ? c->column : -1; });
-        auto inputs = dot->inputs();
-        inputs.pop_back();
         // the inputs that are not columns follow, then the output buffer
+        gather_dot_inputs others;
         migraphx::for_each(
             pw_inputs.begin(), pw_inputs.end(), columns.begin(), [&](auto input, const auto& c) {
                 if(not c.has_value())
-                    inputs.push_back(input);
+                    others.add(dot, input);
             });
+        auto inputs = dot->inputs();
+        inputs.pop_back();
+        inputs.insert(inputs.end(), others.inputs.begin(), others.inputs.end());
         inputs.push_back(pw->inputs().back());
-        attrs["group"]      = group;
-        attrs["group_args"] = to_value(group_args);
+        attrs["group"]        = group;
+        attrs["group_args"]   = to_value(group_args);
+        attrs["group_tables"] = to_value(others.tables);
         modules.emplace_back("group");
         attrs["modules"] = to_value(modules);
         auto mods        = dot->module_inputs();

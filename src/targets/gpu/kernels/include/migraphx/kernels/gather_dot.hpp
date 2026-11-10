@@ -357,11 +357,14 @@ struct gather_dot_group
     // The matrix of the entry from its column n0
     __device__ loader matrix(index_int n0) const { return {fs.weight, inputs.weights, entry, n0}; }
 
-    // The column function of the sum of a row and a column of the matrix
+    // The column function of the sum of a row and a column of the matrix. It
+    // takes the element of the row in its other inputs and that of the entry
+    // in those that are tables.
     __device__ auto column(index_int r, index_int n, acc_t x) const
     {
-        return inputs.column(
-            [&](auto... es) { return fs.column(value_type(x), es[r * Settings::n + n]...); });
+        return inputs.column([&](auto... es) {
+            return fs.column(value_type(x), r * Settings::n + n, entry * Settings::n + n, es...);
+        });
     }
 
     // The output of a row and an output column from the sums of its group of
@@ -374,7 +377,9 @@ struct gather_dot_group
             return inputs.output([&](auto... es) {
                 return fs.output(
                     make_array(column(r, col * group + index_int{gs}, sum(index_int{gs}))...),
-                    es[i]...);
+                    i,
+                    entry * n_out + col,
+                    es...);
             });
         });
     }

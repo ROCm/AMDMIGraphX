@@ -61,16 +61,23 @@ namespace gpu {
 // adjacent columns into one, giving rows * n / group elements: `group_args`
 // gives for each of its inputs the column of the group it reads, or -1 for
 // the next of its other inputs, which have the lens of its output.
+//
+// The other inputs of the column submodule listed in `column_tables` and
+// those of the group submodule listed in `group_tables` are tables instead:
+// they have the elements of one row for each of the entries, and a row reads
+// those of the entry it gathers.
 struct gather_dot
 {
     shape layout;
-    std::vector<std::size_t> packed      = {};
-    std::size_t weights                  = 1;
-    std::vector<std::string> modules     = {};
-    std::size_t column_dot               = 0;
-    std::size_t column_inputs            = 0;
-    std::size_t group                    = 1;
-    std::vector<std::int64_t> group_args = {};
+    std::vector<std::size_t> packed        = {};
+    std::size_t weights                    = 1;
+    std::vector<std::string> modules       = {};
+    std::size_t column_dot                 = 0;
+    std::size_t column_inputs              = 0;
+    std::vector<std::size_t> column_tables = {};
+    std::size_t group                      = 1;
+    std::vector<std::int64_t> group_args   = {};
+    std::vector<std::size_t> group_tables  = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -81,8 +88,23 @@ struct gather_dot
                     f(self.modules, "modules"),
                     f(self.column_dot, "column_dot"),
                     f(self.column_inputs, "column_inputs"),
+                    f(self.column_tables, "column_tables"),
                     f(self.group, "group"),
-                    f(self.group_args, "group_args"));
+                    f(self.group_args, "group_args"),
+                    f(self.group_tables, "group_tables"));
+    }
+
+    // Whether the inputs from first listed in tables have a row of elements
+    // for each of the entries
+    bool has_tables(const std::vector<shape>& inputs,
+                    std::size_t first,
+                    const std::vector<std::size_t>& tables,
+                    std::size_t row_elements) const
+    {
+        return std::all_of(tables.begin(), tables.end(), [&](std::size_t i) {
+            return first + i < inputs.size() and
+                   inputs[first + i].elements() == layout.lens().front() * row_elements;
+        });
     }
 
     std::string name() const { return "gpu::gather_dot"; }
@@ -130,6 +152,13 @@ struct gather_dot
         const auto n = layout.lens()[2];
         if(group == 0 or n % group != 0)
             MIGRAPHX_THROW("gather_dot: the group must divide the columns");
+        const auto first_column = first + weights;
+        if(std::any_of(column_tables.begin(),
+                       column_tables.end(),
+                       [&](std::size_t i) { return i >= column_inputs; }) or
+           not has_tables(inputs, first_column, column_tables, n) or
+           not has_tables(inputs, first_column + column_inputs, group_tables, n / group))
+            MIGRAPHX_THROW("gather_dot: a table must have a row of elements for each entry");
         return shape{output_type(a.type(), mods), {a.lens().front(), 1, n / group}};
     }
 };

@@ -375,19 +375,9 @@ static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
     if(bundle <= 0)
         MIGRAPHX_THROW("Timing bundle must be greater than zero");
     auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
-    // Evals leave the GPU idle between few-microsecond kernels and time the host, so replay a graph
-    benchmark_graph graph;
-    if(use_graph)
-    {
-        try
-        {
-            graph = make_benchmark_graph(p, param_map, bundle);
-        }
-        catch(const std::exception&)
-        {
-            (void)hipGetLastError();
-        }
-    }
+    // Evals leave the GPU idle between few-microsecond kernels and time the host, so replay a
+    // graph. use_graph means p is eligible, so a failure to build it is an error, not a fallback.
+    auto graph = use_graph ? make_benchmark_graph(p, param_map, bundle) : benchmark_graph{};
     if(graph.exec != nullptr)
     {
         auto* stream = gctx.get_stream().get();

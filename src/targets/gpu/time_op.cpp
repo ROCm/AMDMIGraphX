@@ -253,12 +253,20 @@ static hipGraphNode_t add_fill_node(hipGraph_t graph,
     return node;
 }
 
+struct benchmark_graph
+{
+    // Owned here, so the nodes do not rely on HIP copying their kernargs
+    std::vector<std::unique_ptr<graph_kernargs>> kernargs;
+    // A literal's argument is a copy that nothing else keeps alive
+    std::vector<argument> literals;
+    // Declared last so it is destroyed before the buffers its nodes read
+    hip_graph_exec_ptr exec;
+};
+
 // The graph nodes of one eval of p, or none if p does more than launch kernels and fill. The
-// nodes' kernargs are added to kernargs.
+// buffers the nodes read are added to graph.
 static std::vector<add_graph_node>
-make_graph_nodes(const program& p,
-                 const parameter_map& param_map,
-                 std::vector<std::unique_ptr<graph_kernargs>>& kernargs)
+make_graph_nodes(const program& p, const parameter_map& param_map, benchmark_graph& graph)
 {
     const auto* mm = p.get_main_module();
     // Arguments are resolved once, so every replay reuses the same buffers as an eval would
@@ -276,7 +284,10 @@ make_graph_nodes(const program& p,
         if(ins->name() == "@param")
             results[ins] = param_map.at(any_cast<builtin::param>(ins->get_operator()).parameter);
         else if(ins->name() == "@literal")
+        {
             results[ins] = ins->get_literal().get_argument();
+            graph.literals.push_back(results[ins]);
+        }
         else if(ins->name() == "load")
             results[ins] = ins->get_operator().compute(ins->get_shape(), args);
         else if(ins->name() == "gpu::code_object")
@@ -284,8 +295,8 @@ make_graph_nodes(const program& p,
             const auto& op = any_cast<code_object_op>(ins->get_operator());
             results[ins]   = args.at(op.get_output_arg(args.size()));
             // The bundle copies of this launch share one buffer, as their arguments are the same
-            kernargs.push_back(std::make_unique<graph_kernargs>(op.pack_kernargs(args)));
-            nodes.emplace_back([&op, &ka = *kernargs.back()](
+            graph.kernargs.push_back(std::make_unique<graph_kernargs>(op.pack_kernargs(args)));
+            nodes.emplace_back([&op, &ka = *graph.kernargs.back()](
                                    hipGraph_t graph, const std::vector<hipGraphNode_t>& deps) {
                 return op.k.add_to_graph(graph, deps, op.global, op.local, ka);
             });
@@ -305,21 +316,13 @@ make_graph_nodes(const program& p,
     return nodes;
 }
 
-struct benchmark_graph
-{
-    // Owned here, so the nodes do not rely on HIP copying their kernargs
-    std::vector<std::unique_ptr<graph_kernargs>> kernargs;
-    // Declared last so it is destroyed before the kernargs
-    hip_graph_exec_ptr exec;
-};
-
 // Builds bundle evals of p as one graph node by node; exec is null if p cannot be a graph. Stream
 // capture would record the same graph, but HIP fails other threads' synchronous calls meanwhile.
 static benchmark_graph
 make_benchmark_graph(const program& p, const parameter_map& param_map, int bundle)
 {
     benchmark_graph result;
-    auto nodes = make_graph_nodes(p, param_map, result.kernargs);
+    auto nodes = make_graph_nodes(p, param_map, result);
     if(nodes.empty())
         return result;
     hipGraph_t raw_graph = nullptr;

@@ -103,17 +103,6 @@ struct row_lifter
         return result;
     }
 
-    /// The views of a row tensor as one transform, which is empty unless the
-    /// descriptor models them and they keep the rows apart
-    static shape_transform_descriptor rows_transform(const std::vector<std::size_t>& lens,
-                                                     const std::vector<operation>& views)
-    {
-        auto desc = shape_transform_descriptor::create(lens, views);
-        if(desc.get_dst_axes_from_src(0) != std::vector<std::size_t>{0})
-            return {};
-        return desc;
-    }
-
     /// The indices of the group the lifted inputs belong to
     optional<instruction_ref> find_group(instruction_ref ins) const
     {
@@ -151,26 +140,40 @@ struct row_lifter
         });
     }
 
-    /// The rows of a lifted instruction for every entry, inserted before ins,
-    /// with its views applied to the dense rows as one transform
+    /// The views of the rows as one transform of the dense rows, if the views
+    /// end with the rows apart in front
+    optional<shape_transform_descriptor> dense_transform(const lifted_rows& rows) const
+    {
+        const auto& lens = rows.dense->get_shape().lens();
+        auto desc =
+            shape_transform_descriptor::create(groups.at(rows.indices).row_lens(lens), rows.views);
+        assert(not desc.empty());
+        if(desc.get_dst_axes_from_src(0) != std::vector<std::size_t>{0})
+            return nullopt;
+        // Split the rows axis into the entry and token axes of the dense rows
+        desc.prepend_axis(lens.front());
+        auto result = desc.rebase(lens);
+        assert(not result.empty());
+        return result;
+    }
+
+    /// Whether the rows of a lifted instruction can be computed for every entry
+    bool has_dense_rows(instruction_ref x) const
+    {
+        const auto& rows = lifted.at(x);
+        return rows.views.empty() or dense_transform(rows).has_value();
+    }
+
+    /// The rows of a lifted instruction for every entry, inserted before ins
     instruction_ref dense_rows(module& m, instruction_ref ins, instruction_ref x) const
     {
-        const auto& rows  = lifted.at(x);
-        const auto& group = groups.at(rows.indices);
-        auto result       = rows.dense;
+        assert(has_dense_rows(x));
+        const auto& rows = lifted.at(x);
+        auto result      = rows.dense;
         if(not rows.views.empty())
-        {
-            const auto& lens = rows.dense->get_shape().lens();
-            auto desc        = rows_transform(group.row_lens(lens), rows.views);
-            assert(not desc.empty());
-            // Split the rows axis into the entry and token axes of the dense rows
-            desc.prepend_axis(lens.front());
-            auto dense_desc = desc.rebase(lens);
-            assert(not dense_desc.empty());
-            result = insert_ops(m, ins, dense_desc.generate(), rows.dense);
-        }
+            result = insert_ops(m, ins, dense_transform(rows)->generate(), rows.dense);
         assert(result->get_shape().lens() ==
-               group.dense_lens(x->get_shape().lens(), rows.per_token));
+               groups.at(rows.indices).dense_lens(x->get_shape().lens(), rows.per_token));
         return result;
     }
 
@@ -229,7 +232,7 @@ struct row_lifter
                const auto& s = input->get_shape();
                if(s.dynamic() or s.lens() != lens)
                    return false;
-               return contains(lifted, input) or is_row_broadcast(input);
+               return contains(lifted, input) ? has_dense_rows(input) : is_row_broadcast(input);
            }))
             return nullopt;
         bool per_token = any_lifted(ins, &lifted_rows::per_token);
@@ -245,12 +248,15 @@ struct row_lifter
     }
 
     /// A view is only recorded, so that a chain of views is applied to the
-    /// dense rows as one transform
+    /// dense rows as one transform. The views in between may move the rows.
     optional<lifted_rows> lift_view(instruction_ref ins, const row_group& group) const
     {
+        if(ins->inputs().size() != 1)
+            return nullopt;
         auto rows = lifted.at(ins->inputs().front());
         rows.views.push_back(ins->get_operator());
-        if(rows_transform(group.row_lens(rows.dense->get_shape().lens()), rows.views).empty())
+        const auto& lens = rows.dense->get_shape().lens();
+        if(shape_transform_descriptor::create(group.row_lens(lens), rows.views).empty())
             return nullopt;
         return rows;
     }
@@ -275,6 +281,8 @@ struct row_lifter
             v["axis"] = axes->front();
         }
         auto input = ins->inputs().front();
+        if(not has_dense_rows(input))
+            return nullopt;
         auto rows  = lifted.at(input);
         rows.dense = m.insert_instruction(ins, make_op(ins->name(), v), dense_rows(m, ins, input));
         rows.views.clear();
@@ -326,7 +334,7 @@ struct row_lifter
         auto a  = ins->inputs().front();
         auto b  = ins->inputs().back();
         auto ib = lifted.find(b);
-        if(ib == lifted.end() or ib->second.per_token)
+        if(ib == lifted.end() or ib->second.per_token or not has_dense_rows(b))
             return nullopt;
         const auto& alens = a->get_shape().lens();
         if(alens.size() != 3 or alens[1] != 1)
@@ -336,6 +344,8 @@ struct row_lifter
         auto ia = lifted.find(a);
         if(ia != lifted.end())
         {
+            if(not has_dense_rows(a))
+                return nullopt;
             per_token = ia->second.per_token;
             a_matrix  = m.insert_instruction(
                 ins, make_op("squeeze", {{"axes", {2}}}), dense_rows(m, ins, a));
@@ -363,7 +373,12 @@ struct row_lifter
             return nullopt;
         auto& group   = groups.at(*key);
         const auto& s = ins->get_shape();
-        if(s.dynamic() or s.ndim() == 0 or s.lens().front() != group.rows)
+        if(s.dynamic())
+            return nullopt;
+        // Views come first, since only they may move the rows from the front
+        if(auto rows = lift_view(ins, group))
+            return rows;
+        if(s.ndim() == 0 or s.lens().front() != group.rows)
             return nullopt;
         if(ins->name() == "dot")
             return lift_dot(m, ins, group);
@@ -371,19 +386,26 @@ struct row_lifter
             return lift_pointwise(m, ins, group);
         if(contains({"slice", "unpack_int4"}, ins->name()))
             return lift_axis_op(m, ins);
-        if(ins->inputs().size() == 1)
-            return lift_view(ins, group);
         return nullopt;
     }
 
-    /// Whether the rows are read by an instruction that was not lifted. A
-    /// gather is lifted without reading its inputs for every entry.
+    /// Whether the instruction reads its inputs as they are: it is not lifted,
+    /// it is a gather, which is lifted from its table alone, or its rows are
+    /// read but cannot be computed for every entry
+    bool reads_original(instruction_ref ins) const
+    {
+        if(not contains(lifted, ins) or ins->name() == "gather")
+            return true;
+        return not has_dense_rows(ins) and is_read(ins);
+    }
+
+    /// Whether the rows are read by an instruction that reads them as they are
     bool is_read(instruction_ref ins) const
     {
         const auto& outputs = ins->outputs();
         return outputs.empty() or
                std::any_of(outputs.begin(), outputs.end(), [&](instruction_ref output) {
-                   return not contains(lifted, output) or output->name() == "gather";
+                   return reads_original(output);
                });
     }
 
@@ -427,7 +449,8 @@ struct row_lifter
             if(rows->has_dot)
                 computed.push_back(ins);
         }
-        auto reads = find_all(computed, [&](instruction_ref ins) { return is_read(ins); });
+        auto reads = find_all(
+            computed, [&](instruction_ref ins) { return has_dense_rows(ins) and is_read(ins); });
         for(auto ins : reads)
             m.replace_instruction(ins, insert_select(m, ins));
     }

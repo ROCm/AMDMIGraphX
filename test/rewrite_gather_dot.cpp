@@ -202,6 +202,124 @@ TEST_CASE(gather_dot_views)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Views in between may move the rows from the front, as long as the views
+// read by the dot bring them back
+TEST_CASE(gather_dot_moved_rows)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+        auto w   = m1.add_parameter("w", {migraphx::shape::float_type, {4, 5, 3}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto xu  = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto xb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 2, 3}}}), xu);
+        auto xr = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {8, 1, 3}}}), xb);
+        auto wg = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto wm =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), wg);
+        auto wt =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), wm);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), xr, wt);
+        m1.add_return({dot});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+        auto w      = m2.add_parameter("w", {migraphx::shape::float_type, {4, 5, 3}});
+        auto idx    = m2.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto tokens = m2.add_literal(
+            migraphx::literal{{migraphx::shape::int32_type, {8, 1}}, {0, 0, 1, 1, 2, 2, 3, 3}});
+        auto xu = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto wd = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), w);
+        auto xm = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 3}}}), xu);
+        auto xe =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 4, 3}}}), xm);
+        auto wt =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), wd);
+        auto wm      = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), wt);
+        auto dot     = m2.add_instruction(migraphx::make_op("dot"), xe, wm);
+        auto du      = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), dot);
+        auto entries = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), idx);
+        auto nd   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), entries, tokens);
+        auto rows = m2.add_instruction(migraphx::make_op("gathernd"), du, nd);
+        m2.add_return({rows});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The rows are swapped with an axis of the same length, so the dot does not
+// read one row of the table per row
+TEST_CASE(gather_dot_swapped_rows)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {4, 8}});
+        auto w   = m1.add_parameter("w", {migraphx::shape::float_type, {4, 8, 5}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto xu  = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto xb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 2, 8}}}), xu);
+        auto xr = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {8, 1, 8}}}), xb);
+        auto wg = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto wt =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), wg);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), xr, wt);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// A view that moves the rows of the dot from the front is applied to the
+// rows gathered from the dot over the whole table
+TEST_CASE(gather_dot_moved_rows_read)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+        auto w   = m1.add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto xu  = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto xb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 2, 3}}}), xu);
+        auto xr  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {8, 1, 3}}}), xb);
+        auto wg  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), xr, wg);
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), dot);
+        m1.add_return({t});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+        auto w      = m2.add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto idx    = m2.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto tokens = m2.add_literal(
+            migraphx::literal{{migraphx::shape::int32_type, {8, 1}}, {0, 0, 1, 1, 2, 2, 3, 3}});
+        auto xu = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto wd = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), w);
+        auto xm = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 3}}}), xu);
+        auto xe =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 4, 3}}}), xm);
+        auto wm      = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), wd);
+        auto dot     = m2.add_instruction(migraphx::make_op("dot"), xe, wm);
+        auto du      = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), dot);
+        auto entries = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), idx);
+        auto nd   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), entries, tokens);
+        auto rows = m2.add_instruction(migraphx::make_op("gathernd"), du, nd);
+        auto t =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), rows);
+        m2.add_return({t});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // Packed weights are unpacked and dequantized for every entry
 TEST_CASE(gather_dot_unpack_int4)
 {

@@ -851,6 +851,57 @@ TEST_CASE(unsigned_dequantizelinear_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// The dequantized weights are converted to the type of the dot
+TEST_CASE(dequantizelinear_convert_dot)
+{
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, {2, 3, 5}});
+        auto y   = mm->add_parameter("y", migraphx::shape{migraphx::shape::int8_type, {2, 5, 2}});
+        auto scale =
+            mm->add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {2, 5, 2}});
+        auto zp = mm->add_parameter("zp", migraphx::shape{migraphx::shape::int8_type, {2, 5, 2}});
+        auto dq =
+            add_pointwise(p1, "main:pointwise0", {y, scale, zp}, [](auto* pm, const auto& inputs) {
+                auto dequantize =
+                    pm->add_instruction(migraphx::make_op("dequantizelinear"), inputs);
+                return pm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                    dequantize);
+            });
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), x, dq);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, {2, 3, 5}});
+        auto y   = mm->add_parameter("y", migraphx::shape{migraphx::shape::int8_type, {2, 5, 2}});
+        auto scale =
+            mm->add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {2, 5, 2}});
+        auto zp = mm->add_parameter("zp", migraphx::shape{migraphx::shape::int8_type, {2, 5, 2}});
+        auto fused = add_mlir(
+            p2,
+            "main:pointwise0:mlir_dot0",
+            {y, scale, zp, x},
+            {"x0", "x1", "x2", "x3"},
+            [=](auto* pm, const auto& inputs) {
+                auto dequantize = pm->add_instruction(
+                    migraphx::make_op("dequantizelinear"), inputs[0], inputs[1], inputs[2]);
+                auto convert = pm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                    dequantize);
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[3], convert);
+                return std::make_tuple(dot->get_operator(), dot);
+            },
+            "standalone_dot");
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(unpack_int4_dot)
 {
     migraphx::program p1;

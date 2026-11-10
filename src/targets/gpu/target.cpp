@@ -55,6 +55,7 @@
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_convolution.hpp>
 #include <migraphx/rewrite_dot.hpp>
+#include <migraphx/rewrite_gather_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
@@ -263,6 +264,7 @@ struct pipeline_factory
             dead_code_elimination{},
             prefuse_ops{get_context()},
             dead_code_elimination{},
+            rewrite_gather_dot{},
             dead_code_elimination{},
             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
                            .fast_math         = options.fast_math},
@@ -399,6 +401,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             p.dynamic_shapes_pipeline(),
             p.required_pipeline(),
             {optimize_module{},
+             dead_code_elimination{},
+             rewrite_gather_dot{},
              dead_code_elimination{},
              rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
                             .fast_math         = options.fast_math},

@@ -1296,6 +1296,23 @@ struct find_pointwise_mlir
         return contains(op_names, op_ins->name());
     }
 
+    /// A dequantizelinear, with its result optionally converted to another type
+    static bool is_dequantize(const_module_ref pm)
+    {
+        if(is_simple_op(pm, {"dequantizelinear"}))
+            return true;
+        auto last = std::prev(pm->end());
+        if(last->inputs().size() != 1)
+            return false;
+        auto convert = last->inputs().front();
+        if(convert->name() != "convert" or convert->inputs().front()->name() != "dequantizelinear")
+            return false;
+        return std::count_if(pm->begin(), pm->end(), [](const instruction& x) {
+                   return not contains(
+                       {"@param", "@literal", "@return", "broadcast", "multibroadcast"}, x.name());
+               }) == 2;
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins = r.result;
@@ -1310,7 +1327,7 @@ struct find_pointwise_mlir
                 if(not match::instruction_matches(mpm.get_module(), input, supported_pointwise()))
                     return false;
                 auto* pm = input->module_inputs().front();
-                return input->inputs().size() <= 1 or is_simple_op(pm, {"dequantizelinear"}) or
+                return input->inputs().size() <= 1 or is_dequantize(pm) or
                        enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{});
             });
         if(pws.empty())

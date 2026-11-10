@@ -58,28 +58,45 @@ extern std::string hip_error(int error);
 
 using hip_module_ptr = MIGRAPHX_MANAGE_PTR(hipModule_t, hipModuleUnload);
 
-struct kernel_impl
+struct code_module_impl
 {
     hip_module_ptr module = nullptr;
-    hipFunction_t fun     = nullptr;
 };
 
-static hip_module_ptr load_module(const char* image)
+struct kernel_impl
 {
-    hipModule_t raw_m;
-    auto status = hipModuleLoadData(&raw_m, image);
-    hip_module_ptr m{raw_m};
+    code_module module{};
+    hipFunction_t fun = nullptr;
+};
+
+code_module::code_module(const char* image) : impl(std::make_shared<code_module_impl>())
+{
+    hipModule_t raw_m = nullptr;
+    auto status       = hipModuleLoadData(&raw_m, image);
+    impl->module      = hip_module_ptr{raw_m};
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed to load module: " + hip_error(status));
-    return m;
 }
 
-kernel::kernel(const char* image, const std::string& name) : impl(std::make_shared<kernel_impl>())
+bool code_module::empty() const { return impl == nullptr; }
+
+hipFunction_t code_module::get_function(const std::string& name) const
 {
-    impl->module = load_module(image);
-    auto status  = hipModuleGetFunction(&impl->fun, impl->module.get(), name.c_str());
+    assert(not empty());
+    hipFunction_t fun = nullptr;
+    auto status       = hipModuleGetFunction(&fun, impl->module.get(), name.c_str());
     if(hipSuccess != status)
         MIGRAPHX_THROW("Failed to get function: " + name + ": " + hip_error(status));
+    return fun;
+}
+
+kernel::kernel(const char* image, const std::string& name) : kernel(code_module{image}, name) {}
+
+kernel::kernel(const code_module& m, const std::string& name)
+    : impl(std::make_shared<kernel_impl>())
+{
+    impl->module = m;
+    impl->fun    = m.get_function(name);
 }
 
 bool kernel::empty() const { return impl == nullptr; }

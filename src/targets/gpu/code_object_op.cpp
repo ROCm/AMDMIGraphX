@@ -141,10 +141,10 @@ std::vector<char> code_object_op::pack_kernargs(const std::vector<argument>& arg
     });
     return result;
 }
-void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
+void code_object_op::finalize(context& ctx, const shape&, const std::vector<shape>&)
 {
     assert(not code_object.empty());
-    k = kernel(code_object, symbol_name);
+    k = ctx.load_kernel(module_id, code_object, symbol_name);
 
     if(kernel_args.empty())
         return;

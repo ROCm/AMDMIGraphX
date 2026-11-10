@@ -736,4 +736,516 @@ TEST_CASE(concat_pointwise_multi_use)
     EXPECT(p1 == p2);
 }
 
+// The transpose of the table becomes the layout of the matrices in the
+// tensor it reads
+TEST_CASE(gather_dot_weights_transpose)
+{
+    migraphx::shape out{migraphx::shape::float_type, {8, 1, 5}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 5, 3}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto wt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), w);
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot   = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}})),
+            x,
+            idx,
+            wt,
+            alloc);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w     = mm->add_parameter("w", {migraphx::shape::float_type, {4, 5, 3}});
+        auto idx   = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot   = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout",
+                  to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}, {15, 1, 3}})}})),
+            x,
+            idx,
+            w,
+            alloc);
+        mm->add_return({dot});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The pointwise operator computing the table becomes the weights submodule
+// and the bytes of the unpack_int4 it reads are read packed
+TEST_CASE(gather_dot_weights_pointwise_unpack_int4)
+{
+    migraphx::shape out{migraphx::shape::half_type, {8, 1, 6}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto x      = mm->add_parameter("x", {migraphx::shape::half_type, {8, 1, 4}});
+        auto w      = mm->add_parameter("w", {migraphx::shape::uint8_type, {4, 6, 2}});
+        auto scales = mm->add_parameter("scales", {migraphx::shape::half_type, {4, 6}});
+        auto idx    = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto ualloc = mm->add_instruction(migraphx::make_op(
+            "allocate",
+            {{"shape", to_value(migraphx::shape{migraphx::shape::uint8_type, {4, 6, 4}})}}));
+        auto wu     = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("unpack_int4", {{"axis", 2}})), w, ualloc);
+        auto su = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scales);
+        auto sb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6, 4}}}), su);
+        auto* pm = create_pointwise_module(
+            p1, "main:pointwise0", {wu, sb}, [](auto* m, const auto& inputs) {
+                auto q = m->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                    inputs[0]);
+                return m->add_instruction(migraphx::make_op("mul"), q, inputs[1]);
+            });
+        auto palloc = mm->add_instruction(migraphx::make_op(
+            "allocate",
+            {{"shape", to_value(migraphx::shape{migraphx::shape::half_type, {4, 6, 4}})}}));
+        auto dq     = mm->add_instruction(make_precompile_op("pointwise"), {wu, sb, palloc}, {pm});
+        auto wt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dq);
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot   = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout", to_value(migraphx::shape{migraphx::shape::half_type, {4, 4, 6}})}})),
+            x,
+            idx,
+            wt,
+            alloc);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto x      = mm->add_parameter("x", {migraphx::shape::half_type, {8, 1, 4}});
+        auto w      = mm->add_parameter("w", {migraphx::shape::uint8_type, {4, 6, 2}});
+        auto scales = mm->add_parameter("scales", {migraphx::shape::half_type, {4, 6}});
+        auto idx    = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto su     = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), scales);
+        auto sb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 6, 4}}}), su);
+        auto* pm = create_pointwise_module(
+            p2, "main:pointwise0", {w, sb}, [](auto* m, const auto& inputs) {
+                auto q = m->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                    inputs[0]);
+                return m->add_instruction(migraphx::make_op("mul"), q, inputs[1]);
+            });
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot   = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout",
+                  to_value(migraphx::shape{migraphx::shape::half_type, {4, 4, 6}, {24, 1, 4}})},
+                 {"packed", {0}},
+                 {"weights", 2},
+                 {"modules", {"weights"}}})),
+            {x, idx, w, sb, alloc},
+            {pm});
+        mm->add_return({dot});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A pointwise operator with another reader computes the table for it too, so
+// only the view is fused
+TEST_CASE(gather_dot_weights_pointwise_shared)
+{
+    migraphx::shape ws{migraphx::shape::float_type, {4, 5, 3}};
+    migraphx::shape out{migraphx::shape::float_type, {8, 1, 5}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto x      = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w      = mm->add_parameter("w", ws);
+        auto idx    = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto* pm    = create_pointwise_module(p1, "main:pointwise0", {w}, single_pointwise("relu"));
+        auto walloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(ws)}}));
+        auto wr     = mm->add_instruction(make_precompile_op("pointwise"), {w, walloc}, {pm});
+        auto wt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), wr);
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot   = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}})),
+            x,
+            idx,
+            wt,
+            alloc);
+        mm->add_return({dot, wr});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto x      = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w      = mm->add_parameter("w", ws);
+        auto idx    = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto* pm    = create_pointwise_module(p2, "main:pointwise0", {w}, single_pointwise("relu"));
+        auto walloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(ws)}}));
+        auto wr     = mm->add_instruction(make_precompile_op("pointwise"), {w, walloc}, {pm});
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot   = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout",
+                  to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}, {15, 1, 3}})}})),
+            x,
+            idx,
+            wr,
+            alloc);
+        mm->add_return({dot, wr});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A table that is read as it is stored has nothing to fuse
+TEST_CASE(gather_dot_weights_stored)
+{
+    migraphx::shape out{migraphx::shape::float_type, {8, 1, 5}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w     = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto idx   = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot   = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}})),
+            x,
+            idx,
+            w,
+            alloc);
+        mm->add_return({dot});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+// The pointwise operator reading the sums, here the add of a bias, becomes
+// the column submodule
+TEST_CASE(gather_dot_pointwise)
+{
+    migraphx::shape out{migraphx::shape::float_type, {8, 1, 5}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto b   = mm->add_parameter("b", out);
+        auto dalloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}})),
+            x,
+            idx,
+            w,
+            dalloc);
+        auto* pm =
+            create_pointwise_module(p1, "main:pointwise0", {b, dot}, single_pointwise("add"));
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto add   = mm->add_instruction(make_precompile_op("pointwise"), {b, dot, alloc}, {pm});
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto b   = mm->add_parameter("b", out);
+        auto* pm = create_pointwise_module(p2, "main:pointwise0", {b, b}, single_pointwise("add"));
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot   = mm->add_instruction(
+            make_precompile_op(
+                migraphx::make_op(
+                    "gpu::gather_dot",
+                    {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})},
+                     {"modules", {"column"}},
+                     {"column_dot", 1},
+                     {"column_inputs", 1}}),
+                out),
+            {x, idx, w, b, alloc},
+            {pm});
+        mm->add_return({dot});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The sums have another reader, so they are still computed on their own
+TEST_CASE(gather_dot_pointwise_multi_use)
+{
+    migraphx::shape out{migraphx::shape::float_type, {8, 1, 5}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto b   = mm->add_parameter("b", out);
+        auto dalloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}})),
+            x,
+            idx,
+            w,
+            dalloc);
+        auto* pm =
+            create_pointwise_module(p1, "main:pointwise0", {b, dot}, single_pointwise("add"));
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto add   = mm->add_instruction(make_precompile_op("pointwise"), {b, dot, alloc}, {pm});
+        mm->add_return({add, dot});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+// The pointwise operator reading both columns of every pair of the sums
+// becomes the group submodule, which gives one column per pair
+TEST_CASE(gather_dot_group)
+{
+    migraphx::shape sums{migraphx::shape::float_type, {8, 1, 6}};
+    migraphx::shape out{migraphx::shape::float_type, {8, 1, 3, 1}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 6}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto dalloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(sums)}}));
+        auto dot = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 6}})}})),
+            x,
+            idx,
+            w,
+            dalloc);
+        auto pairs =
+            mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {8, 1, 3, 2}}}), dot);
+        auto first = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), pairs);
+        auto second = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), pairs);
+        auto* pm = create_pointwise_module(
+            p1, "main:pointwise0", {second, first}, single_pointwise("sub"));
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto sub =
+            mm->add_instruction(make_precompile_op("pointwise"), {second, first, alloc}, {pm});
+        mm->add_return({sub});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 6}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto* pm = create_pointwise_module(p2, "main:pointwise0", {x, x}, single_pointwise("sub"));
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot   = mm->add_instruction(
+            make_precompile_op(
+                migraphx::make_op(
+                    "gpu::gather_dot",
+                    {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 6}})},
+                     {"modules", {"group"}},
+                     {"group", 2},
+                     {"group_args", {1, 0}}}),
+                out),
+            {x, idx, w, alloc},
+            {pm});
+        mm->add_return({dot});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The add of a bias then a pointwise operator over the pairs with another
+// input: the column and the group submodule with their inputs in that order
+TEST_CASE(gather_dot_pointwise_group)
+{
+    migraphx::shape sums{migraphx::shape::float_type, {8, 1, 6}};
+    migraphx::shape out{migraphx::shape::float_type, {8, 1, 3, 1}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 6}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto b   = mm->add_parameter("b", sums);
+        auto y   = mm->add_parameter("y", out);
+        auto dalloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(sums)}}));
+        auto dot = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 6}})}})),
+            x,
+            idx,
+            w,
+            dalloc);
+        auto* pm0 =
+            create_pointwise_module(p1, "main:pointwise0", {b, dot}, single_pointwise("add"));
+        auto aalloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(sums)}}));
+        auto add = mm->add_instruction(make_precompile_op("pointwise"), {b, dot, aalloc}, {pm0});
+        auto pairs =
+            mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {8, 1, 3, 2}}}), add);
+        auto first = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), pairs);
+        auto second = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), pairs);
+        auto* pm1 = create_pointwise_module(
+            p1, "main:pointwise1", {first, y, second}, [](auto* m, const auto& inputs) {
+                auto mul = m->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
+                return m->add_instruction(migraphx::make_op("sub"), mul, inputs[2]);
+            });
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto pw =
+            mm->add_instruction(make_precompile_op("pointwise"), {first, y, second, alloc}, {pm1});
+        mm->add_return({pw});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w    = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 6}});
+        auto idx  = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto b    = mm->add_parameter("b", sums);
+        auto y    = mm->add_parameter("y", out);
+        auto* pm0 = create_pointwise_module(p2, "main:pointwise0", {b, b}, single_pointwise("add"));
+        auto* pm1 = create_pointwise_module(
+            p2, "main:pointwise1", {y, y, y}, [](auto* m, const auto& inputs) {
+                auto mul = m->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
+                return m->add_instruction(migraphx::make_op("sub"), mul, inputs[2]);
+            });
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto dot   = mm->add_instruction(
+            make_precompile_op(
+                migraphx::make_op(
+                    "gpu::gather_dot",
+                    {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 6}})},
+                     {"modules", migraphx::to_value(std::vector<std::string>{"column", "group"})},
+                     {"column_dot", 1},
+                     {"column_inputs", 1},
+                     {"group", 2},
+                     {"group_args", {0, -1, 1}}}),
+                out),
+            {x, idx, w, b, y, alloc},
+            {pm0, pm1});
+        mm->add_return({dot});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The kernel reads the columns of a group from adjacent lanes, which needs a
+// power of two of them: groups of 3 columns stay
+TEST_CASE(gather_dot_group_of_three)
+{
+    migraphx::shape sums{migraphx::shape::float_type, {8, 1, 6}};
+    migraphx::shape out{migraphx::shape::float_type, {8, 1, 2, 1}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 6}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto dalloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(sums)}}));
+        auto dot = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 6}})}})),
+            x,
+            idx,
+            w,
+            dalloc);
+        auto triples =
+            mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {8, 1, 2, 3}}}), dot);
+        auto first = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), triples);
+        auto last = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {2}}, {"ends", {3}}}), triples);
+        auto* pm =
+            create_pointwise_module(p1, "main:pointwise0", {first, last}, single_pointwise("sub"));
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto sub = mm->add_instruction(make_precompile_op("pointwise"), {first, last, alloc}, {pm});
+        mm->add_return({sub});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+// The pairs have another reader, so the sums are still computed on their own
+TEST_CASE(gather_dot_group_multi_use)
+{
+    migraphx::shape sums{migraphx::shape::float_type, {8, 1, 6}};
+    migraphx::shape out{migraphx::shape::float_type, {8, 1, 3, 1}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 6}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto dalloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(sums)}}));
+        auto dot = mm->add_instruction(
+            make_precompile_op(migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout", to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 6}})}})),
+            x,
+            idx,
+            w,
+            dalloc);
+        auto pairs =
+            mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {8, 1, 3, 2}}}), dot);
+        auto first = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), pairs);
+        auto second = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), pairs);
+        auto* pm = create_pointwise_module(
+            p1, "main:pointwise0", {second, first}, single_pointwise("sub"));
+        auto alloc = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(out)}}));
+        auto sub =
+            mm->add_instruction(make_precompile_op("pointwise"), {second, first, alloc}, {pm});
+        mm->add_return({sub, pairs});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

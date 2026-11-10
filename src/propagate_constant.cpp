@@ -45,6 +45,9 @@ static bool skip_propagate(instruction_ref ins)
     if(ins->name() == "convert" and
        ins->get_shape().type_size() > ins->inputs().front()->get_shape().type_size())
         return true;
+    // Folding a convert of dequantized data would fold the dequantize as well
+    if(ins->name() == "convert" and ins->inputs().front()->name() == "dequantizelinear")
+        return skip_propagate(ins->inputs().front());
     if(contains({"unpack_int4", "unpack_fp4"}, ins->name()))
         return true;
     // Skip broadcasted views since folding them saves no computation, but fold

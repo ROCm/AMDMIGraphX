@@ -37,6 +37,11 @@
 #include <migraphx/array.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/serialize.hpp>
+#include <bitset>
 #include <cmath>
 #include <set>
 
@@ -1096,6 +1101,273 @@ struct find_concat_pointwise
     }
 };
 
+// The attributes of the operator a precompile_op wraps
+static value precompile_attributes(instruction_ref ins)
+{
+    return ins->get_operator().to_value().at("op").at("operator");
+}
+
+// The precompile_op with other attributes of the operator it wraps
+static operation with_precompile_attributes(instruction_ref ins, const value& attributes)
+{
+    auto v              = ins->get_operator().to_value();
+    v["op"]["operator"] = attributes;
+    return make_op("gpu::precompile_op", v);
+}
+
+// Fuse what computes the table of matrices of a gather_dot into it: the
+// views become the layout of the matrices in the tensor they read, a
+// pointwise operator the weights submodule, and the bytes of an unpack_int4
+// are read packed, so the kernel computes the matrices from the stored
+// weights as it reads them.
+struct find_gather_dot_weights
+{
+    auto matcher() const { return precompile_name("gpu::gather_dot"); }
+
+    static bool is_view(instruction_ref ins)
+    {
+        return contains({"reshape_lazy", "transpose", "squeeze", "unsqueeze"}, ins->name());
+    }
+
+    static bool is_precompile(instruction_ref ins, const std::string& name)
+    {
+        return ins->name() == "gpu::precompile_op" and
+               ins->get_operator().to_value().at("op").at("name").to<std::string>() == name;
+    }
+
+    // The packed bytes of an input that is unpacked along its last axis,
+    // viewed with half the last axis of the input
+    static optional<instruction_ref>
+    find_packed(module& m, instruction_ref pos, instruction_ref input)
+    {
+        if(not input->get_shape().standard())
+            return nullopt;
+        // the views of a standard tensor that keep it standard keep its order
+        auto unpack = input;
+        while(contains({"reshape_lazy", "squeeze", "unsqueeze"}, unpack->name()))
+            unpack = unpack->inputs().front();
+        if(not is_precompile(unpack, "unpack_int4") or not unpack->get_shape().standard())
+            return nullopt;
+        auto bytes     = unpack->inputs().front();
+        const auto& bs = bytes->get_shape();
+        auto axis      = precompile_attributes(unpack).at("axis").to<std::int64_t>();
+        auto lens      = input->get_shape().lens();
+        if(axis < 0)
+            axis += bs.ndim();
+        if(not bs.standard() or axis + 1 != bs.ndim() or lens.back() % 2 != 0 or
+           input->get_shape().elements() != 2 * bs.elements())
+            return nullopt;
+        lens.back() /= 2;
+        if(lens == bs.lens())
+            return bytes;
+        return m.insert_instruction(pos, make_op("reshape_lazy", {{"dims", lens}}), bytes);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto attrs = precompile_attributes(ins);
+        // only the matrices as the pass left them
+        if(not attrs.at("modules").empty() or attrs.at("weights").to<std::size_t>() != 1 or
+           not from_value<shape>(attrs.at("layout")).standard())
+            return;
+        auto weights = ins->inputs().at(2);
+        auto base    = weights;
+        bool shared  = false;
+        while(is_view(base))
+        {
+            shared = shared or base->outputs().size() > 1;
+            base   = base->inputs().front();
+        }
+        // The shape of the views is where the matrices are in a standard base
+        if(not base->get_shape().standard() or weights->get_shape().broadcasted())
+            return;
+        const auto& base_inputs = base->inputs();
+        const bool fuse =
+            is_precompile(base, "pointwise") and not shared and base->outputs().size() == 1 and
+            base->get_shape().type() != shape::tuple_type and
+            std::none_of(base_inputs.begin(), base_inputs.end(), [](instruction_ref input) {
+                return input->get_shape().type() == shape::bool_type;
+            });
+        if(not fuse and base == weights)
+            return;
+        std::vector<instruction_ref> inputs = {ins->inputs()[0], ins->inputs()[1]};
+        std::vector<std::size_t> packed;
+        std::vector<module_ref> mods;
+        if(fuse)
+        {
+            // the last input of the pointwise is its output buffer
+            std::for_each(base_inputs.begin(), std::prev(base_inputs.end()), [&](auto input) {
+                auto bytes = find_packed(m, ins, input);
+                if(bytes.has_value())
+                    packed.push_back(inputs.size() - 2);
+                inputs.push_back(bytes.has_value() ? *bytes : input);
+            });
+            mods             = base->module_inputs();
+            attrs["modules"] = to_value(std::vector<std::string>{"weights"});
+        }
+        else
+        {
+            inputs.push_back(base);
+        }
+        attrs["layout"]  = to_value(weights->get_shape());
+        attrs["packed"]  = to_value(packed);
+        attrs["weights"] = inputs.size() - 2;
+        inputs.push_back(ins->inputs().back());
+        m.replace_instruction(ins, with_precompile_attributes(ins, attrs), inputs, mods);
+    }
+};
+
+// Fuse a pointwise operator applied to the sums of a gather_dot, eg the bias
+// add, as its column submodule
+struct find_gather_dot_pointwise
+{
+    auto matcher() const
+    {
+        return precompile_name("pointwise")(
+            match::not_tuple(),
+            match::any_of[match::inputs()](
+                precompile_name("gpu::gather_dot")(match::used_once()).bind("dot")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto pw      = r.result;
+        auto dot     = r.instructions["dot"];
+        auto attrs   = precompile_attributes(dot);
+        auto modules = attrs.at("modules").to_vector<std::string>();
+        if(contains(modules, "column") or contains(modules, "group"))
+            return;
+        if(pw->get_shape().lens() != dot->get_shape().lens())
+            return;
+        auto pw_inputs = pw->inputs();
+        if(std::count(pw_inputs.begin(), pw_inputs.end(), dot) != 1)
+            return;
+        auto pos            = std::find(pw_inputs.begin(), pw_inputs.end(), dot);
+        attrs["column_dot"] = std::distance(pw_inputs.begin(), pos);
+        pw_inputs.erase(pos);
+        // the other inputs but the output buffer, which stays last
+        attrs["column_inputs"] = pw_inputs.size() - 1;
+        modules.emplace_back("column");
+        attrs["modules"] = to_value(modules);
+        auto inputs      = dot->inputs();
+        inputs.pop_back();
+        inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
+        auto mods = dot->module_inputs();
+        mods.push_back(pw->module_inputs().front());
+        auto v            = with_precompile_attributes(dot, attrs).to_value();
+        v["output_shape"] = to_value(pw->get_shape());
+        m.replace_instruction(pw, make_op("gpu::precompile_op", v), inputs, mods);
+    }
+};
+
+// Fuse a pointwise operator that combines adjacent columns of the sums of a
+// gather_dot, eg a swiglu over interleaved gate and linear columns, as its
+// group submodule: the pointwise reads slices of the last axis of a view of
+// the sums that splits the columns in groups.
+struct find_gather_dot_group
+{
+    auto matcher() const { return precompile_name("pointwise")(match::not_tuple()); }
+
+    struct column_slice
+    {
+        instruction_ref dot;
+        instruction_ref view;
+        instruction_ref slice;
+        std::size_t column = 0;
+    };
+
+    // The column of the groups an input reads, if it is one
+    static optional<column_slice> find_column(instruction_ref input)
+    {
+        auto slice = input;
+        while(contains({"squeeze", "unsqueeze"}, slice->name()) and slice->outputs().size() == 1)
+            slice = slice->inputs().front();
+        if(slice->name() != "slice" or slice->outputs().size() != 1)
+            return nullopt;
+        auto v         = slice->get_operator().to_value();
+        auto axes      = v.at("axes").to_vector<std::size_t>();
+        auto starts    = v.at("starts").to_vector<std::size_t>();
+        auto ends      = v.at("ends").to_vector<std::size_t>();
+        auto view      = slice->inputs().front();
+        const auto& vs = view->get_shape();
+        if(axes.size() != 1 or axes.front() + 1 != vs.ndim() or ends.front() != starts.front() + 1)
+            return nullopt;
+        // the views of the sums that keep them standard keep their order
+        if(not vs.standard())
+            return nullopt;
+        auto dot = view;
+        while(contains({"reshape_lazy", "squeeze", "unsqueeze"}, dot->name()) and
+              dot->inputs().front()->outputs().size() == 1)
+            dot = dot->inputs().front();
+        if(not find_gather_dot_weights::is_precompile(dot, "gpu::gather_dot"))
+            return nullopt;
+        return column_slice{dot, view, slice, starts.front()};
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto pw        = r.result;
+        auto pw_inputs = pw->inputs();
+        pw_inputs.pop_back();
+        std::vector<optional<column_slice>> columns;
+        std::transform(
+            pw_inputs.begin(), pw_inputs.end(), std::back_inserter(columns), &find_column);
+        auto first = std::find_if(
+            columns.begin(), columns.end(), [](const auto& c) { return c.has_value(); });
+        if(first == columns.end())
+            return;
+        auto dot  = (*first)->dot;
+        auto view = (*first)->view;
+        if(not std::all_of(columns.begin(), columns.end(), [&](const auto& c) {
+               return not c.has_value() or (c->dot == dot and c->view == view);
+           }))
+            return;
+        // the pointwise is the only reader of the sums
+        if(not std::all_of(view->outputs().begin(), view->outputs().end(), [&](auto out) {
+               return std::any_of(columns.begin(), columns.end(), [&](const auto& c) {
+                   return c.has_value() and c->slice == out;
+               });
+           }))
+            return;
+        auto attrs   = precompile_attributes(dot);
+        auto modules = attrs.at("modules").to_vector<std::string>();
+        auto group   = view->get_shape().lens().back();
+        auto n       = from_value<shape>(attrs.at("layout")).lens().at(2);
+        // the kernel reads the columns of a group from adjacent lanes of a
+        // block of 16 columns
+        constexpr std::size_t block = 16;
+        if(contains(modules, "group") or group < 2 or group > block or
+           std::bitset<64>(group).count() != 1 or n % group != 0 or
+           pw->get_shape().elements() * group != dot->get_shape().elements())
+            return;
+        std::vector<std::int64_t> group_args;
+        std::transform(
+            columns.begin(),
+            columns.end(),
+            std::back_inserter(group_args),
+            [](const auto& c) -> std::int64_t { return c.has_value() ? c->column : -1; });
+        auto inputs = dot->inputs();
+        inputs.pop_back();
+        // the inputs that are not columns follow, then the output buffer
+        migraphx::for_each(
+            pw_inputs.begin(), pw_inputs.end(), columns.begin(), [&](auto input, const auto& c) {
+                if(not c.has_value())
+                    inputs.push_back(input);
+            });
+        inputs.push_back(pw->inputs().back());
+        attrs["group"]      = group;
+        attrs["group_args"] = to_value(group_args);
+        modules.emplace_back("group");
+        attrs["modules"] = to_value(modules);
+        auto mods        = dot->module_inputs();
+        mods.push_back(pw->module_inputs().front());
+        auto v            = with_precompile_attributes(dot, attrs).to_value();
+        v["output_shape"] = to_value(pw->get_shape());
+        m.replace_instruction(pw, make_op("gpu::precompile_op", v), inputs, mods);
+    }
+};
+
 void fuse_ops::apply(module& m) const
 {
     match::find_matches(m,
@@ -1123,6 +1395,10 @@ void fuse_ops::apply(module& m) const
                         find_contiguous_transpose_hip_gemm{},
 #endif
                         find_commutative_broadcast{});
+    // In the order of the instructions: the weights of a gather_dot, then the
+    // pointwise operators reading its sums
+    match::find_matches(
+        m, find_gather_dot_weights{}, find_gather_dot_pointwise{}, find_gather_dot_group{});
 }
 
 } // namespace gpu

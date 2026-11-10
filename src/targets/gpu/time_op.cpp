@@ -492,9 +492,10 @@ adaptive_topk_benchmark::run(const context& ictx,
             return not p.has_value() or graph_eligible(*p);
         });
 
-    // Coarse pass: warmup + single-run estimate, then a bundle-of-1 measurement of up to
-    // coarse_max_runs runs within coarse_ms. The measurement is skipped when it would be a single
-    // run too, so with the default coarse_max_runs every candidate is ranked by its estimate.
+    // Coarse pass: warmup + single-run estimate, then a measurement of up to coarse_max_runs runs
+    // of up to coarse_bundle evals within coarse_ms. The measurement is skipped when it would be a
+    // single run too, so with the default coarse_max_runs every candidate is ranked by its
+    // estimate.
     std::vector<double> coarse(candidates.size(), invalid);
     std::transform(
         candidates.begin(),
@@ -511,10 +512,15 @@ adaptive_topk_benchmark::run(const context& ictx,
             auto t = try_benchmark(trace, [&] {
                 auto param_map = make_benchmark_arguments(ctx_vec, candidate, *p, arg_cache);
                 auto estimate  = time_benchmark(ctx_vec, *p, param_map, 1, 1, use_graph);
-                auto nruns     = compute_nruns(coarse_ms, estimate, 1, coarse_max_runs);
+                // Bundle short kernels, so a launch gap is not most of their time
+                auto fits =
+                    coarse_ms / (std::max(estimate, benchmark_min_time_ms) * coarse_max_runs);
+                auto cbundle = static_cast<int>(
+                    std::clamp<double>(fits, 1, std::max<std::size_t>(coarse_bundle, 1)));
+                auto nruns = compute_nruns(coarse_ms, estimate, cbundle, coarse_max_runs);
                 if(nruns == 1)
                     return estimate;
-                return time_benchmark(ctx_vec, *p, param_map, 1, nruns, use_graph, false);
+                return time_benchmark(ctx_vec, *p, param_map, cbundle, nruns, use_graph, false);
             });
             if(t.has_value())
                 trace("Coarse time: ", *t, "ms");

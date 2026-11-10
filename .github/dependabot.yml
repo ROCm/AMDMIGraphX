@@ -6,10 +6,34 @@
 
 version: 2
 updates:
+  - package-ecosystem: "pip" # See documentation for possible values
+    directory: "/docs/sphinx" # Location of package manifests
+    schedule:
+      interval: "daily"
+    labels:
+      - "documentation"
+  - package-ecosystem: "pip"
+    directory: "/tools/accuracy"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "pip"
+    directory: "/examples/vision/python_unet"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "pip"
+    directory: "/examples/vision/python_super_resolution"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
   - package-ecosystem: "github-actions"
     # "/" covers .github/workflows; composite actions keep their own `uses:`
     # pins, so .github/actions has to be listed separately to get bumped.
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: "daily"
       # Wait a week before adopting newly released action versions.

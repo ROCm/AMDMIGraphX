@@ -36,21 +36,28 @@ TEST_CASE(loop_sibling_test)
     auto a = mm->add_parameter("a", su);
     auto b = mm->add_parameter("b", su);
 
-    auto add_loop = [&](const std::string& name, migraphx::instruction_ref input) {
-        auto* body = p.create_module(name);
-        body->add_parameter("iteration_num", si);
-        auto cond = body->add_parameter("keep_going_inp", sc);
-        auto var  = body->add_parameter("b_in", su);
-        auto id   = body->add_instruction(migraphx::make_op("identity"), cond);
-        auto ad   = body->add_instruction(migraphx::make_op("add"), a, var);
-        body->add_return({id, ad});
+    auto* body1 = p.create_module("main_Loop_4_loop");
+    body1->add_parameter("iteration_num", si);
+    auto cond1 = body1->add_parameter("keep_going_inp", sc);
+    auto var1  = body1->add_parameter("b_in", su);
+    auto id1   = body1->add_instruction(migraphx::make_op("identity"), cond1);
+    auto ad1   = body1->add_instruction(migraphx::make_op("add"), a, var1);
+    body1->add_return({id1, ad1});
+    auto lp1 = mm->add_instruction(
+        migraphx::make_op("loop", {{"max_iterations", 10}}), {max_iter, icond, b}, {body1});
+    auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), lp1);
 
-        auto lp = mm->add_instruction(
-            migraphx::make_op("loop", {{"max_iterations", 10}}), {max_iter, icond, input}, {body});
-        return mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), lp);
-    };
-    auto r1 = add_loop("main_Loop_4_loop", b);
-    auto r2 = add_loop("main_Loop_6_loop", r1);
+    // The second body uses the same parameter names as the first one
+    auto* body2 = p.create_module("main_Loop_6_loop");
+    body2->add_parameter("iteration_num", si);
+    auto cond2 = body2->add_parameter("keep_going_inp", sc);
+    auto var2  = body2->add_parameter("b_in", su);
+    auto id2   = body2->add_instruction(migraphx::make_op("identity"), cond2);
+    auto ad2   = body2->add_instruction(migraphx::make_op("add"), a, var2);
+    body2->add_return({id2, ad2});
+    auto lp2 = mm->add_instruction(
+        migraphx::make_op("loop", {{"max_iterations", 10}}), {max_iter, icond, r1}, {body2});
+    auto r2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), lp2);
     mm->add_return({r2});
 
     auto prog = read_onnx("loop_sibling_test.onnx");

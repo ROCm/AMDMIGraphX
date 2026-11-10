@@ -831,6 +831,40 @@ TEST_CASE(input_used_non_packed_unsupported)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(input_used_by_other_user_layout_change)
+{
+    // s1 is channels-last and has another user, while the concat buffer is
+    // channels-first, so s1 is copied and its other user keeps reading s1
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate<0, 2, 3, 1>(1, 2, 8, 8));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto o1 = m1.add_instruction(simple_op{}, s1);
+        auto a2 = m1.add_instruction(make_allocate(1, 3, 8, 8));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(1, 5, 8, 8));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        m1.add_return({c1, o1});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(1, 5, 8, 8));
+        auto a1     = m2.add_instruction(make_allocate<0, 2, 3, 1>(1, 2, 8, 8));
+        auto s1     = m2.add_instruction(simple_op{}, a1);
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), super);
+        auto copy1  = m2.add_instruction(migraphx::make_op("test::copy"), s1, slice1);
+        auto o1     = m2.add_instruction(simple_op{}, s1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {5}}}), super);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto id = m2.add_instruction(migraphx::make_op("identity"), super, copy1, s2);
+        m2.add_return({id, o1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(invert_view_chain_reshape)
 {
     // A strided view of {2, 4} re-indexed to the {2, 2, 2} input of a reshape

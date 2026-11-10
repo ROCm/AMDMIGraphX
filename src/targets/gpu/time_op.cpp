@@ -232,6 +232,26 @@ static void check_graph(hipError_t status, const std::string& what)
         MIGRAPHX_THROW(what + " failed: " + hip_error(status));
 }
 
+// Whether every instruction of p can be added to a benchmark graph
+static bool graph_eligible(const program& p)
+{
+    const auto* mm = p.get_main_module();
+    return std::all_of(mm->begin(), mm->end(), [](const instruction& ins) {
+        if(contains({"@param", "@literal", "@return", "load"}, ins.name()))
+            return true;
+        if(ins.name() == "gpu::code_object")
+        {
+            // A graph node only launches whole workgroups
+            const auto& op = any_cast<code_object_op>(ins.get_operator());
+            return op.local > 0 and op.global % op.local == 0;
+        }
+        // gpu_fill only memsets a packed buffer that is not a tuple
+        if(ins.name() == "hip::fill")
+            return ins.get_shape().sub_shapes().empty() and ins.get_shape().packed();
+        return false;
+    });
+}
+
 static hipGraphNode_t add_fill_node(hipGraph_t graph,
                                     const std::vector<hipGraphNode_t>& deps,
                                     const argument& dst,
@@ -348,6 +368,7 @@ static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
                              const parameter_map& param_map,
                              int bundle,
                              int nruns,
+                             bool use_graph,
                              bool warmup = true)
 {
     // time_loop's check sees the first bundle value_of cached in this process, not this one
@@ -356,14 +377,16 @@ static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
     auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
     // Evals leave the GPU idle between few-microsecond kernels and time the host, so replay a graph
     benchmark_graph graph;
-    try
+    if(use_graph)
     {
-        graph = make_benchmark_graph(p, param_map, bundle);
-    }
-    catch(const std::exception&)
-    {
-        // Host timing only measures slower, so a candidate that is not a graph is never favored
-        (void)hipGetLastError();
+        try
+        {
+            graph = make_benchmark_graph(p, param_map, bundle);
+        }
+        catch(const std::exception&)
+        {
+            (void)hipGetLastError();
+        }
     }
     if(graph.exec != nullptr)
     {
@@ -386,17 +409,29 @@ simple_benchmark::run(const context& ictx, const std::vector<benchmark_candidate
     std::vector<migraphx::context> ctx_vec = {ictx};
     // The candidates are alternatives for the same computation, so they can share inputs
     std::unordered_map<std::string, argument> arg_cache;
+    std::vector<program> programs;
+    programs.reserve(candidates.size());
+    std::transform(candidates.begin(),
+                   candidates.end(),
+                   std::back_inserter(programs),
+                   [&](const benchmark_candidate& candidate) {
+                       return make_finalized_program(ctx_vec, candidate);
+                   });
+    // Host timing adds launch gaps, so mixing it with graph timing would penalize some candidates
+    const bool use_graph = std::all_of(programs.begin(), programs.end(), &graph_eligible);
     std::vector<double> times;
     times.reserve(candidates.size());
     std::transform(candidates.begin(),
                    candidates.end(),
+                   programs.begin(),
                    std::back_inserter(times),
-                   [&](const benchmark_candidate& candidate) {
+                   [&](const benchmark_candidate& candidate, const program& p) {
                        auto trace = candidate.trace();
                        trace("Benchmarking solution: ", candidate.solution());
-                       auto p         = make_finalized_program(ctx_vec, candidate);
+                       if(use_graph)
+                           trace("Timing as a HIP graph");
                        auto param_map = make_benchmark_arguments(ctx_vec, candidate, p, arg_cache);
-                       auto t         = time_benchmark(ctx_vec, p, param_map, bundle, nruns);
+                       auto t = time_benchmark(ctx_vec, p, param_map, bundle, nruns, use_graph);
                        trace(t, "ms");
                        return t;
                    });
@@ -461,33 +496,40 @@ adaptive_topk_benchmark::run(const context& ictx,
                        return try_benchmark(
                            trace, [&] { return make_finalized_program(ctx_vec, candidate); });
                    });
+    // Host timing adds launch gaps, so mixing it with graph timing would penalize some candidates
+    const bool use_graph =
+        std::all_of(programs.begin(), programs.end(), [](const optional<program>& p) {
+            return not p.has_value() or graph_eligible(*p);
+        });
 
     // Coarse pass: warmup + single-run estimate, then a bundle-of-1 measurement of up to
     // coarse_max_runs runs within coarse_ms. The measurement is skipped when it would be a single
     // run too, so with the default coarse_max_runs every candidate is ranked by its estimate.
     std::vector<double> coarse(candidates.size(), invalid);
-    std::transform(candidates.begin(),
-                   candidates.end(),
-                   programs.begin(),
-                   coarse.begin(),
-                   [&](const benchmark_candidate& candidate, const optional<program>& p) {
-                       if(not p.has_value())
-                           return invalid;
-                       auto trace = candidate.trace();
-                       trace("Benchmarking solution: ", candidate.solution());
-                       auto t = try_benchmark(trace, [&] {
-                           auto param_map =
-                               make_benchmark_arguments(ctx_vec, candidate, *p, arg_cache);
-                           auto estimate = time_benchmark(ctx_vec, *p, param_map, 1, 1);
-                           auto nruns    = compute_nruns(coarse_ms, estimate, 1, coarse_max_runs);
-                           if(nruns == 1)
-                               return estimate;
-                           return time_benchmark(ctx_vec, *p, param_map, 1, nruns, false);
-                       });
-                       if(t.has_value())
-                           trace("Coarse time: ", *t, "ms");
-                       return t.value_or(invalid);
-                   });
+    std::transform(
+        candidates.begin(),
+        candidates.end(),
+        programs.begin(),
+        coarse.begin(),
+        [&](const benchmark_candidate& candidate, const optional<program>& p) {
+            if(not p.has_value())
+                return invalid;
+            auto trace = candidate.trace();
+            trace("Benchmarking solution: ", candidate.solution());
+            if(use_graph)
+                trace("Timing as a HIP graph");
+            auto t = try_benchmark(trace, [&] {
+                auto param_map = make_benchmark_arguments(ctx_vec, candidate, *p, arg_cache);
+                auto estimate  = time_benchmark(ctx_vec, *p, param_map, 1, 1, use_graph);
+                auto nruns     = compute_nruns(coarse_ms, estimate, 1, coarse_max_runs);
+                if(nruns == 1)
+                    return estimate;
+                return time_benchmark(ctx_vec, *p, param_map, 1, nruns, use_graph, false);
+            });
+            if(t.has_value())
+                trace("Coarse time: ", *t, "ms");
+            return t.value_or(invalid);
+        });
 
     // Select the candidates that measured successfully, keep the top_k fastest
     std::vector<std::size_t> indices(candidates.size());
@@ -539,7 +581,7 @@ adaptive_topk_benchmark::run(const context& ictx,
         auto t = try_benchmark(trace, [&] {
             auto param_map = make_benchmark_arguments(ctx_vec, candidate, p, arg_cache);
             auto nruns     = compute_nruns(precise_ms, coarse[i], bundle, max_runs);
-            return time_benchmark(ctx_vec, p, param_map, bundle, nruns, false);
+            return time_benchmark(ctx_vec, p, param_map, bundle, nruns, use_graph, false);
         });
         if(t.has_value())
             trace("Precise time: ", *t, "ms");

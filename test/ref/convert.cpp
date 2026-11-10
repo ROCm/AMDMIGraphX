@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,20 @@
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
+
+TEST_CASE(convert_broadcast_test)
+{
+    // The output keeps the broadcast, so the single stored element is converted once
+    migraphx::shape s{migraphx::shape::int32_type, {16}, {0}};
+    std::vector<int32_t> data = {7};
+    auto op     = migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}});
+    auto result = op.compute(op.compute_shape({s}), {migraphx::argument{s, data.data()}});
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {16}, {0}});
+    std::vector<int64_t> results_vector(16);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(
+        std::all_of(results_vector.begin(), results_vector.end(), [](auto v) { return v == 7; }));
+}
 
 TEST_CASE(convert_downcast_overflow_test)
 {

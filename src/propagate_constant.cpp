@@ -49,11 +49,9 @@ static bool skip_propagate(instruction_ref ins)
             return true;
         return skip_propagate(ins->inputs().front());
     }
-    // Folding a convert to a wider type would enlarge the literal and lose
-    // the smaller storage type, so keep it as a runtime conversion instead.
-    // A single element is still folded since fuse_pointwise does not create a
-    // pointwise module when every input is a scalar constant, which would
-    // leave the convert unlowered.
+    // Folding a convert to a wider type would enlarge the literal, so keep it at runtime unless
+    // only one element is stored: fuse_pointwise creates no pointwise module for an op whose
+    // inputs are all scalar constants, since it expects this pass to fold it
     if(ins->name() == "convert" and
        ins->get_shape().type_size() > ins->inputs().front()->get_shape().type_size() and
        ins->inputs().front()->get_shape().element_space() > 1)

@@ -130,20 +130,48 @@ struct record_recompile_pass
     }
 };
 
+// Return a view of memory borrowed with load, which is a dangling reference once the program
+// returns
+struct dangling_return_pass
+{
+    std::string name() const { return "dangling_return"; }
+    void apply(migraphx::module& m) const
+    {
+        migraphx::shape s{migraphx::shape::float_type, {4}};
+        auto ret   = std::prev(m.end());
+        auto alloc = m.insert_instruction(
+            ret, migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto view = m.insert_instruction(
+            ret,
+            migraphx::make_op("load", {{"shape", migraphx::to_value(s)}, {"offset", 0}}),
+            alloc);
+        m.replace_return({m.insert_instruction(ret, migraphx::make_op("identity"), view)});
+    }
+};
+
+static std::vector<migraphx::pass> with_dangling(std::vector<migraphx::pass> passes,
+                                                 const migraphx::compile_options& options)
+{
+    if(migraphx::contains(options.backend_options, "dangling_return"))
+        passes.push_back(dangling_return_pass{});
+    return passes;
+}
+
 struct recompile_test_target
 {
     std::string name() const { return "recompile_test"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&,
-                                           const migraphx::compile_options&) const
+                                           const migraphx::compile_options& options) const
     {
-        return {record_device_pass{}};
+        return with_dangling({record_device_pass{}}, options);
     }
     std::vector<migraphx::pass> get_recompile_passes(migraphx::context&,
                                                      const migraphx::compile_options& options) const
     {
-        return {
-            record_recompile_pass{options.exhaustive_tune,
-                                  migraphx::contains(options.backend_options, "break_recompile")}};
+        return with_dangling(
+            {record_recompile_pass{options.exhaustive_tune,
+                                   migraphx::contains(options.backend_options, "break_recompile")}},
+            options);
     }
     migraphx::context get_context() const { return recompile_test_context{}; }
 };
@@ -247,6 +275,36 @@ TEST_CASE(recompile_invalid_module_refused)
     // The program is unchanged when recompiling fails
     EXPECT(recorded_device(*p.get_main_module()) == "dev_a");
     EXPECT(context_device(p) == "dev_a");
+}
+
+TEST_CASE(compile_dangling_reference_refused)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    migraphx::compile_options options;
+    options.backend_options["dangling_return"] = true;
+    EXPECT(test::throws<migraphx::exception>([&] { p.compile(make_recompile_target(), options); },
+                                             "Dangling reference"));
+}
+
+TEST_CASE(recompile_dangling_reference_refused)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    current_device() = "dev_a";
+    p.compile(make_recompile_target());
+
+    current_device() = "dev_b";
+    migraphx::compile_options options;
+    options.backend_options["dangling_return"] = true;
+    EXPECT(test::throws<migraphx::exception>([&] { p.recompile(make_recompile_target(), options); },
+                                             "Dangling reference"));
+    // The program is unchanged when recompiling fails
+    EXPECT(recorded_device(*p.get_main_module()) == "dev_a");
 }
 
 TEST_CASE(load_without_finalize)

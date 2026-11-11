@@ -55,7 +55,6 @@
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/env.hpp>
-#include <migraphx/erase.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/process.hpp>
 #include <migraphx/ranges.hpp>
@@ -1096,10 +1095,15 @@ std::vector<std::string> make_child_environment(const std::vector<std::string>& 
     std::vector<std::string> result;
     if(environ != nullptr)
         result.assign(environ, find_sentinel(environ, nullptr));
-    erase_if(result, [&](const std::string& var) {
-        return migraphx::any_of(prefixes,
-                                [&](const std::string& p) { return starts_with(var, p); });
-    });
+    // Not migraphx::erase_if, it keeps an end iterator that vector::erase invalidates.
+    result.erase(std::remove_if(result.begin(),
+                                result.end(),
+                                [&](const std::string& var) {
+                                    return migraphx::any_of(prefixes, [&](const std::string& p) {
+                                        return starts_with(var, p);
+                                    });
+                                }),
+                 result.end());
     result.insert(result.end(), envs.begin(), envs.end());
     return result;
 }
@@ -1428,11 +1432,11 @@ void process::read(const writer& output) const
                                    FILE_ATTRIBUTE_NORMAL,
                                    nullptr)};
     if(not file.valid())
-        MIGRAPHX_THROW("Unable to open file: " + (tmp.path / filename));
+        MIGRAPHX_THROW("Unable to open file: " + (tmp.path / filename).string());
     auto size = GetFileSize(file.get(), nullptr);
     std::string result(size, '\0');
     if(ReadFile(file.get(), result.data(), size, nullptr, nullptr) == FALSE)
-        MIGRAPHX_THROW("Failed reading file: " + (tmp.path / filename));
+        MIGRAPHX_THROW("Failed reading file: " + (tmp.path / filename).string());
 #else
     std::string result;
     auto append = [&](const char* data, std::size_t n) { result.append(data, n); };

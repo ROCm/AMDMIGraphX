@@ -9061,6 +9061,45 @@ def loop_test():
 
 
 @onnx_test()
+def loop_sibling_test():
+    # Sibling Loop bodies that use the same parameter names
+    def make_body():
+        return helper.make_graph([
+            helper.make_node("Identity", ["keep_going_inp"], ["keep_going"]),
+            helper.make_node("Add", ["a", "b_in"], ["my_local"]),
+        ], "body", [
+            helper.make_tensor_value_info('iteration_num', TensorProto.INT64,
+                                          [1]),
+            helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL,
+                                          [1]),
+            helper.make_tensor_value_info('b_in', TensorProto.FLOAT, [1])
+        ], [
+            helper.make_tensor_value_info('keep_going', TensorProto.BOOL, [1]),
+            helper.make_tensor_value_info('my_local', TensorProto.FLOAT, [1]),
+        ])
+
+    node1 = helper.make_node("Loop",
+                             inputs=["max_trip_count", "keep_going_cond", "b"],
+                             outputs=["b_loop1"],
+                             body=make_body())
+    node2 = helper.make_node(
+        "Loop",
+        inputs=["max_trip_count", "keep_going_cond", "b_loop1"],
+        outputs=["b_loop2"],
+        body=make_body())
+
+    iter = helper.make_tensor_value_info('max_trip_count', TensorProto.INT64,
+                                         [1])
+    cond = helper.make_tensor_value_info('keep_going_cond', TensorProto.BOOL,
+                                         [1])
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [1])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [1])
+    b_loop2 = helper.make_tensor_value_info('b_loop2', TensorProto.FLOAT, [1])
+
+    return ([node1, node2], [iter, cond, a, b], [b_loop2])
+
+
+@onnx_test()
 def loop_test_implicit_tripcnt():
     body = helper.make_graph([
         helper.make_node("Add", ["a", "b_in"], ["my_local"]),

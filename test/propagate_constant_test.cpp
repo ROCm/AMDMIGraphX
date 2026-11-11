@@ -631,4 +631,70 @@ TEST_CASE(propagate_narrowing_convert)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(propagate_widening_convert_of_scalar)
+{
+    migraphx::module m1;
+    {
+        auto lit  = m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {5.0f}});
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), lit);
+        m1.add_instruction(non_const_pass_op{}, conv);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto lit =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {int64_t{5}}});
+        m2.add_instruction(non_const_pass_op{}, lit);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(propagate_widening_convert_of_broadcast_scalar)
+{
+    migraphx::module m1;
+    {
+        auto lit = m1.add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {2}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), lit);
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), mb);
+        m1.add_instruction(non_const_pass_op{}, conv);
+    }
+    run_pass(m1);
+    // The folded literal keeps the broadcast, so it still stores a single element
+    migraphx::module m2;
+    {
+        auto lit = m2.add_literal(
+            migraphx::literal{{migraphx::shape::int64_type, {2, 4}, {0, 0}}, {int64_t{2}}});
+        m2.add_instruction(non_const_pass_op{}, lit);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(skip_contiguous_of_widening_convert_of_broadcast_scalar)
+{
+    // The convert is folded into a literal that keeps the broadcast, but the
+    // contiguous is not, since that would materialize the broadcast
+    migraphx::module m1;
+    {
+        auto lit = m1.add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {2}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), lit);
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), mb);
+        auto cont = m1.add_instruction(migraphx::make_op("contiguous"), conv);
+        m1.add_instruction(non_const_pass_op{}, cont);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto lit = m2.add_literal(
+            migraphx::literal{{migraphx::shape::int64_type, {2, 4}, {0, 0}}, {int64_t{2}}});
+        auto cont = m2.add_instruction(migraphx::make_op("contiguous"), lit);
+        m2.add_instruction(non_const_pass_op{}, cont);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

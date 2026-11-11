@@ -39,11 +39,22 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 static bool skip_propagate(instruction_ref ins)
 {
     if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
+    {
+        // These produce a dense output, so folding them on broadcasted inputs
+        // (such as a folded convert of a broadcast scalar) would materialize
+        // the broadcast into a much larger literal
+        if(std::none_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref input) {
+               return input->get_shape().element_space() >= ins->get_shape().element_space();
+           }))
+            return true;
         return skip_propagate(ins->inputs().front());
-    // Folding a convert to a wider type would enlarge the literal and lose
-    // the smaller storage type, so keep it as a runtime conversion instead
+    }
+    // Folding a convert to a wider type would enlarge the literal, so keep it at runtime unless
+    // only one element is stored: fuse_pointwise creates no pointwise module for an op whose
+    // inputs are all scalar constants, since it expects this pass to fold it
     if(ins->name() == "convert" and
-       ins->get_shape().type_size() > ins->inputs().front()->get_shape().type_size())
+       ins->get_shape().type_size() > ins->inputs().front()->get_shape().type_size() and
+       ins->inputs().front()->get_shape().element_space() > 1)
         return true;
     if(contains({"unpack_int4", "unpack_fp4"}, ins->name()))
         return true;

@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/reshape_dims.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
@@ -56,6 +57,20 @@ instruction_ref insert_contiguous(module& m, instruction_ref pos, instruction_re
     return m.insert_instruction(pos, make_op("gpu::contiguous"), input, alloc);
 }
 
+// True if the buffer of `ins` is a program output: it is one of the module returns, or it is
+// passed on unchanged to one, through an alias such as squeeze or through the copy to host
+// inserted for offload_copy, which keeps the strides of its input.
+bool reaches_return(const std::vector<instruction_ref>& returns, instruction_ref ins)
+{
+    if(contains(returns, ins))
+        return true;
+    return std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref out) {
+        const bool forwards = contains(instruction::get_output_alias(out, true), ins) or
+                              (out->name() == "hip::copy_from_gpu" and out->inputs().size() == 1);
+        return forwards and reaches_return(returns, out);
+    });
+}
+
 struct find_reshape : match::supports_dynamic_shapes
 {
     auto matcher() const
@@ -79,7 +94,11 @@ struct find_reshape : match::supports_dynamic_shapes
             auto expected    = ins->get_shape().to_symbolic();
             auto output_dims = ins->get_shape().sym_dims();
             auto reshaped    = reshape_dims(s.to_symbolic(), output_dims, {.lazy = true});
-            if(reshaped and sym::same_symbol(reshaped->sym_elements(), expected.sym_elements()))
+            // eliminate_contiguous already kept the copies that make program outputs standard;
+            // only alias here if that does not change the layout of a program output.
+            if(reshaped and sym::same_symbol(reshaped->sym_elements(), expected.sym_elements()) and
+               (reshaped->standard() or *reshaped == expected or
+                not reaches_return(m.get_returns(), ins)))
             {
                 m.replace_instruction(
                     ins, reshape_op, output_buffer ? ins->inputs() : std::vector{input});

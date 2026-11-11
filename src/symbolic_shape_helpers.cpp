@@ -27,8 +27,11 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/shape.hpp>
 
 #include <algorithm>
+#include <iterator>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace migraphx {
@@ -36,21 +39,18 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-bool directly_contains_symbol(instruction_ref source, const sym::expr& symbol)
+template <class Range>
+void append_unique_sources(std::vector<instruction_ref>& result,
+                           std::unordered_set<instruction_ref>& seen,
+                           const Range& sources)
 {
-    const auto& s = source->get_shape();
-    if(not s.symbolic())
-        return false;
-    return any_of(s.dyn_dims(), [&](const auto& d) {
-        return d.is_symbolic() and d.sym_expr.name() == "variable" and
-               sym::same_symbol(d.sym_expr, symbol);
+    std::copy_if(sources.begin(), sources.end(), std::back_inserter(result), [&](auto source) {
+        return seen.insert(source).second;
     });
 }
 
-} // namespace
-
-std::optional<std::vector<instruction_ref>> find_expression_sources(
-    const module& m, instruction_ref data, const std::vector<sym::expr>& expressions)
+std::vector<std::pair<std::string, sym::expr>>
+find_ordered_variables(const std::vector<sym::expr>& expressions)
 {
     std::unordered_set<sym::expr> required;
     for(const auto& expression : expressions)
@@ -59,37 +59,139 @@ std::optional<std::vector<instruction_ref>> find_expression_sources(
         required.insert(variables.begin(), variables.end());
     }
 
-    std::vector<std::pair<std::string, sym::expr>> ordered_variables;
+    std::vector<std::pair<std::string, sym::expr>> result;
     std::transform(
-        required.begin(),
-        required.end(),
-        std::back_inserter(ordered_variables),
-        [](const auto& variable) { return std::make_pair(variable.to_string(), variable); });
-    std::sort(ordered_variables.begin(), ordered_variables.end(), [](const auto& x, const auto& y) {
+        required.begin(), required.end(), std::back_inserter(result), [](const auto& variable) {
+            return std::make_pair(variable.to_string(), variable);
+        });
+    // Keep eval_expr_from_shape inputs deterministic despite the unordered variable set.
+    std::sort(result.begin(), result.end(), [](const auto& x, const auto& y) {
         return x.first < y.first;
     });
-
-    std::vector<instruction_ref> candidates = {data};
-    auto parameters                         = m.get_parameters();
-    candidates.insert(candidates.end(), parameters.begin(), parameters.end());
-    auto instructions = iterator_for(m);
-    candidates.insert(candidates.end(), instructions.begin(), instructions.end());
-
-    std::vector<instruction_ref> result;
-    for(const auto& [name, variable] : ordered_variables)
-    {
-        (void)name;
-        auto source = std::find_if(candidates.begin(), candidates.end(), [&](auto candidate) {
-            return directly_contains_symbol(candidate, variable);
-        });
-        if(source == candidates.end())
-            return std::nullopt;
-        if(not contains(result, *source))
-            result.push_back(*source);
-    }
-    if(result.empty())
-        result.push_back(data);
     return result;
+}
+
+std::optional<std::vector<instruction_ref>> find_expression_sources_by_variable(
+    const std::vector<std::pair<std::string, sym::expr>>& ordered_variables,
+    const symbol_source_map& source_map)
+{
+    std::vector<instruction_ref> result;
+    std::unordered_set<instruction_ref> seen;
+    for(const auto& ordered_variable : ordered_variables)
+    {
+        const auto& variable = ordered_variable.second;
+        auto source          = source_map.find(variable);
+        if(source == source_map.end())
+            return std::nullopt;
+        if(seen.insert(source->second).second)
+            result.push_back(source->second);
+    }
+    return result;
+}
+
+} // namespace
+
+std::optional<sym::expr> find_unresolved_shape_expression(const std::vector<shape>& input_shapes,
+                                                          const std::vector<sym::expr>& expressions)
+{
+    // Substitution only needs to remove expressions supplied by input dimensions.
+    const auto available_value = sym::lit(1);
+    std::unordered_map<sym::expr, sym::expr> available;
+    for(const auto& input_shape : input_shapes)
+    {
+        if(not input_shape.symbolic())
+            continue;
+        std::transform(input_shape.dyn_dims().begin(),
+                       input_shape.dyn_dims().end(),
+                       std::inserter(available, available.end()),
+                       [&](const auto& d) {
+                           return std::make_pair(sym::as_symbol(d.sym_expr), available_value);
+                       });
+    }
+
+    auto unresolved = std::find_if(expressions.begin(), expressions.end(), [&](const auto& e) {
+        return not sym::find_variables(e.subs(available)).empty();
+    });
+    if(unresolved == expressions.end())
+        return std::nullopt;
+    return *unresolved;
+}
+
+symbol_source_map make_symbol_source_map(const std::vector<instruction_ref>& sources)
+{
+    symbol_source_map result;
+    for(auto source : sources)
+    {
+        const auto& s = source->get_shape();
+        if(not s.symbolic())
+            continue;
+        for(const auto& d : s.dyn_dims())
+            if(d.sym_expr.name() == "variable")
+                result.emplace(sym::as_symbol(d.sym_expr), source);
+    }
+    return result;
+}
+
+std::optional<std::vector<instruction_ref>>
+find_expression_sources(const std::vector<sym::expr>& expressions,
+                        const symbol_source_map& source_map,
+                        const std::vector<instruction_ref>& source_order)
+{
+    auto sources =
+        find_expression_sources_by_variable(find_ordered_variables(expressions), source_map);
+    if(not sources.has_value())
+        return std::nullopt;
+
+    std::unordered_set<instruction_ref> required{sources->begin(), sources->end()};
+    std::vector<instruction_ref> result;
+    std::copy_if(source_order.begin(),
+                 source_order.end(),
+                 std::back_inserter(result),
+                 [&](auto source) { return contains(required, source); });
+    return result;
+}
+
+std::optional<std::vector<instruction_ref>>
+find_expression_sources(const module& m,
+                        const std::vector<instruction_ref>& inputs,
+                        const std::vector<sym::expr>& expressions)
+{
+    std::vector<instruction_ref> unique_inputs;
+    std::unordered_set<instruction_ref> seen;
+    append_unique_sources(unique_inputs, seen, inputs);
+
+    auto ordered_variables = find_ordered_variables(expressions);
+    if(ordered_variables.empty() and not unique_inputs.empty())
+    {
+        // An instruction_ref points into the module and not into the local vector.
+        // cppcheck-suppress returnDanglingLifetime
+        return std::vector<instruction_ref>{unique_inputs.front()};
+    }
+
+    std::vector<shape> input_shapes;
+    std::transform(unique_inputs.begin(),
+                   unique_inputs.end(),
+                   std::back_inserter(input_shapes),
+                   [](auto input) { return input->get_shape(); });
+    if(not unique_inputs.empty() and
+       not find_unresolved_shape_expression(input_shapes, expressions).has_value())
+        return unique_inputs;
+
+    std::vector<instruction_ref> candidates = unique_inputs;
+    auto parameters                         = m.get_parameters();
+    append_unique_sources(candidates, seen, parameters);
+    append_unique_sources(candidates, seen, iterator_for(m));
+    if(ordered_variables.empty())
+    {
+        if(candidates.empty())
+            return std::nullopt;
+        // An instruction_ref points into the module and not into the local vector.
+        // cppcheck-suppress returnDanglingLifetime
+        return std::vector<instruction_ref>{candidates.front()};
+    }
+
+    return find_expression_sources_by_variable(ordered_variables,
+                                               make_symbol_source_map(candidates));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

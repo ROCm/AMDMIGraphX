@@ -141,9 +141,7 @@ struct reshape
     {
         // Lift static input to symbolic literals so the same dd arithmetic resolves both.
         auto sym_in          = s0.to_symbolic();
-        auto output_dyn_dims = resolve_reshape_dims(sym_in, dims);
-        const bool has_inferred_dim =
-            std::find(dims.begin(), dims.end(), dim_like{-1}) != dims.end();
+        auto output_dyn_dims          = resolve_reshape_dims(sym_in, dims);
         const bool dims_have_symbolic = std::any_of(dims.begin(), dims.end(), is_symbolic);
 
         // Preserve the input layout when reshape_dims can derive it; else standard.
@@ -155,7 +153,7 @@ struct reshape
         auto result = reshape_dims(sym_in, target, {.lazy = false})
                           .value_or(shape{s0.type(), output_dyn_dims});
 
-        validate_reshape_element_count(name(), s0, result, has_inferred_dim);
+        validate_reshape_element_count(name(), s0, result, dims);
 
         // Only a static input with integer dims is fully literal; evaluate it back to
         // the concrete layout. Anything symbolic stays symbolic.

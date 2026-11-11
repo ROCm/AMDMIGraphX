@@ -223,6 +223,167 @@ TEST_CASE(lower_standard_result_with_copy)
     EXPECT(std::prev(m1.end())->inputs().front()->get_shape().standard());
 }
 
+// AMDMIGraphX#5237: the last row of a KV cache, sliced out and reshaped to the output dims.
+// The slice is a strided view, and the reshape can be done lazily on it, but the result
+// reaches @return through a squeeze. Lowering it to a view would make the program output
+// non-standard, so the input is copied first and the returned value stays standard.
+TEST_CASE(non_standard_view_feeding_return_is_copied)
+{
+    migraphx::shape input_shape{migraphx::shape::half_type, {4, 295680}};
+
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto s = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {294912}}, {"ends", {295680}}}),
+            x);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 1, 12, 64}}}), s);
+        auto q = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), r);
+        m1.add_return({q});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", input_shape);
+        auto s = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {294912}}, {"ends", {295680}}}),
+            x);
+        auto c = add_contiguous(m2, s);
+        auto r =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {4, 1, 12, 64}}}), c);
+        auto q = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), r);
+        m2.add_return({q});
+    }
+    EXPECT(m1 == m2);
+    EXPECT(std::prev(m1.end())->inputs().front()->get_shape().standard());
+}
+
+// The same view chain, but the returned value is already copied by a kept gpu::contiguous,
+// so the reshape itself stays a zero-copy view.
+TEST_CASE(non_standard_view_not_returned_is_not_copied)
+{
+    migraphx::shape input_shape{migraphx::shape::half_type, {4, 295680}};
+
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto s = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {294912}}, {"ends", {295680}}}),
+            x);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 1, 12, 64}}}), s);
+        auto q = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), r);
+        m1.add_return({add_contiguous(m1, q)});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", input_shape);
+        auto s = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {294912}}, {"ends", {295680}}}),
+            x);
+        auto r =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {4, 1, 12, 64}}}), s);
+        auto q = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), r);
+        m2.add_return({add_contiguous(m2, q)});
+    }
+    EXPECT(m1 == m2);
+}
+
+// A module without @return returns its last instruction, so the same chain ending the module
+// is a program output too.
+TEST_CASE(non_standard_view_feeding_implicit_return_is_copied)
+{
+    migraphx::shape input_shape{migraphx::shape::half_type, {4, 295680}};
+
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto s = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {294912}}, {"ends", {295680}}}),
+            x);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 1, 12, 64}}}), s);
+        m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), r);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", input_shape);
+        auto s = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {294912}}, {"ends", {295680}}}),
+            x);
+        auto c = add_contiguous(m2, s);
+        auto r =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {4, 1, 12, 64}}}), c);
+        m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), r);
+    }
+    EXPECT(m1 == m2);
+    EXPECT(std::prev(m1.end())->get_shape().standard());
+}
+
+// With offload_copy the output goes through hip::copy_from_gpu, which keeps the strides of its
+// input, so the view still has to be copied first.
+TEST_CASE(non_standard_view_feeding_offload_copy_is_copied)
+{
+    migraphx::shape input_shape{migraphx::shape::half_type, {4, 295680}};
+
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto s = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {294912}}, {"ends", {295680}}}),
+            x);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 1, 12, 64}}}), s);
+        auto q = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), r);
+        m1.add_return({m1.add_instruction(migraphx::make_op("hip::copy_from_gpu"), q)});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", input_shape);
+        auto s = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {294912}}, {"ends", {295680}}}),
+            x);
+        auto c = add_contiguous(m2, s);
+        auto r =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {4, 1, 12, 64}}}), c);
+        auto q = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), r);
+        m2.add_return({m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), q)});
+    }
+    EXPECT(m1 == m2);
+    EXPECT(std::prev(m1.end())->inputs().front()->get_shape().standard());
+}
+
+// The reshape already keeps the non-standard layout of its input, and the view has exactly that
+// layout, so aliasing leaves the returned shape unchanged and needs no copy.
+TEST_CASE(returned_view_matching_expected_layout_is_not_copied)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 2, 4}, {24, 4, 12, 1}};
+
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 2, 2, 2}}}), x);
+        m1.add_return({r});
+    }
+    auto expected = std::prev(m1.end())->inputs().front()->get_shape();
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", input_shape);
+        auto r =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 3, 2, 2, 2}}}), x);
+        m2.add_return({r});
+    }
+    EXPECT(m1 == m2);
+    EXPECT(not expected.standard());
+    EXPECT(std::prev(m1.end())->inputs().front()->get_shape() == expected);
+}
+
 TEST_CASE(propagate_reshape_layout)
 {
     migraphx::shape input_shape{migraphx::shape::float_type, {1, 1, 1024, 1024}};

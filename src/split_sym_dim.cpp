@@ -38,6 +38,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/symbolic_shape_helpers.hpp>
 #include <migraphx/utility_operators.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/zip_view.hpp>
@@ -319,50 +320,32 @@ bool is_data_dependent_output_slice(instruction_ref slice)
                     buffer->inputs().front()->name());
 }
 
-std::unordered_map<sym::expr, instruction_ref> find_root_sources(const module& m)
+struct root_source_info
 {
-    std::unordered_map<sym::expr, instruction_ref> result;
+    symbol_source_map symbols;
+    std::vector<instruction_ref> ordered;
+};
+
+root_source_info find_root_sources(const module& m)
+{
+    root_source_info result;
     for(const auto& name : m.get_parameter_names())
-        register_shape_roots(result, m.get_parameter(name));
+    {
+        auto parameter = m.get_parameter(name);
+        if(register_shape_roots(result.symbols, parameter))
+            result.ordered.push_back(parameter);
+    }
     for(auto ins : iterator_for(m))
         if(ins->name() == "dyn_slice" and is_data_dependent_output_slice(ins))
-            register_shape_roots(result, ins);
-    return result;
-}
-
-std::optional<std::vector<instruction_ref>>
-find_expression_sources(const std::vector<sym::expr>& expressions,
-                        const std::unordered_map<sym::expr, instruction_ref>& root_sources)
-{
-    std::unordered_set<sym::expr> required;
-    std::for_each(expressions.begin(), expressions.end(), [&](const auto& expression) {
-        auto variables = sym::find_variables(expression);
-        required.insert(variables.begin(), variables.end());
-    });
-    std::vector<std::pair<std::string, instruction_ref>> ordered_sources;
-    std::unordered_set<instruction_ref> seen;
-    for(const auto& variable : required)
-    {
-        auto source = root_sources.find(variable);
-        if(source == root_sources.end())
-            return std::nullopt;
-        if(seen.insert(source->second).second)
-            ordered_sources.emplace_back(variable.to_string(), source->second);
-    }
-    std::sort(ordered_sources.begin(), ordered_sources.end(), [](const auto& x, const auto& y) {
-        return x.first < y.first;
-    });
-    std::vector<instruction_ref> result;
-    std::transform(ordered_sources.begin(),
-                   ordered_sources.end(),
-                   std::back_inserter(result),
-                   [](const auto& entry) { return entry.second; });
+            if(register_shape_roots(result.symbols, ins))
+                result.ordered.push_back(ins);
     return result;
 }
 
 struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
 {
-    std::unordered_map<sym::expr, instruction_ref> root_sources;
+    symbol_source_map root_sources;
+    std::vector<instruction_ref> sources;
 
     auto matcher() const { return match::name("dimensions_of")(match::nargs(1)); }
 
@@ -376,10 +359,10 @@ struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
         if(symbolic_value.empty())
             return;
         const auto expressions = symbolic_value.get().to_vector();
-        auto sources           = find_expression_sources(expressions, root_sources);
-        if(not sources.has_value())
+        auto expression_sources = find_expression_sources(expressions, root_sources, sources);
+        if(not expression_sources.has_value())
             return;
-        if(sources->empty())
+        if(expression_sources->empty())
         {
             std::vector<int64_t> values;
             std::transform(expressions.begin(),
@@ -396,14 +379,15 @@ struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
             m.replace_instruction(
                 ins,
                 make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
-                *sources);
+                *expression_sources);
         }
     }
 };
 
 struct find_eval_expr_from_intermediate_ins : match::supports_dynamic_shapes
 {
-    std::unordered_map<sym::expr, instruction_ref> root_sources;
+    symbol_source_map root_sources;
+    std::vector<instruction_ref> sources;
 
     auto matcher() const
     {
@@ -417,7 +401,7 @@ struct find_eval_expr_from_intermediate_ins : match::supports_dynamic_shapes
         auto ins = mr.result;
         auto expressions =
             from_value<std::vector<sym::expr>>(ins->get_operator().to_value().at("expressions"));
-        auto expression_sources = find_expression_sources(expressions, root_sources);
+        auto expression_sources = find_expression_sources(expressions, root_sources, sources);
         if(not expression_sources.has_value() or expression_sources->empty() or
            any_of(*expression_sources,
                   [](instruction_ref source) { return source->name() != "@param"; }))
@@ -2315,15 +2299,20 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
 {
     module& m = mpm.get_module();
 
-    auto root_sources = find_root_sources(m);
-    if(root_sources.empty())
+    auto root_info = find_root_sources(m);
+    if(root_info.symbols.empty())
         return;
 
     // Rewrite shape expressions to read their runtime values directly from root sources.
-    match::find_matches(m, resolve_symbolic_dimensions_of_match{.root_sources = root_sources});
-    match::find_matches(m, find_eval_expr_from_intermediate_ins{.root_sources = root_sources});
+    match::find_matches(m,
+                        resolve_symbolic_dimensions_of_match{.root_sources = root_info.symbols,
+                                                             .sources      = root_info.ordered});
+    match::find_matches(m,
+                        find_eval_expr_from_intermediate_ins{.root_sources = root_info.symbols,
+                                                             .sources      = root_info.ordered});
     run_passes(m, {dead_code_elimination{}});
-    root_sources = find_root_sources(m);
+    root_info          = find_root_sources(m);
+    auto& root_sources = root_info.symbols;
 
     // Collect independent symbols and partition each symbol's interval into the target extents used
     // to compile specialization clones.

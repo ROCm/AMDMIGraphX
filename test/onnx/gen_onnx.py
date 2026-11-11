@@ -1492,6 +1492,23 @@ def concat_symbolic_non_axis_test():
 
 
 @onnx_test()
+def concat_symbol_collision_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      ['main_Concat_2', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['b', 4])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, ['c', 4])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['x', 'y'],
+        axis=0,
+        outputs=['z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def constant_test():
     x = np.array([0, 1, 2])
     y = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])

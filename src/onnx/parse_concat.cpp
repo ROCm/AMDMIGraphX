@@ -42,7 +42,7 @@ struct parse_concat : op_parser<parse_concat>
     std::vector<op_desc> operators() const { return {{"Concat"}}; }
 
     instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& parser,
+                          onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
@@ -100,7 +100,8 @@ struct parse_concat : op_parser<parse_concat>
         if(symbolic_axis_inputs > 1)
         {
             const auto total_interval = shape::dynamic_dimension{total_expression}.get_interval();
-            output_dim = sym::var(info.name, {total_interval.min, total_interval.max});
+            output_dim                = sym::var(parser.symbol_names.allocate(info.name),
+                                                 {total_interval.min, total_interval.max});
         }
         auto starts = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
         return info.add_instruction(

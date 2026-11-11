@@ -24,6 +24,7 @@
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
@@ -36,6 +37,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <numeric>
 #include <unordered_map>
@@ -110,13 +112,23 @@ static std::size_t pad_scratch(std::size_t bytes, std::size_t overhead_percent)
     return bytes + bytes * overhead_percent / 100;
 }
 
-// Each loaded code object takes about 2MB of GPU memory
+// Code objects with the same module_id share one loaded module; unassigned ones load their own
 static std::size_t estimate_code_object_size(const module& m)
 {
-    return std::count_if(m.begin(),
-                         m.end(),
-                         [](const instruction& ins) { return ins.name() == "gpu::code_object"; }) *
-           1024 * 1024 * 2;
+    std::vector<std::int64_t> ids;
+    transform_if(
+        m.begin(),
+        m.end(),
+        std::back_inserter(ids),
+        [](const instruction& ins) { return ins.name() == "gpu::code_object"; },
+        [](const instruction& ins) {
+            return any_cast<code_object_op>(ins.get_operator()).module_id;
+        });
+    ids.erase(distinct(ids.begin(),
+                       ids.end(),
+                       [](std::int64_t a, std::int64_t b) { return a >= 0 and a == b; }),
+              ids.end());
+    return ids.size() * code_module_bytes;
 }
 
 static std::size_t get_total_literals(const module& m)

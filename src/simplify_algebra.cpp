@@ -1041,6 +1041,32 @@ struct find_dot_broadcast
     }
 };
 
+struct find_dot_broadcast_rows
+{
+    auto matcher() const
+    {
+        auto repeated_rows = match::make_basic_pred_matcher([](instruction_ref ins) {
+            const auto& s       = ins->get_shape();
+            const auto& input_s = ins->inputs().front()->get_shape();
+            return s.ndim() == 2 and input_s.ndim() == 1 and s.lens().front() > 1 and
+                   s.strides().front() == 0 and input_s.lens().back() == s.lens().back();
+        });
+        auto rows =
+            match::all_of(match::broadcast(), match::arg(0)(match::any().bind("x")), repeated_rows);
+        return match::name("dot")(match::args(rows, match::any().bind("b")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto row =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0}}}), r.instructions["x"]);
+        auto dot = m.insert_instruction(ins, make_op("dot"), row, r.instructions["b"]);
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), dot);
+    }
+};
+
 struct find_concat_op
 {
     auto matcher() const
@@ -3236,6 +3262,7 @@ void simplify_algebra::apply(module& m) const
                             find_conv_broadcast_input{},
                             find_inner_broadcast{},
                             find_dot_broadcast{},
+                            find_dot_broadcast_rows{},
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},
                             find_add_convs{},

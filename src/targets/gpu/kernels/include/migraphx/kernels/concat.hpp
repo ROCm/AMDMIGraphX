@@ -22,6 +22,8 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
@@ -57,28 +59,45 @@ constexpr auto concat_slices(Input input, Start start, Ts... xs)
     return [=](auto f) { return f(concat_slice<Axis>(xs, input, start)...); };
 }
 
-template <index_int Axis, class Input>
-constexpr auto concat_ends(Input)
+// Extracts the input from a pack of (op, input, extra inputs...)
+struct get_input
 {
-    constexpr auto lens = get_shape_c<Input>{}.lens;
-    return _c<lens[Axis]>;
-}
-
-template <index_int Axis, class... InputPacks>
-constexpr auto concat_max(InputPacks... input_packs)
-{
-    return fold([&](auto start, auto input_pack) {
-        return input_pack([&](auto, auto x, auto...) { return max(start, concat_ends<Axis>(x)); });
-    })(_c<0>, input_packs...);
-}
-
-template <class T, class U>
-struct concat_pair
-{
-    T offset;
-    U depth;
+    template <class G, class X, class... Xs>
+    constexpr auto operator()(G, X x, Xs...) const
+    {
+        return x;
+    }
 };
-MIGRAPHX_AUTO_DEDUCE(concat_pair);
+
+// Extent along Axis of the input carried by a pack, from its type alone
+template <index_int Axis, class InputPack>
+constexpr index_int pack_end()
+{
+    using input = decltype(declval<InputPack>()(get_input{}));
+    return get_shape_c<input>{}.lens[Axis];
+}
+
+// Start offset of each input along the concat axis: an exclusive prefix sum of the extents
+template <index_int N>
+constexpr array<index_int, N> concat_offsets(const array<index_int, N>& ends)
+{
+    array<index_int, N> result{};
+    partial_sum(ends.begin(), ends.end() - 1, result.begin() + 1);
+    return result;
+}
+
+// Per-input extents, start offsets and the largest extent along Axis, computed once as static
+// constants so each input is a flat lookup. A recursive fold over the packs instead made compile
+// time quadratic in the number of inputs and hit the template depth limit near 1024 of them.
+template <index_int Axis, class... InputPacks>
+struct layout
+{
+    static constexpr auto ends =
+        array<index_int, sizeof...(InputPacks)>{pack_end<Axis, InputPacks>()...};
+    static constexpr auto offsets  = concat_offsets(ends);
+    static constexpr auto max_size = accumulate(
+        ends.begin(), ends.end(), index_int{0}, [](index_int a, index_int b) { return max(a, b); });
+};
 
 template <class Axis, class NArgs, class MaxSize>
 struct info
@@ -179,27 +198,42 @@ struct block_tile
     }
 };
 
+// Writes one input's slice of the output; depth is the input's index among the packs
+template <index_int Axis,
+          class Algo,
+          class F,
+          class Depth,
+          class Start,
+          class InputPack,
+          class T,
+          class... Ts>
+__device__ void
+run_pack(Algo& algo, F f, Depth depth, Start start, InputPack input_pack, T t, Ts... ts)
+{
+    input_pack([&](auto g, auto x, auto... xs) {
+        concat_slices<Axis>(x, start, t, ts...)([&](auto z, auto... ys) {
+            if constexpr(is_void<decltype(algo.run(depth, g, x, xs...))>{})
+                algo.run(depth, g, x, xs...);
+            else
+                algo.run(depth, g, x, xs...)(z, f, ys...);
+        });
+    });
+}
+
 template <class Algo, index_int Axis, class... InputPacks>
 __device__ auto run(InputPacks... input_packs)
 {
     return [=](auto f, auto t, auto... ts) {
-        auto idx  = make_index();
-        auto algo = Algo::make(idx,
-                               info{.axis     = _c<Axis>,
-                                    .nargs    = _c<sizeof...(InputPacks)>,
-                                    .max_size = concat_max<Axis>(input_packs...)},
-                               t);
-        fold([&](auto p, auto input_pack) {
-            return input_pack([&](auto g, auto x, auto... xs) {
-                return concat_slices<Axis>(x, p.offset, t, ts...)([&](auto z, auto... ys) {
-                    if constexpr(is_void<decltype(algo.run(p.depth, g, x, xs...))>{})
-                        algo.run(p.depth, g, x, xs...);
-                    else
-                        algo.run(p.depth, g, x, xs...)(z, f, ys...);
-                    return concat_pair{p.offset + concat_ends<Axis>(x), p.depth + _c<1>};
-                });
-            });
-        })(concat_pair{_c<0>, _c<0>}, input_packs...);
+        using layout_t = layout<Axis, InputPacks...>;
+        auto idx       = make_index();
+        auto algo      = Algo::make(idx,
+                                    info{.axis     = _c<Axis>,
+                                         .nargs    = _c<sizeof...(InputPacks)>,
+                                         .max_size = _c<layout_t::max_size>},
+                                    t);
+        sequence_c<sizeof...(InputPacks)>([&](auto... is) {
+            (run_pack<Axis>(algo, f, is, _c<layout_t::offsets[is]>, input_packs, t, ts...), ...);
+        });
         algo.finish(f, t, ts...);
     };
 }

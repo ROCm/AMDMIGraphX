@@ -99,6 +99,13 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             MIGRAPHX_THROW("PARSE_GROUPNORM: num_groups must be available");
         }
 
+        // The contrib op has no stash_type and always computes in float.
+        bool stash_type = true;
+        if(not is_contrib and contains(info.attributes, "stash_type"))
+        {
+            stash_type = (1 == parser.parse_value(info.attributes.at("stash_type")).at<int64_t>());
+        }
+
         bool is_channels_last = false;
         if(is_contrib)
         { // default state for GroupNorm Contrib op
@@ -136,9 +143,11 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto x_shape = x->get_shape();
         auto x_dtype = x_shape.type();
         auto x_dims  = x_shape.lens();
-        const auto compute_dtype = x_dtype == shape::half_type ? shape::float_type : x_dtype;
-        const auto affine_dtype  = is_contrib ? compute_dtype : x_dtype;
-        // Keep half moments and normalization in float: their range exceeds half for valid input.
+        const auto compute_dtype =
+            (x_dtype == shape::half_type and stash_type) ? shape::float_type : x_dtype;
+        const auto affine_dtype = is_contrib ? compute_dtype : x_dtype;
+        // Half moments and normalization overflow half range for valid input; stash in float
+        // unless the model sets stash_type=0.
         x = convert_tensor_type(info, x, compute_dtype);
 
         if(x_shape.ndim() <= 2)

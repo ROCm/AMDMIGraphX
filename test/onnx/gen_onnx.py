@@ -5838,17 +5838,23 @@ def group_norm_test(x_dims,
                     y_dims,
                     num_groups,
                     eps_value=1e-5,
-                    dtype=TensorProto.FLOAT):
+                    dtype=TensorProto.FLOAT,
+                    stash_type=None):
     x = helper.make_tensor_value_info('x', dtype, x_dims)
     scale = helper.make_tensor_value_info('scale', dtype, scale_dims)
     bias = helper.make_tensor_value_info('bias', dtype, bias_dims)
     y = helper.make_tensor_value_info('y', dtype, y_dims)
 
+    attrs = {}
+    if stash_type is not None:
+        attrs['stash_type'] = stash_type
+
     node = onnx.helper.make_node('GroupNormalization',
                                  inputs=['x', 'scale', 'bias'],
                                  outputs=['y'],
                                  num_groups=num_groups,
-                                 epsilon=eps_value)
+                                 epsilon=eps_value,
+                                 **attrs)
 
     return ([node], [x, scale, bias], [y])
 
@@ -5870,6 +5876,14 @@ def group_norm_v21_fp16_test():
     return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            dtype=TensorProto.FLOAT16)
+
+
+@onnx_test(opset_version=21)
+def group_norm_v21_fp16_stash_fp16_test():
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
+                           2,
+                           dtype=TensorProto.FLOAT16,
+                           stash_type=TensorProto.FLOAT16)
 
 
 @onnx_test()

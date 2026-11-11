@@ -23,10 +23,12 @@
  */
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
+#include <algorithm>
 #include <iterator>
 
 namespace migraphx {
@@ -49,6 +51,16 @@ struct find_copy_from_gpu : match::supports_dynamic_shapes
     }
 };
 
+bool reads_copied_host_value(instruction_ref ins)
+{
+    return std::any_of(ins->inputs().begin(), ins->inputs().end(), [](instruction_ref input) {
+        auto path = get_alias_path(input);
+        return std::any_of(path.begin(), path.end(), [](instruction_ref path_ins) {
+            return path_ins->name() == "hip::copy_from_gpu";
+        });
+    });
+}
+
 } // namespace
 
 void sync_device::apply(module& m) const
@@ -61,7 +73,11 @@ void sync_device::apply(module& m) const
         if(ins->name() == "hip::copy_from_gpu")
             continue;
         if(is_context_free(ins->get_operator()))
+        {
+            if(reads_copied_host_value(ins))
+                covered = false;
             continue;
+        }
         if(ins->name() != "hip::sync_stream")
         {
             covered = false;

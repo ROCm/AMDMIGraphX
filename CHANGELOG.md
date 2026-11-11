@@ -32,6 +32,7 @@ Full documentation for MIGraphX is available at
 * Fixed mixed `uint8` and `int8` quantization (#5075).
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
 * Fixed the ONNX parser decoding `FLOAT8E4M3FNUZ` tensors stored in `int32_data` as numeric values instead of as 8-bit patterns.
+* Fixed `fp8_ocp_to_fnuz` turning `fp8e4m3fn` negative zero into NaN on GPUs without OCP fp8 support.
 
 ### Optimized
 

@@ -147,6 +147,48 @@ TEST_CASE(fp8_ocp_to_fnuz_gemm_multi_scale)
     EXPECT(migraphx::verify::verify_rms_range(results_vector_1, results_vector_2));
 }
 
+TEST_CASE(fp8_ocp_to_fnuz_gemm_negative_zero)
+{
+    using migraphx::fp8::fp8e4m3fn;
+    migraphx::shape data_shape{migraphx::shape::fp8e4m3fn_type, {2, 2}};
+    // Negative zero (0x80) is NaN in fp8e4m3fnuz, so the pass must map it to zero
+    auto neg_zero                 = fp8e4m3fn(0x80, fp8e4m3fn::from_bits());
+    std::vector<fp8e4m3fn> a_data = {neg_zero, fp8e4m3fn{1.f}, fp8e4m3fn{2.f}, neg_zero};
+    std::vector<fp8e4m3fn> b_data = {fp8e4m3fn{3.f}, neg_zero, neg_zero, fp8e4m3fn{4.f}};
+
+    migraphx::program p1;
+    auto* m1 = p1.get_main_module();
+    {
+        auto a     = m1->add_literal(data_shape, a_data);
+        auto b     = m1->add_literal(data_shape, b_data);
+        auto scale = m1->add_literal(0.5f);
+        std::vector<fp8e4m3fn> data;
+        data.push_back(fp8e4m3fn{0.f});
+        auto zero =
+            m1->add_literal(migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}, {0}}, data);
+
+        auto da  = add_quantize_op(*m1, "dequantizelinear", a, scale, zero);
+        auto db  = add_quantize_op(*m1, "dequantizelinear", b, scale, zero);
+        auto dot = m1->add_instruction(migraphx::make_op("dot"), da, db);
+        m1->add_return({dot});
+    }
+
+    migraphx::program p2 = p1;
+    migraphx::module* m2 = p2.get_main_module();
+    run_fp8_ocp_to_fnuz(*m2);
+
+    p1.compile(migraphx::make_target("ref"));
+    p2.compile(migraphx::make_target("ref"));
+
+    auto result_1 = p1.eval({}).back();
+    auto result_2 = p2.eval({}).back();
+    std::vector<float> results_vector_1(4);
+    std::vector<float> results_vector_2(4);
+    result_1.visit([&](auto output) { results_vector_1.assign(output.begin(), output.end()); });
+    result_2.visit([&](auto output) { results_vector_2.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector_1, results_vector_2));
+}
+
 TEST_CASE(fp8_ocp_to_fnuz_conv)
 {
     using migraphx::fp8::fp8e4m3fn;

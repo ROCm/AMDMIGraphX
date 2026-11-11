@@ -282,6 +282,8 @@ static std::optional<partial_split> find_partial_split(const_module_ref rm,
         return std::nullopt;
     // The trailing reduction completes each partial result with the same axes
     if(not std::all_of(splits.begin(), splits.end(), [&](instruction_ref split) {
+           if(split->name() == "reduce_mean" and shape::is_integral(split->get_shape().type()))
+               return false;
            return split->get_operator().to_value()["axes"].to_vector<std::int64_t>() == axes;
        }))
         return std::nullopt;

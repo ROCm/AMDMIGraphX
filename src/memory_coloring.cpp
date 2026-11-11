@@ -47,7 +47,7 @@ using instruction_set_map = std::unordered_map<instruction_ref, instruction_set>
 // This will build the conflict table or interference graph. This is
 // essentially a map from one instruction to a set of instruction that are
 // used together. Each instruction will be the allocation instruction.
-static instruction_set_map build_conflict_table(const module& m, std::string allocation_op)
+static instruction_set_map build_conflict_table(const module& m, const std::string& allocation_op)
 {
     instruction_set_map conflict_table;
     liveness(m, [&](auto ins, const auto& live_set) {
@@ -82,6 +82,13 @@ static instruction_set_map build_conflict_table(const module& m, std::string all
 static bool is_overlap(std::pair<std::size_t, std::size_t> x, std::pair<std::size_t, std::size_t> y)
 {
     return std::max(x.first, y.first) < std::min(x.second, y.second);
+}
+
+template <class Iterator, class F>
+static std::size_t max_of(Iterator first, Iterator last, std::size_t init, F f)
+{
+    return transform_accumulate(
+        first, last, init, [](std::size_t x, std::size_t y) { return std::max(x, y); }, f);
 }
 
 struct allocation_segment
@@ -155,11 +162,11 @@ struct allocation_segment
             [](auto size, const auto& sub) { return std::max(size, max_type_size(sub)); });
     }
 
-    static std::size_t compute_alignment(instruction_ref ins)
+    static std::size_t compute_shape_alignment(const shape& s)
     {
-        auto alignment = max_type_size(ins->get_shape());
+        auto alignment = max_type_size(s);
         // A rough estimate for the total number of elements
-        auto n = ins->get_shape().bytes() / alignment;
+        auto n = s.bytes() / alignment;
         // Check for vectorized alignment
         if(n > 4)
         {
@@ -170,6 +177,21 @@ struct allocation_segment
                 alignment *= 2;
         }
         return alignment;
+    }
+
+    // The alignment of the shape along with any regions carved from it by loads, so a hoisted
+    // submodule scratch keeps the requirement of the loads nested inside it
+    static std::size_t compute_alignment(instruction_ref ins)
+    {
+        const auto& outs = ins->outputs();
+        return max_of(outs.begin(),
+                      outs.end(),
+                      compute_shape_alignment(ins->get_shape()),
+                      [](instruction_ref out) {
+                          if(out->name() != "load")
+                              return std::size_t{1};
+                          return compute_alignment(out);
+                      });
     }
 
     static segment
@@ -297,8 +319,50 @@ static std::size_t find_max_alignment(const module& m, const std::string& alloca
     return alignment;
 }
 
+// Replace the scratch parameters of the submodules of `ins` with a single allocation in the
+// parent module, sized for the largest, so they get colored with the parent's allocations. The
+// submodules reference the parent allocation directly, which liveness treats as an implicit use
+// by `ins`.
+static void hoist_submodule_scratch(module& m, instruction_ref ins, const allocation_model& model)
+{
+    // The submodule along with its scratch parameter
+    std::vector<std::pair<module_ref, instruction_ref>> params;
+    const auto& mods = ins->module_inputs();
+    transform_if(
+        mods.begin(),
+        mods.end(),
+        std::back_inserter(params),
+        [](module_ref mod) { return mod->get_parameter("scratch") != mod->end(); },
+        [](module_ref mod) { return std::make_pair(mod, mod->get_parameter("scratch")); });
+    if(params.empty())
+        return;
+    auto bytes = max_of(params.begin(), params.end(), 0, [](const auto& p) {
+        return p.second->get_shape().bytes();
+    });
+    auto alloc = m.insert_instruction(ins, model.allocate(shape{shape::int8_type, {bytes}}));
+    std::for_each(params.begin(), params.end(), [&](const auto& p) {
+        p.first->replace_instruction(p.second, alloc);
+        p.first->remove_instruction(p.second);
+    });
+}
+
+static void hoist_submodules_scratch(module& m, const allocation_model& model)
+{
+    std::vector<instruction_ref> parents;
+    auto r = iterator_for(m);
+    std::copy_if(r.begin(), r.end(), std::back_inserter(parents), [](instruction_ref ins) {
+        return not ins->module_inputs().empty();
+    });
+    std::for_each(parents.begin(), parents.end(), [&](instruction_ref ins) {
+        hoist_submodule_scratch(m, ins, model);
+    });
+}
+
 void memory_coloring::apply(module& m) const
 {
+    const auto allocation_op = model.name();
+    hoist_submodules_scratch(m, model);
+    // The hoisted allocations report the alignment of the loads nested inside them
     const std::size_t alignment = find_max_alignment(m, allocation_op);
     auto conflict_table         = build_conflict_table(m, allocation_op);
     auto as                     = allocation_segment::build(m, conflict_table, alignment);

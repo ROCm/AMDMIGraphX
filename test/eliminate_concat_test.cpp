@@ -581,6 +581,122 @@ TEST_CASE(concat_through_reshape_chain)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// A producer behind a reshape that is also read by another instruction: the
+// other user reads the inverse-reshaped view of the super buffer
+TEST_CASE(concat_through_reshape_chain_shared_producer)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto r1 = m1.add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", {2, 3, 2, 2, 2, 2}}}), s1);
+        auto u1 = m1.add_instruction(pass_op{}, s1);
+        auto a2 = m1.add_instruction(make_allocate(2, 5, 2, 2, 2, 2));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 8, 2, 2, 2, 2));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), r1, s2, a3);
+        m1.add_return({c1, u1});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a1     = m2.add_instruction(make_allocate(2, 8, 2, 2, 2, 2));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), a1);
+        auto v1 =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 3, 4, 4}}}), slice1);
+        auto s1 = m2.add_instruction(simple_op{}, v1);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", {2, 3, 2, 2, 2, 2}}}), s1);
+        auto u1     = m2.add_instruction(pass_op{}, s1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {8}}}), a1);
+        auto s2  = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, r1, s2);
+        m2.add_return({id1, u1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The other user of the producer cant read the non-packed view, so the
+// reshaped input is copied instead
+TEST_CASE(concat_through_reshape_chain_shared_producer_non_packed_unsupported)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3, 4, 4));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto r1 = m1.add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", {2, 3, 2, 2, 2, 2}}}), s1);
+        auto u1 = m1.add_instruction(pass_standard_op{}, s1);
+        auto a2 = m1.add_instruction(make_allocate(2, 5, 2, 2, 2, 2));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 8, 2, 2, 2, 2));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), r1, s2, a3);
+        m1.add_return({c1, u1});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a3 = m2.add_instruction(make_allocate(2, 8, 2, 2, 2, 2));
+        auto a1 = m2.add_instruction(make_allocate(2, 3, 4, 4));
+        auto s1 = m2.add_instruction(simple_op{}, a1);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", {2, 3, 2, 2, 2, 2}}}), s1);
+        auto u1     = m2.add_instruction(pass_standard_op{}, s1);
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), a3);
+        auto cp1    = m2.add_instruction(migraphx::make_op("test::copy"), r1, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {8}}}), a3);
+        auto s2  = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a3, cp1, s2);
+        m2.add_return({id1, u1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The reshape merges the concat axis from two axes of the producer, so there
+// is no single producer axis to check the other user against and the
+// reshaped input is copied instead
+TEST_CASE(concat_through_reshape_chain_shared_producer_merged_axis)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 1, 4, 8));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 1, 32}}}), s1);
+        auto u1 = m1.add_instruction(pass_op{}, s1);
+        auto a2 = m1.add_instruction(make_allocate(2, 1, 8));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 1, 40));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 2}}), r1, s2, a3);
+        m1.add_return({c1, u1});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a3 = m2.add_instruction(make_allocate(2, 1, 40));
+        auto a1 = m2.add_instruction(make_allocate(2, 1, 4, 8));
+        auto s1 = m2.add_instruction(simple_op{}, a1);
+        auto r1 = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 1, 32}}}), s1);
+        auto u1 = m2.add_instruction(pass_op{}, s1);
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {32}}}), a3);
+        auto cp1    = m2.add_instruction(migraphx::make_op("test::copy"), r1, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {32}}, {"ends", {40}}}), a3);
+        auto s2  = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a3, cp1, s2);
+        m2.add_return({id1, u1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // A slice input that only covers part of another buffer still needs a copy,
 // and must not clobber that buffer's allocation
 TEST_CASE(concat_with_slice_input)

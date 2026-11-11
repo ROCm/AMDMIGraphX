@@ -40,8 +40,11 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-optional<std::pair<std::vector<operation>, shape>> invert_view_chain(
-    const std::vector<operation>& chain, const shape& input_shape, const shape& view_shape)
+namespace {
+
+// shape_transform_descriptor only records the non-lazy reshape
+shape_transform_descriptor make_view_descriptor(const std::vector<operation>& chain,
+                                                const shape& input_shape)
 {
     std::vector<operation> fwd;
     std::transform(chain.begin(), chain.end(), std::back_inserter(fwd), [](const operation& op) {
@@ -49,7 +52,15 @@ optional<std::pair<std::vector<operation>, shape>> invert_view_chain(
             return make_op("reshape", {{"dims", op.to_value().at("dims")}});
         return op;
     });
-    auto inv = shape_transform_descriptor::create(input_shape.lens(), fwd).invert();
+    return shape_transform_descriptor::create(input_shape.lens(), fwd);
+}
+
+} // namespace
+
+optional<std::pair<std::vector<operation>, shape>> invert_view_chain(
+    const std::vector<operation>& chain, const shape& input_shape, const shape& view_shape)
+{
+    auto inv = make_view_descriptor(chain, input_shape).invert();
     if(inv.empty())
         return std::nullopt;
     auto result = inv.generate();
@@ -105,6 +116,30 @@ std::pair<instruction_ref, std::vector<operation>> get_view_chain(instruction_re
     }
     std::reverse(ops.begin(), ops.end());
     return {producer, ops};
+}
+
+// The axis of the chain's input that the chain maps as a whole onto the
+// given axis of its output, so slicing either one selects the same elements
+optional<std::size_t>
+find_input_axis(const std::vector<operation>& chain, const shape& input_shape, std::size_t axis)
+{
+    auto desc = make_view_descriptor(chain, input_shape);
+    if(desc.empty())
+        return nullopt;
+    auto axes = range(input_shape.ndim());
+    auto it   = std::find_if(axes.begin(), axes.end(), [&](std::size_t i) {
+        return desc.get_dst_axes_from_src(i) == std::vector<std::size_t>{axis};
+    });
+    if(it == axes.end())
+        return nullopt;
+    return *it;
+}
+
+bool is_packed(const shape& s, std::size_t axis)
+{
+    auto alens  = s.lens();
+    alens[axis] = 1;
+    return shape{s.type(), alens, s.strides()}.packed();
 }
 
 struct concat_optimizer
@@ -168,14 +203,34 @@ struct concat_optimizer
                 return std::nullopt;
             return plan{producer, {}, slice_shape};
         }
-        if(producer->outputs().size() != 1)
-            return std::nullopt;
         auto inverse = invert_view_chain(chain, producer->get_shape(), slice_shape);
         if(not inverse.has_value())
             return std::nullopt;
         if(not producer_reports_shape(producer, inverse->second))
             return std::nullopt;
+        if(producer->outputs().size() != 1 and
+           not users_support_view(producer, chain, inverse->second, axis))
+            return std::nullopt;
         return plan{producer, inverse->first, inverse->second};
+    }
+
+    // The other users of a producer behind a view chain read the inverted
+    // view of the slice, which is sliced along the producer axis that the
+    // chain maps onto the concat axis
+    bool users_support_view(instruction_ref producer,
+                            const std::vector<operation>& chain,
+                            const shape& view_shape,
+                            std::size_t axis) const
+    {
+        auto producer_axis = find_input_axis(chain, producer->get_shape(), axis);
+        if(not producer_axis.has_value())
+            return false;
+        if(is_packed(view_shape, *producer_axis))
+            return true;
+        return std::all_of(
+            producer->outputs().begin(), producer->outputs().end(), [&](instruction_ref output) {
+                return opt->supports_non_packed_input(output, *producer_axis);
+            });
     }
 
     // The producer must report the view's shape as its output so the reported
@@ -259,13 +314,6 @@ struct concat_optimizer
         m->replace_instruction(ins, migraphx::make_op("identity"), args);
     }
 };
-
-bool is_packed(const shape& s, std::size_t axis)
-{
-    auto alens  = s.lens();
-    alens[axis] = 1;
-    return shape{s.type(), alens, s.strides()}.packed();
-}
 
 } // namespace
 

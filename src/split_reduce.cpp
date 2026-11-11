@@ -314,6 +314,10 @@ static std::optional<partial_split> find_partial_split(const_module_ref rm,
         });
     if(best.group < 2)
         return std::nullopt;
+    if(not std::all_of(splits.begin(), splits.end(), [&](instruction_ref split) {
+           return split->inputs().front()->get_shape().lens()[best.axis] == lens[best.axis];
+       }))
+        return std::nullopt;
     // Every shape must be broadcast or full along the split axis
     if(not std::all_of(rm->begin(), rm->end(), [&](const instruction& i) {
            if(i.name() == "@return")

@@ -20,9 +20,11 @@ Full documentation for MIGraphX is available at
 * Changed lowered `select_module` instructions to use one caller-provided output buffer per result (#5123).
 * Updated `eliminate_convert` to remove no-op and redundant nested `convert` instructions for dynamic and symbolic shapes (#5385).
 * Updated `nonmaxsuppression` kernel to use uint32_t bitmask instead of bool type to get around number of elements > uint32_t (#5302).
+* Enabled MLIR attention fusion by default on every GPU, not just gfx94x/gfx95x, gated per attention block on profitability: blocks whose head dim exceeds `attn_max_head_dim` (512 on wave64 devices, 256 on wave32) at kv lengths past `attn_wide_head_kv_len` (1024 on wave64, none on wave32), or with fewer than `attn_min_q_rows` total query rows (24 per CU), run as separate gemm and softmax kernels instead. The thresholds are configurable through the matching backend options, requesting `attention` in `MIGRAPHX_MLIR_USE_SPECIFIC_OPS` or the `mlir_use_specific_ops` backend option fuses every block regardless of the gate, and `!attention` in the backend option now disables the fusion on every device (#5405).
 
 ### Resolved issues
 
+* Fixed `lower_reshape` returning a strided view as a program output when a reshape of a non-standard input (for example the last row sliced out of a KV-cache `concat`) reaches `@return`, which made `run` reject standard caller-provided output buffers (#5237).
 * Fixed `migraphx.argument` created from a Python buffer (for example a NumPy array) not keeping that buffer alive, which left a dangling pointer when the buffer was a temporary (ROCm/TheRock#8939).
 * Fixed `simplify_reshapes` generating invalid inverse shape transforms when moving an element-expanding shape-transform chain through a shared reduction (#5360).
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).
@@ -31,10 +33,13 @@ Full documentation for MIGraphX is available at
 
 ### Optimized
 
+* Optimized `dot` with repeated broadcasted input rows to evaluate one row and broadcast the result, avoiding large duplicate literals during constant propagation.
 * Added a `simplify_algebra` rewrite that folds `dot(a, b) + dot(a, c)` into `dot(a, b + c)` when `b` and `c` are constant, so one GEMM with half the weights replaces two GEMMs (or a double-width horizontally fused GEMM plus slices and an add) (#5415).
 * Reduced compile-time heap allocations in `simplify_algebra`, `simplify_reshapes`, and `fuse_pointwise`: `match::name` shares its name set across matcher copies, and read-only uses of an instruction's inputs bind a reference or move instead of copying the vector (#5362).
 
 ### Removed
+
+* Removed the GPU layernorm fusion, including the `gpu::prelayernorm` and `gpu::preadd_layernorm` operators, their JIT compiler and kernel, the `find_layernorm_pointwise` fusion, and the `MIGRAPHX_ENABLE_LAYERNORM_FUSION` environment variable. Layernorms now compile through the generic pointwise and reduce fusions (#3465).
 
 ## MIGraphX 2.18 for ROCm 10.1.0
 
@@ -176,6 +181,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `simplify_qdq` Q/DQ removal to preserve intervening shape operations and avoid rewrites that change output shapes.
 * Fixed a `simplify_reshapes` compilation failure when `find_slice_squeeze` rewrites pointwise operations with singleton scalar inputs by broadcasting scalars to the restored slice dimensions (#5192).
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).

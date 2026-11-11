@@ -25,6 +25,7 @@
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/match/softmax.hpp>
@@ -143,6 +144,36 @@ bool is_inlinable_constant(instruction_ref ins)
     return ins->get_shape().elements() == 1 or is_range_literal(ins->get_literal());
 }
 
+// Profitability gate shared by the attention matchers: the fused kernel keeps a head-dim
+// wide accumulator per q row in registers (loses past max_head_dim unless the kv loop is
+// <= wide_head_kv_len) and only parallelizes over q rows (batch * heads * seq, needs
+// min_q_rows, scaled down below a head dim of 128 where narrow heads win with fewer rows).
+struct attention_gate
+{
+    std::size_t max_head_dim     = 256;
+    std::size_t min_q_rows       = 1;
+    std::size_t wide_head_kv_len = 0;
+
+    bool fusable(const shape& q, std::size_t d_v, std::size_t kv_len) const
+    {
+        auto d_qk     = q.lens().back();
+        auto head_dim = std::max(d_qk, d_v);
+        auto min_rows = min_q_rows * std::min<std::size_t>(head_dim, 128) / 128;
+        if(q.elements() / d_qk < min_rows)
+            return false;
+        return head_dim <= max_head_dim or kv_len <= wide_head_kv_len;
+    }
+
+    // Checks the gemms in canonical form: gemm1 = dot(q, k), gemm2 = dot(probs, v)
+    bool fusable(instruction_ref gemm1, instruction_ref gemm2) const
+    {
+        const auto& q = gemm1->inputs().front()->get_shape();
+        // v is input 1, not back(): a quant_dot may carry trailing scale inputs
+        const auto& v = gemm2->inputs().at(1)->get_shape();
+        return fusable(q, v.lens().back(), v.lens().rbegin()[1]);
+    }
+};
+
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
 inline auto pointwise_inputs()
 {
@@ -215,13 +246,14 @@ std::vector<instruction_ref> get_lse_instructions(const std::vector<instruction_
         return lse_inss;
     auto add = log_outs.front();
     lse_inss.insert(lse_inss.end(), {*log, add});
-
     return lse_inss;
 }
 
 // find attention blocks that have been quantized and undo them
 struct find_quant_attention
 {
+    attention_gate gate = {};
+
     auto matcher() const
     {
         auto gemm1 = match::opaque(
@@ -265,6 +297,10 @@ struct find_quant_attention
         auto qgemm2 = r.instructions["qgemm2"];
         auto deq2   = r.instructions["deq2"];
 
+        // Keep the quantization when find_attention will not fuse the block
+        if(not gate.fusable(qgemm1, qgemm2))
+            return;
+
         if(can_dequantize_gemm(qgemm1) and can_dequantize_gemm(qgemm2))
         {
             dequantize_gemm(m, qgemm1, deq1);
@@ -281,7 +317,9 @@ struct find_quant_attention
 // sigmoid factor is constant along the reduction axis, so it commutes past the
 // second gemm (and its transpose/reshape output tail) and is applied there as a
 // small pointwise epilogue. The log/add lse chain hangs off the softmax
-// reductions and becomes a second output of the fused attention group.
+// reductions and is captured into the fused attention group, which returns the
+// lse as a second output; the sigmoid gate stays outside so the backend can
+// fuse it (eg into the mlir attention module as an output epilogue).
 struct find_attention_sinks
 {
     // ext and exp are each matched twice, so erase each level with opaque to
@@ -430,6 +468,8 @@ struct find_attention_sinks
 
 struct find_transposed_attention
 {
+    attention_gate gate = {};
+
     auto matcher() const
     {
         auto gemm1 =
@@ -465,6 +505,13 @@ struct find_transposed_attention
         if(input_of_dot2->get_shape().ndim() != perm.size())
             return;
 
+        // Skip blocks find_attention will not fuse; here v is transposed, so
+        // its head dim is the second to last dimension and its kv length is the last
+        const auto& q_shape = r.instructions["dot1"]->inputs().front()->get_shape();
+        const auto& v_shape = input_of_dot2->get_shape();
+        if(not gate.fusable(q_shape, v_shape.lens().rbegin()[1], v_shape.lens().back()))
+            return;
+
         auto values = input_of_dot2;
         if(input_of_dot2->name() == "transpose")
         {
@@ -487,6 +534,7 @@ struct find_transposed_attention
 struct find_attention
 {
     std::size_t* counter;
+    attention_gate gate = {};
 
     auto matcher() const
     {
@@ -535,6 +583,9 @@ struct find_attention
         auto gemm1         = r.instructions["dot1"];
         auto softmax_input = r.instructions["x"];
 
+        if(not gate.fusable(gemm1, gemm2))
+            return;
+
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), gemm1, gemm2);
 
@@ -564,8 +615,7 @@ struct find_attention
             attn_inss.insert(attn_inss.end(), lse_inss.begin(), lse_inss.end());
             required_outputs = find_outputs(attn_inss);
 
-            // Final outputs should be the second gemm and add instruction
-            // (shift lse to adjust for subtracting max during stable softmax computation)
+            // Final outputs are the second gemm and the lse
             if(required_outputs.size() != 2)
                 return;
         }
@@ -1264,6 +1314,11 @@ struct find_kv_cache_attention
                     continue;
                 if(not is_valid_attn_op(input))
                     continue;
+                // mlir only takes scalar, range and mask literals; other
+                // constants (eg a bias) stay inputs of the group
+                if(not is_inlinable_constant(input) and
+                   input->get_shape().type() != shape::bool_type)
+                    continue;
                 if(input->get_operator().attributes().get("reduce", false))
                     continue;
                 if(input->can_eval() or std::all_of(input->outputs().begin(),
@@ -1417,13 +1472,16 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     {
         // remove quantization from attention blocks so they can be fused; rocMLIR currently does
         // not support fp8 attention
-        match::find_matches(mpm, find_quant_attention{});
+        attention_gate gate{.max_head_dim     = attn_max_head_dim,
+                            .min_q_rows       = attn_min_q_rows,
+                            .wide_head_kv_len = attn_wide_head_kv_len};
+        match::find_matches(mpm, find_quant_attention{.gate = gate});
         mpm.run_pass(dead_code_elimination{});
 
-        match::find_matches(mpm, find_transposed_attention{});
+        match::find_matches(mpm, find_transposed_attention{.gate = gate});
         mpm.run_pass(dead_code_elimination{});
 
-        match::find_matches(mpm, find_attention{.counter = &counter});
+        match::find_matches(mpm, find_attention{.counter = &counter, .gate = gate});
         mpm.get_module().sort();
         mpm.run_pass(dead_code_elimination{});
     }

@@ -58,6 +58,16 @@ def test_save_load_buffer():
     assert p1.sort() == p2.sort()
 
 
+def test_load_unsupported_version():
+    # msgpack for {"version": 255}, a program file version that no build supports
+    try:
+        migraphx.load_buffer(b"\x81\xa7version\xcc\xff")
+    except RuntimeError as e:
+        assert "Program version mismatch" in str(e)
+    else:
+        assert False, "expected loading to fail"
+
+
 def create_buffer(t, data, shape):
     a = array.array(t, data)
     if sys.version_info >= (3, 0):
@@ -82,3 +92,4 @@ if __name__ == "__main__":
     test_conv_relu('msgpack')
     test_conv_relu('json')
     test_save_load_buffer()
+    test_load_unsupported_version()

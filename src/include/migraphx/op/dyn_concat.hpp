@@ -46,7 +46,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- * Concatenate valid prefixes of maximum-capacity inputs.
+ * Concatenate inputs over a symbolic dimension.
+ * Originally created to handle the concatenation of mutiple region proposals in MaskRCNN.
  *
  * Inputs are ordered as:
  *   num_elements, data_0, ..., data_n

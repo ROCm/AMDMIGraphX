@@ -385,6 +385,14 @@ struct find_op_shape_transform_op
             v["axes"] = axes;
             return m.insert_instruction(ins, make_op(ins->name(), v), inputs, ins->module_inputs());
         }
+        if(ins->name() == "concat")
+        {
+            auto v               = ins->normalized_operator().to_value();
+            const auto& new_axes = am.at(v.at("axis").to<std::size_t>());
+            assert(new_axes.size() == 1);
+            v["axis"] = new_axes.front();
+            return m.insert_instruction(ins, make_op(ins->name(), v), inputs);
+        }
         if(ins->name() == "layout")
         {
             auto v              = ins->get_operator().to_value();
@@ -583,10 +591,13 @@ struct find_op_shape_transform_op
     }
 };
 
-// Rewrite an op into the common dims of a shape-transform chain fed by a
-// non-pointwise base (literal or parameter), so a reshape of a broadcasted
-// per-group scale doesnt need a contiguous copy that blocks fusion.
-// find_op_shape_transform_op handles chains starting at a pointwise or reduce.
+// Rewrite an op into the common dims of a shape-transform chain on one of its
+// inputs, so a reshape of a broadcast doesnt need a contiguous copy that
+// blocks fusion. A dequantizelinear is rewritten for a chain fed by a
+// non-pointwise base (literal or parameter), such as a per-group scale. A
+// concat is rewritten for a chain fed by any base, so the broadcast is copied
+// once into the concat. find_op_shape_transform_op handles chains between
+// pointwise and reduce operators.
 struct find_entry_shape_transform_op
 {
     bool enable = true;
@@ -596,8 +607,10 @@ struct find_entry_shape_transform_op
         auto reshapes    = match::name(find_op_shape_transform_op::shape_transform_ops());
         auto entry       = match::none_of(match::reduce(), match::pointwise());
         auto entry_chain = reshapes(match::arg(0)(match::skip(reshapes())(entry)));
-        // Restricted to dequantizelinear for now; the mapping is op-agnostic
-        return match::name("dequantizelinear")(match::any_of[match::inputs()](entry_chain));
+        // Restricted to these operators for now; the mapping is op-agnostic
+        return match::any_of(
+            match::name("dequantizelinear")(match::any_of[match::inputs()](entry_chain)),
+            match::name("concat")(match::static_shape(), match::any_of[match::inputs()](reshapes)));
     }
 
     struct entry_transform
@@ -607,8 +620,43 @@ struct find_entry_shape_transform_op
         shape_transform_descriptor desc;
     };
 
+    // True when a dimension merges a broadcasted axis with another axis, which
+    // cant be a view of the base
+    static bool merges_broadcast(const shape_transform_descriptor& desc)
+    {
+        return std::any_of(desc.dimensions.begin(), desc.dimensions.end(), [](const auto& d) {
+            const auto& subs = d.subdimensions;
+            return std::any_of(subs.begin(),
+                               subs.end(),
+                               [](const auto& s) { return s.axis.empty() and s.len != 1; }) and
+                   std::count_if(
+                       subs.begin(), subs.end(), [](const auto& s) { return s.len != 1; }) > 1;
+        });
+    }
+
+    static bool is_valid_concat(instruction_ref ins,
+                                instruction_ref input,
+                                const shape_transform_descriptor& desc)
+    {
+        // Without a merged broadcast the chain is a view, so the concat
+        // already copies it once
+        if(not merges_broadcast(desc))
+            return false;
+        auto axis = ins->normalized_operator().to_value().at("axis").to<std::size_t>();
+        // The concat axis cant be split across the common dims
+        if(desc.common_axes_map_from_dst().at(axis).size() != 1)
+            return false;
+        auto common_from_dst = desc.to_common_from_dst();
+        return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref x) {
+            if(x == input)
+                return true;
+            return not common_from_dst.rebase(x->get_shape().lens()).empty();
+        });
+    }
+
     static optional<entry_transform> find_entry_transform(instruction_ref ins)
     {
+        const bool is_concat = ins->name() == "concat";
         for(auto input : ins->inputs())
         {
             std::vector<operation> ops;
@@ -620,7 +668,8 @@ struct find_entry_shape_transform_op
             }
             if(ops.empty())
                 continue;
-            if(find_op_shape_transform_op::matches_op(base))
+            // A concat isnt moved through the chain so its base can be any operator
+            if(not is_concat and find_op_shape_transform_op::matches_op(base))
                 continue;
             // shape_transform_descriptor doesnt handle scalars for now
             if(base->get_shape().scalar() or input->get_shape().scalar())
@@ -629,11 +678,13 @@ struct find_entry_shape_transform_op
             auto desc = shape_transform_descriptor::create(base->get_shape().lens(), ops);
             if(desc.empty())
                 continue;
-            if(desc.elements() != ins->get_shape().elements())
+            if(desc.elements() != input->get_shape().elements())
                 continue;
             // Only rewrite when the op hides merged axes that the common
             // dims space would expose
-            if(desc.common_dims() == ins->get_shape().lens())
+            if(desc.common_dims() == input->get_shape().lens())
+                continue;
+            if(is_concat and not is_valid_concat(ins, input, desc))
                 continue;
             return entry_transform{input, base, std::move(desc)};
         }
@@ -652,7 +703,7 @@ struct find_entry_shape_transform_op
 
         auto new_input_ins = find_op_shape_transform_op::insert_transforms(
             m, ins, desc.to_common_from_src(), et->base);
-        if(new_input_ins->get_shape().elements() != ins->get_shape().elements())
+        if(new_input_ins->get_shape().elements() != et->input->get_shape().elements())
         {
             new_input_ins = m.insert_instruction(
                 ins, make_op("multibroadcast", {{"out_lens", desc.common_dims()}}), new_input_ins);
@@ -779,6 +830,7 @@ struct find_nop_reshapes
             "broadcast",
             "concat",
             "convert",
+            "layout",
             "multibroadcast",
             "pad",
             "slice",

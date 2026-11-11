@@ -6918,6 +6918,164 @@ TEST_CASE(dequantizelinear_entry_shape_transform_none)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(concat_entry_shape_transform_upsample)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {1, 4, 3, 5}});
+        auto y  = m1.add_parameter("y", {migraphx::shape::float_type, {1, 2, 6, 10}});
+        auto xr = m1.add_instruction(migraphx::make_op("relu"), x);
+        auto xu = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), xr);
+        auto xb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 3, 2, 5, 2}}}), xu);
+        auto up = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 6, 10}}}), xb);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), up, y);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {1, 4, 3, 5}});
+        auto y  = m2.add_parameter("y", {migraphx::shape::float_type, {1, 2, 6, 10}});
+        auto xr = m2.add_instruction(migraphx::make_op("relu"), x);
+        auto xu = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), xr);
+        auto xb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 3, 2, 5, 2}}}), xu);
+        auto yr =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 2, 5, 2}}}), y);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xb, yr);
+        auto result =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 6, 6, 10}}}), concat);
+        m2.add_return({result});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(concat_entry_shape_transform_negative_axis_last_input)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {3, 5, 4}});
+        auto y  = m1.add_parameter("y", {migraphx::shape::float_type, {6, 10, 2}});
+        auto z  = m1.add_parameter("z", {migraphx::shape::float_type, {6, 10, 3}});
+        auto xu = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 3}}}), x);
+        auto xb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 5, 2, 4}}}), xu);
+        auto up     = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 10, 4}}}), xb);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", -1}}), y, z, up);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {3, 5, 4}});
+        auto y  = m2.add_parameter("y", {migraphx::shape::float_type, {6, 10, 2}});
+        auto z  = m2.add_parameter("z", {migraphx::shape::float_type, {6, 10, 3}});
+        auto xu = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 3}}}), x);
+        auto xb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 5, 2, 4}}}), xu);
+        auto yr = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 5, 2, 2}}}), y);
+        auto zr = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 5, 2, 3}}}), z);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 4}}), yr, zr, xb);
+        auto result =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 10, 9}}}), concat);
+        m2.add_return({result});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(concat_entry_shape_transform_both_upsampled)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {1, 4, 3, 5}});
+        auto y  = m1.add_parameter("y", {migraphx::shape::float_type, {1, 2, 3, 5}});
+        auto xu = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), x);
+        auto xb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 3, 2, 5, 2}}}), xu);
+        auto xup = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 6, 10}}}), xb);
+        auto yu  = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), y);
+        auto yb  = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3, 2, 5, 2}}}), yu);
+        auto yup = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 6, 10}}}), yb);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xup, yup);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", {migraphx::shape::float_type, {1, 4, 3, 5}});
+        auto y      = m2.add_parameter("y", {migraphx::shape::float_type, {1, 2, 3, 5}});
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+        auto cu = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), concat);
+        auto cb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 6, 3, 2, 5, 2}}}), cu);
+        auto result =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 6, 6, 10}}}), cb);
+        m2.add_return({result});
+    }
+    EXPECT(m1 == m2);
+}
+
+// Concatenating along an upsampled axis would split the concat axis across the common dims
+TEST_CASE(concat_entry_shape_transform_split_axis_none)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {1, 4, 3, 5}});
+        auto y  = m1.add_parameter("y", {migraphx::shape::float_type, {1, 4, 2, 10}});
+        auto xu = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), x);
+        auto xb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 3, 2, 5, 2}}}), xu);
+        auto up = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 6, 10}}}), xb);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), up, y);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// A reshape that doesnt merge a broadcasted axis is a view the concat can copy directly
+TEST_CASE(concat_entry_shape_transform_view_none)
+{
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", {migraphx::shape::float_type, {4, 3, 2, 5}});
+        auto y      = m1.add_parameter("y", {migraphx::shape::float_type, {2, 6, 5}});
+        auto xr     = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 6, 5}}}), x);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xr, y);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(layout_nop)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto l1 =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto r = m1.add_instruction(migraphx::make_op("relu"), l1);
+        auto l2 =
+            m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), r);
+        m1.add_return({l2});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto l =
+            m2.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto r = m2.add_instruction(migraphx::make_op("relu"), l);
+        m2.add_return({r});
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(op_shape_transform_shadowed_broadcast)
 {
     migraphx::module m1;

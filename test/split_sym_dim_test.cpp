@@ -380,6 +380,99 @@ TEST_CASE(split_sym_dim_covers_full_interval)
     EXPECT(p.sort() == expected.sort());
 }
 
+TEST_CASE(split_sym_dim_materializes_roialign)
+{
+    auto r = var("r", {1, 4}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto x  = m.add_parameter("x", {migraphx::shape::float_type, {1, 1, 2, 2}});
+    auto rois =
+        m.add_parameter("rois", migraphx::shape{migraphx::shape::float_type, {dd{r}, dd{lit(4)}}});
+    auto batch_ind =
+        m.add_parameter("batch_ind", migraphx::shape{migraphx::shape::int64_type, {dd{r}}});
+    auto output = m.add_instruction(migraphx::make_op("roialign"), x, rois, batch_ind);
+    m.add_return({output});
+
+    run_pass(p);
+
+    migraphx::program expected;
+    std::vector<clone_spec> clones = {{1, 1}, {2, 2}, {3, 4}};
+    auto modules = add_clones(expected, 0, clones, [&](auto& sm, const auto& clone) {
+        auto clone_r    = var("r", {clone.min, clone.max});
+        auto clone_x    = sm.add_parameter("x", {migraphx::shape::float_type, {1, 1, 2, 2}});
+        auto clone_rois = sm.add_parameter(
+            "rois", migraphx::shape{migraphx::shape::float_type, {dd{clone_r}, dd{lit(4)}}});
+        auto clone_batch_ind = sm.add_parameter(
+            "batch_ind", migraphx::shape{migraphx::shape::int64_type, {dd{clone_r}}});
+        auto padded_rois =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_rois);
+        auto padded_batch_ind =
+            sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_batch_ind);
+        auto clone_output = sm.add_instruction(
+            migraphx::make_op("roialign"), clone_x, padded_rois, padded_batch_ind);
+        sm.add_return({clone_output});
+    });
+
+    auto& expected_main = *expected.get_main_module();
+    auto expected_x = expected_main.add_parameter("x", {migraphx::shape::float_type, {1, 1, 2, 2}});
+    auto expected_rois = expected_main.add_parameter(
+        "rois", migraphx::shape{migraphx::shape::float_type, {dd{r}, dd{lit(4)}}});
+    auto expected_batch_ind = expected_main.add_parameter(
+        "batch_ind", migraphx::shape{migraphx::shape::int64_type, {dd{r}}});
+    auto target_r = var("split_sym_dim_r_target", {1, 4}, {1, 2, 4});
+    auto select   = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type,
+                                  {dd{target_r}, dd{lit(1)}, dd{lit(1)}, dd{lit(1)}}}}})}}),
+        std::vector<migraphx::instruction_ref>{expected_batch_ind, expected_rois, expected_x},
+        modules);
+    auto expected_output =
+        expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto expected_output_start = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
+        std::vector<migraphx::instruction_ref>{expected_batch_ind, expected_rois, expected_x});
+    auto expected_output_end = expected_main.add_instruction(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::to_value(std::vector<se>{r})}}),
+        std::vector<migraphx::instruction_ref>{expected_batch_ind, expected_rois, expected_x});
+    expected_output = expected_main.add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{0}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{r})}}),
+        expected_output,
+        expected_output_start,
+        expected_output_end);
+    expected_main.add_return({expected_output});
+
+    EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_preserves_roialign_with_dynamic_feature_map)
+{
+    auto n = var("n", {1, 2});
+    auto r = var("r", {1, 4}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto x  = m.add_parameter(
+        "x",
+        migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{lit(2)}, dd{lit(2)}}});
+    auto rois =
+        m.add_parameter("rois", migraphx::shape{migraphx::shape::float_type, {dd{r}, dd{lit(4)}}});
+    auto batch_ind =
+        m.add_parameter("batch_ind", migraphx::shape{migraphx::shape::int64_type, {dd{r}}});
+    auto output = m.add_instruction(migraphx::make_op("roialign"), x, rois, batch_ind);
+    m.add_return({output});
+
+    auto expected = p;
+    run_pass(p);
+    EXPECT(p == expected);
+}
+
 TEST_CASE(split_sym_dim_supports_one_to_one_axis_transforms)
 {
     auto n = var("n", {1, 8}, {2, 4});

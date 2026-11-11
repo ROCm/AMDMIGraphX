@@ -204,6 +204,8 @@ struct reshape
             return {};
 
         sym_argument result{output_shape};
+        if(output_shape.elements() == 0)
+            return result;
         const auto input = args[0].get();
         auto output      = result.get();
         std::copy(input.begin(), input.end(), output.begin());
@@ -215,6 +217,8 @@ struct reshape
         if(args.size() == 1)
         {
             argument result{dyn_out.computed_shape};
+            if(dyn_out.computed_shape.elements() == 0)
+                return result;
 
             visit_all(result, args[0])([&](auto output, auto input) {
                 std::copy(input.begin(), input.end(), output.begin());
@@ -230,6 +234,8 @@ struct reshape
                                std::to_string(args[0].get_shape().elements()) +
                                " Output buffer: " + std::to_string(args[1].get_shape().elements()));
             }
+            if(args[1].get_shape().elements() == 0)
+                return args[1];
             visit_all(args[1], args[0])([&](auto output, auto input) {
                 std::copy(input.begin(), input.end(), output.begin());
             });

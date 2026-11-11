@@ -145,6 +145,25 @@ TEST_CASE(broadcasted_unmergeable)
     EXPECT(static_reshape(s, {6}, true) == migraphx::nullopt);
 }
 
+// A nearest-neighbor upsample of an NHWC tensor. Each broadcast axis merges into a non-broadcast
+// one that places it in memory, so a copy keeps the NHWC layout even though a view can't.
+TEST_CASE(broadcasted_merge_transposed)
+{
+    migraphx::shape s{ftype, {1, 4, 2, 2, 3, 2}, {24, 1, 12, 0, 4, 0}};
+    migraphx::shape expected{ftype, {1, 4, 4, 6}, {96, 1, 24, 4}};
+    EXPECT(static_reshape(s, {1, 4, 4, 6}, true) == migraphx::nullopt);
+    EXPECT(static_reshape(s, {1, 4, 4, 6}, false) == expected);
+}
+
+// A broadcast axis of length 1 takes no memory, so the copy keeps it in its logical place
+// instead of carrying the zero stride.
+TEST_CASE(broadcasted_singleton_transposed)
+{
+    migraphx::shape s{ftype, {1, 4, 2, 3}, {0, 1, 12, 4}};
+    migraphx::shape expected{ftype, {1, 4, 6}, {24, 1, 4}};
+    EXPECT(static_reshape(s, {1, 4, 6}, false) == expected);
+}
+
 // A sliced shape has gaps between its axes, so merging them loses the gap and needs a copy.
 TEST_CASE(nonpacked)
 {

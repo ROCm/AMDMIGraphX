@@ -894,8 +894,8 @@ module {
     %1 = migraphx.multibroadcast %arg2 {out_dyn_dims = [], out_lens = [1, 64, 32]} : <1x64x1xf32, 64x1x1> -> <1x64x32xf32, 64x1x0>
     %2 = migraphx.reshape %1 {dims = [1, 2048]} : <1x64x32xf32, 64x1x0> -> <1x2048xf32, 2048x1>
     %3 = migraphx.multibroadcast %arg3 {out_dyn_dims = [], out_lens = [64, 32, 1000]} : <64x1x1000xf32, 1x1x64> -> <64x32x1000xf32, 1x0x64>
-    %4 = migraphx.reshape %3 {dims = [2048, 1000]} : <64x32x1000xf32, 1x0x64> -> <2048x1000xf32, 1000x1>
-    %5 = migraphx.quant_dot %arg0 scaled by %2, %0 scaled by %4 : <1x2048xf4E2M1FN, 2048x1> scaled by !migraphx.shaped<1x2048xf32, 2048x1>, <2048x1000xf4E2M1FN, 1x2048> scaled by !migraphx.shaped<2048x1000xf32, 1000x1> -> <1x1000xf32, 1000x1>
+    %4 = migraphx.reshape %3 {dims = [2048, 1000]} : <64x32x1000xf32, 1x0x64> -> <2048x1000xf32, 1x2048>
+    %5 = migraphx.quant_dot %arg0 scaled by %2, %0 scaled by %4 : <1x2048xf4E2M1FN, 2048x1> scaled by !migraphx.shaped<1x2048xf32, 2048x1>, <2048x1000xf4E2M1FN, 1x2048> scaled by !migraphx.shaped<2048x1000xf32, 1x2048> -> <1x1000xf32, 1000x1>
     %6 = migraphx.add %5, %arg4 : <1x1000xf32, 1000x1>, <1x1000xf32, 1000x1> -> <1x1000xf32, 1000x1>
     return %6 : !migraphx.shaped<1x1000xf32, 1000x1>
   }
@@ -1216,13 +1216,13 @@ module {
     %3 = migraphx.reshape %arg0 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
     %4 = migraphx.transpose %3 {permutation = [0, 1, 2, 4, 3]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x1x4x8xf16, 64x32x32x1x4>
     %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [1, 2, 2, 4, 8]} : <1x2x1x4x8xf16, 64x32x32x1x4> -> <1x2x2x4x8xf16, 64x32x0x1x4>
-    %6 = migraphx.reshape %5 {dims = [1, 4, 4, 8]} : <1x2x2x4x8xf16, 64x32x0x1x4> -> <1x4x4x8xf16, 128x32x8x1>
+    %6 = migraphx.reshape %5 {dims = [1, 4, 4, 8]} : <1x2x2x4x8xf16, 64x32x0x1x4> -> <1x4x4x8xf16, 128x32x1x4>
     %7 = migraphx.reshape %arg3 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
     %8 = migraphx.multibroadcast %7 {out_dyn_dims = [], out_lens = [1, 2, 2, 8, 4]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x2x8x4xf16, 64x32x0x4x1>
     %9 = migraphx.reshape %8 {dims = [1, 4, 8, 4]} : <1x2x2x8x4xf16, 64x32x0x4x1> -> <1x4x8x4xf16, 128x32x4x1>
     %10 = migraphx.reshape %arg1 {dims = [1, 1, 4, 4]} : <1x4x1x4xf16, 16x4x4x1> -> <1x1x4x4xf16, 16x16x4x1>
     %11 = migraphx.transpose %10 {permutation = [0, 2, 1, 3]} : <1x1x4x4xf16, 16x16x4x1> -> <1x4x1x4xf16, 16x4x16x1>
-    %12 = migraphx.dot %11, %6 : <1x4x1x4xf16, 16x4x16x1>, <1x4x4x8xf16, 128x32x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %12 = migraphx.dot %11, %6 : <1x4x1x4xf16, 16x4x16x1>, <1x4x4x8xf16, 128x32x1x4> -> <1x4x1x8xf16, 32x8x8x1>
     %13 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1xf16, 1> -> <1x4x1x8xf16, 0x0x0x0>
     %14 = migraphx.mul %12, %13 : <1x4x1x8xf16, 32x8x8x1>, <1x4x1x8xf16, 0x0x0x0> -> <1x4x1x8xf16, 32x8x8x1>
     %15 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <8xsi32, 1> -> <1x4x1x8xsi32, 0x0x0x1>
@@ -1279,13 +1279,13 @@ module {
     %3 = migraphx.reshape %arg0 {dims = [2, 2, 1, 8, 4]} : <2x2x8x4xf16, 64x32x4x1> -> <2x2x1x8x4xf16, 64x32x32x4x1>
     %4 = migraphx.transpose %3 {permutation = [0, 1, 2, 4, 3]} : <2x2x1x8x4xf16, 64x32x32x4x1> -> <2x2x1x4x8xf16, 64x32x32x1x4>
     %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [2, 2, 2, 4, 8]} : <2x2x1x4x8xf16, 64x32x32x1x4> -> <2x2x2x4x8xf16, 64x32x0x1x4>
-    %6 = migraphx.reshape %5 {dims = [2, 4, 4, 8]} : <2x2x2x4x8xf16, 64x32x0x1x4> -> <2x4x4x8xf16, 128x32x8x1>
+    %6 = migraphx.reshape %5 {dims = [2, 4, 4, 8]} : <2x2x2x4x8xf16, 64x32x0x1x4> -> <2x4x4x8xf16, 128x32x1x4>
     %7 = migraphx.reshape %arg3 {dims = [2, 2, 1, 8, 4]} : <2x2x8x4xf16, 64x32x4x1> -> <2x2x1x8x4xf16, 64x32x32x4x1>
     %8 = migraphx.multibroadcast %7 {out_dyn_dims = [], out_lens = [2, 2, 2, 8, 4]} : <2x2x1x8x4xf16, 64x32x32x4x1> -> <2x2x2x8x4xf16, 64x32x0x4x1>
     %9 = migraphx.reshape %8 {dims = [2, 4, 8, 4]} : <2x2x2x8x4xf16, 64x32x0x4x1> -> <2x4x8x4xf16, 128x32x4x1>
     %10 = migraphx.reshape %arg1 {dims = [2, 1, 4, 4]} : <2x4x1x4xf16, 16x4x4x1> -> <2x1x4x4xf16, 16x16x4x1>
     %11 = migraphx.transpose %10 {permutation = [0, 2, 1, 3]} : <2x1x4x4xf16, 16x16x4x1> -> <2x4x1x4xf16, 16x4x16x1>
-    %12 = migraphx.dot %11, %6 : <2x4x1x4xf16, 16x4x16x1>, <2x4x4x8xf16, 128x32x8x1> -> <2x4x1x8xf16, 32x8x8x1>
+    %12 = migraphx.dot %11, %6 : <2x4x1x4xf16, 16x4x16x1>, <2x4x4x8xf16, 128x32x1x4> -> <2x4x1x8xf16, 32x8x8x1>
     %13 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <1xf16, 1> -> <2x4x1x8xf16, 0x0x0x0>
     %14 = migraphx.mul %12, %13 : <2x4x1x8xf16, 32x8x8x1>, <2x4x1x8xf16, 0x0x0x0> -> <2x4x1x8xf16, 32x8x8x1>
     %15 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <8xsi32, 1> -> <2x4x1x8xsi32, 0x0x0x1>
@@ -1343,13 +1343,13 @@ module {
     %3 = migraphx.reshape %arg0 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
     %4 = migraphx.transpose %3 {permutation = [0, 1, 2, 4, 3]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x1x4x8xf16, 64x32x32x1x4>
     %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [1, 2, 2, 4, 8]} : <1x2x1x4x8xf16, 64x32x32x1x4> -> <1x2x2x4x8xf16, 64x32x0x1x4>
-    %6 = migraphx.reshape %5 {dims = [1, 4, 4, 8]} : <1x2x2x4x8xf16, 64x32x0x1x4> -> <1x4x4x8xf16, 128x32x8x1>
+    %6 = migraphx.reshape %5 {dims = [1, 4, 4, 8]} : <1x2x2x4x8xf16, 64x32x0x1x4> -> <1x4x4x8xf16, 128x32x1x4>
     %7 = migraphx.reshape %arg3 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
     %8 = migraphx.multibroadcast %7 {out_dyn_dims = [], out_lens = [1, 2, 2, 8, 4]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x2x8x4xf16, 64x32x0x4x1>
     %9 = migraphx.reshape %8 {dims = [1, 4, 8, 4]} : <1x2x2x8x4xf16, 64x32x0x4x1> -> <1x4x8x4xf16, 128x32x4x1>
     %10 = migraphx.reshape %arg1 {dims = [1, 1, 4, 4]} : <1x4x1x4xf16, 16x4x4x1> -> <1x1x4x4xf16, 16x16x4x1>
     %11 = migraphx.transpose %10 {permutation = [0, 2, 1, 3]} : <1x1x4x4xf16, 16x16x4x1> -> <1x4x1x4xf16, 16x4x16x1>
-    %12 = migraphx.dot %11, %6 : <1x4x1x4xf16, 16x4x16x1>, <1x4x4x8xf16, 128x32x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %12 = migraphx.dot %11, %6 : <1x4x1x4xf16, 16x4x16x1>, <1x4x4x8xf16, 128x32x1x4> -> <1x4x1x8xf16, 32x8x8x1>
     %13 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1xf16, 1> -> <1x4x1x8xf16, 0x0x0x0>
     %14 = migraphx.mul %12, %13 : <1x4x1x8xf16, 32x8x8x1>, <1x4x1x8xf16, 0x0x0x0> -> <1x4x1x8xf16, 32x8x8x1>
     %15 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <8xsi32, 1> -> <1x4x1x8xsi32, 0x0x0x1>

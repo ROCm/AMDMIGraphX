@@ -634,7 +634,7 @@ struct find_pointwise_reduce
 // makes the kernel write that output with one workgroup per reduction
 // output, so it needs at least min_fused_outputs outputs to stream it well;
 // otherwise the pointwise is faster as a separate, fully parallel kernel
-static bool
+bool
 can_fuse_pointwise(instruction_ref reduce, instruction_ref pw, std::size_t min_fused_outputs)
 {
     if(reduce->get_shape().elements() >= min_fused_outputs)

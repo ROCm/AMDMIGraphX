@@ -113,9 +113,9 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
         return e + (contains(tables, pos) ? "[t]" : "[i]");
     }
 
-    // name(x, i, t, e0..) calling the generated name_impl with the arguments
+    // name(x, i, t, e0..) returning the result
     static std::string
-    wrapper(const std::string& name, std::size_t nextras, const std::vector<std::string>& args)
+    function(const std::string& name, std::size_t nextras, const std::string& result)
     {
         const auto es                   = extras(nextras, "E");
         std::vector<std::string> types  = {"class X"};
@@ -128,29 +128,38 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
             return e + " " + to_lower(e);
         });
         return "template <" + join_strings(types, ", ") + ">\n__device__ auto " + name + "(" +
-               join_strings(params, ", ") + ") { return " + name + "_impl(" +
-               join_strings(args, ", ") + "); }\n";
+               join_strings(params, ", ") + ") { return " + result + "; }\n";
+    }
+
+    // name(x, i, t, e0..) calling the generated name_impl with the arguments
+    static std::string
+    wrapper(const std::string& name, std::size_t nextras, const std::vector<std::string>& args)
+    {
+        return function(name, nextras, name + "_impl(" + join_strings(args, ", ") + ")");
     }
 
     // gather_dot_column(x, i, t, e0..): the column submodule with the sum x
     // among the elements of its other inputs, the sum itself without the
-    // submodule
+    // submodule. The bias is the first of the inputs: the sum adds its
+    // element of the entry.
     static std::string column_function(const module* m, const value& v)
     {
+        const bool bias         = v.at("bias").to<bool>();
+        const std::size_t first = bias ? 1 : 0;
+        const std::string sum   = bias ? "(x + e0[t])" : "x";
         if(m == nullptr)
-            return "template <class X>\n"
-                   "__device__ X gather_dot_column(X x, index_int, index_int) { return x; }\n";
+            return function("gather_dot_column", first, sum);
         const auto n      = v.at("column_inputs").to<std::size_t>();
         const auto tables = v.at("column_tables").to_vector<std::size_t>();
-        const auto es     = extras(n, "e");
+        const auto es     = extras(first + n, "e");
         std::vector<std::string> args;
         // the arguments so far are the other inputs before this one
-        std::transform(es.begin(), es.end(), std::back_inserter(args), [&](const auto& e) {
+        std::transform(es.begin() + first, es.end(), std::back_inserter(args), [&](const auto& e) {
             return element(e, args.size(), tables);
         });
-        args.insert(args.begin() + v.at("column_dot").to<std::size_t>(), "x");
+        args.insert(args.begin() + v.at("column_dot").to<std::size_t>(), sum);
         return gen::generate_pointwise(*m, "gather_dot_column_impl") +
-               wrapper("gather_dot_column", n, args);
+               wrapper("gather_dot_column", first + n, args);
     }
 
     // gather_dot_output(x, i, t, e0..): the group submodule with the columns
@@ -159,9 +168,7 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
     static std::string output_function(const module* m, const value& v)
     {
         if(m == nullptr)
-            return "template <class X>\n"
-                   "__device__ auto gather_dot_output(X x, index_int, index_int) "
-                   "{ return x[0]; }\n";
+            return function("gather_dot_output", 0, "x[0]");
         const auto group_args = v.at("group_args").to_vector<std::int64_t>();
         const auto tables     = v.at("group_tables").to_vector<std::size_t>();
         std::size_t n         = 0;
@@ -227,7 +234,10 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
         settings += constant("n", n);
         settings += constant("pair", pair);
         settings += constant("weights", v.at("weights").to<std::size_t>());
-        settings += constant("column_inputs", v.at("column_inputs").to<std::size_t>());
+        // the bias is read with the other inputs of the column function
+        settings +=
+            constant("column_inputs",
+                     v.at("column_inputs").to<std::size_t>() + (v.at("bias").to<bool>() ? 1 : 0));
         settings += constant("group", group);
         settings += constant("col_blocks", waves);
         settings += constant("tile_batch", tile_batch);

@@ -1213,7 +1213,8 @@ struct find_gather_dot_weights
         attrs["layout"]  = to_value(weights->get_shape());
         attrs["packed"]  = to_value(packed);
         attrs["weights"] = inputs.size() - 2;
-        inputs.push_back(ins->inputs().back());
+        // the bias and the output buffer follow the one weight tensor
+        inputs.insert(inputs.end(), ins->inputs().begin() + 3, ins->inputs().end());
         m.replace_instruction(ins, with_precompile_attributes(ins, attrs), inputs, mods);
     }
 };
@@ -1239,12 +1240,14 @@ struct gather_dot_inputs
            not gather->get_shape().standard())
             return nullopt;
         auto table       = gather->inputs().front();
+        auto indices     = gather->inputs().at(1);
+        auto dot_indices = dot->inputs().at(1);
         const auto& lens = table->get_shape().lens();
         auto axis        = precompile_attributes(gather).at("axis").to<std::int64_t>();
         auto entries = from_value<shape>(precompile_attributes(dot).at("layout")).lens().front();
         if(axis < 0)
             axis += lens.size();
-        if(axis != 0 or lens.front() != entries or gather->inputs().at(1) != dot->inputs().at(1))
+        if(axis != 0 or lens.front() != entries or indices != dot_indices)
             return nullopt;
         return table;
     }
@@ -1258,8 +1261,8 @@ struct gather_dot_inputs
     }
 };
 
-// Fuse a pointwise operator applied to the sums of a gather_dot, eg the bias
-// add, as its column submodule
+// Fuse a pointwise operator applied to the sums of a gather_dot, eg an
+// activation, as its column submodule
 struct find_gather_dot_pointwise
 {
     auto matcher() const

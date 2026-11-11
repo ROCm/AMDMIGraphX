@@ -310,6 +310,183 @@ TEST_CASE(gather_dot_several_rows)
     EXPECT(p1 == p2);
 }
 
+// The add of a bias gathered with the indices of the matrices is folded: the
+// gather_dot reads the table of biases
+TEST_CASE(gather_dot_bias)
+{
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto b   = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto wg  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), x, wg);
+        auto bg  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx);
+        auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bg);
+        auto add = mm->add_instruction(migraphx::make_op("add"), dot, bu);
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto b   = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), b);
+        auto dot = mm->add_instruction(
+            migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout",
+                  migraphx::to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})},
+                 {"bias", true}}),
+            x,
+            idx,
+            w,
+            bu);
+        mm->add_return({dot});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The convert of the gathered bias is applied to the table of biases, and
+// the bias can be the first input of the add
+TEST_CASE(gather_dot_bias_convert)
+{
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::half_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::half_type, {4, 3, 5}});
+        auto b   = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto wg  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), x, wg);
+        auto bg  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx);
+        auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bg);
+        auto bc  = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), bu);
+        auto add = mm->add_instruction(migraphx::make_op("add"), bc, dot);
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::half_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::half_type, {4, 3, 5}});
+        auto b   = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), b);
+        auto bc  = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), bu);
+        auto dot = mm->add_instruction(
+            migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout",
+                  migraphx::to_value(migraphx::shape{migraphx::shape::half_type, {4, 3, 5}})},
+                 {"bias", true}}),
+            x,
+            idx,
+            w,
+            bc);
+        mm->add_return({dot});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A bias gathered with other indices than the matrices is not that of the
+// entry of a row, so the add stays
+TEST_CASE(gather_dot_bias_different_indices)
+{
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w    = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto b    = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
+        auto idx1 = mm->add_parameter("idx1", {migraphx::shape::int32_type, {8}});
+        auto idx2 = mm->add_parameter("idx2", {migraphx::shape::int32_type, {8}});
+        auto wg   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx1);
+        auto dot  = mm->add_instruction(migraphx::make_op("dot"), x, wg);
+        auto bg   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx2);
+        auto bu   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bg);
+        auto add  = mm->add_instruction(migraphx::make_op("add"), dot, bu);
+        mm->add_return({add});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w    = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto b    = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
+        auto idx1 = mm->add_parameter("idx1", {migraphx::shape::int32_type, {8}});
+        auto idx2 = mm->add_parameter("idx2", {migraphx::shape::int32_type, {8}});
+        auto dot  = mm->add_instruction(
+            migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout",
+                  migraphx::to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}}),
+            x,
+            idx1,
+            w);
+        auto bg  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx2);
+        auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bg);
+        auto add = mm->add_instruction(migraphx::make_op("add"), dot, bu);
+        mm->add_return({add});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The sums have another reader, so they are computed without the bias
+TEST_CASE(gather_dot_bias_multi_use)
+{
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto b   = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto wg  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), x, wg);
+        auto bg  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx);
+        auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bg);
+        auto add = mm->add_instruction(migraphx::make_op("add"), dot, bu);
+        mm->add_return({add, dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
+        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
+        auto b   = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
+        auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto dot = mm->add_instruction(
+            migraphx::make_op(
+                "gpu::gather_dot",
+                {{"layout",
+                  migraphx::to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}}),
+            x,
+            idx,
+            w);
+        auto bg  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx);
+        auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bg);
+        auto add = mm->add_instruction(migraphx::make_op("add"), dot, bu);
+        mm->add_return({add, dot});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 // The whole pipeline compiles the gathered dot of packed weights to the
 // grouped kernel, with the gathers and the dequantize inside it
 TEST_CASE(compile_gather_dot_unpack_int4)
@@ -343,7 +520,7 @@ TEST_CASE(compile_gather_dot_unpack_int4)
 
 // The add of the gathered bias and the pointwise operator over pairs of
 // columns are computed in the grouped kernel too, which reads the bias of
-// the entry of a row instead of the gathered one
+// the entry of a row from the table of biases
 TEST_CASE(compile_gather_dot_bias_pairs)
 {
     migraphx::program p;
@@ -369,6 +546,34 @@ TEST_CASE(compile_gather_dot_bias_pairs)
 
     auto kernels = get_kernel_names(p);
     EXPECT(kernels == std::vector<std::string>{"gather_dot_kernel"});
+}
+
+// The gathered bias is read in the grouped kernel when the reduction that
+// follows would take its add: the rows of each token are scaled and summed
+TEST_CASE(compile_gather_dot_bias_reduce)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", {migraphx::shape::half_type, {8, 1, 32}});
+    auto w     = mm->add_parameter("w", {migraphx::shape::half_type, {4, 32, 16}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::half_type, {4, 16}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::half_type, {8, 1, 1}});
+    auto idx   = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
+    auto wg    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), w, idx);
+    auto dot   = mm->add_instruction(migraphx::make_op("dot"), x, wg);
+    auto bg    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), bias, idx);
+    auto bu    = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bg);
+    auto add   = mm->add_instruction(migraphx::make_op("add"), dot, bu);
+    auto sb =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 1, 16}}}), scale);
+    auto mul    = mm->add_instruction(migraphx::make_op("mul"), add, sb);
+    auto tokens = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 16}}}), mul);
+    auto sum    = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), tokens);
+    mm->add_return({sum});
+    p.compile(migraphx::make_target("gpu"));
+
+    auto kernels = get_kernel_names(p);
+    EXPECT(kernels == std::vector<std::string>{"gather_dot_kernel", "mul_reduce_sum_kernel"});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

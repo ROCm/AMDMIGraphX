@@ -227,8 +227,9 @@ constexpr index_int stage_run()
 // out[r] = a[r] . b[indices[r]] for rows a {rows, 1, k} and a table of
 // matrices b {entries, k, n} that the weight function computes from the
 // weight tensors. The column function is applied to every sum with its other
-// inputs, and the output function combines the columns of a group into one
-// output column with its other inputs.
+// inputs, which adds the bias when there is one, and the output function
+// combines the columns of a group into one output column with its other
+// inputs.
 //
 // Each workgroup takes one entry and one block of 16 columns of its matrix
 // per wave. Its first wave lists the rows gathering the entry, so the entry

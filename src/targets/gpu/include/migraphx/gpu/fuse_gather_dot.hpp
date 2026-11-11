@@ -42,9 +42,11 @@ namespace gpu {
 // each matrix is read once for all the rows gathering it.
 //
 // The pass replaces the dot and its gathers by a gpu::gather_dot reading the
-// table the matrices are computed from. It runs before the dots of single
-// rows are rewritten as reductions. fuse_ops then fuses what computes that
-// table and the pointwise operators reading the result into the gather_dot.
+// table the matrices are computed from, and folds the add of a bias gathered
+// with the same indices. It runs before the dots of single rows are
+// rewritten as reductions and before the pointwise fusion. fuse_ops then
+// fuses what computes that table and the pointwise operators reading the
+// result into the gather_dot.
 struct MIGRAPHX_GPU_EXPORT fuse_gather_dot
 {
     // The number of gathered rows per table entry from which the dots are

@@ -40,6 +40,7 @@ Full documentation for MIGraphX is available at
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
 * Fixed `eliminate_concat` returning a strided view of the concat buffer as a program output when a concat input is also returned (for example a time cache kept as the last frames of a `concat`), which made integrations that allocate packed outputs, such as the ONNX Runtime MIGraphX EP, write past the end of the output buffer (#5484).
 * Fixed the ONNX parser decoding `FLOAT8E4M3FNUZ` tensors stored in `int32_data` as numeric values instead of as 8-bit patterns.
+* Fixed `fp8_ocp_to_fnuz` turning `fp8e4m3fn` negative zero into NaN on GPUs without OCP fp8 support.
 
 ### Optimized
 

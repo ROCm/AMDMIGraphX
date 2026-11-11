@@ -57,7 +57,8 @@ struct match_fp8ocp_convert_to_fp8fnuz
                                              const instruction_ref bits_0x80_lit,
                                              const instruction_ref bits_0x7f_lit,
                                              const instruction_ref bits_0xff_lit,
-                                             const instruction_ref bits_0x00_lit)
+                                             const instruction_ref bits_0x00_lit,
+                                             const instruction_ref neg_zero_bits_lit)
     {
         auto x_lens     = x->get_shape().lens();
         auto cast_input = m.insert_instruction(
@@ -71,8 +72,12 @@ struct match_fp8ocp_convert_to_fp8fnuz
         auto mb_zero_lit = m.insert_instruction(
             dq, make_op("multibroadcast", {{"out_lens", x_lens}}), bits_0x00_lit);
         // negative zero in fp8e4m3fn to zero in fp8e4m3fnuz
-        // a == 0x80 ? 0x0 : a
-        auto is_neg_zero = m.insert_instruction(dq, make_op("equal"), cast_input, mb_bits_0x80_lit);
+        // a == 0x80 ? 0x0 : a, compared as bytes since 0x80 is NaN in fp8e4m3fnuz
+        auto input_bits =
+            m.insert_instruction(dq, make_op("bit_cast", {{"target_type", shape::uint8_type}}), x);
+        auto mb_neg_zero_bits = m.insert_instruction(
+            dq, make_op("multibroadcast", {{"out_lens", x_lens}}), neg_zero_bits_lit);
+        auto is_neg_zero = m.insert_instruction(dq, make_op("equal"), input_bits, mb_neg_zero_bits);
         auto ret = m.insert_instruction(dq, make_op("where"), is_neg_zero, mb_zero_lit, cast_input);
 
         // positive and negative NaN in fp8e4m3fn to NaN in fp8e4m3fnuz
@@ -131,10 +136,25 @@ struct match_fp8ocp_convert_to_fp8fnuz
         std::vector<fp8e4m3fnuz> bits_0x00 = {fp8e4m3fnuz(0x00, fp8e4m3fnuz::from_bits())};
         auto bits_0x00_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}, {0}}, bits_0x00);
 
-        x = bit_cast_and_handle_specials(
-            m, dq, x, bits_0x80_lit, bits_0x7f_lit, bits_0xff_lit, bits_0x00_lit);
-        auto adj_dq_zp = bit_cast_and_handle_specials(
-            m, dq, dq_zp, bits_0x80_lit, bits_0x7f_lit, bits_0xff_lit, bits_0x00_lit);
+        std::vector<uint8_t> neg_zero_bits = {0x80};
+        auto neg_zero_bits_lit = m.add_literal(shape{shape::uint8_type, {1}, {0}}, neg_zero_bits);
+
+        x              = bit_cast_and_handle_specials(m,
+                                                      dq,
+                                                      x,
+                                                      bits_0x80_lit,
+                                                      bits_0x7f_lit,
+                                                      bits_0xff_lit,
+                                                      bits_0x00_lit,
+                                                      neg_zero_bits_lit);
+        auto adj_dq_zp = bit_cast_and_handle_specials(m,
+                                                      dq,
+                                                      dq_zp,
+                                                      bits_0x80_lit,
+                                                      bits_0x7f_lit,
+                                                      bits_0xff_lit,
+                                                      bits_0x00_lit,
+                                                      neg_zero_bits_lit);
 
         // adj_scale = 2 * scale
         auto two_lit = m.add_literal(literal{shape{dq_scale->get_shape().type()}, {2}});

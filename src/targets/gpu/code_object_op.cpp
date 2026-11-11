@@ -117,7 +117,7 @@ static void visit_kernargs(const code_object_op& op, const std::vector<argument>
                            std::back_inserter(kargs),
                            [](const argument& a) { return a.data(); });
         });
-        f(kargs.data(), kargs.size() * sizeof(void*));
+        f(static_cast<void*>(kargs.data()), kargs.size() * sizeof(void*));
     }
 }
 

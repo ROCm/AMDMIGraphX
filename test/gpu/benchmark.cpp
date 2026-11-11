@@ -368,7 +368,7 @@ TEST_CASE(simple_benchmark_regenerates_a_shared_argument_whose_shape_differs)
     EXPECT(large.generated->front().second == migraphx::shape{migraphx::shape::int8_type, {32}});
 }
 
-static const std::string busy_kernel_src = R"__migraphx__(
+static const char* const busy_kernel_src = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <args.hpp>
 
@@ -393,17 +393,17 @@ __global__ void kernel(void* x, void* y)
 int main() {}
 )__migraphx__";
 
-static const migraphx::shape busy_shape{migraphx::shape::float_type, {64 * 256}};
+static migraphx::shape busy_shape() { return {migraphx::shape::float_type, {64 * 256}}; }
 
 // A kernel whose time grows with iterations
 static migraphx::operation compile_busy_kernel(int iterations,
-                                               std::size_t global = busy_shape.elements())
+                                               std::size_t global = busy_shape().elements())
 {
     migraphx::gpu::hip_compile_options options;
     options.global = global;
     options.local  = 256;
-    options.inputs = {busy_shape, busy_shape};
-    options.output = busy_shape;
+    options.inputs = {busy_shape(), busy_shape()};
+    options.output = busy_shape();
     options.emplace_param("-DITERATIONS=" + std::to_string(iterations));
     migraphx::gpu::context ctx;
     return migraphx::gpu::compile_hip_code_object(ctx, busy_kernel_src, options);
@@ -424,7 +424,7 @@ static const migraphx::operation& slow_kernel()
 // A fast kernel with a partial last workgroup, which a graph node cannot launch
 static const migraphx::operation& partial_workgroup_kernel()
 {
-    static const auto op = compile_busy_kernel(1, busy_shape.elements() - 128);
+    static const auto op = compile_busy_kernel(1, busy_shape().elements() - 128);
     return op;
 }
 
@@ -460,11 +460,11 @@ struct kernel_candidate
     {
         migraphx::program p;
         auto* mm     = p.get_main_module();
-        auto x       = mm->add_parameter("x", busy_shape);
+        auto x       = mm->add_parameter("x", busy_shape());
         auto scratch = mm->add_parameter(
-            "scratch", migraphx::shape{migraphx::shape::int8_type, {busy_shape.bytes()}});
+            "scratch", migraphx::shape{migraphx::shape::int8_type, {busy_shape().bytes()}});
         auto y = mm->add_instruction(
-            migraphx::make_op("load", {{"shape", migraphx::to_value(busy_shape)}, {"offset", 0}}),
+            migraphx::make_op("load", {{"shape", migraphx::to_value(busy_shape())}, {"offset", 0}}),
             scratch);
         if(fill)
             y = mm->add_instruction(migraphx::make_op("hip::fill", {{"value", 0}}), y);

@@ -400,8 +400,7 @@ static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
         });
         return t / bundle;
     }
-    return time_loop(
-        gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); }, warmup);
+    return time_loop(gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); }, warmup);
 }
 
 const benchmark_candidate&
@@ -450,6 +449,14 @@ static int compute_nruns(std::size_t budget_ms, double t, int bundle, std::size_
 {
     double n = budget_ms / (std::max(t, benchmark_min_time_ms) * bundle);
     return std::clamp(n, 1.0, static_cast<double>(max_runs));
+}
+
+// Evals per coarse run: as many as fit max_runs runs in the budget, up to max_bundle
+static int
+compute_coarse_bundle(std::size_t budget_ms, double t, std::size_t max_runs, std::size_t max_bundle)
+{
+    double n = budget_ms / (std::max(t, benchmark_min_time_ms) * max_runs);
+    return std::clamp(n, 1.0, static_cast<double>(std::max<std::size_t>(max_bundle, 1)));
 }
 
 // Call f, tracing and mapping a failure to nullopt
@@ -526,10 +533,8 @@ adaptive_topk_benchmark::run(const context& ictx,
                 auto param_map = make_benchmark_arguments(ctx_vec, candidate, *p, arg_cache);
                 auto estimate  = time_benchmark(ctx_vec, *p, param_map, 1, 1, use_graph);
                 // Bundle short kernels, so a launch gap is not most of their time
-                auto fits =
-                    coarse_ms / (std::max(estimate, benchmark_min_time_ms) * coarse_max_runs);
-                auto cbundle = static_cast<int>(
-                    std::clamp<double>(fits, 1, std::max<std::size_t>(coarse_bundle, 1)));
+                auto cbundle =
+                    compute_coarse_bundle(coarse_ms, estimate, coarse_max_runs, coarse_bundle);
                 auto nruns = compute_nruns(coarse_ms, estimate, cbundle, coarse_max_runs);
                 if(nruns == 1)
                     return estimate;

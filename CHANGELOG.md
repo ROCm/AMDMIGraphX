@@ -24,6 +24,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed a compile failure (`reshape_lazy on axis that is not packed`) in `eliminate_concat` when a concat input with other users has a different layout than the concat buffer, for example YOLO12n with MLIR (#5497).
 * Fixed `lower_reshape` returning a strided view as a program output when a reshape of a non-standard input (for example the last row sliced out of a KV-cache `concat`) reaches `@return`, which made `run` reject standard caller-provided output buffers (#5237).
 * Fixed `migraphx.argument` created from a Python buffer (for example a NumPy array) not keeping that buffer alive, which left a dangling pointer when the buffer was a temporary (ROCm/TheRock#8939).
 * Fixed `simplify_reshapes` generating invalid inverse shape transforms when moving an element-expanding shape-transform chain through a shared reduction (#5360).

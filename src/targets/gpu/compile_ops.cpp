@@ -37,6 +37,7 @@
 #include <migraphx/logger.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/builtin.hpp>
+#include <migraphx/charconv.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/fileutils.hpp>
@@ -54,7 +55,6 @@
 #include <algorithm>
 #include <map>
 #include <iterator>
-#include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <exception>
@@ -432,7 +432,8 @@ replace_inserted_device_ops(context& ctx,
                             const std::vector<module_ref>& mods,
                             const std::function<module_ref()>& make_recipe_module = nullptr);
 
-// Mark a recipe module and the modules it uses as bypass, so passes leave them alone
+// Bypass a recipe module and the modules it uses, so later passes such as write_literals do not
+// rewrite them
 static void set_bypass(module_ref recipe)
 {
     recipe->set_bypass();
@@ -440,9 +441,9 @@ static void set_bypass(module_ref recipe)
         smod->set_bypass();
 }
 
-// Where input is found from kernel: "j" for its j-th input, or "j.k" for the k-th input of its
-// j-th input. Compilers can move an input of the precompile op behind an instruction they insert
-// before the kernel, such as the hip::copy of scatter or the hip::fill of split-K.
+// The path from kernel to input: "j" for its j-th input, or "j.k" for the k-th input of its j-th
+// input, since a compiler can insert an instruction between them, such as the hip::copy of
+// scatter or the hip::fill of split-K.
 static optional<std::string> input_path(instruction_ref kernel, instruction_ref input)
 {
     const auto& args = kernel->inputs();
@@ -475,23 +476,25 @@ static optional<std::vector<std::string>> input_paths(instruction_ref kernel,
     return paths;
 }
 
-// A parameter of recipe for each input, named by its path
+// A parameter of recipe for each input, named by its path. An input passed twice has one
+// parameter.
 static std::vector<instruction_ref>
 add_recipe_parameters(module& recipe,
                       const std::vector<std::string>& paths,
                       const std::vector<instruction_ref>& inputs)
 {
-    std::unordered_map<std::string, instruction_ref> by_path;
+    assert(paths.size() == inputs.size());
     std::vector<instruction_ref> params;
-    for(auto i : range(inputs.size()))
-    {
-        // The same input can be passed twice, but a parameter is added only once
-        auto it = by_path.find(paths[i]);
-        if(it == by_path.end())
-            it = by_path.emplace(paths[i], recipe.add_parameter(paths[i], inputs[i]->get_shape()))
-                     .first;
-        params.push_back(it->second);
-    }
+    std::transform(paths.begin(),
+                   paths.end(),
+                   inputs.begin(),
+                   std::back_inserter(params),
+                   [&](const std::string& path, instruction_ref input) {
+                       auto param = recipe.get_parameter(path);
+                       if(param != recipe.end())
+                           return param;
+                       return recipe.add_parameter(path, input->get_shape());
+                   });
     return params;
 }
 
@@ -811,24 +814,10 @@ struct compile_plan
         return *any_cast<candidate>(best).cr;
     }
 
-    /// The solution that produced cr, which is one of the results
-    value solution_of(const compiler_replace& cr) const
-    {
-        auto it = std::find_if(results.begin(), results.end(), [&](const auto& cell) {
-            return cell->result.has_value() and &*cell->result == &cr;
-        });
-        if(it == results.end())
-            return value{};
-        // A shared cell may belong to another plan, so take the solution of this plan
-        if(config.has_value() and results.size() == config->solutions.size())
-            return config->solutions[std::distance(results.begin(), it)];
-        return (*it)->solution;
-    }
-
     /// Replace the precompile op with its compiled kernel. When make_recipe_module is set, the
     /// precompile op is also kept in a new recipe submodule of the kernel, so the kernel can be
     /// recompiled later.
-    void replace(module& m, const std::function<module_ref()>& make_recipe_module = nullptr) const
+    void replace(module& m, const std::function<module_ref()>& make_recipe_module) const
     {
         const auto& cr = benchmark();
         if(not make_recipe_module or ins == m.begin())
@@ -836,14 +825,15 @@ struct compile_plan
             cr.replace(m, ins);
             return;
         }
-        auto start  = std::prev(ins);
-        auto pre_op = ins->get_operator();
-        auto inputs = ins->inputs();
-        auto mods   = ins->module_inputs();
+        auto start      = std::prev(ins);
+        auto precompile = ins->get_operator();
+        auto inputs     = ins->inputs();
+        auto mods       = ins->module_inputs();
         cr.replace(m, ins);
 
         // The replacement inserts its instructions before ins, or rewrites it in place. Only a
         // single kernel can be put back to its precompile op by recompile.
+        assert(m.has_instruction(start) and m.has_instruction(ins));
         auto co_ins = single_code_object(std::next(start), std::next(ins));
         if(not co_ins.has_value())
         {
@@ -860,8 +850,7 @@ struct compile_plan
         }
         auto* recipe = make_recipe_module();
         auto params  = add_recipe_parameters(*recipe, *paths, inputs);
-        recipe->add_return({recipe->add_instruction(pre_op, params, mods)});
-        // Later passes such as write_literals must not rewrite the recipe
+        recipe->add_return({recipe->add_instruction(precompile, params, mods)});
         set_bypass(recipe);
         m.replace_instruction(*co_ins, (*co_ins)->get_operator(), (*co_ins)->inputs(), {recipe});
     }
@@ -1184,8 +1173,7 @@ void compile_ops::apply(module_pass_manager& mpm) const
         return;
     auto mods = collect_modules(mpm.get_root_module());
     compile_manager cm;
-    cm.exhaustive =
-        exhaustive_tune or (exhaustive_from_context and ctx->get_exhaustive_tune_flag());
+    cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
     cm.mxr_dir        = dump_mxr_dir;
     // One counter for every batch, since each recipe module needs a unique name. It must outlive
@@ -1221,13 +1209,10 @@ optional<instruction_ref> find_recipe(instruction_ref ins)
     auto* recipe = ins->module_inputs().front();
     if(recipe->begin() == recipe->end())
         return nullopt;
-    auto last = std::prev(recipe->end());
-    if(last->name() != "@return" or last->inputs().size() != 1)
+    auto rets = recipe->get_returns();
+    if(rets.size() != 1 or rets.front()->name() != "gpu::precompile_op")
         return nullopt;
-    auto pre = last->inputs().front();
-    if(pre->name() != "gpu::precompile_op")
-        return nullopt;
-    return pre;
+    return std::make_optional(rets.front());
 }
 
 // The instruction a path made by input_path leads to from kernel, or nothing
@@ -1236,12 +1221,10 @@ static optional<instruction_ref> follow_path(instruction_ref kernel, const std::
     auto ins = kernel;
     for(const auto& part : split_string(path, '.'))
     {
-        if(part.empty() or not std::all_of(part.begin(), part.end(), [](unsigned char c) {
-               return std::isdigit(c) != 0;
-           }))
-            return nullopt;
-        auto i = std::stoul(part);
-        if(i >= ins->inputs().size())
+        std::size_t i   = 0;
+        const auto* end = part.data() + part.size();
+        auto [ptr, ec]  = from_chars(part.data(), end, i);
+        if(ec != std::errc{} or ptr != end or i >= ins->inputs().size())
             return nullopt;
         ins = ins->inputs()[i];
     }
@@ -1268,6 +1251,7 @@ optional<std::vector<instruction_ref>> recipe_inputs(instruction_ref ins)
 
 std::string recipe_op_name(instruction_ref recipe)
 {
+    assert(recipe->name() == "gpu::precompile_op");
     return any_cast<precompile_op>(recipe->get_operator()).op.name();
 }
 

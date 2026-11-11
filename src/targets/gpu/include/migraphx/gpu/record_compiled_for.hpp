@@ -41,44 +41,27 @@ namespace gpu {
 
 struct context;
 
-/// Record the device the program is compiled for and the options it is compiled with, so it can
-/// be recompiled. The options are merged into the ones recorded earlier, see
-/// merge_compile_options. Runs last, since passes such as schedule do not expect a comment in the
-/// graph.
+/// Record the device the program is compiled for as a comment tagged "gpu_target", and the options
+/// it is compiled with as a comment tagged "gpu_compile_options", so it can be recompiled. The
+/// options are only for reference: recompile does not read them and leaves them as recorded. Runs
+/// last, since passes such as schedule do not expect a comment in the graph.
 struct MIGRAPHX_GPU_EXPORT record_compiled_for
 {
     context* ctx = nullptr;
-    /// The options as made by compile_options_value
+    /// The options as made by compile_options_value, or null to record only the device
     value options = {};
     std::string name() const { return "gpu::record_compiled_for"; }
     void apply(module_pass_manager& mpm) const;
 };
 
-/// The compile options and the GPU backend options as a value: offload_copy, fast_math,
-/// exhaustive_tune, recompilable, compile_mode and backend_options
+/// The compile options and the GPU backend options as a value, to record with the program
 MIGRAPHX_GPU_EXPORT value compile_options_value(const compile_options& options,
                                                 const value& backend_options);
 
-/// The options recorded earlier with the user's on top: exhaustive tuning is kept when it was
-/// recorded or asked for (including compile_mode max), the user's backend options replace the
-/// recorded ones key by key, and the other fields keep their recorded values
-MIGRAPHX_GPU_EXPORT value merge_compile_options(const value& recorded, const value& user);
-
-/// Whether options made by compile_options_value or merge_compile_options tune exhaustively
-MIGRAPHX_GPU_EXPORT bool is_exhaustive(const value& options);
-
-/// Record the device a recompilable program is compiled for, as a comment instruction with the tag
-/// "gpu_target" at the start of m, replacing the one recorded earlier
-MIGRAPHX_GPU_EXPORT void set_compiled_for(module& m, const device_description& device);
-
-/// The device recorded with set_compiled_for, or nothing
+/// The device recorded by record_compiled_for, or nothing
 MIGRAPHX_GPU_EXPORT optional<device_description> get_compiled_for(const module& m);
 
-/// Record the options a recompilable program is compiled with, as a comment instruction with the
-/// tag "gpu_compile_options" at the start of m, replacing the one recorded earlier
-MIGRAPHX_GPU_EXPORT void set_compile_options(module& m, const value& options);
-
-/// The options recorded with set_compile_options, or null
+/// The options recorded by record_compiled_for, or null
 MIGRAPHX_GPU_EXPORT value get_compile_options(const module& m);
 
 } // namespace gpu

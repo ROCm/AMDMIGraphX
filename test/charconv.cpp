@@ -71,4 +71,42 @@ TEST_CASE(to_chars_buffer_too_small)
     EXPECT(result.ec == std::errc::value_too_large);
 }
 
+TEST_CASE(from_chars_unsigned_integer)
+{
+    std::string s     = "1234x";
+    std::size_t value = 0;
+    auto result       = migraphx::from_chars(s.data(), s.data() + s.size(), value);
+
+    EXPECT(result.ec == std::errc{});
+    EXPECT(result.ptr == s.data() + 4);
+    EXPECT(value == 1234);
+}
+
+TEST_CASE(from_chars_no_digits)
+{
+    std::string s     = "x1";
+    std::size_t value = 7;
+    auto result       = migraphx::from_chars(s.data(), s.data() + s.size(), value);
+
+    EXPECT(result.ec == std::errc::invalid_argument);
+    EXPECT(result.ptr == s.data());
+    EXPECT(value == 7);
+}
+
+TEST_CASE(from_chars_out_of_range)
+{
+    std::string s      = "256";
+    std::uint8_t value = 7;
+    auto result        = migraphx::from_chars(s.data(), s.data() + s.size(), value);
+
+    EXPECT(result.ec == std::errc::result_out_of_range);
+    EXPECT(result.ptr == s.data() + s.size());
+    EXPECT(value == 7);
+
+    std::string max = "255";
+    result          = migraphx::from_chars(max.data(), max.data() + max.size(), value);
+    EXPECT(result.ec == std::errc{});
+    EXPECT(value == 255);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -225,19 +225,35 @@ std::vector<shape> program::get_output_shapes() const
     return mm->get_output_shapes();
 }
 
-// A program loaded without finalizing has targets but no contexts until it is used
-static void create_contexts(std::vector<context>& contexts, const std::vector<target>& targets)
+static std::vector<context> make_contexts(const std::vector<target>& targets)
 {
-    if(not contexts.empty())
-        return;
-    std::transform(targets.begin(), targets.end(), std::back_inserter(contexts), [](auto&& t) {
-        return t.get_context();
-    });
+    std::vector<context> contexts;
+    std::transform(targets.begin(),
+                   targets.end(),
+                   std::back_inserter(contexts),
+                   [](const target& t) { return t.get_context(); });
+    return contexts;
+}
+
+// Why m is not valid after the passes of stage, or nothing
+static optional<std::string> module_error(const module& m, const std::string& stage)
+{
+    auto invalid = m.validate();
+    if(invalid != m.end())
+        return "Invalid module " + m.name() + " from " + stage + " at instruction " +
+               std::to_string(std::distance(m.begin(), invalid));
+    auto dangling = m.find_dangling_reference();
+    if(dangling != m.end())
+        return "Dangling reference in module " + m.name() + " from instruction " +
+               std::to_string(std::distance(m.begin(), dangling));
+    return nullopt;
 }
 
 context& program::get_context() const
 {
-    create_contexts(impl->contexts, impl->targets);
+    // A program loaded without finalizing has targets but no contexts until it is used
+    if(impl->contexts.empty())
+        impl->contexts = make_contexts(impl->targets);
     assert(impl->contexts.size() == 1);
     return impl->contexts.front();
 }
@@ -259,19 +275,16 @@ void program::recompile(const target& t, compile_options options)
         options.trace = tracer{std::cout};
 
     // Recompile a copy so the program is unchanged when recompiling fails
-    program p                     = *this;
-    std::vector<context> contexts = {t.get_context()};
-    auto passes                   = t.get_recompile_passes(contexts.front(), options);
-    run_passes(p, passes, options.trace);
-    for(const auto* mod : p.get_modules())
-    {
-        auto invalid = mod->validate();
-        if(invalid != mod->end())
-            MIGRAPHX_THROW("Invalid module " + mod->name() + " from recompile at instruction " +
-                           std::to_string(std::distance(mod->begin(), invalid)));
-    }
+    program p        = *this;
     p.impl->targets  = {t};
-    p.impl->contexts = contexts;
+    p.impl->contexts = {t.get_context()};
+    auto passes      = t.get_recompile_passes(p.impl->contexts.front(), options);
+    run_passes(p, passes, options.trace);
+    auto mods = p.get_modules();
+    std::for_each(mods.begin(), mods.end(), [](const module* mod) {
+        if(auto error = module_error(*mod, "recompile"))
+            MIGRAPHX_THROW(*error);
+    });
     if(not is_cross_compiling(p.impl->contexts.front()))
         p.finalize();
     *this = std::move(p);
@@ -394,20 +407,8 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
             passes.push_back(mark_instruction_target{static_cast<size_t>(root_target_id)});
             run_passes(*this, current_mod, passes, trace);
 
-            auto invalid = current_mod->validate();
-            if(invalid != current_mod->end())
-            {
-                MIGRAPHX_THROW("Invalid module " + current_mod->name() +
-                               " from compilation at instruction " +
-                               std::to_string(std::distance(current_mod->begin(), invalid)));
-            }
-            auto dangling = current_mod->find_dangling_reference();
-            if(dangling != current_mod->end())
-            {
-                auto index = std::distance(current_mod->begin(), dangling);
-                MIGRAPHX_THROW("Dangling reference in module " + current_mod->name() +
-                               " from instruction " + std::to_string(index));
-            }
+            if(auto error = module_error(*current_mod, "compilation"))
+                MIGRAPHX_THROW(*error);
         }
     }
     auto& contexts = this->impl->contexts;
@@ -435,19 +436,8 @@ void program::compile(const target& t, compile_options options)
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {
-        auto invalid = mod->validate();
-        if(invalid != mod->end())
-        {
-            MIGRAPHX_THROW("Invalid module " + mod->name() + " from compilation at instruction " +
-                           std::to_string(std::distance(mod->begin(), invalid)));
-        }
-        auto dangling = mod->find_dangling_reference();
-        if(dangling != mod->end())
-        {
-            auto index = std::distance(mod->begin(), dangling);
-            MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
-                           std::to_string(index));
-        }
+        if(auto error = module_error(*mod, "compilation"))
+            MIGRAPHX_THROW(*error);
         if(not is_cross_compiling(this->impl->contexts.front()))
             mod->finalize(this->impl->contexts);
     }
@@ -455,7 +445,8 @@ void program::compile(const target& t, compile_options options)
 
 void program::finalize()
 {
-    create_contexts(impl->contexts, impl->targets);
+    if(impl->contexts.empty())
+        impl->contexts = make_contexts(impl->targets);
     auto* mm = this->get_main_module();
     mm->finalize(this->impl->contexts);
 }
@@ -1013,13 +1004,12 @@ void program::from_value(const value& v, bool finalize)
     // program is finalized or recompiled
     if(finalize)
     {
+        this->impl->contexts = make_contexts(this->impl->targets);
+        // A program saved after loading without finalizing has no context values
         const auto& ctx_vals = v.at("contexts");
-        for(auto i : range(this->impl->targets.size()))
-        {
-            this->impl->contexts.push_back(this->impl->targets[i].get_context());
-            if(i < ctx_vals.size())
-                this->impl->contexts.back().from_value(ctx_vals[i]);
-        }
+        assert(ctx_vals.empty() or ctx_vals.size() >= this->impl->contexts.size());
+        for(auto i : range(std::min(ctx_vals.size(), this->impl->contexts.size())))
+            this->impl->contexts[i].from_value(ctx_vals[i]);
     }
 
     auto module_vals = v.at("modules");
@@ -1038,7 +1028,7 @@ void program::from_value(const value& v, bool finalize)
     // Set before any instruction is added, since some ops check it in compute_shape
     for(const auto& vv : module_vals)
     {
-        if(vv.contains("bypass") and vv.at("bypass").to<bool>())
+        if(vv.get("bypass", false))
             map_mods.at(vv.get_key())->set_bypass();
     }
 
@@ -1193,7 +1183,7 @@ void program::perf_report(
         // Return instructions, and instructions that are not run such as those in bypassed
         // modules, have no timing
         auto it = ins_vec.find(ins);
-        if(ins->name() == "@return" or it == ins_vec.end() or it->second.empty())
+        if(ins->name() == "@return" or it == ins_vec.end())
         {
             os << std::endl;
             return;

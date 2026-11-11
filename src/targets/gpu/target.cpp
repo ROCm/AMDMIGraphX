@@ -204,17 +204,6 @@ value backend_options_value(const compile_options& options)
     return opts;
 }
 
-backend_options get_backend_options(const compile_options& options)
-{
-    return from_value<backend_options>(backend_options_value(options));
-}
-
-// The options recorded with a recompilable program
-value recorded_options(const compile_options& options)
-{
-    return compile_options_value(options, backend_options_value(options));
-}
-
 // Wave64 devices (accvgprs double the per-lane register budget) fuse head dims up to 512
 // unconditionally: measured on gfx942 they win 30-45% at kv lengths <= 1024 and lose at most
 // ~1.5x at long kv, a bounded cost preferred over disabling a winning fusion. On wave32
@@ -254,6 +243,8 @@ struct pipeline_factory
     migraphx::context* gctx_ptr = nullptr;
     compile_options options;
     backend_options backend_opts = {};
+    /// The options to record with a recompilable program
+    value recorded_options = {};
 
     migraphx::context* get_generic_context() const { return gctx_ptr; }
 
@@ -445,8 +436,7 @@ struct pipeline_factory
             normalize_ops{},
             dead_code_elimination{},
             eliminate_identity{},
-            enable_pass(options.recompilable,
-                        record_compiled_for{get_context(), recorded_options(options)}),
+            enable_pass(options.recompilable, record_compiled_for{get_context(), recorded_options}),
         };
     }
 };
@@ -480,30 +470,31 @@ std::vector<pass> target::get_recompile_passes(migraphx::context& gctx,
                                                const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
-    setup_context(ctx, options, get_backend_options(options));
-    auto user_options = recorded_options(options);
+    setup_context(ctx, options, from_value<backend_options>(backend_options_value(options)));
     // Dead code elimination is safe only while the anchors restore_recipes adds are in the
     // program: kernels that write into part of a buffer are not used by anything
-    return {restore_recipes{&ctx, user_options},
+    return {restore_recipes{&ctx, options.exhaustive_tune},
             dead_code_elimination{},
-            compile_ops{.ctx                     = &ctx,
-                        .exhaustive_tune         = options.exhaustive_tune,
-                        .skip_benchmark          = options.compile_mode == compile_modes::eager,
-                        .recompilable            = true,
-                        .exhaustive_from_context = true},
+            compile_ops{.ctx             = &ctx,
+                        .exhaustive_tune = options.exhaustive_tune,
+                        .skip_benchmark  = options.compile_mode == compile_modes::eager,
+                        .recompilable    = true},
             dead_code_elimination{},
             eliminate_recompile_anchors{},
             check_recompiled_memory{},
-            record_compiled_for{&ctx, user_options}};
+            record_compiled_for{&ctx}};
 }
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto backend_opts = get_backend_options(options);
+    auto backend_v    = backend_options_value(options);
+    auto backend_opts = from_value<backend_options>(backend_v);
     auto& ctx         = any_cast<context>(gctx);
     setup_context(ctx, options, backend_opts);
 
     pipeline_factory p{&gctx, options, backend_opts};
+    if(options.recompilable)
+        p.recorded_options = compile_options_value(options, backend_v);
 
     std::vector<std::vector<pass>> pipelines;
 

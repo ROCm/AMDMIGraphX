@@ -26,11 +26,11 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/recompile_anchor.hpp>
 #include <migraphx/gpu/record_compiled_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
@@ -50,6 +50,9 @@ struct kernel_ref
 {
     module_ref mod;
     instruction_ref ins;
+    /// The gpu::precompile_op in the recipe of ins
+    instruction_ref recipe;
+    std::vector<instruction_ref> inputs = {};
 };
 
 // Instructions whose solutions or binaries are valid only for the device they were compiled for
@@ -73,11 +76,6 @@ bool is_out_of_scope(const std::string& name)
     return contains(names, name);
 }
 
-bool is_ck_kernel(instruction_ref recipe)
-{
-    return starts_with(recipe_op_name(recipe), "gpu::ck_");
-}
-
 std::string describe(instruction_ref ins)
 {
     if(ins->name() == "gpu::code_object")
@@ -85,8 +83,9 @@ std::string describe(instruction_ref ins)
     return ins->name();
 }
 
-std::string join_names(const std::vector<std::string>& names, std::size_t max_names = 10)
+std::string join_names(const std::vector<std::string>& names)
 {
+    const std::size_t max_names = 10;
     std::vector<std::string> shown(names.begin(),
                                    names.begin() + std::min(names.size(), max_names));
     auto result = join_strings(shown, ", ");
@@ -99,7 +98,7 @@ struct kernel_scan
 {
     std::vector<kernel_ref> kernels;
     std::vector<std::string> unsupported;
-    std::size_t with_recipe = 0;
+    bool any_recipe = false;
 };
 
 // The kernels that can be recompiled from their recipe, and the instructions that cannot
@@ -119,60 +118,33 @@ kernel_scan scan_kernels(const std::vector<module_ref>& mods)
                 continue;
             auto recipe = find_recipe(ins);
             if(recipe.has_value())
-                result.with_recipe++;
-            if(not recipe.has_value() or is_ck_kernel(*recipe))
+                result.any_recipe = true;
+            if(not recipe.has_value() or starts_with(recipe_op_name(*recipe), "gpu::ck_"))
             {
                 result.unsupported.push_back(describe(ins));
                 continue;
             }
-            result.kernels.push_back({mod, ins});
+            result.kernels.push_back({mod, ins, *recipe});
         }
     }
     return result;
-}
-
-void check_retarget(const kernel_scan& scan,
-                    const device_description& from,
-                    const device_description& to)
-{
-    const auto from_gfx = get_gfx_name(from.arch);
-    const auto to_gfx   = get_gfx_name(to.arch);
-    if(scan.with_recipe == 0)
-        MIGRAPHX_THROW("recompile: the program was not compiled to be recompilable; "
-                       "compile the model again with recompilable (--recompilable)");
-    auto from_gen = get_gfx_generation(from.arch);
-    auto to_gen   = get_gfx_generation(to.arch);
-    if(to_gen < from_gen)
-        MIGRAPHX_THROW("recompile: MXR compiled for gfx" + std::to_string(from_gen) + " (" +
-                       from_gfx + "); " + to_gfx + " is gfx" + std::to_string(to_gen) +
-                       "; retargeting to an older generation is not supported");
-    if(not scan.unsupported.empty())
-        MIGRAPHX_THROW("recompile: cannot retarget to " + to_gfx +
-                       ": these instructions are compiled for " + from_gfx +
-                       " and cannot be regenerated (CK, hipBLASLt / rocBLAS, MIOpen, or "
-                       "kernels without a recipe): " +
-                       join_names(scan.unsupported));
 }
 
 void anchor_unused_instructions(module& m)
 {
     if(m.begin() == m.end())
         return;
-    auto last = std::prev(m.end());
-    std::vector<instruction_ref> unused;
-    for(auto ins : iterator_for(m))
-    {
-        if(ins == last or not ins->outputs().empty() or ins->get_shape().ndim() == 0 or
-           contains({"@param", "@literal", "@return"}, ins->name()))
-            continue;
-        unused.push_back(ins);
-    }
+    auto last   = std::prev(m.end());
+    auto unused = find_all(iterator_for(m), [&](instruction_ref ins) {
+        return ins != last and ins->outputs().empty() and ins->get_shape().ndim() != 0 and
+               not contains({"@param", "@literal", "@return"}, ins->name());
+    });
     if(unused.empty())
         return;
     if(last->name() == "@return")
-        m.insert_instruction(last, recompile_anchor{}, unused);
+        m.insert_instruction(last, make_op("gpu::recompile_anchor"), unused);
     else
-        m.add_instruction(recompile_anchor{}, unused);
+        m.add_instruction(make_op("gpu::recompile_anchor"), unused);
 }
 
 } // namespace
@@ -191,25 +163,40 @@ void restore_recipes::apply(module_pass_manager& mpm) const
     if(not from_rd.has_value())
         MIGRAPHX_THROW("recompile: the program does not record the device it was compiled for; "
                        "compile the model again with recompilable (--recompilable)");
-    const auto& from = *from_rd;
-    const auto to    = ctx->get_current_device().get_device_description();
+    const auto& from    = *from_rd;
+    const auto& to      = ctx->get_current_device().get_device_description();
+    const auto from_gfx = get_gfx_name(from.arch);
+    const auto to_gfx   = get_gfx_name(to.arch);
+    const auto from_gen = get_gfx_generation(from.arch);
+    const auto to_gen   = get_gfx_generation(to.arch);
 
     auto scan = scan_kernels(mods);
     if(from != to)
-        check_retarget(scan, from, to);
-    if(is_exhaustive(merge_compile_options(get_compile_options(*root), options)))
-        ctx->set_exhaustive_tune_flag(true);
+    {
+        if(not scan.any_recipe)
+            MIGRAPHX_THROW("recompile: the program was not compiled to be recompilable; "
+                           "compile the model again with recompilable (--recompilable)");
+        if(to_gen < from_gen)
+            MIGRAPHX_THROW("recompile: MXR compiled for gfx" + std::to_string(from_gen) + " (" +
+                           from_gfx + "); " + to_gfx + " is gfx" + std::to_string(to_gen) +
+                           "; retargeting to an older generation is not supported");
+        if(not scan.unsupported.empty())
+            MIGRAPHX_THROW("recompile: cannot retarget to " + to_gfx +
+                           ": these instructions are compiled for " + from_gfx +
+                           " and cannot be regenerated (CK, hipBLASLt / rocBLAS, MIOpen, or "
+                           "kernels without a recipe): " +
+                           join_names(scan.unsupported));
+    }
 
     // Find every input before changing the program, since inputs are found through other kernels
-    std::vector<std::vector<instruction_ref>> inputs;
-    for(const auto& k : scan.kernels)
+    for(auto& k : scan.kernels)
     {
         auto found = recipe_inputs(k.ins);
         if(not found.has_value())
-            MIGRAPHX_THROW("recompile: the recipe of " + describe(k.ins) +
-                           " is from an older build; compile the model again with "
+            MIGRAPHX_THROW("recompile: a recipe parameter of " + describe(k.ins) +
+                           " is not a path to its inputs; compile the model again with "
                            "recompilable (--recompilable)");
-        inputs.push_back(*found);
+        k.inputs = std::move(*found);
     }
 
     for(auto* mod : mods)
@@ -217,20 +204,15 @@ void restore_recipes::apply(module_pass_manager& mpm) const
         if(not mod->bypass())
             anchor_unused_instructions(*mod);
     }
-    for(auto i : range(scan.kernels.size()))
-    {
-        const auto& k = scan.kernels[i];
-        auto pre      = *find_recipe(k.ins);
-        k.mod->replace_instruction(k.ins, pre->get_operator(), inputs[i], pre->module_inputs());
-    }
+    for(const auto& k : scan.kernels)
+        k.mod->replace_instruction(
+            k.ins, k.recipe->get_operator(), k.inputs, k.recipe->module_inputs());
 
-    const auto from_gfx = get_gfx_name(from.arch);
-    const auto to_gfx   = get_gfx_name(to.arch);
     log::info() << "recompile: recompiling " << scan.kernels.size() << " kernels for " << to_gfx
-                << (ctx->get_exhaustive_tune_flag() ? " with exhaustive tuning" : "");
+                << (exhaustive_tune ? " with exhaustive tuning" : "");
     if(not scan.unsupported.empty())
         log::info() << "recompile: left as compiled: " << join_names(scan.unsupported);
-    if(get_gfx_generation(from.arch) != get_gfx_generation(to.arch))
+    if(from_gen != to_gen)
         log::info() << "note: graph decisions were made for " << from_gfx
                     << "; compile the model again for best performance on " << to_gfx << ".";
 }

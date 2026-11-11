@@ -68,7 +68,7 @@ struct target
      *
      * @param ctx The context of the device to recompile for
      * @param options Compiling options passed in by the user
-     * @return The passes to be ran
+     * @return The passes to be run
      */
     std::vector<pass> get_recompile_passes(context& ctx, const compile_options& options) const;
     /**

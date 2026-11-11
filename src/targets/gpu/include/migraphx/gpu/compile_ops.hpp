@@ -50,19 +50,17 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
     fs::path dump_mxr_dir = {};
     /// Keep each kernel's precompile op in a recipe submodule, so it can be recompiled
     bool recompilable = false;
-    /// Also tune exhaustively when the context asks for it. Recompile sets the context from the
-    /// options recorded with the program, which are only known once the passes run.
-    bool exhaustive_from_context = false;
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module_pass_manager& mpm) const;
 };
 
 /// The gpu::precompile_op instruction in the recipe module of a gpu::code_object instruction, or
-/// nothing when the kernel was compiled without recompilable
+/// nothing when the kernel has no recipe
 MIGRAPHX_GPU_EXPORT optional<instruction_ref> find_recipe(instruction_ref ins);
 
 /// The inputs the precompile op in the recipe of a gpu::code_object instruction had, found from
-/// the kernel, or nothing when the kernel has no recipe or a recipe from an older build
+/// the kernel, or nothing when the kernel has no recipe or a recipe parameter is not a path to
+/// them
 MIGRAPHX_GPU_EXPORT optional<std::vector<instruction_ref>> recipe_inputs(instruction_ref ins);
 
 /// The name of the op a recipe compiles, for example "gpu::mlir_op"

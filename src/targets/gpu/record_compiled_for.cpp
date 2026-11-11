@@ -37,15 +37,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void record_compiled_for::apply(module_pass_manager& mpm) const
-{
-    if(&mpm.get_module() != mpm.get_root_module())
-        return;
-    auto& m = mpm.get_module();
-    set_compiled_for(m, ctx->get_current_device().get_device_description());
-    set_compile_options(m, merge_compile_options(get_compile_options(m), options));
-}
-
 value compile_options_value(const compile_options& options, const value& backend_options)
 {
     return {{"offload_copy", options.offload_copy},
@@ -56,35 +47,6 @@ value compile_options_value(const compile_options& options, const value& backend
             {"backend_options", backend_options}};
 }
 
-static value get_or(const value& v, const std::string& key, const value& fallback)
-{
-    if(v.is_object() and v.contains(key))
-        return v.at(key);
-    return fallback;
-}
-
-bool is_exhaustive(const value& options)
-{
-    return get_or(options, "exhaustive_tune", false).to<bool>() or
-           get_or(options, "compile_mode", "").to<std::string>() == "max";
-}
-
-value merge_compile_options(const value& recorded, const value& user)
-{
-    if(not recorded.is_object())
-        return user;
-    auto result               = recorded;
-    result["exhaustive_tune"] = is_exhaustive(recorded) or is_exhaustive(user);
-    auto backend              = get_or(recorded, "backend_options", value::object{});
-    // An empty object does not survive serialization as an object
-    if(not backend.is_object())
-        backend = value::object{};
-    for(const auto& opt : get_or(user, "backend_options", value::object{}))
-        backend[opt.get_key()] = opt.without_key();
-    result["backend_options"] = backend;
-    return result;
-}
-
 static instruction_ref find_tagged_comment(const module& m, const std::string& tag)
 {
     return std::find_if(m.begin(), m.end(), [&](const instruction& ins) {
@@ -93,7 +55,7 @@ static instruction_ref find_tagged_comment(const module& m, const std::string& t
     });
 }
 
-// Comments are written at the start of m, replacing the one with the same tag
+// Replace the comment with the same tag in place, or add one at the start of m
 static void set_tagged_comment(module& m, const std::string& tag, const std::string& text)
 {
     auto it = find_tagged_comment(m, tag);
@@ -111,9 +73,16 @@ static optional<std::string> get_tagged_comment(const module& m, const std::stri
     return any_cast<builtin::comment>(it->get_operator()).text;
 }
 
-void set_compiled_for(module& m, const device_description& device)
+void record_compiled_for::apply(module_pass_manager& mpm) const
 {
+    assert(ctx != nullptr);
+    if(&mpm.get_module() != mpm.get_root_module())
+        return;
+    auto& m            = mpm.get_module();
+    const auto& device = ctx->get_current_device().get_device_description();
     set_tagged_comment(m, "gpu_target", to_json_string(to_value(device)));
+    if(not options.is_null())
+        set_tagged_comment(m, "gpu_compile_options", to_json_string(options));
 }
 
 optional<device_description> get_compiled_for(const module& m)
@@ -122,11 +91,6 @@ optional<device_description> get_compiled_for(const module& m)
     if(not text.has_value())
         return nullopt;
     return from_value<device_description>(from_json_string(*text));
-}
-
-void set_compile_options(module& m, const value& options)
-{
-    set_tagged_comment(m, "gpu_compile_options", to_json_string(options));
 }
 
 value get_compile_options(const module& m)

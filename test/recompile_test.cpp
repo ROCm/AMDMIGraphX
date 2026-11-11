@@ -56,7 +56,7 @@ static const std::string& device_tag()
     return tag;
 }
 
-static migraphx::instruction_ref find_device_comment(migraphx::module& m)
+static migraphx::instruction_ref find_device_comment(const migraphx::module& m)
 {
     return std::find_if(m.begin(), m.end(), [](const auto& ins) {
         return ins.name() == "@comment" and
@@ -65,11 +65,10 @@ static migraphx::instruction_ref find_device_comment(migraphx::module& m)
     });
 }
 
-static std::string recorded_device(migraphx::program& p)
+static std::string recorded_device(const migraphx::module& m)
 {
-    auto* mm = p.get_main_module();
-    auto it  = find_device_comment(*mm);
-    if(it == mm->end())
+    auto it = find_device_comment(m);
+    if(it == m.end())
         return "";
     return migraphx::any_cast<migraphx::builtin::comment>(it->get_operator()).text;
 }
@@ -121,20 +120,13 @@ struct record_recompile_pass
     std::string name() const { return "record_recompile"; }
     void apply(migraphx::module& m) const
     {
-        auto it = find_device_comment(m);
-        if(it != m.end())
-            last_recompile().from =
-                migraphx::any_cast<migraphx::builtin::comment>(it->get_operator()).text;
+        last_recompile().from            = recorded_device(m);
         last_recompile().to              = current_device();
         last_recompile().exhaustive_tune = exhaustive_tune;
         last_recompile().runs++;
         record_device(m, current_device());
         if(break_module)
-        {
-            auto x = std::find_if(
-                m.begin(), m.end(), [](const auto& ins) { return ins.name() == "@param"; });
-            m.insert_instruction(m.begin(), migraphx::make_op("neg"), x);
-        }
+            m.insert_instruction(m.begin(), migraphx::make_op("neg"), m.get_parameter("x"));
     }
 };
 
@@ -162,28 +154,9 @@ static migraphx::target make_recompile_target()
     return migraphx::make_target("recompile_test");
 }
 
-static migraphx::program make_program()
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
-    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
-    return p;
-}
-
-static migraphx::program compile_for(const std::string& device)
-{
-    current_device() = device;
-    auto p           = make_program();
-    p.compile(make_recompile_target());
-    return p;
-}
-
 static migraphx::program reload(const migraphx::program& p, bool finalize)
 {
-    migraphx::file_options options;
-    options.finalize = finalize;
-    return migraphx::load_buffer(migraphx::save_buffer(p), options);
+    return migraphx::load_buffer(migraphx::save_buffer(p), {.finalize = finalize});
 }
 
 static std::string context_device(const migraphx::program& p)
@@ -193,7 +166,10 @@ static std::string context_device(const migraphx::program& p)
 
 TEST_CASE(recompile_requires_compiled_program)
 {
-    auto p = make_program();
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
     EXPECT(not p.is_compiled());
     EXPECT(test::throws<migraphx::exception>([&] { p.recompile(make_recompile_target()); },
                                              "not compiled"));
@@ -201,14 +177,21 @@ TEST_CASE(recompile_requires_compiled_program)
 
 TEST_CASE(recompile_requires_same_target)
 {
-    auto p = compile_for("dev_a");
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    p.compile(make_recompile_target());
     EXPECT(test::throws<migraphx::exception>([&] { p.recompile(migraphx::make_target("ref")); },
                                              "not compiled for the ref target"));
 }
 
 TEST_CASE(recompile_unsupported_target_refused)
 {
-    auto p = make_program();
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
     p.compile(migraphx::make_target("ref"));
     EXPECT(test::throws<migraphx::exception>([&] { p.recompile(migraphx::make_target("ref")); },
                                              "does not support recompile"));
@@ -216,8 +199,14 @@ TEST_CASE(recompile_unsupported_target_refused)
 
 TEST_CASE(recompile_runs_recompile_passes)
 {
-    auto p = compile_for("dev_a");
-    EXPECT(recorded_device(p) == "dev_a");
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    current_device() = "dev_a";
+    p.compile(make_recompile_target());
+    EXPECT(recorded_device(*mm) == "dev_a");
+
     last_recompile() = {};
     current_device() = "dev_b";
     migraphx::compile_options options;
@@ -227,13 +216,19 @@ TEST_CASE(recompile_runs_recompile_passes)
     EXPECT(last_recompile().from == "dev_a");
     EXPECT(last_recompile().to == "dev_b");
     EXPECT(last_recompile().exhaustive_tune);
-    EXPECT(recorded_device(p) == "dev_b");
+    EXPECT(recorded_device(*p.get_main_module()) == "dev_b");
     EXPECT(context_device(p) == "dev_b");
 }
 
 TEST_CASE(recompile_invalid_module_refused)
 {
-    auto p           = compile_for("dev_a");
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    current_device() = "dev_a";
+    p.compile(make_recompile_target());
+
     current_device() = "dev_b";
     migraphx::compile_options options;
     options.backend_options["break_recompile"] = true;
@@ -250,15 +245,22 @@ TEST_CASE(recompile_invalid_module_refused)
     EXPECT(error.find("Invalid module") != std::string::npos or
            error.find("produces invalid program") != std::string::npos);
     // The program is unchanged when recompiling fails
-    EXPECT(recorded_device(p) == "dev_a");
+    EXPECT(recorded_device(*p.get_main_module()) == "dev_a");
     EXPECT(context_device(p) == "dev_a");
 }
 
 TEST_CASE(load_without_finalize)
 {
-    auto p = reload(compile_for("dev_a"), false);
+    migraphx::program c;
+    auto* mm = c.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    current_device() = "dev_a";
+    c.compile(make_recompile_target());
+
+    auto p = reload(c, false);
     EXPECT(p.is_compiled());
-    EXPECT(recorded_device(p) == "dev_a");
+    EXPECT(recorded_device(*p.get_main_module()) == "dev_a");
     EXPECT(test::throws<migraphx::exception>([&] { p.eval({}); }, "without finalizing"));
 
     // The context is created for the current device when the program is finalized
@@ -269,7 +271,13 @@ TEST_CASE(load_without_finalize)
 
 TEST_CASE(load_with_finalize_restores_context)
 {
-    auto p           = compile_for("dev_a");
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    current_device() = "dev_a";
+    p.compile(make_recompile_target());
+
     current_device() = "dev_b";
     auto q           = reload(p, true);
     EXPECT(context_device(q) == "dev_a");
@@ -277,60 +285,81 @@ TEST_CASE(load_with_finalize_restores_context)
 
 TEST_CASE(save_without_contexts)
 {
+    migraphx::program c;
+    auto* mm = c.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    current_device() = "dev_a";
+    c.compile(make_recompile_target());
+
     // A program loaded without finalizing is saved without contexts, which are created on load
-    auto p           = reload(compile_for("dev_a"), false);
+    auto p           = reload(c, false);
     current_device() = "dev_b";
     auto q           = reload(p, true);
     EXPECT(q.is_compiled());
-    EXPECT(recorded_device(q) == "dev_a");
+    EXPECT(recorded_device(*q.get_main_module()) == "dev_a");
     EXPECT(context_device(q) == "dev_b");
 }
 
 TEST_CASE(get_context_creates_context)
 {
-    auto p           = reload(compile_for("dev_a"), false);
+    migraphx::program c;
+    auto* mm = c.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    current_device() = "dev_a";
+    c.compile(make_recompile_target());
+
+    auto p           = reload(c, false);
     current_device() = "dev_b";
     EXPECT(context_device(p) == "dev_b");
 }
 
 TEST_CASE(recompile_without_finalize)
 {
-    auto p           = reload(compile_for("dev_a"), false);
+    migraphx::program c;
+    auto* mm = c.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    current_device() = "dev_a";
+    c.compile(make_recompile_target());
+
+    auto p           = reload(c, false);
     last_recompile() = {};
     current_device() = "dev_b";
     p.recompile(make_recompile_target());
     EXPECT(last_recompile().runs == 1);
     EXPECT(last_recompile().from == "dev_a");
     EXPECT(not last_recompile().exhaustive_tune);
-    EXPECT(recorded_device(p) == "dev_b");
+    EXPECT(recorded_device(*p.get_main_module()) == "dev_b");
 }
 
 TEST_CASE(clear_context_uncompiles)
 {
-    auto p = reload(compile_for("dev_a"), false);
+    migraphx::program c;
+    auto* mm = c.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    c.compile(make_recompile_target());
+
+    auto p = reload(c, false);
     p.clear_context();
     EXPECT(not p.is_compiled());
 }
 
-static migraphx::program make_bypass_program()
-{
-    migraphx::program p;
-    auto* sub = p.create_module("sub");
-    auto sx   = sub->add_parameter("sx", migraphx::shape{migraphx::shape::float_type, {4}});
-    sub->add_return({sub->add_instruction(migraphx::make_op("neg"), sx)});
-    sub->set_bypass();
-    auto* other = p.create_module("other");
-    auto ox     = other->add_parameter("ox", migraphx::shape{migraphx::shape::float_type, {4}});
-    other->add_return({other->add_instruction(migraphx::make_op("abs"), ox)});
-    auto* mm = p.get_main_module();
-    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
-    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x)});
-    return p;
-}
-
 TEST_CASE(bypass_survives_serialization)
 {
-    auto p = make_bypass_program();
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::program p;
+    auto* sub = p.create_module("sub");
+    sub->add_return({sub->add_instruction(migraphx::make_op("neg"), sub->add_parameter("sx", s))});
+    sub->set_bypass();
+    auto* other = p.create_module("other");
+    other->add_return(
+        {other->add_instruction(migraphx::make_op("abs"), other->add_parameter("ox", s))});
+    auto* mm = p.get_main_module();
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), mm->add_parameter("x", s))});
+
     migraphx::program q;
     q.from_value(p.to_value());
     EXPECT(q.get_module("sub")->bypass());
@@ -359,7 +388,11 @@ TEST_CASE(perf_report_without_timing_for_bypassed_modules)
 
 TEST_CASE(older_program_version_refused)
 {
-    auto v       = make_program().to_value();
+    migraphx::program c;
+    auto* mm = c.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    auto v       = c.to_value();
     v["version"] = 8;
     migraphx::program p;
     EXPECT(test::throws<migraphx::exception>([&] { p.from_value(v); }, "version mismatch"));

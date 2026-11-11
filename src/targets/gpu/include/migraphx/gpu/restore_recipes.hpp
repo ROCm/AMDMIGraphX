@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_GPU_RESTORE_RECIPES_HPP
 
 #include <migraphx/gpu/config.hpp>
-#include <migraphx/value.hpp>
 #include <string>
 
 namespace migraphx {
@@ -38,21 +37,16 @@ namespace gpu {
 struct context;
 
 /**
- * The first recompile pass: replace each gpu::code_object kernel of a compiled program with the
- * gpu::precompile_op of its recipe, with the inputs the op had, so compile_ops compiles it again
- * for the device of ctx. The graph, literals, memory plan and schedule are not changed. The
- * instructions that nothing uses are anchored with recompile_anchor, so dead code elimination
- * keeps them. Runs from the root module only.
- *
- * The device the program was compiled for and its options are read from the comments that
- * record_compiled_for writes with recompilable. Kernels are tuned exhaustively when the recorded
- * or the given options ask for it, see merge_compile_options.
+ * The first recompile pass: replace each gpu::code_object with the gpu::precompile_op of its
+ * recipe, so compile_ops compiles it again for the device of ctx, and anchor the instructions
+ * that nothing uses with recompile_anchor so dead code elimination keeps them. Reads the device
+ * recorded by record_compiled_for. Runs from the root module only.
  */
 struct MIGRAPHX_GPU_EXPORT restore_recipes
 {
     context* ctx = nullptr;
-    /// The options recompile is called with, as made by compile_options_value
-    value options = {};
+    /// Whether compile_ops tunes exhaustively, for the log only
+    bool exhaustive_tune = false;
     std::string name() const { return "gpu::restore_recipes"; }
     void apply(module_pass_manager& mpm) const;
 };

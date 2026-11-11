@@ -529,10 +529,7 @@ struct loader
             log::info() << "Reading: " << file;
             if(file_type == "json")
             {
-                file_options options;
-                options.format   = "json";
-                options.finalize = finalize;
-                p                = migraphx::load(file, options);
+                p = migraphx::load(file, {.format = "json", .finalize = finalize});
             }
 #ifdef MIGRAPHX_ENABLE_ONNX
             else if(file_type == "onnx")
@@ -554,9 +551,7 @@ struct loader
 #endif
             else if(file_type == "migraphx")
             {
-                file_options options;
-                options.finalize = finalize;
-                p                = migraphx::load(file, options);
+                p = migraphx::load(file, {.finalize = finalize});
             }
         }
         if(trim > 0)
@@ -836,6 +831,16 @@ struct compiler_target
     }
 };
 
+static void apply_backend_options(compile_options& co, const std::string& backend_options)
+{
+    if(backend_options.empty())
+        return;
+    auto v = from_json_string(convert_to_json(backend_options));
+    if(not v.is_object())
+        MIGRAPHX_THROW("--backend-options must be a JSON object");
+    migraphx::set_backend_options(co, v);
+}
+
 struct compiler
 {
     loader l;
@@ -862,7 +867,7 @@ struct compiler
            ap.help("Target-specific compile options, as a JSON object (format: "
                    "\"{convolution_layout:channels_last}\"). Options the target does not "
                    "recognize are ignored."));
-        ap.post_action([this](auto&&) { this->apply_backend_options(); });
+        ap.post_action([this](auto&&) { apply_backend_options(co, backend_options); });
         ap(co.offload_copy,
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
@@ -877,8 +882,8 @@ struct compiler
            ap.set_value(true));
         ap(co.recompilable,
            {"--recompilable"},
-           ap.help("Keep what is needed to recompile each kernel, so the compiled program can "
-                   "be recompiled for the same or another GPU with the recompile command"),
+           ap.help("Keep each kernel's compile recipe, so the recompile command can recompile "
+                   "the program for the same or a newer GPU generation"),
            ap.set_value(true));
         ap(co.compile_mode,
            {"--compile-mode"},
@@ -893,16 +898,6 @@ struct compiler
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
-    }
-
-    void apply_backend_options()
-    {
-        if(backend_options.empty())
-            return;
-        auto v = from_json_string(convert_to_json(backend_options));
-        if(not v.is_object())
-            MIGRAPHX_THROW("--backend-options must be a JSON object");
-        migraphx::set_backend_options(co, v);
     }
 
     auto params(const program& p)
@@ -1004,17 +999,17 @@ struct recompile_cmd : command<recompile_cmd>
 {
     loader l;
     compiler_target ct;
-    bool exhaustive_tune = false;
+    compile_options co;
     std::string backend_options;
 
     void parse(argument_parser& ap)
     {
         l.parse(ap);
         ct.parse(ap);
-        ap(exhaustive_tune,
+        ap(co.exhaustive_tune,
            {"--exhaustive-tune"},
-           ap.help("Recompile with exhaustive tuning. Without it, each kernel keeps the tuning "
-                   "level recorded in the program"),
+           ap.help("Recompile with exhaustive tuning. The options recorded in the program are "
+                   "not used"),
            ap.set_value(true));
         ap(backend_options,
            {"--backend-options"},
@@ -1031,15 +1026,7 @@ struct recompile_cmd : command<recompile_cmd>
         auto p     = l.load();
         if(not p.is_compiled())
             MIGRAPHX_THROW("recompile: " + l.file + " is not a compiled program");
-        compile_options co;
-        co.exhaustive_tune = exhaustive_tune;
-        if(not backend_options.empty())
-        {
-            auto v = from_json_string(convert_to_json(backend_options));
-            if(not v.is_object())
-                MIGRAPHX_THROW("--backend-options must be a JSON object");
-            migraphx::set_backend_options(co, v);
-        }
+        apply_backend_options(co, backend_options);
         log::info() << "Recompiling ...";
         timer t{};
         p.recompile(ct.get_target(), co);

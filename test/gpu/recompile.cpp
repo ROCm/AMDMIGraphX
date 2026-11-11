@@ -44,22 +44,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
-#include <utility>
 #include <vector>
-
-static migraphx::program make_program(migraphx::shape::type_t type = migraphx::shape::float_type)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{type, {4, 256}};
-    auto x    = mm->add_parameter("x", s);
-    auto y    = mm->add_parameter("y", s);
-    auto add  = mm->add_instruction(migraphx::make_op("add"), x, y);
-    auto relu = mm->add_instruction(migraphx::make_op("relu"), add);
-    auto sum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
-    mm->add_return({relu, sum});
-    return p;
-}
 
 static migraphx::target cross_target(const std::string& arch)
 {
@@ -74,33 +59,15 @@ static migraphx::compile_options recipe_options()
     return options;
 }
 
-static migraphx::program compile_program(const migraphx::target& t,
-                                         migraphx::compile_options options = recipe_options(),
-                                         migraphx::program p               = make_program())
+static migraphx::program reload(const migraphx::program& p)
 {
-    p.compile(t, std::move(options));
-    return p;
+    return migraphx::load_buffer(migraphx::save_buffer(p), {.finalize = false});
 }
 
-static std::vector<migraphx::gpu::code_object_op> get_kernels(const migraphx::program& p)
-{
-    std::vector<migraphx::gpu::code_object_op> result;
-    for(const auto* mod : p.get_modules())
-    {
-        for(const auto& ins : *mod)
-        {
-            if(ins.name() == "gpu::code_object")
-                result.push_back(
-                    migraphx::any_cast<migraphx::gpu::code_object_op>(ins.get_operator()));
-        }
-    }
-    return result;
-}
-
-static std::vector<migraphx::instruction_ref> kernel_instructions(migraphx::program& p)
+static std::vector<migraphx::instruction_ref> kernel_instructions(const migraphx::program& p)
 {
     std::vector<migraphx::instruction_ref> result;
-    for(auto* mod : p.get_modules())
+    for(const auto* mod : p.get_modules())
     {
         for(auto ins : migraphx::iterator_for(*mod))
         {
@@ -111,7 +78,17 @@ static std::vector<migraphx::instruction_ref> kernel_instructions(migraphx::prog
     return result;
 }
 
-static bool all_have_recipes(migraphx::program& p)
+static std::vector<migraphx::gpu::code_object_op> get_kernels(const migraphx::program& p)
+{
+    auto kernels = kernel_instructions(p);
+    std::vector<migraphx::gpu::code_object_op> result;
+    std::transform(kernels.begin(), kernels.end(), std::back_inserter(result), [](auto ins) {
+        return migraphx::any_cast<migraphx::gpu::code_object_op>(ins->get_operator());
+    });
+    return result;
+}
+
+static bool all_have_recipes(const migraphx::program& p)
 {
     auto kernels = kernel_instructions(p);
     return not kernels.empty() and std::all_of(kernels.begin(), kernels.end(), [](auto ins) {
@@ -119,13 +96,13 @@ static bool all_have_recipes(migraphx::program& p)
     });
 }
 
-static std::size_t count_comments(const migraphx::program& p, const std::string& tag)
+static std::ptrdiff_t count_comments(const migraphx::program& p, const std::string& tag)
 {
     const auto* mm = p.get_main_module();
-    return static_cast<std::size_t>(std::count_if(mm->begin(), mm->end(), [&](const auto& ins) {
+    return std::count_if(mm->begin(), mm->end(), [&](const auto& ins) {
         return ins.name() == "@comment" and
                migraphx::any_cast<migraphx::builtin::comment>(ins.get_operator()).tag == tag;
-    }));
+    });
 }
 
 static std::string compiled_arch(const migraphx::program& p)
@@ -134,62 +111,23 @@ static std::string compiled_arch(const migraphx::program& p)
     return device.has_value() ? device->arch : "";
 }
 
-static std::vector<migraphx::argument> run_program(const migraphx::program& p,
-                                                   const migraphx::parameter_map& params)
-{
-    return p.eval(params);
-}
-
 static migraphx::parameter_map make_params()
 {
     migraphx::shape s{migraphx::shape::float_type, {4, 256}};
     return {{"x", migraphx::generate_argument(s, 0)}, {"y", migraphx::generate_argument(s, 1)}};
 }
 
-static std::vector<float> to_vector(const migraphx::argument& arg)
+static void expect_same_as_ref(const migraphx::program& p,
+                               migraphx::program ref,
+                               const migraphx::parameter_map& params)
 {
-    std::vector<float> result;
-    arg.visit([&](auto v) { result.assign(v.begin(), v.end()); });
-    return result;
-}
-
-static void expect_matches_ref(const migraphx::program& p)
-{
-    auto ref = make_program();
     ref.compile(migraphx::make_target("ref"));
-    auto params   = make_params();
-    auto expected = run_program(ref, params);
-    auto results  = run_program(p, params);
+    auto expected = ref.eval(params);
+    auto results  = p.eval(params);
     EXPECT(results.size() == expected.size());
     for(std::size_t i = 0; i < results.size(); i++)
-        EXPECT(migraphx::verify::verify_rms_range(to_vector(results[i]), to_vector(expected[i])));
-}
-
-// Lowering fills the output of nms_compact before the kernel runs
-static migraphx::program make_nms_program()
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
-    migraphx::shape scalar_s{migraphx::shape::float_type, {1}};
-    migraphx::shape int_scalar_s{migraphx::shape::int64_type, {1}};
-    auto boxes   = mm->add_parameter("boxes", boxes_s);
-    auto scores  = mm->add_parameter("scores", scores_s);
-    auto max_out = mm->add_literal(migraphx::literal{int_scalar_s, std::vector<std::int64_t>{4}});
-    auto iou     = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.5f}});
-    auto score   = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.0f}});
-    auto nms =
-        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
-                            boxes,
-                            scores,
-                            max_out,
-                            iou,
-                            score);
-    auto idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
-    auto cnt = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
-    mm->add_return({idx, cnt});
-    return p;
+        EXPECT(migraphx::verify::verify_rms_range(results[i].to_vector<float>(),
+                                                  expected[i].to_vector<float>()));
 }
 
 static void expect_nms_result(const migraphx::program& p)
@@ -199,15 +137,11 @@ static void expect_nms_result(const migraphx::program& p)
     std::vector<float> boxes  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
                                  0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     std::vector<float> scores = {0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
-    auto results = run_program(p,
-                               {{"boxes", migraphx::argument(boxes_s, boxes.data())},
-                                {"scores", migraphx::argument(scores_s, scores.data())}});
+    auto results              = p.eval({{"boxes", migraphx::argument(boxes_s, boxes.data())},
+                                        {"scores", migraphx::argument(scores_s, scores.data())}});
     EXPECT(results.size() == 2);
-    std::vector<std::int64_t> indices;
-    results[0].visit([&](auto v) { indices.assign(v.begin(), v.end()); });
-    std::int64_t num_selected = 0;
-    results[1].visit([&](auto v) { num_selected = static_cast<std::int64_t>(v[0]); });
-    EXPECT(num_selected == 3);
+    EXPECT(results[1].to_vector<std::int64_t>().front() == 3);
+    auto indices = results[0].to_vector<std::int64_t>();
     indices.resize(9);
     EXPECT(indices == std::vector<std::int64_t>{0, 0, 3, 0, 0, 0, 0, 0, 5});
 }
@@ -217,23 +151,6 @@ static bool has_kernel(const migraphx::program& p, const std::string& symbol)
     auto kernels = get_kernels(p);
     return std::any_of(
         kernels.begin(), kernels.end(), [&](const auto& co) { return co.symbol_name == symbol; });
-}
-
-TEST_CASE(gfx_generation)
-{
-    EXPECT(migraphx::gpu::get_gfx_generation("gfx90a") == 9);
-    EXPECT(migraphx::gpu::get_gfx_generation("gfx942:sramecc+:xnack-") == 9);
-    EXPECT(migraphx::gpu::get_gfx_generation("gfx1030") == 10);
-    EXPECT(migraphx::gpu::get_gfx_generation("gfx1151") == 11);
-    EXPECT(migraphx::gpu::get_gfx_generation("gfx1201") == 12);
-    EXPECT(migraphx::gpu::get_gfx_generation("sm_80") == 0);
-}
-
-static migraphx::compile_options options_with_staging(std::size_t percent)
-{
-    auto options                                            = recipe_options();
-    options.backend_options["literal_staging_peak_percent"] = percent;
-    return options;
 }
 
 static migraphx::value recorded_options(const migraphx::program& p)
@@ -249,9 +166,42 @@ static std::size_t recorded_staging(const migraphx::program& p)
         .to<std::size_t>();
 }
 
+static bool exhaustive_context(const migraphx::program& p)
+{
+    return migraphx::any_cast<migraphx::gpu::context>(p.get_context()).get_exhaustive_tune_flag();
+}
+
+// Instructions of the main module that nothing uses, other than the last one
+static std::ptrdiff_t count_unused(const migraphx::program& p)
+{
+    const auto* mm = p.get_main_module();
+    return std::count_if(mm->begin(), std::prev(mm->end()), [](const auto& ins) {
+        return ins.outputs().empty() and ins.get_shape().ndim() != 0 and ins.name() != "@param" and
+               ins.name() != "@literal";
+    });
+}
+
+TEST_CASE(gfx_generation)
+{
+    EXPECT(migraphx::gpu::get_gfx_generation("gfx90a") == 9);
+    EXPECT(migraphx::gpu::get_gfx_generation("gfx942:sramecc+:xnack-") == 9);
+    EXPECT(migraphx::gpu::get_gfx_generation("gfx1030") == 10);
+    EXPECT(migraphx::gpu::get_gfx_generation("gfx1151") == 11);
+    EXPECT(migraphx::gpu::get_gfx_generation("gfx1201") == 12);
+    EXPECT(migraphx::gpu::get_gfx_generation("sm_80") == 0);
+}
+
 TEST_CASE(compile_options_recorded_as_comment)
 {
-    auto p   = compile_program(migraphx::make_target("gpu"), options_with_staging(7));
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x)});
+    auto options                                            = recipe_options();
+    options.backend_options["literal_staging_peak_percent"] = 7;
+    p.compile(migraphx::make_target("gpu"), options);
+
     auto rec = recorded_options(p);
     EXPECT(count_comments(p, "gpu_compile_options") == 1);
     EXPECT(rec.at("offload_copy").to<bool>());
@@ -259,37 +209,7 @@ TEST_CASE(compile_options_recorded_as_comment)
     EXPECT(not rec.at("exhaustive_tune").to<bool>());
     EXPECT(rec.at("compile_mode").to<std::string>() == "balanced");
     EXPECT(recorded_staging(p) == 7);
-    migraphx::file_options fo;
-    fo.finalize = false;
-    auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
-    EXPECT(recorded_options(q) == rec);
-}
-
-TEST_CASE(merge_compile_options_rules)
-{
-    migraphx::value recorded = {{"exhaustive_tune", false},
-                                {"compile_mode", "balanced"},
-                                {"fast_math", true},
-                                {"backend_options", {{"a", 1}, {"b", 2}}}};
-    migraphx::value user     = {{"exhaustive_tune", false},
-                                {"compile_mode", "max"},
-                                {"fast_math", false},
-                                {"backend_options", {{"b", 3}}}};
-    auto merged              = migraphx::gpu::merge_compile_options(recorded, user);
-    // compile_mode max asks for exhaustive tuning, but the recorded mode is kept
-    EXPECT(migraphx::gpu::is_exhaustive(merged));
-    EXPECT(merged.at("compile_mode").to<std::string>() == "balanced");
-    EXPECT(merged.at("fast_math").to<bool>());
-    EXPECT(merged.at("backend_options").at("a").to<int>() == 1);
-    EXPECT(merged.at("backend_options").at("b").to<int>() == 3);
-
-    // Exhaustive tuning that was recorded is not lowered
-    recorded["exhaustive_tune"] = true;
-    user["compile_mode"]        = "balanced";
-    EXPECT(migraphx::gpu::is_exhaustive(migraphx::gpu::merge_compile_options(recorded, user)));
-
-    // Without a record the user's options are used
-    EXPECT(migraphx::gpu::merge_compile_options({}, user) == user);
+    EXPECT(recorded_options(reload(p)) == rec);
 }
 
 TEST_CASE(check_recompiled_memory_refuses_allocation)
@@ -309,7 +229,18 @@ TEST_CASE(check_recompiled_memory_refuses_allocation)
 
 TEST_CASE(recipes_kept)
 {
-    auto p = compile_program(migraphx::make_target("gpu"));
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto relu = mm->add_instruction(migraphx::make_op("relu"), add);
+    auto sum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
+    mm->add_return({relu, sum});
+    auto ref = p;
+    p.compile(migraphx::make_target("gpu"), recipe_options());
+
     EXPECT(all_have_recipes(p));
     for(auto ins : kernel_instructions(p))
     {
@@ -319,24 +250,34 @@ TEST_CASE(recipes_kept)
         EXPECT(not migraphx::gpu::recipe_op_name(recipe).empty());
         EXPECT(ins->module_inputs().front()->bypass());
     }
-    expect_matches_ref(p);
+    expect_same_as_ref(p, ref, make_params());
 }
 
 TEST_CASE(recipes_survive_save_and_load)
 {
-    auto p = compile_program(migraphx::make_target("gpu"));
-    migraphx::file_options fo;
-    fo.finalize = false;
-    auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("add"), x, y)});
+    p.compile(migraphx::make_target("gpu"), recipe_options());
+
+    auto q = reload(p);
     EXPECT(all_have_recipes(q));
     EXPECT(kernel_instructions(q).size() == kernel_instructions(p).size());
 }
 
 TEST_CASE(no_recipes_by_default)
 {
-    migraphx::compile_options options;
-    options.offload_copy = true;
-    auto p               = compile_program(migraphx::make_target("gpu"), options);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("add"), x, y)});
+    p.compile(migraphx::make_target("gpu"), {.offload_copy = true});
+
     for(auto ins : kernel_instructions(p))
     {
         EXPECT(not migraphx::gpu::find_recipe(ins).has_value());
@@ -348,39 +289,60 @@ TEST_CASE(no_recipes_by_default)
 
 TEST_CASE(compiled_for_recorded_as_comment)
 {
-    auto p = compile_program(cross_target("gfx1100"));
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x)});
+    p.compile(cross_target("gfx1100"), recipe_options());
+
     EXPECT(count_comments(p, "gpu_target") == 1);
     EXPECT(compiled_arch(p) == "gfx1100");
 }
 
 TEST_CASE(load_without_finalize)
 {
-    auto p = compile_program(migraphx::make_target("gpu"));
-    migraphx::file_options fo;
-    fo.finalize = false;
-    auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("add"), x, y)});
+    auto ref = p;
+    p.compile(migraphx::make_target("gpu"), recipe_options());
+
+    auto q = reload(p);
     EXPECT(q.is_compiled());
     EXPECT(compiled_arch(q) == compiled_arch(p));
     EXPECT(test::throws<migraphx::exception>([&] { q.eval(make_params()); }, "without finalizing"));
     // Saving an unfinalized program keeps the device it was compiled for, and the contexts are
     // created when it is finalized
-    auto r = migraphx::load_buffer(migraphx::save_buffer(q), fo);
+    auto r = reload(q);
     EXPECT(compiled_arch(r) == compiled_arch(p));
     r.finalize();
-    expect_matches_ref(r);
+    expect_same_as_ref(r, ref, make_params());
 }
 
 TEST_CASE(recompile_same_target)
 {
-    auto p = compile_program(migraphx::make_target("gpu"));
-    migraphx::file_options fo;
-    fo.finalize = false;
-    auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto relu = mm->add_instruction(migraphx::make_op("relu"), add);
+    auto sum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
+    mm->add_return({relu, sum});
+    auto ref = p;
+    p.compile(migraphx::make_target("gpu"), recipe_options());
+
+    auto q = reload(p);
     q.recompile(migraphx::make_target("gpu"));
     EXPECT(get_kernels(q).size() == get_kernels(p).size());
     EXPECT(all_have_recipes(q));
     EXPECT(compiled_arch(q) == compiled_arch(p));
-    expect_matches_ref(q);
+    expect_same_as_ref(q, ref, make_params());
 }
 
 TEST_CASE(recompile_shares_modules)
@@ -392,7 +354,8 @@ TEST_CASE(recompile_shares_modules)
     auto y = mm->add_parameter("y", s);
     mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x),
                     mm->add_instruction(migraphx::make_op("relu"), y)});
-    p = compile_program(migraphx::make_target("gpu"), recipe_options(), p);
+    p.compile(migraphx::make_target("gpu"), recipe_options());
+
     p.recompile(migraphx::make_target("gpu"));
     auto kernels = get_kernels(p);
     EXPECT(kernels.size() == 2);
@@ -402,28 +365,51 @@ TEST_CASE(recompile_shares_modules)
     EXPECT(all_have_recipes(p));
 }
 
-TEST_CASE(recompile_exhaustive_level)
+TEST_CASE(recompile_uses_given_options)
 {
-    auto p = compile_program(migraphx::make_target("gpu"), options_with_staging(7));
-    EXPECT(not migraphx::gpu::is_exhaustive(recorded_options(p)));
-    migraphx::compile_options options;
-    options.exhaustive_tune                                 = true;
-    options.backend_options["literal_staging_peak_percent"] = 9;
-    p.recompile(migraphx::make_target("gpu"), options);
-    EXPECT(migraphx::gpu::is_exhaustive(recorded_options(p)));
-    EXPECT(recorded_staging(p) == 9);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("add"), x, y)});
+    auto ref                                                = p;
+    auto options                                            = recipe_options();
+    options.backend_options["literal_staging_peak_percent"] = 7;
+    p.compile(migraphx::make_target("gpu"), options);
+    auto rec = recorded_options(p);
+
+    // The given options are used and the recorded ones are kept as they were
+    migraphx::compile_options exhaustive;
+    exhaustive.exhaustive_tune                                 = true;
+    exhaustive.backend_options["literal_staging_peak_percent"] = 9;
+    p.recompile(migraphx::make_target("gpu"), exhaustive);
+    EXPECT(exhaustive_context(p));
+    EXPECT(recorded_options(p) == rec);
+    EXPECT(recorded_staging(p) == 7);
     EXPECT(count_comments(p, "gpu_compile_options") == 1);
-    // A later recompile without options keeps the recorded ones
+
+    // Exhaustive tuning from an earlier recompile is not kept
     p.recompile(migraphx::make_target("gpu"));
-    EXPECT(migraphx::gpu::is_exhaustive(recorded_options(p)));
-    EXPECT(recorded_staging(p) == 9);
-    expect_matches_ref(p);
+    EXPECT(not exhaustive_context(p));
+    EXPECT(recorded_options(p) == rec);
+    expect_same_as_ref(p, ref, make_params());
 }
 
 TEST_CASE(retarget_cross_compile_newer_generation)
 {
-    auto p = compile_program(cross_target("gfx1100"));
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto relu = mm->add_instruction(migraphx::make_op("relu"), add);
+    auto sum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
+    mm->add_return({relu, sum});
+    p.compile(cross_target("gfx1100"), recipe_options());
     EXPECT(compiled_arch(p) == "gfx1100");
+
     auto before = get_kernels(p);
     p.recompile(cross_target("gfx1201"));
     EXPECT(compiled_arch(p) == "gfx1201");
@@ -436,22 +422,31 @@ TEST_CASE(retarget_cross_compile_newer_generation)
         EXPECT(before[i].expected_inputs == after[i].expected_inputs);
     }
     // The retargeted program round trips through a file
-    migraphx::file_options fo;
-    fo.finalize = false;
-    auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
-    EXPECT(compiled_arch(q) == "gfx1201");
+    EXPECT(compiled_arch(reload(p)) == "gfx1201");
 }
 
 TEST_CASE(retarget_cross_compile_same_generation)
 {
-    auto p = compile_program(cross_target("gfx1151"));
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x)});
+    p.compile(cross_target("gfx1151"), recipe_options());
+
     p.recompile(cross_target("gfx1100"));
     EXPECT(compiled_arch(p) == "gfx1100");
 }
 
 TEST_CASE(retarget_older_generation_refused)
 {
-    auto p = compile_program(cross_target("gfx1151"));
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x)});
+    p.compile(cross_target("gfx1151"), recipe_options());
+
     EXPECT(test::throws<migraphx::exception>([&] { p.recompile(cross_target("gfx942")); },
                                              "older generation"));
     // The program is unchanged
@@ -460,29 +455,42 @@ TEST_CASE(retarget_older_generation_refused)
 
 TEST_CASE(retarget_without_recipes_refused)
 {
-    migraphx::compile_options options;
-    options.offload_copy = true;
-    auto p               = compile_program(cross_target("gfx1100"), options);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x)});
+    p.compile(cross_target("gfx1100"), {.offload_copy = true});
+
     EXPECT(test::throws<migraphx::exception>([&] { p.recompile(cross_target("gfx1201")); },
                                              "compile the model again"));
 }
 
-TEST_CASE(load_version_8_program_refused)
-{
-    auto p       = compile_program(migraphx::make_target("gpu"));
-    auto v       = p.to_value();
-    v["version"] = 8;
-    migraphx::program q;
-    EXPECT(test::throws<migraphx::exception>([&] { q.from_value(v); }, "version mismatch"));
-}
-
+// Lowering fills the output of nms_compact before the kernel runs
 TEST_CASE(recompile_kernel_with_lowering_fill)
 {
-    auto p = compile_program(migraphx::make_target("gpu"), recipe_options(), make_nms_program());
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape scalar_s{migraphx::shape::float_type, {1}};
+    auto boxes   = mm->add_parameter("boxes", {migraphx::shape::float_type, {1, 6, 4}});
+    auto scores  = mm->add_parameter("scores", {migraphx::shape::float_type, {1, 1, 6}});
+    auto max_out = mm->add_literal(
+        migraphx::literal{{migraphx::shape::int64_type, {1}}, std::vector<std::int64_t>{4}});
+    auto iou   = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.5f}});
+    auto score = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.0f}});
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes,
+                            scores,
+                            max_out,
+                            iou,
+                            score);
+    mm->add_return({mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms),
+                    mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms)});
+    p.compile(migraphx::make_target("gpu"), recipe_options());
     EXPECT(has_kernel(p, "nms_compact_kernel"));
-    migraphx::file_options fo;
-    fo.finalize = false;
-    auto q      = migraphx::load_buffer(migraphx::save_buffer(p), fo);
+
+    auto q = reload(p);
     q.recompile(migraphx::make_target("gpu"));
     EXPECT(has_kernel(q, "nms_compact_kernel"));
     expect_nms_result(q);
@@ -490,74 +498,65 @@ TEST_CASE(recompile_kernel_with_lowering_fill)
 
 TEST_CASE(retarget_kernel_with_lowering_fill)
 {
-    auto p = compile_program(cross_target("gfx1151"), recipe_options(), make_nms_program());
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape scalar_s{migraphx::shape::float_type, {1}};
+    auto boxes   = mm->add_parameter("boxes", {migraphx::shape::float_type, {1, 6, 4}});
+    auto scores  = mm->add_parameter("scores", {migraphx::shape::float_type, {1, 1, 6}});
+    auto max_out = mm->add_literal(
+        migraphx::literal{{migraphx::shape::int64_type, {1}}, std::vector<std::int64_t>{4}});
+    auto iou   = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.5f}});
+    auto score = mm->add_literal(migraphx::literal{scalar_s, std::vector<float>{0.0f}});
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes,
+                            scores,
+                            max_out,
+                            iou,
+                            score);
+    mm->add_return({mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms),
+                    mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms)});
+    p.compile(cross_target("gfx1151"), recipe_options());
+
     p.recompile(cross_target("gfx1100"));
     EXPECT(compiled_arch(p) == "gfx1100");
     EXPECT(has_kernel(p, "nms_compact_kernel"));
 }
 
-static void expect_same_as_ref(const migraphx::program& p,
-                               migraphx::program ref,
-                               const migraphx::parameter_map& params)
-{
-    ref.compile(migraphx::make_target("ref"));
-    auto expected = run_program(ref, params);
-    auto results  = run_program(p, params);
-    EXPECT(results.size() == expected.size());
-    for(std::size_t i = 0; i < results.size(); i++)
-        EXPECT(migraphx::verify::verify_rms_range(to_vector(results[i]), to_vector(expected[i])));
-}
-
 // The compiler of scatter copies the data into the output before the kernel, so the kernel does
 // not take the data as an argument
-static migraphx::program make_scatter_program()
+TEST_CASE(recompile_scatter)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape data_s{migraphx::shape::float_type, {4, 4}};
-    migraphx::shape indices_s{migraphx::shape::int64_type, {2, 1}};
     migraphx::shape updates_s{migraphx::shape::float_type, {2, 4}};
     auto data    = mm->add_parameter("data", data_s);
-    auto indices = mm->add_literal(migraphx::literal{indices_s, std::vector<std::int64_t>{0, 2}});
+    auto indices = mm->add_literal(
+        migraphx::literal{{migraphx::shape::int64_type, {2, 1}}, std::vector<std::int64_t>{0, 2}});
     auto updates = mm->add_parameter("updates", updates_s);
     mm->add_return(
         {mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates)});
-    return p;
-}
+    auto ref = p;
+    p.compile(migraphx::make_target("gpu"), recipe_options());
 
-TEST_CASE(recompile_scatter)
-{
-    auto p =
-        compile_program(migraphx::make_target("gpu"), recipe_options(), make_scatter_program());
-    auto kernels = kernel_instructions(p);
     // The recipe finds the data through the copy
+    auto kernels = kernel_instructions(p);
     EXPECT(std::any_of(kernels.begin(), kernels.end(), [](auto ins) {
         auto inputs = migraphx::gpu::recipe_inputs(ins);
         return inputs.has_value() and inputs->size() == 4 and ins->inputs().size() == 3;
     }));
     p.recompile(migraphx::make_target("gpu"));
     EXPECT(all_have_recipes(p));
-    expect_same_as_ref(
-        p,
-        make_scatter_program(),
-        {{"data", migraphx::generate_argument({migraphx::shape::float_type, {4, 4}}, 0)},
-         {"updates", migraphx::generate_argument({migraphx::shape::float_type, {2, 4}}, 1)}});
-}
-
-// Instructions of the main module that nothing uses, other than the last one
-static std::size_t count_unused(const migraphx::program& p)
-{
-    const auto* mm = p.get_main_module();
-    auto last      = std::prev(mm->end());
-    return static_cast<std::size_t>(std::count_if(mm->begin(), last, [](const auto& ins) {
-        return ins.outputs().empty() and ins.get_shape().ndim() != 0 and ins.name() != "@param" and
-               ins.name() != "@literal";
-    }));
+    expect_same_as_ref(p,
+                       ref,
+                       {{"data", migraphx::generate_argument(data_s, 0)},
+                        {"updates", migraphx::generate_argument(updates_s, 1)}});
 }
 
 // The concat is eliminated, so the reductions write into parts of its buffer and nothing uses
 // them
-static migraphx::program make_concat_program()
+TEST_CASE(recompile_keeps_unused_writers)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -568,34 +567,16 @@ static migraphx::program make_concat_program()
     auto b = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), y);
     auto c = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), a, b);
     mm->add_return({mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), c)});
-    return p;
-}
+    auto ref = p;
+    p.compile(migraphx::make_target("gpu"), recipe_options());
 
-TEST_CASE(recompile_keeps_unused_writers)
-{
-    auto p = compile_program(migraphx::make_target("gpu"), recipe_options(), make_concat_program());
     auto unused = count_unused(p);
     EXPECT(unused > 0);
     auto kernels = get_kernels(p).size();
     p.recompile(migraphx::make_target("gpu"));
     EXPECT(count_unused(p) == unused);
     EXPECT(get_kernels(p).size() == kernels);
-    expect_same_as_ref(p, make_concat_program(), make_params());
-}
-
-TEST_CASE(recompile_requires_compiled_program)
-{
-    auto p = make_program();
-    EXPECT(test::throws<migraphx::exception>([&] { p.recompile(migraphx::make_target("gpu")); },
-                                             "not compiled"));
-}
-
-TEST_CASE(recompile_unsupported_target_refused)
-{
-    auto p = make_program();
-    p.compile(migraphx::make_target("ref"));
-    EXPECT(test::throws<migraphx::exception>([&] { p.recompile(migraphx::make_target("ref")); },
-                                             "does not support recompile"));
+    expect_same_as_ref(p, ref, make_params());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

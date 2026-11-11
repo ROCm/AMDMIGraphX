@@ -979,6 +979,114 @@ TEST_CASE(returned_input_standard_slice)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// convert is not a view, but keeps the strides of its input, so writing the input into the
+// strided slice would also make the returned conversion non-standard
+TEST_CASE(returned_convert_of_input_is_copied)
+{
+    auto convert = migraphx::make_op(
+        "convert", {{"target_type", migraphx::to_value(migraphx::shape::double_type)}});
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 6));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto cv = m1.add_instruction(convert, s2);
+        m1.add_return({c1, cv});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(2, 6));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto a2     = m2.add_instruction(make_allocate(2, 3));
+        auto s2     = m2.add_instruction(simple_op{}, a2);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), super);
+        auto copy2 = m2.add_instruction(migraphx::make_op("test::copy"), s2, slice2);
+        auto id    = m2.add_instruction(migraphx::make_op("identity"), super, s1, copy2);
+        auto cv    = m2.add_instruction(convert, s2);
+        m2.add_return({id, cv});
+    }
+    EXPECT(m1.sort() == m2.sort());
+    EXPECT(std::prev(m1.end())->inputs().back()->get_shape().standard());
+}
+
+// The slice for the transposed input is standard, but moving it from strides {1, 3} to {2, 1}
+// makes the returned column span 5 elements for 3 values
+TEST_CASE(returned_column_of_transposed_input_is_copied)
+{
+    migraphx::module m1;
+    {
+        auto a1  = m1.add_instruction(make_allocate<1, 0>(3, 2));
+        auto s1  = m1.add_instruction(simple_op{}, a1);
+        auto a2  = m1.add_instruction(make_allocate(3, 2));
+        auto s2  = m1.add_instruction(simple_op{}, a2);
+        auto a3  = m1.add_instruction(make_allocate(6, 2));
+        auto c1  = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, a3);
+        auto col = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), s1);
+        m1.add_return({c1, col});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(6, 2));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3}}}), super);
+        auto a1     = m2.add_instruction(make_allocate<1, 0>(3, 2));
+        auto s1     = m2.add_instruction(simple_op{}, a1);
+        auto copy1  = m2.add_instruction(migraphx::make_op("test::copy"), s1, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {6}}}), super);
+        auto s2  = m2.add_instruction(simple_op{}, slice2);
+        auto id  = m2.add_instruction(migraphx::make_op("identity"), super, copy1, s2);
+        auto col = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), s1);
+        m2.add_return({id, col});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The returned identity aliases the producer's allocation rather than the producer, so the
+// allocation's own users have to stay standard too
+TEST_CASE(returned_allocation_is_not_replaced)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto r1 = m1.add_instruction(migraphx::make_op("identity"), a1, s1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 6));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        m1.add_return({c1, r1});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(2, 6));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), super);
+        auto a1     = m2.add_instruction(make_allocate(2, 3));
+        auto s1     = m2.add_instruction(simple_op{}, a1);
+        auto copy1  = m2.add_instruction(migraphx::make_op("test::copy"), s1, slice1);
+        auto r1     = m2.add_instruction(migraphx::make_op("identity"), a1, copy1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), super);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto id = m2.add_instruction(migraphx::make_op("identity"), super, copy1, s2);
+        m2.add_return({id, r1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+    EXPECT(std::prev(m1.end())->inputs().back()->get_shape().standard());
+}
+
 TEST_CASE(invert_view_chain_reshape)
 {
     // A strided view of {2, 4} re-indexed to the {2, 2, 2} input of a reshape

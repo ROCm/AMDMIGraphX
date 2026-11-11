@@ -222,13 +222,16 @@ bool replace_alias_allocation(module& m, instruction_ref ins)
     return true;
 }
 
-bool is_select_module_input(module_ref root, module_ref submodule)
+// The caller of these modules binds every output to its own buffer (such as a loop body writing
+// its scan outputs), so a returned parameter or a value returned twice needs its own copy
+bool is_output_bound_module_input(module_ref root, module_ref submodule)
 {
     auto modules = root->get_sub_modules();
     modules.push_back(root);
     return any_of(modules, [&](module_ref mod) {
         return any_of(iterator_for(*mod), [&](instruction_ref ins) {
-            return ins->name() == "select_module" and contains(ins->module_inputs(), submodule);
+            return contains({"select_module", "gpu::loop"}, ins->name()) and
+                   contains(ins->module_inputs(), submodule);
         });
     });
 }
@@ -339,7 +342,7 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         insert_submod_allocations(ins, m, model);
     }
     if(not root_offload_copy and model.needs_out_params())
-        insert_copy(m, model, is_root or is_select_module_input(root_module, &m));
+        insert_copy(m, model, is_root or is_output_bound_module_input(root_module, &m));
     auto mod_output_names         = create_output_names(m);
     auto mod_output_debug_symbols = get_output_debug_symbols(m);
     for(auto ins : iterator_for(m))

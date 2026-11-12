@@ -1093,8 +1093,8 @@ TEST_CASE(gather_dot_weights_stored)
     EXPECT(p1 == p2);
 }
 
-// The pointwise operator reading the sums, here the add of a bias, becomes
-// the output submodule over groups of one column
+// The pointwise operator reading the sums, here an add of another input,
+// becomes the output submodule over groups of one column
 TEST_CASE(gather_dot_pointwise)
 {
     migraphx::shape out{migraphx::shape::float_type, {8, 5}};
@@ -1228,9 +1228,8 @@ TEST_CASE(gather_dot_pointwise_multi_use)
     EXPECT(p1 == p2);
 }
 
-// The pointwise operator reads the sums through a view. Its other input is
-// gathered with the indices of the gather_dot and stays gathered: the output
-// submodule reads its other inputs by row.
+// The pointwise operator reads the sums through a view, which the output
+// submodule holds. Its other input is read by row.
 TEST_CASE(gather_dot_pointwise_view)
 {
     migraphx::shape sums{migraphx::shape::float_type, {8, 5}};
@@ -1359,8 +1358,8 @@ TEST_CASE(gather_dot_group)
     EXPECT(p1.sort() == p2.sort());
 }
 
-// The add of a bias then a pointwise operator over the pairs: there is one
-// output submodule, so only the add is fused
+// An add of another input then a pointwise operator over the pairs: there is
+// one output submodule, so only the add is fused
 TEST_CASE(gather_dot_pointwise_then_group)
 {
     migraphx::shape sums{migraphx::shape::float_type, {8, 6}};

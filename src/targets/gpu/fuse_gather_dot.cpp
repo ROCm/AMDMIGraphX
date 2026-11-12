@@ -23,7 +23,6 @@
  *
  */
 #include <migraphx/gpu/fuse_gather_dot.hpp>
-#include <migraphx/gpu/compiler.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
@@ -34,7 +33,9 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/tune_axis.hpp>
 #include <algorithm>
+#include <cassert>
 #include <functional>
 #include <numeric>
 #include <unordered_map>
@@ -43,25 +44,17 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// out[r, n...] = sum over k... of a[r, k...] * b[indices[r], k..., n...]: the
-// rows a {rows, k axes...} times the matrix each row gathers from a table of
-// matrices b {entries, k axes..., n axes...}, giving the sums
-// {rows, n axes...}. The rank of the rows gives the number of k axes. The
-// inputs are the rows, the indices, the weight tensors, the bias if there is
-// one, then the other inputs of the output submodule.
+// out[r, n...] = sum over k... of a[r, k...] * b[indices[r], k..., n...] for
+// rows a {rows, k axes...} and a table of matrices b
+// {entries, k axes..., n axes...}. The inputs are the rows, the indices, the
+// weight tensors, the bias if one input is left over, then the other inputs
+// of the output submodule.
 //
-// The weights submodule computes the table from one weight tensor for each
-// of its parameters. It returns its one parameter when that tensor is the
-// table, else a pointwise operator of its parameters, of which those read
-// through an unpack_int4 store two int4 elements per byte along its axis.
-//
-// The input after the weight tensors that no submodule accounts for is the
-// bias: a table with the n elements of a row for each of the entries. Every
-// sum adds the element of its column for the entry the row gathers.
-//
-// The output submodule, the second if there is one, computes the result
-// from the sums, its first parameter, and its other parameters: a pointwise
-// operator of columns of the sums, see find_gather_dot_column.
+// The weights submodule computes the table from the weight tensors: it
+// returns its parameter, or a pointwise operator of its parameters, some
+// through an unpack_int4. The bias holds n elements per entry. The output
+// submodule, if there is one, is a pointwise operator of columns of the sums,
+// its first parameter, and of its other parameters.
 struct gather_dot
 {
     std::string name() const { return "gpu::gather_dot"; }
@@ -112,7 +105,10 @@ struct gather_dot
             MIGRAPHX_THROW(
                 "gather_dot: the weight tensors must have the lens of the parameters of the "
                 "weights submodule");
-        const auto matrices = mods.front()->get_output_shapes().front().lens();
+        const auto tables = mods.front()->get_output_shapes();
+        if(tables.size() != 1)
+            MIGRAPHX_THROW("gather_dot: the weights submodule must return the table");
+        const auto& matrices = tables.front().lens();
         if(matrices.size() < a.ndim() + 1 or
            not std::equal(a.lens().begin() + 1, a.lens().end(), matrices.begin() + 1))
             MIGRAPHX_THROW(
@@ -133,8 +129,10 @@ struct gather_dot
                output, onames.begin() + 1, onames.end(), inputs.begin() + first_other))
             MIGRAPHX_THROW("gather_dot: the output submodule must take the sums, then inputs "
                            "with the lens of its other parameters");
-        const auto result = output.get_output_shapes().front();
-        return shape{result.type(), result.lens()};
+        const auto results = output.get_output_shapes();
+        if(results.size() != 1)
+            MIGRAPHX_THROW("gather_dot: the output submodule must return one result");
+        return results.front().as_standard();
     }
 };
 MIGRAPHX_REGISTER_OP(gather_dot);
@@ -161,7 +159,8 @@ optional<gather_dot_column> find_gather_dot_column(instruction_ref ins)
     auto it   = std::find_if_not(path.begin(), path.end(), [](instruction_ref x) {
         return contains({"squeeze", "unsqueeze"}, x->name()) and x->outputs().size() == 1;
     });
-    if(it == path.end() or (*it)->name() != "slice" or (*it)->outputs().size() != 1)
+    if(it == path.end() or (*it)->name() != "slice" or (*it)->inputs().size() != 1 or
+       (*it)->outputs().size() != 1)
     {
         auto sums = find_viewed(ins);
         if(not sums.has_value())
@@ -188,11 +187,6 @@ namespace {
 // The rows are listed in the local memory of a workgroup
 constexpr std::size_t max_rows = 8192;
 
-std::size_t normalize_axis(std::int64_t axis, std::size_t ndim)
-{
-    return axis < 0 ? axis + ndim : axis;
-}
-
 bool is_pointwise(instruction_ref ins)
 {
     return ins->name() == "pointwise" or ins->get_operator().attributes().contains("pointwise");
@@ -209,17 +203,18 @@ bool is_row_broadcast(instruction_ref input)
     return s.ndim() < input->get_shape().ndim() or s.lens().front() == 1;
 }
 
-// Computes a row tensor {rows, ...} for the table {entries, ...} it is
-// gathered from: every row must be computed from the same row of gathers
-// along the first axis, which all take the same indices
+// Rebuilds a tensor {rows, ...} computed from gathers along the first axis
+// as the table {entries, ...} it would be gathered from. Each row must depend
+// only on its own gathered entry, and all the gathers take the same indices.
 struct table_lifter
 {
     std::size_t rows         = 0;
-    float min_rows_per_entry = 0.5f;
+    float min_rows_per_entry = 0.0f;
     // set by the first gather
-    optional<instruction_ref> indices                           = nullopt;
-    std::size_t entries                                         = 0;
-    std::unordered_map<instruction_ref, instruction_ref> tables = {};
+    optional<instruction_ref> indices = nullopt;
+    std::size_t entries               = 0;
+    // what each instruction lifts to, nothing when it cannot be lifted
+    std::unordered_map<instruction_ref, optional<instruction_ref>> tables = {};
 
     std::vector<std::size_t> table_lens(instruction_ref ins) const
     {
@@ -236,8 +231,8 @@ struct table_lifter
         const auto& ishape = index->get_shape();
         if(dshape.dynamic() or ishape.dynamic() or ishape.ndim() != 1)
             return nullopt;
-        auto axis = ins->get_operator().to_value().at("axis").to<std::int64_t>();
-        if(normalize_axis(axis, dshape.ndim()) != 0)
+        auto axis = ins->get_operator().to_value().at("axis").to<int>();
+        if(tune_axis(dshape.ndim(), axis, ins->name()) != 0)
             return nullopt;
         if(indices.has_value())
         {
@@ -245,7 +240,7 @@ struct table_lifter
                 return nullopt;
             return data;
         }
-        // With too few rows per entry there are no rows to group
+        // With one entry or too few rows per entry, grouping by entry saves nothing
         if(dshape.lens().front() < 2 or rows < min_rows_per_entry * dshape.lens().front())
             return nullopt;
         indices = index;
@@ -291,12 +286,11 @@ struct table_lifter
         return m.insert_instruction(pos, ins->get_operator(), args, ins->module_inputs());
     }
 
-    // The operator computing a view of the rows for the table, if the view
-    // keeps the rows apart
+    // The operator that applies the same view to the table, if the view
+    // leaves the first axis alone
     optional<operation> table_view_op(instruction_ref ins) const
     {
         auto input      = ins->inputs().front();
-        auto v          = ins->get_operator().to_value();
         const auto name = ins->name();
         if(name == "contiguous")
             return ins->get_operator();
@@ -310,12 +304,13 @@ struct table_lifter
         }
         if(name == "broadcast")
         {
-            if(v.at("axis").to<std::int64_t>() != 0)
+            if(ins->get_operator().to_value().at("axis").to<std::int64_t>() != 0)
                 return nullopt;
             return make_op("broadcast", {{"axis", 0}, {"out_lens", table_lens(ins)}});
         }
         if(name == "transpose")
         {
+            auto v = ins->get_operator().to_value();
             if(v.at("permutation").to_vector<std::int64_t>().front() != 0)
                 return nullopt;
             return ins->get_operator();
@@ -324,16 +319,17 @@ struct table_lifter
         {
             // the axes of an unsqueeze are those of the output
             auto ndim = name == "unsqueeze" ? ins->get_shape().ndim() : input->get_shape().ndim();
-            auto axes = v.at("axes").to_vector<std::int64_t>();
-            if(axes.empty() or std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-                   return normalize_axis(axis, ndim) == 0;
+            auto axes = ins->get_operator().to_value().at("axes").to_vector<int>();
+            if(axes.empty() or std::any_of(axes.begin(), axes.end(), [&](int axis) {
+                   return tune_axis(ndim, axis, name) == 0;
                }))
                 return nullopt;
             return ins->get_operator();
         }
         if(name == "unpack_int4")
         {
-            if(normalize_axis(v.at("axis").to<std::int64_t>(), input->get_shape().ndim()) == 0)
+            auto axis = ins->get_operator().to_value().at("axis").to<int>();
+            if(tune_axis(input->get_shape().ndim(), axis, name) == 0)
                 return nullopt;
             return ins->get_operator();
         }
@@ -366,8 +362,7 @@ struct table_lifter
             result = lift_pointwise(m, pos, ins);
         else if(ins->inputs().size() == 1)
             result = lift_view(m, pos, ins);
-        if(result.has_value())
-            tables.emplace(ins, *result);
+        tables.emplace(ins, result);
         return result;
     }
 };
@@ -376,7 +371,7 @@ struct table_lifter
 // matrix from the gathered entry alone
 struct find_gather_dot
 {
-    float min_rows_per_entry = 0.5f;
+    float min_rows_per_entry = 0.0f;
     // the number of weights submodules added, to name them
     std::size_t* counter = nullptr;
 
@@ -403,11 +398,12 @@ struct find_gather_dot
         auto table = lifter.lift(m, ins, b);
         if(not table.has_value())
             return;
+        // a table is lifted from at least one gather
+        assert(lifter.indices.has_value());
         // the weights submodule returns the table
-        const auto& ts = (*table)->get_shape();
-        auto* wm       = mpm.create_module(m.name() + ":gather_dot" + std::to_string((*counter)++));
+        auto* wm = mpm.create_module(m.name() + ":gather_dot" + std::to_string((*counter)++));
         wm->set_bypass();
-        wm->add_return({wm->add_parameter(param_name(0), shape{ts.type(), ts.lens()})});
+        wm->add_return({wm->add_parameter(param_name(0), (*table)->get_shape().as_standard())});
         // the rows {rows, k} times the matrices {entries, k, n} give {rows, n}
         auto vectors = m.insert_instruction(ins, make_op("squeeze", {{"axes", {1}}}), a);
         auto dot =
@@ -426,7 +422,8 @@ struct find_gather_dot_bias
         // the sums are read through the unsqueeze find_gather_dot left
         auto sums = match::name("unsqueeze")(
             match::used_once(),
-            match::arg(0)(match::name("gpu::gather_dot")(match::used_once()).bind("dot")));
+            match::arg(0)(
+                match::name("gpu::gather_dot")(match::used_once(), match::nargs(3)).bind("dot")));
         return match::name("add")(
             match::either_arg(0, 1)(sums.bind("sums"), match::any().bind("bias")));
     }
@@ -442,7 +439,7 @@ struct find_gather_dot_bias
         const auto& inputs = dot->inputs();
         const auto& bs     = bias->get_shape();
         // only the sums as find_gather_dot left them, without a bias
-        if(dot->module_inputs().size() != 1 or inputs.size() != 3)
+        if(dot->module_inputs().size() != 1)
             return;
         if(bs.dynamic() or bs.lens() != s.lens() or bs.type() != s.type())
             return;
@@ -464,8 +461,6 @@ struct find_gather_dot_bias
 
 void fuse_gather_dot::apply(module_pass_manager& mpm) const
 {
-    if(not has_compiler_for("gpu::gather_dot"))
-        return;
     std::size_t counter = 0;
     // In the order of the instructions: the dot, then the add of its bias
     match::find_matches(mpm, find_gather_dot{min_rows_per_entry, &counter}, find_gather_dot_bias{});

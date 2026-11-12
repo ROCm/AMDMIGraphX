@@ -66,12 +66,10 @@ MIGRAPHX_GPU_EXPORT optional<gather_dot_column> find_gather_dot_column(instructi
 // each matrix is read once for all the rows gathering it.
 //
 // The pass replaces the dot and its gathers by a gpu::gather_dot reading the
-// table the matrices are computed from, with a weights submodule that
-// returns the table, and folds the add of a bias gathered with the same
+// table of matrices, and folds the add of a bias gathered with the same
 // indices. It runs before the dots of single rows are rewritten as
-// reductions and before the pointwise fusion. fuse_ops then fuses what
-// computes that table as the weights submodule and the pointwise operator
-// reading the result as the output submodule.
+// reductions and before the pointwise fusion; fuse_ops then fuses what
+// computes the table and the pointwise operator reading the result.
 struct MIGRAPHX_GPU_EXPORT fuse_gather_dot
 {
     // The number of gathered rows per table entry from which the dots are

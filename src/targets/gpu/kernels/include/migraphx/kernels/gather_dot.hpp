@@ -31,7 +31,6 @@
 #include <migraphx/kernels/uninitialized_buffer.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/functional.hpp>
-#include <migraphx/kernels/slice.hpp>
 #include <migraphx/kernels/bit.hpp>
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/tuple.hpp>
@@ -63,6 +62,12 @@ constexpr auto pack_range(Ts... xs)
     return sequence_c<N>([&](auto... is) { return pack(arg_c<is + Begin>()(xs...)...); });
 }
 
+// The number of set bits of mask below bit i
+constexpr index_int popcount_below(uint64_t mask, index_int i)
+{
+    return popcount(mask & ((uint64_t{1} << i) - 1));
+}
+
 // The index of a weight tensor at m in the weight space of Settings: the
 // axes of the matrices with the pair axis split in pairs, of which a packed
 // tensor holds one element each. The k and the n axes of the space are
@@ -84,7 +89,6 @@ __device__ auto weight_index(W, M m)
     return result;
 }
 
-// One element of a weight tensor
 template <class Settings, class W, class M>
 __device__ auto weight_element(W w, M m)
 {
@@ -125,20 +129,14 @@ __device__ auto load_weights(W w, M m)
     {
         return load_run<N>(p);
     }
-    else if constexpr(step == 0)
-    {
-        return *p;
-    }
     else
     {
-        vec<type, N> result{};
-        for(index_int r = 0; r < N; r++)
-            result[r] = p[r * step];
-        return result;
+        static_assert(step == 0, "a run is stored adjacent or broadcast");
+        return *p;
     }
 }
 
-// The N elements from what load_weights stored
+// The N elements from what load_weights returned
 template <index_int N, class Settings, class W, class Stored>
 __device__ auto expand_weights(W, Stored x)
 {
@@ -149,10 +147,7 @@ __device__ auto expand_weights(W, Stored x)
     }
     else if constexpr(weight_step<Settings, W>() == 0)
     {
-        vec<type, N> result{};
-        for(index_int r = 0; r < N; r++)
-            result[r] = x;
-        return result;
+        return vec_generate<N>([&](auto) { return x; });
     }
     else
     {
@@ -176,14 +171,14 @@ struct weight_loader
     template <index_int N>
     static constexpr bool is_run()
     {
-        return Settings::run_loads and Settings::run_len % N == 0 and N % Settings::pair == 0;
+        return Settings::run_loads and Settings::run_len % N == 0;
     }
 
     // The last columns of a workgroup may reach past the matrix: the loads
     // stay inside and the store drops the columns
     __device__ auto position(index_int k, index_int j) const
     {
-        const index_int col      = n0 + j < Settings::n ? n0 + j : Settings::n - 1;
+        const index_int col      = min(n0 + j, Settings::n - 1);
         const auto mk            = Settings::k_space.multi(k);
         const auto mn            = Settings::n_space.multi(col);
         constexpr index_int nk   = decltype(mk){}.size();
@@ -236,9 +231,8 @@ constexpr index_int stage_run()
         return stage_run<Loader, Chunk, K, N / 2>();
 }
 
-// The elements along the k axes of one of the rows {rows, k axes...}: the
-// rows with the first element of the row, and where that is stored for the
-// loads of a packed row
+// One row of the rows {rows, k axes...} along its k axes: the tensor, the
+// index of the first element of the row and, for a contiguous row, its address
 template <class A>
 struct row_view
 {
@@ -287,12 +281,6 @@ struct row_view
 // chunks. The columns of a group are in adjacent lanes, so the lane of the
 // first one reads the sums of the others from their lanes. Without a matrix
 // instruction every lane sums one row times one group of columns at a time.
-//
-// Settings gives the sizes, the lens of the matrices with the axis of the
-// int4 pairs, the innermost k axis and whether the weight tensors are loaded
-// in runs along it, the number of weight tensors, whether there is a bias,
-// the blocks of columns per workgroup and the chunk of k; see
-// gpu::gather_dot.
 template <class Settings, class Functions, class Out, class A, class Indices, class Inputs>
 struct gather_dot_group
 {
@@ -312,7 +300,7 @@ struct gather_dot_group
     static constexpr index_int chunk    = Settings::k_chunk;
     static_assert(bs % group == 0, "a block of columns must hold whole groups");
     // the tiles of rows that take the columns in local memory together
-    static constexpr index_int tile_batch = Settings::tile_batch;
+    static constexpr index_int tile_batch = 4;
     static constexpr auto grid =
         make_shape(index_ints<Settings::entries, ceil_div(Settings::n, cols)>{});
     // a slot of the list of rows and an output column of the workgroup
@@ -370,7 +358,7 @@ struct gather_dot_group
             }
             const uint64_t mask = __ballot(match ? 1 : 0);
             if(match)
-                list[found + popcount(mask & ((uint64_t{1} << lane) - 1))] = r;
+                list[found + gather_dot_detail::popcount_below(mask, lane)] = r;
             found += popcount(mask);
         }
         // the lanes of a partial tile read a listed row and drop the result
@@ -383,6 +371,7 @@ struct gather_dot_group
     template <class View>
     __device__ static auto row(View x, index_int r)
     {
+        MIGRAPHX_ASSERT(r < rows);
         const index_int first = r * Settings::k;
         return gather_dot_detail::row_view<View>{x, first, &x[first]};
     }
@@ -397,10 +386,7 @@ struct gather_dot_group
         }
         else
         {
-            vec<value_type, N> result{};
-            for(index_int i = 0; i < N; i++)
-                result[i] = r[k + i];
-            return result;
+            return vec_generate<N>([&](auto i) { return r[k + i]; });
         }
     }
 
@@ -432,6 +418,16 @@ struct gather_dot_group
         });
     }
 
+    // The run i of the lane as (column, k), the k being len when the lane
+    // has no such run
+    __device__ auto run_place(index_int i, index_int len) const
+    {
+        const index_int r = idx.local + i * MIGRAPHX_NLOCAL;
+        auto m            = runs.multi(r < runs.elements() ? r : 0);
+        m[1]              = r < runs.elements() ? m[1] * run : len;
+        return m;
+    }
+
     // The columns of the workgroup for len of k from k0 into local memory.
     // A lane loads the stored weights of all its runs before it computes
     // any, so the loads are in flight together and it waits for memory once.
@@ -441,23 +437,16 @@ struct gather_dot_group
         if constexpr(run > 1)
         {
             constexpr index_int per_lane = ceil_div(runs.elements(), MIGRAPHX_NLOCAL);
-            // the run i of the lane as (column, k), the k past len for no run
-            auto place = [&](index_int i) {
-                const index_int r = idx.local + i * MIGRAPHX_NLOCAL;
-                auto m            = runs.multi(r < runs.elements() ? r : 0);
-                m[1]              = r < runs.elements() ? m[1] * run : len;
-                return m;
-            };
             array<decltype(b.template load<run>(0, 0)), per_lane> stored{};
             repeat_c<per_lane>([&](auto ic) {
                 const index_int i = ic;
-                const auto m      = place(i);
+                const auto m      = run_place(i, len);
                 if(m[1] < len)
                     stored[i] = b.template load<run>(k0 + m[1], m[0]);
             });
             repeat_c<per_lane>([&](auto ic) {
                 const index_int i = ic;
-                const auto m      = place(i);
+                const auto m      = run_place(i, len);
                 if(m[1] < len)
                     gather_dot_detail::store_run(columns + tile.index(m),
                                                  b.template compute<run>(stored[i]));
@@ -473,7 +462,7 @@ struct gather_dot_group
         }
     }
 
-    // Tiles tiles of rows times the columns of the block of the wave over the
+    // `Tiles` tiles of rows times the columns of the block of the wave over the
     // chunk of k from k0, whose columns are in local memory. The rows come
     // from global memory: those of a few steps are loaded together, so the
     // wave waits for them once.
@@ -531,8 +520,8 @@ struct gather_dot_group
         return sequence_c<group>([&](auto... gs) { return make_array(lane_sums(x, gs)...); });
     }
 
-    // The chunk for a number of tiles only known here: one loop for every
-    // number up to Tiles, so the loop does not test the tiles at each step
+    // The chunk for a run-time number of tiles: one loop for every number up
+    // to Tiles, so the loop does not test the tiles at each step
     template <index_int Tiles, class Rows, class Acc>
     __device__ void
     mma_chunk(Acc& acc, const Rows& arow, index_int k0, index_int len, index_int tiles) const
@@ -561,8 +550,7 @@ struct gather_dot_group
         array<frag, tile_batch> acc{};
         for(index_int k0 = 0; k0 < Settings::k; k0 += chunk)
         {
-            const index_int left = Settings::k - k0;
-            const index_int len  = left < chunk ? left : chunk;
+            const index_int len = min(Settings::k - k0, chunk);
             stage(k0, len);
             __syncthreads();
             if(has_block)
@@ -640,8 +628,7 @@ struct gather_dot_group
         {
             for(index_int r0 = 0; r0 < found; r0 += bs * tile_batch)
             {
-                const index_int left = ceil_div(found - r0, bs);
-                mma_batch(r0, left < tile_batch ? left : tile_batch, found);
+                mma_batch(r0, min(ceil_div(found - r0, bs), tile_batch), found);
             }
         }
         else
@@ -675,25 +662,24 @@ struct gather_dot_inputs
 template <class Settings, class Weight, class Output, class A, class Indices, class... Ts>
 __device__ void gather_dot(Weight weight, Output output, A a, Indices indices, Ts... xs)
 {
-    // the listed rows, padded to a whole tile
-    __shared__ uninitialized_buffer<index_int, ceil_div(Settings::rows, 16) * 16 + 16, 16> list;
-    __shared__ uninitialized_buffer<index_int, 1, 16> count;
-    // 16-byte aligned so the loads of a lane's run of k merge
-    __shared__
-        uninitialized_buffer<typename A::type, 16 * Settings::col_blocks * Settings::k_chunk, 16>
-            columns;
     // the weight tensors, the bias, the inputs of the output function, then
     // the output
     constexpr index_int nweights = Settings::weights;
     constexpr index_int nbias    = Settings::bias;
-    constexpr index_int noutput  = sizeof...(Ts) - 1 - nweights - nbias;
-    auto weights                 = gather_dot_detail::pack_range<0, nweights>(xs...);
-    auto bias                    = gather_dot_detail::pack_range<nweights, nbias>(xs...);
-    auto output_inputs           = gather_dot_detail::pack_range<nweights + nbias, noutput>(xs...);
-    auto out           = arg_c<sizeof...(Ts) - 1>()(xs...);
-    using functions              = gather_dot_functions<Weight, Output>;
+    static_assert(sizeof...(Ts) >= 1 + nweights + nbias, "missing inputs");
+    constexpr index_int noutput = sizeof...(Ts) - 1 - nweights - nbias;
+    auto weights                = gather_dot_detail::pack_range<0, nweights>(xs...);
+    auto bias                   = gather_dot_detail::pack_range<nweights, nbias>(xs...);
+    auto output_inputs          = gather_dot_detail::pack_range<nweights + nbias, noutput>(xs...);
+    auto out                    = arg_c<sizeof...(Ts) - 1>()(xs...);
+    using functions             = gather_dot_functions<Weight, Output>;
     using inputs = gather_dot_inputs<decltype(weights), decltype(bias), decltype(output_inputs)>;
     using group  = gather_dot_group<Settings, functions, decltype(out), A, Indices, inputs>;
+    // the listed rows, padded to a whole tile
+    __shared__ uninitialized_buffer<index_int, group::sums.lens[0] + group::bs, 16> list;
+    __shared__ uninitialized_buffer<index_int, 1, 16> count;
+    // 16-byte aligned so the loads of a lane's run of k merge
+    __shared__ uninitialized_buffer<typename A::type, group::tile.elements(), 16> columns;
     auto idx     = make_index();
     const auto g = group::grid.multi(idx.group);
     group{functions{weight, output},

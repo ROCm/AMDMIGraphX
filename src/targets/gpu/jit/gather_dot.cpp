@@ -37,7 +37,9 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <algorithm>
+#include <cassert>
 #include <functional>
+#include <iterator>
 #include <numeric>
 
 namespace migraphx {
@@ -96,6 +98,8 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
     {
         constexpr std::size_t local_memory = 64 * 1024;
         const auto list_bytes              = (a.lens().front() + 3 * block) * sizeof(std::uint32_t);
+        // fuse_gather_dot limits the rows so their list leaves room
+        assert(list_bytes < local_memory);
         return (local_memory - list_bytes) / (block * waves * a.type_size()) / 32 * 32;
     }
 
@@ -116,25 +120,29 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
                join_strings(params, ", ") + ") { return " + result + "; }\n";
     }
 
-    // The output submodule with the column of the group or the next of the
-    // other inputs for each of its args, the one column without the submodule
-    static std::string output_function(const module* m, const std::vector<std::int64_t>& args)
+    // The output function: each arg of the pointwise operator reads a column
+    // of the group or the next other input. Without a submodule it returns
+    // the one column.
+    static std::string output_function(const module* m,
+                                       const std::vector<optional<std::size_t>>& args)
     {
         if(m == nullptr)
             return output_returning(0, "x[0]");
         std::size_t n = 0;
         std::vector<std::string> call_args;
-        std::transform(
-            args.begin(), args.end(), std::back_inserter(call_args), [&](std::int64_t column) {
-                if(column >= 0)
-                    return "x[" + std::to_string(column) + "]";
-                return "e" + std::to_string(n++) + "[i]";
-            });
+        std::transform(args.begin(),
+                       args.end(),
+                       std::back_inserter(call_args),
+                       [&](const optional<std::size_t>& column) {
+                           if(column.has_value())
+                               return "x[" + std::to_string(*column) + "]";
+                           return "e" + std::to_string(n++) + "[i]";
+                       });
         return gen::generate_pointwise(*m, "gather_dot_output_impl") +
                output_returning(n, "gather_dot_output_impl(" + join_strings(call_args, ", ") + ")");
     }
 
-    // What the weights submodule says of the weight tensors
+    // What the kernel needs from the weights submodule
     struct weights_plan
     {
         // the weight tensors that store two int4 elements per byte
@@ -148,10 +156,10 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
     // The instruction a submodule returns
     static instruction_ref result_of(const module& m)
     {
-        if(m.begin() == m.end() or std::prev(m.end())->name() != "@return" or
-           std::prev(m.end())->inputs().size() != 1)
+        const auto rets = m.get_returns();
+        if(rets.size() != 1)
             MIGRAPHX_THROW("gpu::gather_dot: a submodule must return one result");
-        return std::prev(m.end())->inputs().front();
+        return rets.front();
     }
 
     // The weights submodule returns its parameter, which is the table, or
@@ -198,14 +206,16 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
         return result;
     }
 
-    // What the output submodule says of the result
+    // What the kernel needs from the output submodule
     struct output_plan
     {
         // the columns of a group
         std::size_t group = 1;
         // the column of the group each input of the pointwise operator
-        // reads, -1 for the next of the other inputs
-        std::vector<std::int64_t> args = {};
+        // reads, nothing for the next of the other inputs
+        std::vector<optional<std::size_t>> args = {};
+        // the number of other inputs
+        std::size_t others = 0;
         // the pointwise submodule computing an element of the result
         const module* function = nullptr;
     };
@@ -216,7 +226,7 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
     {
         const auto names = m.get_parameter_names();
         auto pw          = result_of(m);
-        if(pw->name() != "pointwise" or names.empty())
+        if(pw->name() != "pointwise")
             MIGRAPHX_THROW("gpu::gather_dot: the output submodule must return a pointwise "
                            "operator of its parameters");
         auto sums = m.get_parameter(names.front());
@@ -227,12 +237,12 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
         std::transform(pw->inputs().begin(),
                        pw->inputs().end(),
                        std::back_inserter(result.args),
-                       [&](instruction_ref input) -> std::int64_t {
+                       [&](instruction_ref input) -> optional<std::size_t> {
                            auto column = find_gather_dot_column(input);
                            if(not column.has_value() or column->sums != sums)
                            {
                                others.push_back(input);
-                               return -1;
+                               return nullopt;
                            }
                            groups.push_back(column->group);
                            return column->column;
@@ -250,7 +260,8 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
                           }))
             MIGRAPHX_THROW("gpu::gather_dot: the output submodule must read its other "
                            "parameters in order");
-        result.group = groups.front();
+        result.group  = groups.front();
+        result.others = others.size();
         return result;
     }
 
@@ -279,19 +290,26 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
         // when the chunk of k would get short.
         const std::vector<std::size_t> wave_counts = {16, 8, 4, 2};
         auto fit = std::find_if(wave_counts.begin(), wave_counts.end(), [&](std::size_t w) {
-            return max_chunk(w, inputs.front()) >= std::min<std::size_t>(k, 64);
+            return max_chunk(w, a) >= std::min<std::size_t>(k, 64);
         });
         const std::size_t waves = fit == wave_counts.end() ? 1 : *fit;
+        const auto chunk        = max_chunk(waves, a);
         hip_compile_options options;
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = "gather_dot_kernel";
         // the weight tensors follow the rows and the indices
         constexpr std::size_t first_weight = 2;
-        for(auto i : packed)
-            options.type_overrides[first_weight + i] =
-                inputs.at(first_weight + i).type() == shape::int8_type ? "migraphx::int4x2_t"
-                                                                       : "migraphx::uint4x2_t";
+        std::transform(packed.begin(),
+                       packed.end(),
+                       std::inserter(options.type_overrides, options.type_overrides.end()),
+                       [&](std::size_t i) {
+                           const bool is_signed =
+                               inputs.at(first_weight + i).type() == shape::int8_type;
+                           return std::make_pair(first_weight + i,
+                                                 std::string{is_signed ? "migraphx::int4x2_t"
+                                                                       : "migraphx::uint4x2_t"});
+                       });
         // the lens of the matrices with the axis the bytes are unpacked
         // along in pairs, which a packed tensor stores as one element
         const std::size_t pair = packed.empty() ? 1 : 2;
@@ -316,11 +334,8 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
                         inputs.begin() + first_weight + nweights,
                         [&](const shape& s) { return s.strides().at(run_axis) <= 1; });
 
-        // the tiles of rows that take the columns in local memory together
-        constexpr std::size_t tile_batch = 4;
-
         std::string settings;
-        settings += constant("rows", inputs.front().lens().front());
+        settings += constant("rows", a.lens().front());
         settings += constant("entries", entries);
         settings += constant("k", k);
         settings += constant("n", n);
@@ -333,8 +348,7 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
         settings += constant("bias", v.at("bias").to<std::size_t>());
         settings += constant("group", group);
         settings += constant("col_blocks", waves);
-        settings += constant("tile_batch", tile_batch);
-        settings += constant("k_chunk", std::min(k, max_chunk(waves, inputs.front())));
+        settings += constant("k_chunk", std::min(k, chunk));
         settings += "static constexpr auto k_space = " +
                     generate_make_shape(shape{shape::float_type, k_lens}) + ";\n";
         settings += "static constexpr auto n_space = " +
@@ -355,21 +369,20 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation&) const
     {
-        const auto& mods = ins->module_inputs();
-        if(mods.empty() or mods.size() > 2)
-            MIGRAPHX_THROW("gpu::gather_dot: expects the weights submodule, then the output "
-                           "submodule if there is one");
-        const auto inputs        = to_shapes(ins->inputs());
-        const auto weights       = read_weights(*mods.front());
-        const auto output        = mods.size() == 2 ? read_output(*mods.back()) : output_plan{};
-        const auto nweights      = mods.front()->get_parameter_names().size();
-        const std::size_t others = std::count(output.args.begin(), output.args.end(), -1);
+        // the weights submodule, then the output submodule if there is one
+        const auto& mods    = ins->module_inputs();
+        const auto inputs   = to_shapes(ins->inputs());
+        const auto weights  = read_weights(*mods.front());
+        const auto output   = mods.size() == 2 ? read_output(*mods.back()) : output_plan{};
+        const auto nweights = mods.front()->get_parameter_names().size();
         // the rows, the indices and the output buffer
         constexpr std::size_t fixed = 3;
-        value v                     = value::object{};
-        v["weights"]                = nweights;
         // the input no submodule accounts for
-        v["bias"]        = inputs.size() - fixed - nweights - others;
+        const std::size_t bias = inputs.size() - fixed - nweights - output.others;
+        assert(bias <= 1);
+        value v          = value::object{};
+        v["weights"]     = nweights;
+        v["bias"]        = bias;
         v["matrices"]    = to_value(mods.front()->get_output_shapes().front().lens());
         v["packed"]      = to_value(weights.packed);
         v["unpack_axis"] = weights.unpack_axis;

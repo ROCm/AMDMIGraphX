@@ -36,6 +36,7 @@
 #include <migraphx/kernels/tuple.hpp>
 #include <migraphx/kernels/unpack_int4.hpp>
 #include <migraphx/kernels/matmul.hpp>
+#include <migraphx/kernels/ops.hpp>
 
 namespace migraphx {
 namespace gather_dot_detail {
@@ -585,11 +586,10 @@ struct gather_dot_group
         {
             if constexpr(sum_run > 1)
             {
-                const auto x =
+                result += vec_reduce(
                     convert<acc_t>(load_row<sum_run>(arow, k)) *
-                    convert<acc_t>(b.template compute<sum_run>(b.template load<sum_run>(k, n)));
-                for(index_int i = 0; i < sum_run; i++)
-                    result += x[i];
+                        convert<acc_t>(b.template compute<sum_run>(b.template load<sum_run>(k, n))),
+                    op::sum{});
             }
             else
             {

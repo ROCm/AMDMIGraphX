@@ -134,6 +134,32 @@ TEST_CASE(skip_convert_dyn_slice_metadata)
     EXPECT(mm1 == mm2);
 }
 
+TEST_CASE(skip_convert_concat_past_present)
+{
+    migraphx::shape data_shape{migraphx::shape::half_type, {1, 2, 4, 4}};
+    migraphx::shape cache_shape{migraphx::shape::half_type, {1, 2, 8, 4}};
+    migraphx::shape seqlens_shape{migraphx::shape::int32_type, {1, 1}};
+    migraphx::shape sequence_shape{migraphx::shape::int64_type, {1}};
+
+    migraphx::module mm1;
+    {
+        auto data     = mm1.add_parameter("data", data_shape);
+        auto seqlens  = mm1.add_parameter("seqlens", seqlens_shape);
+        auto sequence = mm1.add_parameter("sequence", sequence_shape);
+        auto cache    = mm1.add_parameter("cache", cache_shape);
+        mm1.add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}),
+                            data,
+                            seqlens,
+                            sequence,
+                            cache);
+    }
+    auto mm2 = mm1;
+    run_pass(
+        mm1,
+        {migraphx::shape::half_type, migraphx::shape::int32_type, migraphx::shape::int64_type});
+    EXPECT(mm1 == mm2);
+}
+
 TEST_CASE(unpack_int4_skipped)
 {
     migraphx::shape ps{migraphx::shape::uint8_type, {2, 2}};

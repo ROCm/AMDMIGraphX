@@ -1163,4 +1163,34 @@ TEST_CASE(select_module_update2)
     EXPECT(p0 == p1);
 }
 
+TEST_CASE(static_broadcast_shape_donors)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape sx{migraphx::shape::float_type, {1, 4}};
+        migraphx::shape sy{migraphx::shape::float_type, {3, 1}};
+        migraphx::shape sz{migraphx::shape::float_type, {2, 1, 1}};
+        auto x = m0.add_parameter("x", sx);
+        auto y = m0.add_parameter("y", sy);
+        auto z = m0.add_parameter("z", sz);
+        auto r = m0.add_instruction(migraphx::make_op("multibroadcast"), x, y, z);
+        m0.add_return({r});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape sx{migraphx::shape::float_type, {1, 4}};
+        migraphx::shape sy{migraphx::shape::float_type, {3, 1}};
+        migraphx::shape sz{migraphx::shape::float_type, {2, 1, 1}};
+        auto x = m1.add_parameter("x", sx);
+        m1.add_parameter("y", sy);
+        m1.add_parameter("z", sz);
+        auto r =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
+        m1.add_return({r});
+    }
+    EXPECT(m0 == m1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

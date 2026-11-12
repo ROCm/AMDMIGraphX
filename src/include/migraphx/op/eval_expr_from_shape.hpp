@@ -68,8 +68,7 @@ struct eval_expr_from_shape
                 if(d.is_symbolic())
                 {
                     available.emplace(d.sym_expr, sym::lit(1));
-                    if(d.sym_expr.name() == "variable")
-                        available.emplace(sym::as_symbol(d.sym_expr), sym::lit(1));
+                    available.emplace(sym::as_symbol(d.sym_expr), sym::lit(1));
                 }
         }
         for(const auto& expression : expressions)
@@ -120,8 +119,7 @@ struct eval_expr_from_shape
                             "dimensions");
                 };
                 add_value(dim.sym_expr, len);
-                if(dim.sym_expr.name() == "variable")
-                    add_value(sym::as_symbol(dim.sym_expr), len);
+                add_value(sym::as_symbol(dim.sym_expr), len);
             }
         }
 

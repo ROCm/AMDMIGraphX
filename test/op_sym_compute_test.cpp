@@ -338,6 +338,17 @@ TEST_CASE(op_sym_equal)
     EXPECT(result == symbolic_tensor_value{lit(1), lit(0)});
 }
 
+TEST_CASE(op_sym_equal_disjoint_compound_range)
+{
+    const auto s = var("S", {1, 64});
+    auto result  = symbolic_compute(
+        migraphx::make_op("equal"),
+        shape{shape::int64_type, {2}},
+        {shape{shape::int64_type, {2}}, shape{shape::int64_type, {2}}},
+        {symbolic_tensor_value{s, s + lit(16)}, symbolic_tensor_value{lit(-1), lit(-1)}});
+    EXPECT(result == symbolic_tensor_value{lit(0), lit(0)});
+}
+
 TEST_CASE(op_sym_where)
 {
     const auto s = var("S", {1, 16});

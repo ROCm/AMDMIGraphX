@@ -1,0 +1,2 @@
+huggingface_hub>=0.36
+onnx>=1.17

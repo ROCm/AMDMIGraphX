@@ -28,7 +28,6 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/serialize.hpp>
 #include <migraphx/ranges.hpp>
 #include <test.hpp>
 #include "kernel_names.hpp"
@@ -60,14 +59,12 @@ TEST_CASE(gather_dot)
         auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {8, 1, 3}});
         auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
         auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
-        auto dot = mm->add_instruction(
-            migraphx::make_op(
-                "gpu::gather_dot",
-                {{"layout",
-                  migraphx::to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}}),
-            x,
-            idx,
-            w);
+        auto rows = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto* wm  = p2.create_module("main:gather_dot0");
+        wm->set_bypass();
+        wm->add_return({wm->add_parameter("x0", {w->get_shape().type(), w->get_shape().lens()})});
+        auto sums = mm->add_instruction(migraphx::make_op("gpu::gather_dot"), {rows, idx, w}, {wm});
+        auto dot  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sums);
         mm->add_return({dot});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -98,14 +95,13 @@ TEST_CASE(gather_dot_transpose)
         auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
         auto wt =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), w);
-        auto dot = mm->add_instruction(
-            migraphx::make_op(
-                "gpu::gather_dot",
-                {{"layout",
-                  migraphx::to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}}),
-            x,
-            idx,
-            wt);
+        auto rows = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto* wm  = p2.create_module("main:gather_dot0");
+        wm->set_bypass();
+        wm->add_return({wm->add_parameter("x0", {wt->get_shape().type(), wt->get_shape().lens()})});
+        auto sums =
+            mm->add_instruction(migraphx::make_op("gpu::gather_dot"), {rows, idx, wt}, {wm});
+        auto dot = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sums);
         mm->add_return({dot});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -160,14 +156,13 @@ TEST_CASE(gather_dot_pointwise_unpack_int4)
         });
         auto wt =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dq);
-        auto dot = mm->add_instruction(
-            migraphx::make_op(
-                "gpu::gather_dot",
-                {{"layout",
-                  migraphx::to_value(migraphx::shape{migraphx::shape::half_type, {4, 4, 6}})}}),
-            x,
-            idx,
-            wt);
+        auto rows = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto* wm  = p2.create_module("main:gather_dot0");
+        wm->set_bypass();
+        wm->add_return({wm->add_parameter("x0", {wt->get_shape().type(), wt->get_shape().lens()})});
+        auto sums =
+            mm->add_instruction(migraphx::make_op("gpu::gather_dot"), {rows, idx, wt}, {wm});
+        auto dot = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sums);
         mm->add_return({dot});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -203,14 +198,13 @@ TEST_CASE(gather_dot_pointwise_row_broadcast)
         auto sb =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3, 5}}}), s);
         auto ws  = add_pointwise(p2, "main:pointwise0", {w, sb}, single_pointwise("mul"));
-        auto dot = mm->add_instruction(
-            migraphx::make_op(
-                "gpu::gather_dot",
-                {{"layout",
-                  migraphx::to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}}),
-            x,
-            idx,
-            ws);
+        auto rows = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto* wm  = p2.create_module("main:gather_dot0");
+        wm->set_bypass();
+        wm->add_return({wm->add_parameter("x0", {ws->get_shape().type(), ws->get_shape().lens()})});
+        auto sums =
+            mm->add_instruction(migraphx::make_op("gpu::gather_dot"), {rows, idx, ws}, {wm});
+        auto dot = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sums);
         mm->add_return({dot});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -256,14 +250,12 @@ TEST_CASE(gather_dot_few_rows_lower_threshold)
         auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {3, 1, 3}});
         auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {8, 3, 5}});
         auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {3}});
-        auto dot = mm->add_instruction(
-            migraphx::make_op(
-                "gpu::gather_dot",
-                {{"layout",
-                  migraphx::to_value(migraphx::shape{migraphx::shape::float_type, {8, 3, 5}})}}),
-            x,
-            idx,
-            w);
+        auto rows = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto* wm  = p2.create_module("main:gather_dot0");
+        wm->set_bypass();
+        wm->add_return({wm->add_parameter("x0", {w->get_shape().type(), w->get_shape().lens()})});
+        auto sums = mm->add_instruction(migraphx::make_op("gpu::gather_dot"), {rows, idx, w}, {wm});
+        auto dot  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sums);
         mm->add_return({dot});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -338,16 +330,13 @@ TEST_CASE(gather_dot_bias)
         auto b   = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
         auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
         auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), b);
-        auto dot = mm->add_instruction(
-            migraphx::make_op(
-                "gpu::gather_dot",
-                {{"layout",
-                  migraphx::to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})},
-                 {"bias", true}}),
-            x,
-            idx,
-            w,
-            bu);
+        auto rows = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto* wm  = p2.create_module("main:gather_dot0");
+        wm->set_bypass();
+        wm->add_return({wm->add_parameter("x0", {w->get_shape().type(), w->get_shape().lens()})});
+        auto sums =
+            mm->add_instruction(migraphx::make_op("gpu::gather_dot"), {rows, idx, w, bu}, {wm});
+        auto dot = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sums);
         mm->add_return({dot});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -385,16 +374,13 @@ TEST_CASE(gather_dot_bias_convert)
         auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), b);
         auto bc  = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), bu);
-        auto dot = mm->add_instruction(
-            migraphx::make_op(
-                "gpu::gather_dot",
-                {{"layout",
-                  migraphx::to_value(migraphx::shape{migraphx::shape::half_type, {4, 3, 5}})},
-                 {"bias", true}}),
-            x,
-            idx,
-            w,
-            bc);
+        auto rows = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto* wm  = p2.create_module("main:gather_dot0");
+        wm->set_bypass();
+        wm->add_return({wm->add_parameter("x0", {w->get_shape().type(), w->get_shape().lens()})});
+        auto sums =
+            mm->add_instruction(migraphx::make_op("gpu::gather_dot"), {rows, idx, w, bc}, {wm});
+        auto dot = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sums);
         mm->add_return({dot});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -429,14 +415,13 @@ TEST_CASE(gather_dot_bias_different_indices)
         auto b    = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
         auto idx1 = mm->add_parameter("idx1", {migraphx::shape::int32_type, {8}});
         auto idx2 = mm->add_parameter("idx2", {migraphx::shape::int32_type, {8}});
-        auto dot  = mm->add_instruction(
-            migraphx::make_op(
-                "gpu::gather_dot",
-                {{"layout",
-                  migraphx::to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}}),
-            x,
-            idx1,
-            w);
+        auto rows = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto* wm  = p2.create_module("main:gather_dot0");
+        wm->set_bypass();
+        wm->add_return({wm->add_parameter("x0", {w->get_shape().type(), w->get_shape().lens()})});
+        auto sums =
+            mm->add_instruction(migraphx::make_op("gpu::gather_dot"), {rows, idx1, w}, {wm});
+        auto dot = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sums);
         auto bg  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx2);
         auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bg);
         auto add = mm->add_instruction(migraphx::make_op("add"), dot, bu);
@@ -471,15 +456,13 @@ TEST_CASE(gather_dot_bias_multi_use)
         auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {4, 3, 5}});
         auto b   = mm->add_parameter("b", {migraphx::shape::float_type, {4, 5}});
         auto idx = mm->add_parameter("idx", {migraphx::shape::int32_type, {8}});
-        auto dot = mm->add_instruction(
-            migraphx::make_op(
-                "gpu::gather_dot",
-                {{"layout",
-                  migraphx::to_value(migraphx::shape{migraphx::shape::float_type, {4, 3, 5}})}}),
-            x,
-            idx,
-            w);
-        auto bg  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx);
+        auto rows = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto* wm  = p2.create_module("main:gather_dot0");
+        wm->set_bypass();
+        wm->add_return({wm->add_parameter("x0", {w->get_shape().type(), w->get_shape().lens()})});
+        auto sums = mm->add_instruction(migraphx::make_op("gpu::gather_dot"), {rows, idx, w}, {wm});
+        auto dot  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sums);
+        auto bg   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx);
         auto bu  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bg);
         auto add = mm->add_instruction(migraphx::make_op("add"), dot, bu);
         mm->add_return({add, dot});

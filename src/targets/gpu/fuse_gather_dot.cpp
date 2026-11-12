@@ -31,150 +31,151 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/serialize.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/param_utils.hpp>
 #include <algorithm>
+#include <functional>
+#include <numeric>
 #include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// out[r] = a[r] . b[indices[r]]: the rows a {rows, 1, k} times the matrix
-// each row gathers from a table of matrices b {entries, k, n}, giving
-// {rows, 1, n}. The inputs are the rows, the indices, the weight tensors,
-// the bias, then the other inputs of the column submodule and those of the
-// group submodule. fuse_ops fuses the submodules, named in `modules` in their
-// order.
+// out[r, n...] = sum over k... of a[r, k...] * b[indices[r], k..., n...]: the
+// rows a {rows, k axes...} times the matrix each row gathers from a table of
+// matrices b {entries, k axes..., n axes...}, giving the sums
+// {rows, n axes...}. The rank of the rows gives the number of k axes. The
+// inputs are the rows, the indices, the weight tensors, the bias if there is
+// one, then the other inputs of the output submodule.
 //
-// The `weights` weight tensors share the lens of a weight space. Without the
-// "weights" submodule there is one and its elements are the elements of the
-// matrices; with that pointwise submodule the elements are computed from all
-// of them. `layout` places the matrices in that space: it has the lens
-// {entries, k, n} and its strides count elements of the weight space in
-// row-major order. A weight tensor listed in `packed` stores two int4
-// elements of the last axis of the weight space per byte, so it has half
-// that length.
+// The weights submodule computes the table from one weight tensor for each
+// of its parameters. It returns its one parameter when that tensor is the
+// table, else a pointwise operator of its parameters, of which those read
+// through an unpack_int4 store two int4 elements per byte along its axis.
 //
-// With `bias` every sum adds the bias of its column for the entry the row
-// gathers: the bias is a table with the n elements of a row for each of the
-// entries.
+// The input after the weight tensors that no submodule accounts for is the
+// bias: a table with the n elements of a row for each of the entries. Every
+// sum adds the element of its column for the entry the row gathers.
 //
-// The "column" pointwise submodule is applied to every sum: the sum is its
-// input `column_dot` and its other `column_inputs` inputs have the lens of
-// the sums. The "group" pointwise submodule then combines every `group`
-// adjacent columns into one, giving rows * n / group elements: `group_args`
-// gives for each of its inputs the column of the group it reads, or -1 for
-// the next of its other inputs, which have the lens of its output.
-//
-// The other inputs of the column submodule listed in `column_tables` and
-// those of the group submodule listed in `group_tables` are tables instead:
-// they have the elements of one row for each of the entries, and a row reads
-// those of the entry it gathers.
+// The output submodule, the second if there is one, computes the result
+// from the sums, its first parameter, and its other parameters: a pointwise
+// operator of columns of the sums, see find_gather_dot_column.
 struct gather_dot
 {
-    shape layout;
-    std::vector<std::size_t> packed        = {};
-    std::size_t weights                    = 1;
-    bool bias                              = false;
-    std::vector<std::string> modules       = {};
-    std::size_t column_dot                 = 0;
-    std::size_t column_inputs              = 0;
-    std::vector<std::size_t> column_tables = {};
-    std::size_t group                      = 1;
-    std::vector<std::int64_t> group_args   = {};
-    std::vector<std::size_t> group_tables  = {};
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.layout, "layout"),
-                    f(self.packed, "packed"),
-                    f(self.weights, "weights"),
-                    f(self.bias, "bias"),
-                    f(self.modules, "modules"),
-                    f(self.column_dot, "column_dot"),
-                    f(self.column_inputs, "column_inputs"),
-                    f(self.column_tables, "column_tables"),
-                    f(self.group, "group"),
-                    f(self.group_args, "group_args"),
-                    f(self.group_tables, "group_tables"));
-    }
-
-    // Whether the inputs from first listed in tables have a row of elements
-    // for each of the entries
-    bool has_tables(const std::vector<shape>& inputs,
-                    std::size_t first,
-                    const std::vector<std::size_t>& tables,
-                    std::size_t row_elements) const
-    {
-        return std::all_of(tables.begin(), tables.end(), [&](std::size_t i) {
-            return first + i < inputs.size() and
-                   inputs[first + i].elements() == layout.lens().front() * row_elements;
-        });
-    }
-
     std::string name() const { return "gpu::gather_dot"; }
 
-    // The type of the output of the last submodule applied to the sums
-    shape::type_t output_type(shape::type_t sum, const std::vector<module_ref>& mods) const
+    // Whether the shapes from first have the lens of the named parameters
+    // of the submodule
+    static bool matches_parameters(const module& m,
+                                   std::vector<std::string>::const_iterator names_first,
+                                   std::vector<std::string>::const_iterator names_last,
+                                   std::vector<shape>::const_iterator first)
     {
-        if(not contains(modules, "column") and not contains(modules, "group"))
-            return sum;
-        return mods.back()->get_output_shapes().front().type();
+        const auto shapes = m.get_parameter_shapes();
+        return std::equal(
+            names_first, names_last, first, [&](const std::string& name, const shape& s) {
+                return shapes.at(name).lens() == s.lens();
+            });
     }
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
         constexpr std::size_t first = 2;
-        if(mods.size() != modules.size())
-            MIGRAPHX_THROW("gather_dot: expects one submodule for each of its modules");
-        const std::size_t first_bias   = first + weights;
-        const std::size_t first_column = first_bias + (bias ? 1 : 0);
-        if(weights == 0 or inputs.size() < first_column + column_inputs)
-            MIGRAPHX_THROW("gather_dot: expects rows, indices, weights, bias and submodule inputs");
-        if(weights > 1 and not contains(modules, "weights"))
-            MIGRAPHX_THROW("gather_dot: several weight tensors need the weights submodule");
+        if(mods.empty() or mods.size() > 2)
+            MIGRAPHX_THROW("gather_dot: expects the weights submodule, then the output submodule "
+                           "if there is one");
+        const auto names  = mods.front()->get_parameter_names();
+        const auto onames = mods.back()->get_parameter_names();
+        if(names.empty() or onames.empty())
+            MIGRAPHX_THROW("gather_dot: a submodule has no parameters");
+        // the output submodule takes the sums, then its other inputs
+        const std::size_t others     = mods.size() == 2 ? onames.size() - 1 : 0;
+        const std::size_t first_bias = first + names.size();
+        if(inputs.size() < first_bias + others or inputs.size() > first_bias + others + 1)
+            MIGRAPHX_THROW("gather_dot: expects rows, indices, weights, bias and the other inputs "
+                           "of the output submodule");
+        // the input no submodule accounts for
+        const bool bias               = inputs.size() > first_bias + others;
+        const std::size_t first_other = first_bias + (bias ? 1 : 0);
         if(std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); }))
             MIGRAPHX_THROW("gather_dot: dynamic shapes are not supported");
         const auto& a       = inputs[0];
         const auto& indices = inputs[1];
-        if(a.ndim() != 3 or a.lens()[1] != 1)
-            MIGRAPHX_THROW("gather_dot: the rows must have the lens {rows, 1, k}");
+        if(a.ndim() < 2)
+            MIGRAPHX_THROW("gather_dot: the rows must have the lens {rows, k axes...}");
         if(indices.ndim() != 1 or indices.lens().front() != a.lens().front())
             MIGRAPHX_THROW("gather_dot: expects one index per row");
-        if(layout.ndim() != 3 or layout.lens()[1] != a.lens()[2])
-            MIGRAPHX_THROW("gather_dot: the layout must have the lens {entries, k, n}");
-        auto space = inputs[first].lens();
-        if(contains(packed, 0))
-            space.back() *= 2;
-        for(std::size_t i = 0; i < weights; i++)
-        {
-            auto lens = inputs[first + i].lens();
-            if(contains(packed, i))
-                lens.back() *= 2;
-            if(lens != space)
-                MIGRAPHX_THROW("gather_dot: the weight tensors must share the weight space");
-        }
-        if(layout.element_space() > shape{layout.type(), space}.elements())
-            MIGRAPHX_THROW("gather_dot: the layout reads past the weight space");
-        const auto n = layout.lens()[2];
-        if(group == 0 or n % group != 0)
-            MIGRAPHX_THROW("gather_dot: the group must divide the columns");
+        if(not matches_parameters(
+               *mods.front(), names.begin(), names.end(), inputs.begin() + first))
+            MIGRAPHX_THROW(
+                "gather_dot: the weight tensors must have the lens of the parameters of the "
+                "weights submodule");
+        const auto matrices = mods.front()->get_output_shapes().front().lens();
+        if(matrices.size() < a.ndim() + 1 or
+           not std::equal(a.lens().begin() + 1, a.lens().end(), matrices.begin() + 1))
+            MIGRAPHX_THROW(
+                "gather_dot: the matrices must have the lens {entries, k axes..., n axes...}");
+        std::vector<std::size_t> lens = {a.lens().front()};
+        lens.insert(lens.end(), matrices.begin() + a.ndim(), matrices.end());
+        const auto n = std::accumulate(
+            matrices.begin() + a.ndim(), matrices.end(), std::size_t{1}, std::multiplies<>{});
         if(bias and (inputs[first_bias].type() != a.type() or
-                     inputs[first_bias].elements() != layout.lens().front() * n))
+                     inputs[first_bias].elements() != matrices.front() * n))
             MIGRAPHX_THROW(
                 "gather_dot: the bias must have the type of the rows and n elements per entry");
-        if(std::any_of(column_tables.begin(),
-                       column_tables.end(),
-                       [&](std::size_t i) { return i >= column_inputs; }) or
-           not has_tables(inputs, first_column, column_tables, n) or
-           not has_tables(inputs, first_column + column_inputs, group_tables, n / group))
-            MIGRAPHX_THROW("gather_dot: a table must have a row of elements for each entry");
-        return shape{output_type(a.type(), mods), {a.lens().front(), 1, n / group}};
+        if(mods.size() == 1)
+            return shape{a.type(), lens};
+        const auto& output = *mods.back();
+        if(output.get_parameter_shapes().at(onames.front()).lens() != lens or
+           not matches_parameters(
+               output, onames.begin() + 1, onames.end(), inputs.begin() + first_other))
+            MIGRAPHX_THROW("gather_dot: the output submodule must take the sums, then inputs "
+                           "with the lens of its other parameters");
+        const auto result = output.get_output_shapes().front();
+        return shape{result.type(), result.lens()};
     }
 };
 MIGRAPHX_REGISTER_OP(gather_dot);
+
+// The tensor a view reads in its order, through views nothing else reads
+static optional<instruction_ref> find_viewed(instruction_ref view)
+{
+    // the views of a tensor that keep it standard keep its order
+    if(not view->get_shape().standard())
+        return nullopt;
+    auto result = view;
+    while(contains({"reshape_lazy", "squeeze", "unsqueeze"}, result->name()) and
+          result->inputs().front()->outputs().size() == 1)
+        result = result->inputs().front();
+    return result;
+}
+
+optional<gather_dot_column> find_gather_dot_column(instruction_ref ins)
+{
+    auto slice = ins;
+    while(contains({"squeeze", "unsqueeze"}, slice->name()) and slice->outputs().size() == 1)
+        slice = slice->inputs().front();
+    if(slice->name() != "slice" or slice->outputs().size() != 1)
+    {
+        auto sums = find_viewed(ins);
+        if(not sums.has_value())
+            return nullopt;
+        return gather_dot_column{*sums, ins};
+    }
+    auto v         = slice->get_operator().to_value();
+    auto axes      = v.at("axes").to_vector<std::size_t>();
+    auto starts    = v.at("starts").to_vector<std::size_t>();
+    auto ends      = v.at("ends").to_vector<std::size_t>();
+    auto view      = slice->inputs().front();
+    const auto& vs = view->get_shape();
+    if(axes.size() != 1 or axes.front() + 1 != vs.ndim() or ends.front() != starts.front() + 1)
+        return nullopt;
+    auto sums = find_viewed(view);
+    if(not sums.has_value())
+        return nullopt;
+    return gather_dot_column{*sums, view, slice, starts.front(), vs.lens().back()};
+}
 
 namespace {
 
@@ -370,11 +371,14 @@ struct table_lifter
 struct find_gather_dot
 {
     float min_rows_per_entry = 0.5f;
+    // the number of weights submodules added, to name them
+    std::size_t* counter = nullptr;
 
     auto matcher() const { return match::name("dot"); }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
+        auto& m        = mpm.get_module();
         auto ins       = r.result;
         auto a         = ins->inputs().front();
         auto b         = ins->inputs().back();
@@ -393,11 +397,16 @@ struct find_gather_dot
         auto table = lifter.lift(m, ins, b);
         if(not table.has_value())
             return;
-        auto lens    = bs.lens();
-        lens.front() = lifter.entries;
-        auto dot     = m.insert_instruction(
-            ins, gather_dot{shape{bs.type(), lens}}, {a, *lifter.indices, *table});
-        m.replace_instruction(ins, dot);
+        // the weights submodule returns the table
+        const auto& ts = (*table)->get_shape();
+        auto* wm       = mpm.create_module(m.name() + ":gather_dot" + std::to_string((*counter)++));
+        wm->set_bypass();
+        wm->add_return({wm->add_parameter(param_name(0), shape{ts.type(), ts.lens()})});
+        // the rows {rows, k} times the matrices {entries, k, n} give {rows, n}
+        auto vectors = m.insert_instruction(ins, make_op("squeeze", {{"axes", {1}}}), a);
+        auto dot =
+            m.insert_instruction(ins, gather_dot{}, {vectors, *lifter.indices, *table}, {wm});
+        m.replace_instruction(ins, make_op("unsqueeze", {{"axes", {1}}}), dot);
     }
 };
 
@@ -408,37 +417,40 @@ struct find_gather_dot_bias
 {
     auto matcher() const
     {
+        // the sums are read through the unsqueeze find_gather_dot left
+        auto sums = match::name("unsqueeze")(
+            match::used_once(),
+            match::arg(0)(match::name("gpu::gather_dot")(match::used_once()).bind("dot")));
         return match::name("add")(
-            match::either_arg(0, 1)(match::name("gpu::gather_dot")(match::used_once()).bind("dot"),
-                                    match::any().bind("bias")));
+            match::either_arg(0, 1)(sums.bind("sums"), match::any().bind("bias")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins            = r.result;
-        auto dot            = r.instructions["dot"];
-        auto bias           = r.instructions["bias"];
-        auto v              = dot->get_operator().to_value();
-        const auto& s       = dot->get_shape();
-        const auto& inputs  = dot->inputs();
-        const auto& bs      = bias->get_shape();
-        const auto nweights = v.at("weights").to<std::size_t>();
-        // only the sums as find_gather_dot left them
-        if(v.at("bias").to<bool>() or not dot->module_inputs().empty() or
-           inputs.size() != nweights + 2)
+        auto& m            = mpm.get_module();
+        auto ins           = r.result;
+        auto dot           = r.instructions["dot"];
+        auto sums          = r.instructions["sums"];
+        auto bias          = r.instructions["bias"];
+        const auto& s      = sums->get_shape();
+        const auto& inputs = dot->inputs();
+        const auto& bs     = bias->get_shape();
+        // only the sums as find_gather_dot left them, without a bias
+        if(dot->module_inputs().size() != 1 or inputs.size() != 3)
             return;
         if(bs.dynamic() or bs.lens() != s.lens() or bs.type() != s.type())
             return;
-        auto entries = from_value<shape>(v.at("layout")).lens().front();
+        auto entries = inputs.at(2)->get_shape().lens().front();
         // any number of rows per entry, as the rows are grouped already
         table_lifter lifter{s.lens().front(), 0.0f, inputs.at(1), entries};
         auto table = lifter.lift(m, ins, bias);
         if(not table.has_value())
             return;
-        v["bias"] = true;
+        // the bias follows the table
         auto args = inputs;
         args.push_back(*table);
-        m.replace_instruction(ins, make_op("gpu::gather_dot", v), args);
+        auto biased = m.insert_instruction(ins, dot->get_operator(), args, dot->module_inputs());
+        m.replace_instruction(ins, sums->get_operator(), biased);
     }
 };
 
@@ -448,9 +460,9 @@ void fuse_gather_dot::apply(module_pass_manager& mpm) const
 {
     if(not has_compiler_for("gpu::gather_dot"))
         return;
+    std::size_t counter = 0;
     // In the order of the instructions: the dot, then the add of its bias
-    match::find_matches(
-        mpm.get_module(), find_gather_dot{min_rows_per_entry}, find_gather_dot_bias{});
+    match::find_matches(mpm, find_gather_dot{min_rows_per_entry, &counter}, find_gather_dot_bias{});
 }
 
 } // namespace gpu

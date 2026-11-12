@@ -30,11 +30,11 @@
 
 // The grouped dot with a bias and a scale gathered by the same indices: the
 // bias is added to every sum and the scale multiplies the product of the two
-// columns of every pair, so the kernel reads both tables by the entry of a
-// row. Some indices count from the end of the tables. Half takes the matrix
-// instructions, float the fallback.
+// columns of every pair, so the kernel reads the bias by the entry of a row
+// and the gathered scale by the row. Some indices count from the end of the
+// tables. Half takes the matrix instructions, float the fallback.
 template <migraphx::shape::type_t T>
-struct test_gather_dot_grouped_tables : verify_program<test_gather_dot_grouped_tables<T>>
+struct test_gather_dot_grouped_pairs_input : verify_program<test_gather_dot_grouped_pairs_input<T>>
 {
     migraphx::program create_program() const
     {
@@ -69,5 +69,5 @@ struct test_gather_dot_grouped_tables : verify_program<test_gather_dot_grouped_t
     std::string section() const { return "gemm"; }
 };
 
-template struct test_gather_dot_grouped_tables<migraphx::shape::half_type>;
-template struct test_gather_dot_grouped_tables<migraphx::shape::float_type>;
+template struct test_gather_dot_grouped_pairs_input<migraphx::shape::half_type>;
+template struct test_gather_dot_grouped_pairs_input<migraphx::shape::float_type>;

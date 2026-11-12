@@ -31,9 +31,9 @@
 // The grouped dot with a bias gathered by the same indices and a pointwise
 // operator on the biased sums: it subtracts an input with an element per
 // sum and multiplies by a scale gathered by the same indices, so the kernel
-// reads the bias and the scale by the entry of a row and the other input by
-// the row. Some indices count from the end of the tables. Half takes the
-// matrix instructions, float the fallback.
+// reads the bias by the entry of a row and the gathered scale and the other
+// input by the row. Some indices count from the end of the tables. Half
+// takes the matrix instructions, float the fallback.
 template <migraphx::shape::type_t T>
 struct test_gather_dot_grouped_bias_column : verify_program<test_gather_dot_grouped_bias_column<T>>
 {

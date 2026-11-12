@@ -63,19 +63,24 @@ constexpr auto pack_range(Ts... xs)
     return sequence_c<N>([&](auto... is) { return pack(arg_c<is + Begin>()(xs...)...); });
 }
 
-// The index of a weight tensor at m in the weight space of Settings, whose
-// last axis is split in pairs: a packed tensor holds one element per pair
+// The index of a weight tensor at m in the weight space of Settings: the
+// axes of the matrices with the pair axis split in pairs, of which a packed
+// tensor holds one element each. The k and the n axes of the space are
+// k_space and n_space.
 template <class Settings, class W, class M>
 __device__ auto weight_index(W, M m)
 {
     constexpr index_int rank = get_shape_c<W>{}.lens.size();
+    constexpr index_int axis = Settings::pair_axis;
     array<index_int, rank> result{};
-    for(index_int d = 0; d + 1 < rank; d++)
+    for(index_int d = 0; d < axis; d++)
         result[d] = m[d];
     if constexpr(pack_factor<typename W::type>{} > 1)
-        result[rank - 1] = m[rank - 1];
+        result[axis] = m[axis];
     else
-        result[rank - 1] = m[rank - 1] * Settings::pair + m[rank];
+        result[axis] = m[axis] * Settings::pair + m[axis + 1];
+    for(index_int d = axis + 1; d < rank; d++)
+        result[d] = m[d + 1];
     return result;
 }
 
@@ -86,8 +91,7 @@ __device__ auto weight_element(W w, M m)
     const auto i = weight_index<Settings>(w, m);
     if constexpr(pack_factor<typename W::type>{} > 1)
     {
-        constexpr index_int rank = get_shape_c<W>{}.lens.size();
-        return unpack_int4(*remove_packed(&w[i]))[m[rank]];
+        return unpack_int4(*remove_packed(&w[i]))[m[Settings::pair_axis + 1]];
     }
     else
     {
@@ -95,22 +99,22 @@ __device__ auto weight_element(W w, M m)
     }
 }
 
-// The step of a weight tensor along the last axis of the weight space
-template <class W>
+// The step of a weight tensor along the innermost k axis of the matrices
+template <class Settings, class W>
 constexpr index_int weight_step()
 {
     constexpr auto s = get_shape_c<W>{};
-    return s.strides[s.strides.size() - 1];
+    return s.strides[Settings::run_axis];
 }
 
-// N elements of a weight tensor along the last axis of the weight space as
-// they are stored: the bytes of a packed tensor, and one element of a tensor
-// broadcast along the run
+// N elements of a weight tensor along the innermost k axis of the matrices
+// as they are stored: the bytes of a packed tensor, and one element of a
+// tensor broadcast along the run
 template <index_int N, class Settings, class W, class M>
 __device__ auto load_weights(W w, M m)
 {
     using type          = typename W::type;
-    constexpr auto step = weight_step<W>();
+    constexpr auto step = weight_step<Settings, W>();
     const auto i        = weight_index<Settings>(w, m);
     auto* p             = &w[i];
     if constexpr(pack_factor<type>{} > 1)
@@ -135,7 +139,7 @@ __device__ auto load_weights(W w, M m)
 }
 
 // The N elements from what load_weights stored
-template <index_int N, class W, class Stored>
+template <index_int N, class Settings, class W, class Stored>
 __device__ auto expand_weights(W, Stored x)
 {
     using type = typename W::type;
@@ -143,7 +147,7 @@ __device__ auto expand_weights(W, Stored x)
     {
         return unpack_int4(x);
     }
-    else if constexpr(weight_step<W>() == 0)
+    else if constexpr(weight_step<Settings, W>() == 0)
     {
         vec<type, N> result{};
         for(index_int r = 0; r < N; r++)
@@ -166,22 +170,31 @@ struct weight_loader
     index_int entry;
     index_int n0;
 
-    // Whether k..k+N-1 of a column are adjacent along the last axis of the
-    // weight space and stay inside it
+    // Whether k..k+N-1 of a column are loaded as a run: every weight tensor
+    // stores them adjacent or broadcast along the innermost k axis and they
+    // stay inside it
     template <index_int N>
     static constexpr bool is_run()
     {
-        constexpr auto space = Settings::space;
-        constexpr auto last  = space.lens[space.lens.size() - 2] * Settings::pair;
-        return Settings::layout.strides[1] == 1 and last % N == 0 and N % Settings::pair == 0;
+        return Settings::run_loads and Settings::run_len % N == 0 and N % Settings::pair == 0;
     }
 
     // The last columns of a workgroup may reach past the matrix: the loads
     // stay inside and the store drops the columns
     __device__ auto position(index_int k, index_int j) const
     {
-        const index_int col = n0 + j < Settings::n ? n0 + j : Settings::n - 1;
-        return Settings::space.multi(Settings::layout.index(make_array<index_int>(entry, k, col)));
+        const index_int col      = n0 + j < Settings::n ? n0 + j : Settings::n - 1;
+        const auto mk            = Settings::k_space.multi(k);
+        const auto mn            = Settings::n_space.multi(col);
+        constexpr index_int nk   = decltype(mk){}.size();
+        constexpr index_int rank = 1 + nk + decltype(mn){}.size();
+        array<index_int, rank> m{};
+        m[0] = entry;
+        for(index_int d = 0; d < nk; d++)
+            m[1 + d] = mk[d];
+        for(index_int d = 1 + nk; d < rank; d++)
+            m[d] = mn[d - 1 - nk];
+        return m;
     }
 
     __device__ T operator()(index_int k, index_int j) const
@@ -204,7 +217,8 @@ struct weight_loader
     __device__ vec<T, N> compute(Stored stored) const
     {
         return weights([&](auto... ws) {
-            return stored([&](auto... xs) { return convert<T>(f(expand_weights<N>(ws, xs)...)); });
+            return stored(
+                [&](auto... xs) { return convert<T>(f(expand_weights<N, Settings>(ws, xs)...)); });
         });
     }
 };
@@ -222,14 +236,47 @@ constexpr index_int stage_run()
         return stage_run<Loader, Chunk, K, N / 2>();
 }
 
+// The elements along the k axes of one of the rows {rows, k axes...}: the
+// rows with the first element of the row, and where that is stored for the
+// loads of a packed row
+template <class A>
+struct row_view
+{
+    A a;
+    index_int first;
+    decltype(A{}.data()) start;
+
+    // Whether the elements of a row are stored in order without gaps
+    static constexpr bool is_packed()
+    {
+        constexpr auto s = get_shape_c<A>{};
+        index_int stride = 1;
+        for(index_int d = s.lens.size() - 1; d > 0; d--)
+        {
+            if(s.strides[d] != stride)
+                return false;
+            stride *= s.lens[d];
+        }
+        return true;
+    }
+
+    __device__ auto& operator[](index_int k) const
+    {
+        if constexpr(is_packed())
+            return start[k];
+        else
+            return a[first + k];
+    }
+};
+
 } // namespace gather_dot_detail
 
-// out[r] = a[r] . b[indices[r]] for rows a {rows, 1, k} and a table of
-// matrices b {entries, k, n} that the weight function computes from the
-// weight tensors. The column function is applied to every sum with its other
-// inputs, which adds the bias when there is one, and the output function
-// combines the columns of a group into one output column with its other
-// inputs.
+// out[r] = a[r] . b[indices[r]] for rows a {rows, k axes...} and a table of
+// matrices b {entries, k axes..., n axes...} that the weight function
+// computes from the weight tensors: k and n here are the elements of their
+// axes in row-major order. Every sum adds the bias of its entry when there
+// is one, and the output function combines the columns of a group into one
+// output column with its other inputs.
 //
 // Each workgroup takes one entry and one block of 16 columns of its matrix
 // per wave. Its first wave lists the rows gathering the entry, so the entry
@@ -241,8 +288,9 @@ constexpr index_int stage_run()
 // first one reads the sums of the others from their lanes. Without a matrix
 // instruction every lane sums one row times one group of columns at a time.
 //
-// Settings gives the sizes, the layout of the matrices in the weight space,
-// the number of weight tensors and of other inputs of the column function,
+// Settings gives the sizes, the lens of the matrices with the axis of the
+// int4 pairs, the innermost k axis and whether the weight tensors are loaded
+// in runs along it, the number of weight tensors, whether there is a bias,
 // the blocks of columns per workgroup and the chunk of k; see
 // gpu::gather_dot.
 template <class Settings, class Functions, class Out, class A, class Indices, class Inputs>
@@ -335,14 +383,15 @@ struct gather_dot_group
     template <class View>
     __device__ static auto row(View x, index_int r)
     {
-        return slice_tensor(x, make_array<index_int>(r, 0, 0), slice_axes<2>());
+        const index_int first = r * Settings::k;
+        return gather_dot_detail::row_view<View>{x, first, &x[first]};
     }
 
     // N elements of a row along k
     template <index_int N, class Row>
     __device__ static auto load_row(Row r, index_int k)
     {
-        if constexpr(get_shape_c<Row>{}.strides[0] == 1)
+        if constexpr(Row::is_packed())
         {
             return gather_dot_detail::load_run<N>(&r[k]);
         }
@@ -358,13 +407,12 @@ struct gather_dot_group
     // The matrix of the entry from its column n0
     __device__ loader matrix(index_int n0) const { return {fs.weight, inputs.weights, entry, n0}; }
 
-    // The column function of the sum of a row and a column of the matrix. It
-    // takes the element of the row in its other inputs and that of the entry
-    // in those that are tables.
-    __device__ auto column(index_int r, index_int n, acc_t x) const
+    // The sum of a row and column n of the matrix with the bias of the entry
+    // for the column, when there is one
+    __device__ auto column(index_int n, acc_t x) const
     {
-        return inputs.column([&](auto... es) {
-            return fs.column(value_type(x), r * Settings::n + n, entry * Settings::n + n, es...);
+        return inputs.bias([&](auto... biases) {
+            return (value_type(x) + ... + biases[entry * Settings::n + n]);
         });
     }
 
@@ -377,9 +425,8 @@ struct gather_dot_group
         out[i]            = sequence_c<group>([&](auto... gs) {
             return inputs.output([&](auto... es) {
                 return fs.output(
-                    make_array(column(r, col * group + index_int{gs}, sum(index_int{gs}))...),
+                    make_array(column(col * group + index_int{gs}, sum(index_int{gs}))...),
                     i,
-                    entry * n_out + col,
                     es...);
             });
         });
@@ -604,37 +651,29 @@ struct gather_dot_group
     }
 };
 
-// The functions computing the matrices, a column from a sum and an output
-// column from the columns of a group
-template <class Weight, class Column, class Output>
+// The functions computing the matrices and an output column from the columns
+// of a group
+template <class Weight, class Output>
 struct gather_dot_functions
 {
     using weight_type = Weight;
     Weight weight;
-    Column column;
     Output output;
 };
 
-// The weight tensors and the other inputs of the column and of the output
-// function, each packed
-template <class Weights, class Column, class Output>
+// The weight tensors, the bias if there is one and the other inputs of the
+// output function, each packed
+template <class Weights, class Bias, class Output>
 struct gather_dot_inputs
 {
     using weights_type = Weights;
     Weights weights;
-    Column column;
+    Bias bias;
     Output output;
 };
 
-template <class Settings,
-          class Weight,
-          class Column,
-          class Output,
-          class A,
-          class Indices,
-          class... Ts>
-__device__ void
-gather_dot(Weight weight, Column column, Output output, A a, Indices indices, Ts... xs)
+template <class Settings, class Weight, class Output, class A, class Indices, class... Ts>
+__device__ void gather_dot(Weight weight, Output output, A a, Indices indices, Ts... xs)
 {
     // the listed rows, padded to a whole tile
     __shared__ uninitialized_buffer<index_int, ceil_div(Settings::rows, 16) * 16 + 16, 16> list;
@@ -643,26 +682,25 @@ gather_dot(Weight weight, Column column, Output output, A a, Indices indices, Ts
     __shared__
         uninitialized_buffer<typename A::type, 16 * Settings::col_blocks * Settings::k_chunk, 16>
             columns;
-    // the weight tensors, the inputs of the column function, those of the
-    // output function, then the output
+    // the weight tensors, the bias, the inputs of the output function, then
+    // the output
     constexpr index_int nweights = Settings::weights;
-    constexpr index_int ncolumn  = Settings::column_inputs;
-    constexpr index_int noutput  = sizeof...(Ts) - 1 - nweights - ncolumn;
+    constexpr index_int nbias    = Settings::bias;
+    constexpr index_int noutput  = sizeof...(Ts) - 1 - nweights - nbias;
     auto weights                 = gather_dot_detail::pack_range<0, nweights>(xs...);
-    auto column_inputs           = gather_dot_detail::pack_range<nweights, ncolumn>(xs...);
-    auto output_inputs = gather_dot_detail::pack_range<nweights + ncolumn, noutput>(xs...);
+    auto bias                    = gather_dot_detail::pack_range<nweights, nbias>(xs...);
+    auto output_inputs           = gather_dot_detail::pack_range<nweights + nbias, noutput>(xs...);
     auto out           = arg_c<sizeof...(Ts) - 1>()(xs...);
-    using functions    = gather_dot_functions<Weight, Column, Output>;
-    using inputs =
-        gather_dot_inputs<decltype(weights), decltype(column_inputs), decltype(output_inputs)>;
+    using functions              = gather_dot_functions<Weight, Output>;
+    using inputs = gather_dot_inputs<decltype(weights), decltype(bias), decltype(output_inputs)>;
     using group  = gather_dot_group<Settings, functions, decltype(out), A, Indices, inputs>;
     auto idx     = make_index();
     const auto g = group::grid.multi(idx.group);
-    group{functions{weight, column, output},
+    group{functions{weight, output},
           out,
           a,
           indices,
-          inputs{weights, column_inputs, output_inputs},
+          inputs{weights, bias, output_inputs},
           idx,
           g[0],
           g[1] * group::cols,

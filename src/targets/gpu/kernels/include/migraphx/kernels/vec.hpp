@@ -393,6 +393,50 @@ constexpr auto vec_generate(F f)
     return sequence_c<N>([&](auto... is) { return safe_vec<type, N>{f(is)...}; });
 }
 
+// Dot product of x and y added to acc, with the products and sums in the type of acc
+template <class T, class U, class Acc>
+constexpr Acc vec_dot(T x, U y, Acc acc)
+{
+    static_assert(vec_size<T>() == vec_size<U>(), "Dot product of different sizes");
+    if constexpr(vec_size<T>() == 0)
+    {
+        return acc + Acc(x) * Acc(y);
+    }
+    else
+    {
+        repeat(vec_size<T>(), [&](index_int i) { acc += Acc(x[i]) * Acc(y[i]); });
+        return acc;
+    }
+}
+
+#if defined(__has_builtin) and not defined(CPPCHECK)
+#if __has_builtin(__builtin_amdgcn_fdot2)
+// v_dot2_f32_f16 adds two half products to a float accumulator in one instruction
+template <index_int N, MIGRAPHX_REQUIRES(N % 2 == 0)>
+__device__ float vec_dot(vec<half, N> x, vec<half, N> y, float acc)
+{
+    repeat(_c<N / 2>, [&](auto i) {
+        acc = __builtin_amdgcn_fdot2(
+            vec_packed_at<2>(x, i * 2), vec_packed_at<2>(y, i * 2), acc, false);
+    });
+    return acc;
+}
+#endif
+#endif
+
+template <class T, class U>
+constexpr auto vec_dot(T x, U y)
+{
+    return vec_reduce(x * y, [](auto a, auto b) { return a + b; });
+}
+
+// Half products accumulate in float, as the hardware dot instruction does
+template <index_int N>
+__device__ float vec_dot(vec<half, N> x, vec<half, N> y)
+{
+    return vec_dot(x, y, 0.0f);
+}
+
 template <class T>
 struct implicit_conversion_op
 {

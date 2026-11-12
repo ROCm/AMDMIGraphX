@@ -167,6 +167,15 @@ struct direct_conv_problem
     std::size_t type_size() const { return inputs.front().type_size(); }
     const std::vector<std::size_t>& weight_lens() const { return inputs[1].lens(); }
 
+    // Input channels the input channel tile should be a multiple of: the kernel reduces
+    // half channel pairs with one dot2 instruction when the tile is even
+    std::size_t channel_step() const
+    {
+        if(inputs.front().type() == shape::half_type and in_channels() % 2 == 0)
+            return 2;
+        return 1;
+    }
+
     // Filter taps per input channel
     std::size_t taps() const
     {
@@ -289,13 +298,15 @@ struct direct_conv_solutions
         solutions.push_back(to_value(config));
     }
 
-    // Largest input channel tile up to max_tile whose shared memory fits
+    // Largest input channel tile up to max_tile, in steps of the problem's channel step,
+    // whose shared memory fits
     std::size_t fit_tile_c(direct_conv_config c, std::size_t max_tile) const
     {
         auto tiles = divisors_up_to(problem.in_channels(), max_tile);
         auto it    = std::find_if(tiles.rbegin(), tiles.rend(), [&](auto tile_c) {
             c.tile_c = tile_c;
-            return problem.lds_bytes(c) <= problem.max_lds_bytes;
+            return tile_c % problem.channel_step() == 0 and
+                   problem.lds_bytes(c) <= problem.max_lds_bytes;
         });
         return it == tiles.rend() ? 1 : *it;
     }

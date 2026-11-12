@@ -422,19 +422,21 @@ bool all_ones(const value& attr)
 // the convolutions it takes). Derived from tools/bench_conv.py --direct compare on gfx1201
 // over convs from real models plus strided, dilated and 1-D variants, with kernel times
 // checked through the full pipeline:
-//   - The direct kernel multiplies with FMAs, so it only wins where the GEMM-based kernels
-//     waste their tiles on few output channels. fp32 has no matrix instructions here, so up
-//     to 16 output channels win (channels-last 48->3 5x5 3.0x, 48->12 3x3 1.8x, 64->3 7x7
-//     2.3x, 64->4 3x3 dilation 4 2.8x, 24->8 4x4 stride 2 1.7x). fp16 GEMMs run on WMMA, so
-//     only channels-first filters of at least 25 taps with at most 4 output channels win
-//     (64->3 7x7 2.1x, 48->3 5x5 1.6x); channels-last ties MLIR in the full pipeline
-//     (0.97x), and strides or dilations lose (48->3 5x5 stride 2 0.5x).
+//   - The direct kernel multiplies with FMAs (fp16 with dot2, two input channels per
+//     instruction), so it only wins where the GEMM-based kernels waste their tiles on few
+//     output channels. fp32 has no matrix instructions here, so up to 16 output channels win
+//     (channels-last 48->3 5x5 3.0x, 48->12 3x3 1.8x, 64->3 7x7 2.3x, 64->4 3x3 dilation 4
+//     2.8x, 24->8 4x4 stride 2 1.7x). fp16 GEMMs run on WMMA, so only filters of at least 25
+//     taps with at most 4 output channels win, or 6 with 49 taps (in the full pipeline 64->3
+//     7x7 1.5-2.5x, 48->3 5x5 1.4-1.8x, 48->3 5x5 dilation 2 1.2-1.5x, 32->6 7x7 1.2-2.1x);
+//     8 output channels are mixed (48->8 5x5 1.0-1.5x), and 3x3 filters (48->3 0.35-0.96x)
+//     and strides (48->3 5x5 stride 2 0.8-0.95x) lose.
 //   - Each output needs enough multiply-adds, or the conv is bound by memory and the
 //     kernels tie (16->1 1x1 0.9x). 1x1 convs only won when MLIR read a cold input
 //     (64->3 at 512x512 1.6x, 0.87x after a producer kernel), so they stay with MLIR.
 //   - The kernel does not split the input channels across blocks, so it needs many output
-//     positions to fill the GPU (96->3 at 128x128 0.8x, 512->3 at 16x16 0.1x); fp16 needs
-//     the largest outputs.
+//     positions to fill the GPU (96->3 at 128x128 0.8x, 512->3 at 16x16 0.1x, fp16 48->3
+//     5x5 at 128x128 0.8-0.95x).
 //   - Channels-first 3x3 and 4x4 filters and strides lose to the winograd kernel and MLIR's
 //     channels-first path (48->3 3x3 0.5x, 16->4 3x3 stride 2 0.4x), while large filters
 //     still win there (64->3 7x7 2.4x).
@@ -448,16 +450,14 @@ bool direct_conv_profitable(instruction_ref ins)
     const auto out_channels = w_lens[0];
     const auto taps =
         std::accumulate(w_lens.begin() + 2, w_lens.end(), std::size_t{1}, std::multiplies<>{});
-    const auto positions     = ins->get_shape().elements() / out_channels;
-    const bool half          = x_shape.type() == shape::half_type;
-    const bool nhwc          = x_shape.strides()[1] == 1;
-    auto v                   = ins->get_operator().to_value();
-    const bool unit_stride   = all_ones(v.at("stride"));
-    const bool unit_dilation = all_ones(v.at("dilation"));
-    if(taps == 1 or positions < (half ? 256 : 64) * 1024)
+    const auto positions   = ins->get_shape().elements() / out_channels;
+    const bool half        = x_shape.type() == shape::half_type;
+    const bool nhwc        = x_shape.strides()[1] == 1;
+    const bool unit_stride = all_ones(ins->get_operator().to_value().at("stride"));
+    if(taps == 1 or positions < 64 * 1024)
         return false;
     if(half)
-        return not nhwc and unit_stride and unit_dilation and out_channels <= 4 and taps >= 25;
+        return unit_stride and taps >= 25 and out_channels <= (taps >= 49 ? 6 : 4);
     if(out_channels > 16 or w_lens[1] * taps < 64)
         return false;
     return nhwc or (unit_stride and taps >= 25);

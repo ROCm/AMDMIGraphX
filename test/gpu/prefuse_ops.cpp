@@ -364,8 +364,9 @@ static migraphx::shape nhwc(migraphx::shape::type_t t, const std::vector<std::si
     return migraphx::shape::from_permutation(t, lens, {0, 2, 3, 1});
 }
 
-// Few output channels over a large output: fp32 5x5 and fp16 channels-first 5x5 filters,
-// and fp32 channels-last 3x3 and strided filters
+// Few output channels over a large output: fp32 5x5 filters, fp32 channels-last 3x3 and
+// strided filters, and fp16 filters of at least 25 taps in either layout, dilated or with
+// up to 6 output channels for 7x7
 TEST_CASE(direct_conv_heuristic_few_outputs)
 {
     migraphx::gpu::context ctx;
@@ -382,11 +383,18 @@ TEST_CASE(direct_conv_heuristic_few_outputs)
     auto f16 = migraphx::shape::half_type;
     EXPECT(offloads_direct_conv(
         {f16, {1, 48, 512, 512}}, {f16, {3, 48, 5, 5}}, {{"padding", {2, 2}}}));
+    EXPECT(offloads_direct_conv(
+        nhwc(f16, {1, 48, 512, 512}), nhwc(f16, {3, 48, 5, 5}), {{"padding", {2, 2}}}));
+    EXPECT(offloads_direct_conv({f16, {1, 48, 512, 512}},
+                                {f16, {3, 48, 5, 5}},
+                                {{"padding", {4, 4}}, {"dilation", {2, 2}}}));
+    EXPECT(offloads_direct_conv(
+        nhwc(f16, {1, 32, 512, 512}), nhwc(f16, {6, 32, 7, 7}), {{"padding", {3, 3}}}));
 }
 
 // The GEMM-based kernels keep many output channels, small outputs, convs with little work
 // per output, channels-first 3x3 filters and strides, 1x1 filters, 1-D convolutions, and
-// fp16 filters under 25 taps, with a stride or channels-last
+// fp16 filters under 25 taps, with a stride, or with 8 output channels
 TEST_CASE(direct_conv_heuristic_default_lowering)
 {
     auto f32 = migraphx::shape::float_type;
@@ -411,7 +419,11 @@ TEST_CASE(direct_conv_heuristic_default_lowering)
     EXPECT(not offloads_direct_conv(
         {f16, {1, 48, 512, 512}}, {f16, {3, 48, 5, 5}}, {{"padding", {2, 2}}, {"stride", {2, 2}}}));
     EXPECT(not offloads_direct_conv(
-        nhwc(f16, {1, 48, 512, 512}), nhwc(f16, {3, 48, 5, 5}), {{"padding", {2, 2}}}));
+        nhwc(f16, {1, 48, 512, 512}), nhwc(f16, {8, 48, 5, 5}), {{"padding", {2, 2}}}));
+    EXPECT(not offloads_direct_conv(
+        nhwc(f16, {1, 32, 512, 512}), nhwc(f16, {8, 32, 7, 7}), {{"padding", {3, 3}}}));
+    EXPECT(not offloads_direct_conv(
+        {f16, {1, 48, 128, 128}}, {f16, {3, 48, 5, 5}}, {{"padding", {2, 2}}}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

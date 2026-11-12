@@ -489,7 +489,9 @@ struct spatial_tiler
 
     // Copy the halo of input channels [channel, channel + Channels) of the block's batch
     // into shared memory laid out as HaloShape, Vec channels per global load, and return
-    // the halo view. The default layout packs the halo in the input's memory order.
+    // the halo view. The default layout packs the halo in the input's memory order. A
+    // HaloShape over fewer channels holds each group of consecutive channels as one vector
+    // element (see copy_halo), and the view returns those vectors.
     template <index_int Channels,
               index_int Vec = 1,
               class Input,
@@ -509,11 +511,23 @@ struct spatial_tiler
         auto in_ch          = make_tensor_view(input.data() + input_shape{}.index(start),
                                                make_shape(lens, input_shape{}.strides));
         copy_halo<input_shape, Channels, Vec>(in_ch, smem, HaloShape{});
-        return make_tensor_view(smem.data(), HaloShape{});
+        return make_tensor_view(as_vec<Channels / HaloShape{}.lens[1]>(smem.data()), HaloShape{});
+    }
+
+    // Shared-memory offset of a halo element in a HaloShape whose elements each hold Pack
+    // consecutive channels
+    template <index_int Pack, class HaloShape, class Multi>
+    static constexpr index_int packed_halo_index(HaloShape, Multi multi)
+    {
+        constexpr auto group_shape = make_shape(index_ints<HaloShape{}.lens[1], Pack>{});
+        auto group                 = group_shape.multi(multi[1]);
+        multi[1]                   = group[0];
+        return HaloShape{}.index(multi) * Pack + group[1];
     }
 
     // Copy the halo of a view over this block's batch and Channels input channels into
-    // shared memory laid out as HaloShape, moving Step elements at a time
+    // shared memory laid out as HaloShape, moving Step elements at a time. When HaloShape
+    // covers fewer channels, each of its elements packs that many consecutive channels.
     template <class InputShape,
               index_int Channels,
               index_int Step,
@@ -536,8 +550,11 @@ struct spatial_tiler
         constexpr auto span_lens =
             transform(row_lens, hl, [](auto r, auto h) { return r == h ? 1 : h; });
         constexpr bool input_order = HaloShape{} == halo_shape_for<InputShape, Channels>();
+        static_assert(Channels % HaloShape{}.lens[1] == 0, "Channels must pack evenly");
+        constexpr index_int pack = Channels / HaloShape{}.lens[1];
         static_assert(span % step == 0, "Copy vectors must tile the contiguous span");
-        static_assert(HaloShape{}.lens == hl, "Shared-memory layout must cover the halo");
+        static_assert(HaloShape{}.lens == halo_lens_for<InputShape, Channels / pack>(),
+                      "Shared-memory layout must cover the halo");
 
         // The tile's origin in the padded input: spatial dims step by the stride
         auto in_origin   = tile_origin * get_stride();
@@ -585,7 +602,7 @@ struct spatial_tiler
                 }
                 repeat(_c<step>, [&](auto v) {
                     auto multi = row_multi + multi_from_permutation(span_lens, perm, col + v);
-                    smem[HaloShape{}.index(multi)] = values[v];
+                    smem[packed_halo_index<pack>(HaloShape{}, multi)] = values[v];
                 });
             }
             else if constexpr(step > 1)

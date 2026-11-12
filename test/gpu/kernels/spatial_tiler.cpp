@@ -839,6 +839,23 @@ TEST_CASE(halo_lens_explicit_channels)
     EXPECT(hs.strides == migraphx::index_ints<108, 36, 6, 1>{});
 }
 
+// A halo layout over channel pairs interleaves each pair: channel c of position p sits at
+// 2 * index(c / 2, p) + c % 2
+TEST_CASE(packed_halo_index)
+{
+    using output_shape   = decltype(make_4d_shape<1, 16, 8, 8>());
+    using tiler          = halo_tiler<migraphx::index_ints<4, 4>, output_shape>;
+    constexpr auto pairs = migraphx::make_shape(migraphx::index_ints<1, 2, 6, 6>{},
+                                                migraphx::index_ints<72, 36, 6, 1>{});
+    using multi          = migraphx::array<migraphx::index_int, 4>;
+    EXPECT(tiler::template packed_halo_index<2>(pairs, multi{0, 0, 0, 0}) == 0);
+    EXPECT(tiler::template packed_halo_index<2>(pairs, multi{0, 1, 0, 0}) == 1);
+    EXPECT(tiler::template packed_halo_index<2>(pairs, multi{0, 0, 0, 1}) == 2);
+    EXPECT(tiler::template packed_halo_index<2>(pairs, multi{0, 3, 2, 5}) == 2 * (36 + 17) + 1);
+    // Without packing the offset is the layout's index
+    EXPECT(tiler::template packed_halo_index<1>(pairs, multi{0, 1, 2, 5}) == 36 + 17);
+}
+
 // The copy vector of an explicit channel halo is the widest power of two that the
 // contiguous channels and the contiguous span both allow
 TEST_CASE(halo_channel_vector)

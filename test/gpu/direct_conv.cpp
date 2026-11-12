@@ -225,6 +225,31 @@ TEST_CASE(direct_conv_three_outputs)
                            config(4, 8, 2, 4, 3, 3, 4)));
 }
 
+// Half input channel pairs for three output channels per lane, which load their weight
+// pairs one at a time
+TEST_CASE(direct_conv_three_outputs_half)
+{
+    migraphx::shape x_shape{migraphx::shape::half_type, {1, 12, 13, 17}};
+    migraphx::shape w_shape{migraphx::shape::half_type, {3, 12, 5, 5}};
+    EXPECT(verify_solution("direct_conv_three_outputs_half",
+                           x_shape,
+                           w_shape,
+                           {{2, 2, 2, 2}},
+                           config(4, 8, 2, 4, 3, 3, 4)));
+}
+
+// An odd half input channel tile has no channel pairs and reduces one channel at a time
+TEST_CASE(direct_conv_odd_channels_half)
+{
+    migraphx::shape x_shape{migraphx::shape::half_type, {1, 3, 17, 18}};
+    migraphx::shape w_shape{migraphx::shape::half_type, {8, 3, 4, 4}};
+    EXPECT(verify_solution("direct_conv_odd_channels_half",
+                           x_shape,
+                           w_shape,
+                           {{1, 1, 1, 1}, {2, 2}},
+                           config(2, 16, 1, 2, 8, 2, 3)));
+}
+
 // A 1x1 convolution reads no halo around the tile
 TEST_CASE(direct_conv_1x1)
 {

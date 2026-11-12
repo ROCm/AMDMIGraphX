@@ -473,8 +473,6 @@ static void collect_outer_scope_inputs(const onnx::GraphProto& graph,
         {
             if(attr.has_g())
                 collect_outer_scope_inputs(attr.g(), used);
-            for(auto&& g : attr.graphs())
-                collect_outer_scope_inputs(g, used);
         }
     }
     for(auto&& name : used)
@@ -492,8 +490,6 @@ static std::unordered_set<std::string> get_implicit_inputs(const onnx::NodeProto
     {
         if(attr.has_g())
             collect_outer_scope_inputs(attr.g(), result);
-        for(auto&& g : attr.graphs())
-            collect_outer_scope_inputs(g, result);
     }
     return result;
 }

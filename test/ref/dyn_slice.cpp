@@ -451,3 +451,24 @@ TEST_CASE(dyn_slice_end_before_start_error_test)
 
     EXPECT(test::throws([&] { p.eval(params); }));
 }
+
+TEST_CASE(dyn_slice_empty_output_is_standard)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape input_shape{migraphx::shape::int32_type, {1, 4}, {4, 1}};
+    auto input = mm->add_parameter("input", input_shape);
+    migraphx::shape bounds_shape{migraphx::shape::int64_type, {1}};
+    auto starts = mm->add_literal(migraphx::literal{bounds_shape, {0}});
+    auto ends   = mm->add_literal(migraphx::literal{bounds_shape, {0}});
+    mm->add_instruction(
+        migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {0}}}),
+        input,
+        starts,
+        ends);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int32_t> data(input_shape.elements());
+    auto result = p.eval({{"input", migraphx::argument{input_shape, data.data()}}}).back();
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int32_type, {1, 0}});
+}

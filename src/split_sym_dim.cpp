@@ -1761,6 +1761,24 @@ instruction_ref add_output_slice(module& m,
     return result;
 }
 
+bool expression_is_zero_for_root(const sym::expr& expression, const sym::expr& root)
+{
+    auto resolved = expression.subs({{root, sym::lit(int64_t{0})}});
+    auto value    = sym::fixed_value(resolved);
+    return value.has_value() and sym::to<int64_t>(*value) == 0;
+}
+
+bool output_is_empty_for_root(const sliced_value& output,
+                              const symbolic_op_info& info,
+                              const sym::expr& root)
+{
+    const auto& dimensions = output.source->get_shape().dyn_dims();
+    return any_of(info.output_symbolic_axes, [&](auto axis) {
+        return contains(output.slice_axes, axis) and
+               expression_is_zero_for_root(dimensions.at(axis).sym_expr, root);
+    });
+}
+
 struct block_frame
 {
     std::vector<instruction_ref> body;
@@ -2121,11 +2139,68 @@ struct block_frame
                 {freeze, std::move(output_shapes), std::move(deduplicated_outputs.indices)}};
     }
 
+    bool root_empties_outputs(const root_spec& root, const symbolic_op_plans& plans) const
+    {
+        return root.interval.min == 0 and all_of(outputs, [&](const auto& output) {
+                   return output_is_empty_for_root(output, plans.at(output.source).info, root.root);
+               });
+    }
+
+    bool input_supports_zero_guard(
+        const block_input& input,
+        const std::vector<const root_spec*>& roots,
+        const symbolic_op_plans& plans,
+        const std::unordered_map<sym::expr, instruction_ref>& root_sources) const
+    {
+        if(not input.clone_value.slice_axes.empty())
+            return false;
+        const auto& s = input.select_input->get_shape();
+        if(not s.symbolic())
+            return false;
+
+        auto zero_dimensions = std::vector<shape::dynamic_dimension>{};
+        std::copy_if(s.dyn_dims().begin(),
+                     s.dyn_dims().end(),
+                     std::back_inserter(zero_dimensions),
+                     [](const auto& dimension) { return dimension.get_interval().min == 0; });
+        if(zero_dimensions.empty())
+            return false;
+
+        return all_of(zero_dimensions, [&](const auto& dimension) {
+            if(dimension.sym_expr.name() != "variable")
+                return false;
+            auto root_symbol = sym::as_symbol(dimension.sym_expr);
+            auto root        = std::find_if(roots.begin(), roots.end(), [&](const auto* candidate) {
+                return candidate->root == root_symbol;
+            });
+            return root != roots.end() and contains(root_sources, root_symbol) and
+                   root_sources.at(root_symbol) == input.clone_value.source and
+                   root_empties_outputs(**root, plans);
+        });
+    }
+
+    std::vector<std::size_t>
+    find_zero_guard_inputs(const std::vector<const root_spec*>& roots,
+                           const symbolic_op_plans& plans,
+                           const std::unordered_map<sym::expr, instruction_ref>& root_sources) const
+    {
+        std::vector<std::size_t> result;
+        std::size_t input_index = 0;
+        for(const auto& entry : params)
+        {
+            const auto& input = inputs.at(entry.second);
+            if(input_supports_zero_guard(input, roots, plans, root_sources))
+                result.push_back(input_index);
+            input_index++;
+        }
+        return result;
+    }
+
     void
     wire_select_module(module_pass_manager& mpm,
                        const symbolic_op_plans& plans,
                        const std::unordered_map<sym::expr, instruction_ref>& root_sources,
-                       bool has_zero_runtime,
+                       const std::vector<const root_spec*>& roots,
                        std::vector<module> clones,
                        const std::vector<clone_output_case>& clone_outputs,
                        replacement_context& replacements,
@@ -2182,15 +2257,9 @@ struct block_frame
                                                             clone_outputs,
                                                             physical_output_index);
                        });
-        std::vector<shape> logical_output_shapes;
-        if(has_zero_runtime)
-            std::transform(
-                representative_outputs.begin(),
-                representative_outputs.end(),
-                std::back_inserter(logical_output_shapes),
-                [&](auto output_index) { return outputs.at(output_index).source->get_shape(); });
-        auto selected_outputs = insert_select_module(
-            mpm, m, selection_inputs, std::move(clones), body_output_shapes, logical_output_shapes);
+        auto zero_guard_inputs = find_zero_guard_inputs(roots, plans, root_sources);
+        auto selected_outputs  = insert_select_module(
+            mpm, m, selection_inputs, std::move(clones), body_output_shapes, zero_guard_inputs);
 
         for(std::size_t output_index = 0; output_index < outputs.size(); ++output_index)
         {
@@ -2274,15 +2343,14 @@ void specialize_blocks(module_pass_manager& mpm,
             clones.push_back(std::move(built.clone));
             clone_outputs.push_back(std::move(built.output_case));
         }
-        frame->wire_select_module(
-            mpm,
-            plans,
-            root_sources,
-            any_of(block.roots, [](const auto* root) { return root->interval.min == 0; }),
-            std::move(clones),
-            clone_outputs,
-            replacements,
-            output_values);
+        frame->wire_select_module(mpm,
+                                  plans,
+                                  root_sources,
+                                  block.roots,
+                                  std::move(clones),
+                                  clone_outputs,
+                                  replacements,
+                                  output_values);
     }
     std::vector<instruction_ref> outputs;
     std::transform(original_outputs.begin(),

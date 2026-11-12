@@ -33,14 +33,11 @@
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/sym.hpp>
-#include <migraphx/zip_view.hpp>
 #include <algorithm>
 #include <cassert>
 #include <functional>
 #include <numeric>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace migraphx {
@@ -50,9 +47,8 @@ namespace op {
 struct select_module
 {
     shape output_dyn_shapes;
-    optional<shape> logical_output_dyn_shapes;
-    std::size_t num_inputs = 0;
-    std::vector<shape> input_shapes;
+    // An empty tensor at any listed input bypasses module dispatch.
+    std::vector<std::size_t> zero_guard_inputs;
 
     struct output_location
     {
@@ -93,9 +89,7 @@ struct select_module
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.output_dyn_shapes, "output_dyn_shapes"),
-                    f(self.logical_output_dyn_shapes, "logical_output_dyn_shapes"),
-                    f(self.num_inputs, "num_inputs"),
-                    f(self.input_shapes, "input_shapes"));
+                    f(self.zero_guard_inputs, "zero_guard_inputs"));
     }
 
     std::string name() const { return "select_module"; }
@@ -105,124 +99,17 @@ struct select_module
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
-        if(logical_output_dyn_shapes.has_value() and
-           logical_output_dyn_shapes->sub_shapes().size() != num_outputs())
-            MIGRAPHX_THROW("SELECT_MODULE: logical output count does not match outputs");
-        if(logical_output_dyn_shapes.has_value())
-        {
-            if(num_inputs > inputs.size())
-                MIGRAPHX_THROW("SELECT_MODULE: input count exceeds instruction inputs");
-            std::unordered_set<sym::expr> input_variables;
-            std::for_each(inputs.begin(), inputs.begin() + num_inputs, [&](const shape& input) {
-                if(not input.symbolic())
-                    return;
-                transform_if(
-                    input.dyn_dims().begin(),
-                    input.dyn_dims().end(),
-                    std::inserter(input_variables, input_variables.end()),
-                    [](const auto& dim) { return dim.sym_expr.name() == "variable"; },
-                    [](const auto& dim) { return sym::as_symbol(dim.sym_expr); });
-            });
-            migraphx::for_each(
-                logical_output_dyn_shapes->sub_shapes().begin(),
-                logical_output_dyn_shapes->sub_shapes().end(),
-                output_dyn_shapes.sub_shapes().begin(),
-                [&](const shape& logical, const shape& output) {
-                    if(logical.dynamic() and not logical.symbolic())
-                        MIGRAPHX_THROW("SELECT_MODULE: logical outputs must be static or symbolic");
-                    auto logical_max = logical.max_lens();
-                    auto output_max  = output.max_lens();
-                    if(logical.type() != output.type() or logical.ndim() != output.ndim() or
-                       not std::equal(logical_max.begin(),
-                                      logical_max.end(),
-                                      output_max.begin(),
-                                      [](auto logical_len, auto output_len) {
-                                          return logical_len <= output_len;
-                                      }))
-                        MIGRAPHX_THROW(
-                            "SELECT_MODULE: logical output is incompatible with declared output");
-                    if(logical.symbolic())
-                    {
-                        auto has_missing_source = [&](const sym::expr& expression) {
-                            auto variables = sym::find_variables(expression);
-                            return any_of(variables, [&](const auto& variable) {
-                                return not contains(input_variables, variable);
-                            });
-                        };
-                        if(any_of(
-                               logical.dyn_dims(),
-                               [&](const auto& dim) { return has_missing_source(dim.sym_expr); }) or
-                           any_of(logical.dyn_strides(), has_missing_source))
-                            MIGRAPHX_THROW(
-                                "SELECT_MODULE: logical output symbol has no input source");
-                    }
-                });
-        }
+        if(any_of(zero_guard_inputs, [&](auto input) { return input >= inputs.size(); }))
+            MIGRAPHX_THROW("SELECT_MODULE: zero guard input is out of range");
         return shape{output_dyn_shapes};
     }
 
     void finalize(context&,
                   const shape&,
-                  const std::vector<shape>& inputs,
+                  const std::vector<shape>&,
                   const std::vector<module_ref>& submodule_list)
     {
-        if(num_inputs > inputs.size())
-            MIGRAPHX_THROW("SELECT_MODULE: input count exceeds instruction inputs");
-        input_shapes.assign(inputs.begin(), inputs.begin() + num_inputs);
         metadata = build_module_metadata(submodule_list);
-    }
-
-    std::vector<shape> compute_logical_output_shapes(const std::vector<argument>& args) const
-    {
-        if(not logical_output_dyn_shapes.has_value())
-            return {};
-        if(input_shapes.size() != num_inputs or args.size() < num_inputs)
-            MIGRAPHX_THROW("SELECT_MODULE: symbolic input shapes were not finalized");
-
-        std::unordered_map<sym::expr, std::size_t> values;
-        migraphx::for_each(
-            input_shapes.begin(),
-            input_shapes.end(),
-            args.begin(),
-            [&](const auto& expected, const auto& arg) {
-                const auto& actual = arg.get_shape();
-                if(expected.dynamic())
-                {
-                    if(actual.type() != expected.type() or
-                       not shape::is_compatible_lens(actual, expected))
-                        MIGRAPHX_THROW(
-                            "SELECT_MODULE: runtime input does not match symbolic input shape");
-                }
-                else if(actual != expected)
-                {
-                    MIGRAPHX_THROW(
-                        "SELECT_MODULE: runtime input does not match static input shape");
-                }
-                if(not expected.symbolic())
-                    return;
-                if(expected.ndim() != actual.ndim())
-                    MIGRAPHX_THROW(
-                        "SELECT_MODULE: runtime input rank does not match symbolic input");
-                migraphx::for_each(expected.dyn_dims().begin(),
-                                   expected.dyn_dims().end(),
-                                   actual.lens().begin(),
-                                   [&](const auto& dim, auto len) {
-                                       if(dim.sym_expr.name() != "variable")
-                                           return;
-                                       auto variable = sym::as_symbol(dim.sym_expr);
-                                       auto result   = values.emplace(variable, len);
-                                       if(not result.second and result.first->second != len)
-                                           MIGRAPHX_THROW("SELECT_MODULE: repeated symbol has "
-                                                          "inconsistent runtime dimensions");
-                                   });
-            });
-
-        std::vector<shape> result;
-        std::transform(logical_output_dyn_shapes->sub_shapes().begin(),
-                       logical_output_dyn_shapes->sub_shapes().end(),
-                       std::back_inserter(result),
-                       [&](const shape& s) { return s.symbolic() ? s.to_static(values) : s; });
-        return result;
     }
 
     std::vector<std::string> get_input_parameter_names(const_module_ref mod) const
@@ -275,6 +162,47 @@ struct select_module
         if(metadata.modules.empty() or metadata.modules.size() != module_count)
             MIGRAPHX_THROW("SELECT_MODULE: operation was not finalized");
         return metadata;
+    }
+
+    bool should_short_circuit(const std::vector<argument>& args) const
+    {
+        return any_of(zero_guard_inputs, [&](auto input) {
+            if(input >= args.size())
+                MIGRAPHX_THROW("SELECT_MODULE: zero guard input is out of range");
+            return args.at(input).get_shape().elements() == 0;
+        });
+    }
+
+    argument short_circuit_outputs(const module_set_metadata& finalized,
+                                   const std::vector<argument>& args) const
+    {
+        std::vector<argument> results;
+        results.reserve(num_outputs());
+        if(not finalized.modules.front().outputs.empty())
+        {
+            if(args.size() < num_outputs())
+                MIGRAPHX_THROW("SELECT_MODULE: missing output allocations");
+            std::copy(args.end() - num_outputs(), args.end(), std::back_inserter(results));
+        }
+        else
+        {
+            auto make_max_argument = fix<argument>([](auto self, const shape& s) {
+                if(s.type() != shape::tuple_type)
+                    return argument{shape{s.type(), s.max_lens()}};
+                std::vector<argument> sub_objects;
+                sub_objects.reserve(s.sub_shapes().size());
+                std::transform(s.sub_shapes().begin(),
+                               s.sub_shapes().end(),
+                               std::back_inserter(sub_objects),
+                               [&](const shape& sub_shape) { return self(sub_shape); });
+                return argument{sub_objects};
+            });
+            std::transform(output_dyn_shapes.sub_shapes().begin(),
+                           output_dyn_shapes.sub_shapes().end(),
+                           std::back_inserter(results),
+                           make_max_argument);
+        }
+        return argument{results};
     }
 
     // Input arguments are ordered like the sorted input parameters, followed by one buffer per
@@ -366,28 +294,9 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        auto logical_outputs = compute_logical_output_shapes(args);
-        if(not logical_outputs.empty() and
-           std::all_of(logical_outputs.begin(), logical_outputs.end(), [](const shape& s) {
-               return s.elements() == 0;
-           }))
-        {
-            std::vector<argument> results;
-            bool has_output_allocations = args.size() == num_inputs + num_outputs();
-            auto output_start           = has_output_allocations ? args.size() - num_outputs() : 0;
-            auto output_indices         = range(logical_outputs.size());
-            std::transform(output_indices.begin(),
-                           output_indices.end(),
-                           std::back_inserter(results),
-                           [&](auto i) {
-                               const auto& s = logical_outputs.at(i);
-                               return has_output_allocations ? args.at(output_start + i).reshape(s)
-                                                             : argument{s, nullptr};
-                           });
-            return argument{results};
-        }
-
         const auto& finalized = finalized_metadata(submodule_list.size());
+        if(should_short_circuit(args))
+            return short_circuit_outputs(finalized, args);
         const auto& module_info =
             find_module(finalized, args.size(), [&](std::size_t index) -> const argument& {
                 return args[index];

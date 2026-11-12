@@ -187,7 +187,10 @@ struct dyn_slice
             new_lens.at(axis) = std::size_t(end) - start_indices.at(axis);
         });
 
-        shape output_shape{input_shape.type(), std::move(new_lens), input_shape.strides()};
+        shape output_shape =
+            contains(new_lens, std::size_t{0})
+                ? shape{input_shape.type(), std::move(new_lens)}
+                : shape{input_shape.type(), std::move(new_lens), input_shape.strides()};
         // A start may be clipped to the axis length, which puts start_indices out of bounds when
         // the slice is empty. There is nothing to point at in that case, so leave the offset at 0.
         std::size_t offset = 0;

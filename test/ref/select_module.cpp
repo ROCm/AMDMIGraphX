@@ -671,40 +671,52 @@ TEST_CASE(select_module_nested_output_buffers)
 
 TEST_CASE(select_module_zero_output_short_circuit)
 {
+    using migraphx::sym::lit;
     auto n = migraphx::sym::var("n", {0, 4});
     migraphx::program p;
+    auto* submod      = p.create_module("n4");
+    auto submod_input = submod->add_parameter("data", {migraphx::shape::float_type, {4, 2}});
+    submod->add_return({submod_input});
+
     auto* mm = p.get_main_module();
     migraphx::shape input_shape{migraphx::shape::float_type,
                                 {migraphx::shape::dynamic_dimension{n},
                                  migraphx::shape::dynamic_dimension{migraphx::sym::lit(2)}}};
     auto input                           = mm->add_parameter("data", input_shape);
-    auto twice_n                         = n * migraphx::sym::lit(2);
-    std::vector<migraphx::shape> outputs = {
-        {migraphx::shape::float_type,
-         {migraphx::shape::dynamic_dimension{twice_n},
-          migraphx::shape::dynamic_dimension{migraphx::sym::lit(2)}}},
-        {migraphx::shape::int64_type,
-         {migraphx::shape::dynamic_dimension{migraphx::sym::lit(2)},
-          migraphx::shape::dynamic_dimension{n}}}};
-    auto select = mm->add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-             {"logical_output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-             {"num_inputs", 1}}),
+    std::vector<migraphx::shape> outputs = {input_shape};
+    auto select                          = mm->add_instruction(
+        migraphx::make_op("select_module",
+                                                   {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
+                                                    {"zero_guard_inputs", {0}}}),
         {input},
-        {});
-    auto output0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
-    mm->add_return({output0, output1});
+        {submod});
+    auto output = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
+    auto starts = mm->add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{lit(0)})}}),
+        input);
+    auto ends = mm->add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}}),
+        input);
+    output = mm->add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(n)}}}),
+        output,
+        starts,
+        ends);
+    mm->add_return({output});
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
     params["data"] =
         migraphx::argument{migraphx::shape{migraphx::shape::float_type, {0, 2}}, nullptr};
-    auto results = p.eval(params);
-    EXPECT(results.at(0).get_shape() == migraphx::shape{migraphx::shape::float_type, {0, 2}});
-    EXPECT(results.at(1).get_shape() == migraphx::shape{migraphx::shape::int64_type, {2, 0}});
+    auto result = p.eval(params).back();
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {0, 2}});
 }
 
 TEST_CASE(select_module_mixed_empty_concat_runs)
@@ -722,11 +734,8 @@ TEST_CASE(select_module_mixed_empty_concat_runs)
     std::vector<migraphx::shape> outputs = {migraphx::shape{migraphx::shape::float_type, {0, 3}},
                                             migraphx::shape{migraphx::shape::float_type, {2, 3}}};
     auto select                          = mm->add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-             {"logical_output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-             {"num_inputs", 2}}),
+        migraphx::make_op("select_module",
+                                                   {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})}}),
         {main_data, main_empty},
         {submod});
     auto empty_output =

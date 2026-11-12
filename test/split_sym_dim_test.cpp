@@ -303,12 +303,9 @@ TEST_CASE(split_sym_dim_supports_zero_length_root)
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
                   migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{target_n}}}}})},
-             {"logical_output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}}}})},
-             {"num_inputs", 1}}),
+               {"zero_guard_inputs", {0}}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         modules);
     auto expected_output =

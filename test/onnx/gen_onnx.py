@@ -20471,6 +20471,34 @@ def topk_var_k_test():
     return ([node], [x, k], [val, ind])
 
 
+@onnx_test()
+def topk_var_k_nonzero_range_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 8])
+    mask = helper.make_tensor_value_info('mask', TensorProto.BOOL, [8])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, None])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [2, None])
+    count_index = from_array(np.asarray([1], dtype=np.int64),
+                             name='count_index')
+
+    nonzero = helper.make_node('NonZero',
+                               inputs=['mask'],
+                               outputs=['nonzero_indices'])
+    shape = helper.make_node('Shape',
+                             inputs=['nonzero_indices'],
+                             outputs=['nonzero_shape'])
+    count = helper.make_node('Gather',
+                             inputs=['nonzero_shape', 'count_index'],
+                             outputs=['k'],
+                             axis=0)
+    topk = helper.make_node('TopK',
+                            inputs=['data', 'k'],
+                            outputs=['val', 'indices'],
+                            axis=1)
+    return ([nonzero, shape, count, topk], [data, mask], [val,
+                                                          ind], [count_index])
+
+
 def transpose_default_perm_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 5, 2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 5, 1])

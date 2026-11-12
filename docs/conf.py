@@ -94,9 +94,9 @@ external_projects_current_project = "amdmigraphx"
 
 myst_substitutions = {
     "ROCM_VERSION":
-    "10.1.0",
+    "10.2.0",
     "ROCM_VERSION_PKG_SUFFIX":
-    "10.1",
+    "10.2",
     "MIGRAPHX_VERSION":
     version,
     "TORCH_MIGRAPHX_VERSION":
@@ -108,11 +108,11 @@ myst_substitutions = {
     "TARBALL_NAME":
     "amdrocm10-migraphx-2.18.0.tar.gz",
     "ROCM_INSTALL_DOC":
-    "`Install AMD ROCm 10.1.0 <https://rocm.docs.amd.com/en/docs-10.1.0/install/rocm.html>`__",
+    "`Install AMD ROCm 10.2.0 <https://rocm.docs.amd.com/en/docs-10.2.0/install/rocm.html>`__",
     "ROCM_COMPAT_DOC":
-    "`ROCm 10.1.0 compatibility matrix <https://rocm.docs.amd.com/en/docs-10.1.0/compatibility/compatibility-matrix.html>`__",
+    "`ROCm 10.2.0 compatibility matrix <https://rocm.docs.amd.com/en/docs-10.2.0/compatibility/compatibility-matrix.html>`__",
     "TORCH_INSTALL_DOC":
-    "`Install PyTorch for ROCm <https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver=10.1.0>`__",
+    "`Install PyTorch for ROCm <https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver=10.2.0>`__",
 }
 rst_prolog = "\n".join(f".. |{key}| replace:: {val}"
                        for key, val in myst_substitutions.items())

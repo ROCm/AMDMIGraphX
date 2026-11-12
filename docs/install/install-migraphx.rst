@@ -467,7 +467,7 @@ environment.
                # MIGraphX Environment Setup
                tee --append ~/.bashrc << 'EOF'
                # BEGIN MIGraphX environment configuration
-               export ROCM_PATH=/opt/rocm/core-10.1
+               export ROCM_PATH=/opt/rocm/core-10.2
                export MIGRAPHX_PATH=/opt/rocm/extras-10
                export PATH=$MIGRAPHX_PATH/bin:$PATH
                export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
@@ -484,7 +484,7 @@ environment.
                # MIGraphX Environment Setup
                tee --append ~/.profile << 'EOF'
                # BEGIN MIGraphX environment configuration
-               export ROCM_PATH=/opt/rocm/core-10.1
+               export ROCM_PATH=/opt/rocm/core-10.2
                export MIGRAPHX_PATH=/opt/rocm/extras-10
                export PATH=$MIGRAPHX_PATH/bin:$PATH
                export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
@@ -500,7 +500,7 @@ environment.
 
                # MIGraphX Environment Setup
                sudo tee /etc/profile.d/set-migraphx-env.sh << 'EOF'
-               export ROCM_PATH=/opt/rocm/core-10.1
+               export ROCM_PATH=/opt/rocm/core-10.2
                export MIGRAPHX_PATH=/opt/rocm/extras-10
                export PATH=$MIGRAPHX_PATH/bin:$PATH
                export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
@@ -543,7 +543,7 @@ environment.
       package manager installation. To use the execution provider,
       install MIGraphX using pip instead.
 
-.. _ONNX Runtime installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html?rocm-ver=10.1.0
+.. _ONNX Runtime installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html
 
 .. selected:: i=pkgman
    :heading: Uninstall MIGraphX
@@ -677,12 +677,12 @@ environment.
          If you installed ROCm using your Linux distribution's package manager
          instead of pip, both commands fail with ``libhsa-runtime64.so.1:
          cannot open shared object file``. The ROCm libraries are in
-         ``/opt/rocm/core-10.1/lib``, which isn't on the default linker path,
+         ``/opt/rocm/core-10.2/lib``, which isn't on the default linker path,
          so add it before running them:
 
          .. code-block:: bash
 
-            export ROCM_PATH=/opt/rocm/core-10.1
+            export ROCM_PATH=/opt/rocm/core-10.2
             export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
 
          To make this permanent, add these lines to your shell startup script.
@@ -713,7 +713,7 @@ environment.
       installation. Set the ``ROCM_INSTALL_PATH`` variable to the install
       directory of ROCm. For example, if you installed the ROCm Core SDK
       using your Linux distribution's package manager, set it to
-      ``/opt/rocm/core-10.1``. If ROCm was installed via tarball to a custom
+      ``/opt/rocm/core-10.2``. If ROCm was installed via tarball to a custom
       location, set ``ROCM_INSTALL_PATH`` to that location, for example
       ``$HOME/therock-tarball/install``.
 

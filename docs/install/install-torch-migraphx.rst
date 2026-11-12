@@ -5,7 +5,7 @@
   :description: Installing Torch-MIGraphX
   :keywords: install, pip, build, MIGraphX, torch_migraphx, PyTorch, AMD, ROCm, development, contributing
 
-.. |WHL| replace:: "torch_migraphx==1.2+rocm10.1.0"
+.. |WHL| replace:: "torch_migraphx==1.2+rocm10.2.0"
 
 **********************
 Install Torch-MIGraphX
@@ -97,12 +97,12 @@ environment.
          If you installed ROCm using your Linux distribution's package manager
          instead of pip, both commands fail with ``libhsa-runtime64.so.1:
          cannot open shared object file``. The ROCm libraries are in
-         ``/opt/rocm/core-10.1/lib``, which isn't on the default linker path,
+         ``/opt/rocm/core-10.2/lib``, which isn't on the default linker path,
          so add it before running them:
 
          .. code-block:: bash
 
-            export ROCM_PATH=/opt/rocm/core-10.1
+            export ROCM_PATH=/opt/rocm/core-10.2
             export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
 
          To make this permanent, add these lines to your shell startup script.

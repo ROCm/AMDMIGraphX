@@ -97,12 +97,17 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
+# Hermetic toolchain for every cget/rbuild build against $PREFIX. It is kept in
+# the image because $PREFIX/cget/cget.cmake includes it by absolute path.
+COPY ./cmake/hermetic.cmake ${PREFIX}/share/cmake/hermetic.cmake
+
 COPY ./tools/install_prereqs.sh /
 COPY ./tools/requirements-py.txt /requirements-py.txt
 RUN ./install_prereqs.sh \
         --rocm-version ${ROCM_VERSION} \
         ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
         --index-url ${INDEX_URL} \
+        --toolchain ${PREFIX}/share/cmake/hermetic.cmake \
         ${USE_WHL:+--whl}
 RUN rm /install_prereqs.sh && rm /*.txt
 RUN test -f /usr/local/hash || exit 1

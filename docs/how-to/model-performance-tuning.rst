@@ -63,8 +63,6 @@ in the MIGraphX source tree.
      - ``1`` enables Composable Kernel. Use with ``MIGRAPHX_DISABLE_MLIR=1``.
    * - ``MIGRAPHX_USE_FAST_SOFTMAX``
      - ``1`` enables fast softmax optimization. ``0`` returns to default behavior.
-   * - ``MIGRAPHX_ENABLE_LAYERNORM_FUSION``
-     - ``1`` enables layernorm fusion. ``0`` returns to default behavior.
    * - ``MIGRAPHX_FLASH_DECODING_ENABLED``
      - ``1`` enables flash decoding for attention fusion. Default: ``0``.
    * - ``MIGRAPHX_SKIP_BENCHMARKING``

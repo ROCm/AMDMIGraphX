@@ -877,6 +877,22 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     auto type                 = tensor_shape.type();
     const auto& external_data = t.external_data();
 
+    auto initializer = external_initializers.find(t.name());
+    if(initializer != external_initializers.end())
+    {
+        const auto& [data, nbytes] = initializer->second;
+        // onnx scalars have no dims, but create_literal stores them as one element
+        auto expected_shape = dims.empty() ? shape{type} : tensor_shape;
+        if(nbytes != expected_shape.bytes())
+            MIGRAPHX_THROW("PARSE_TENSOR: external initializer \"" + t.name() + "\" has " +
+                           std::to_string(nbytes) + " bytes, expected " +
+                           std::to_string(expected_shape.bytes()) + " bytes for shape " +
+                           migraphx::to_string(expected_shape));
+        if(data == nullptr and nbytes != 0)
+            MIGRAPHX_THROW("PARSE_TENSOR: external initializer \"" + t.name() + "\" has no data");
+        return create_literal(type, dims, static_cast<const char*>(data));
+    }
+
     if(not external_data.empty())
     {
         if(tensor_shape.elements() == 0)

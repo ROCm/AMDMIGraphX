@@ -1736,6 +1736,18 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
              external_data_path.c_str());
     }
 
+    /// Provide the raw data of an initializer instead of reading it from the onnx buffer or an
+    /// external data file. The data is not owned: it must stay valid for every parse that uses
+    /// these options, and can be freed once parsing is done because it is copied while parsing.
+    void set_external_initializer(const std::string& name, const void* data, size_t size)
+    {
+        call(&migraphx_onnx_options_set_external_initializer,
+             this->get_handle_ptr(),
+             name.c_str(),
+             data,
+             size);
+    }
+
     /// Enable debug symbols from ONNX node names
     void set_use_debug_symbols(bool value = true)
     {

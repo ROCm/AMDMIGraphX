@@ -106,7 +106,6 @@ struct miopen_apply
 
         add_extend_op("fixed_pad");
         add_generic_op("contiguous");
-        add_two_input_reshape_op();
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
@@ -350,16 +349,6 @@ struct miopen_apply
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name), refs);
-        });
-    }
-
-    void add_two_input_reshape_op()
-    {
-        apply_map.emplace("reshape", [=](instruction_ref ins) {
-            if(ins->inputs().size() == 2)
-                MIGRAPHX_THROW(
-                    "gpu::lowering: two-input reshape must be eliminated before lowering");
-            return ins;
         });
     }
 

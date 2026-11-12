@@ -132,7 +132,7 @@ TEST_CASE(lower_symbolic_output_buffer_reshape)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(output_buffer_nonpacked_reshape_is_not_lowered)
+TEST_CASE(output_buffer_nonpacked_reshape_error)
 {
     auto build = [](migraphx::module& m) {
         migraphx::shape input_shape{migraphx::shape::float_type, {3, 2, 4}, {4, 12, 1}};
@@ -144,11 +144,7 @@ TEST_CASE(output_buffer_nonpacked_reshape_is_not_lowered)
 
     migraphx::module m1;
     build(m1);
-    run_pass(m1);
-
-    migraphx::module m2;
-    build(m2);
-    EXPECT(m1 == m2);
+    EXPECT(test::throws([&] { run_pass(m1); }));
 }
 
 TEST_CASE(lower_range_dynamic_reshape)

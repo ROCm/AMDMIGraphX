@@ -136,7 +136,14 @@ struct find_reshape : match::supports_dynamic_shapes
 };
 } // namespace
 
-void lower_reshape::apply(module& m) const { match::find_matches(m, find_reshape{}); }
+void lower_reshape::apply(module& m) const
+{
+    match::find_matches(m, find_reshape{});
+    if(std::any_of(m.begin(), m.end(), [](const auto& ins) {
+           return ins.name() == "reshape" and ins.inputs().size() == 2;
+       }))
+        MIGRAPHX_THROW("gpu::lower_reshape: two-input reshape cannot be lowered");
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

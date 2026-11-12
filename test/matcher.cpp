@@ -990,9 +990,9 @@ TEST_CASE(match_has_value_unsigned_not_wrapped)
 TEST_CASE(match_has_value_int64_exact)
 {
     migraphx::module mm;
-    auto s         = migraphx::shape{migraphx::shape::int64_type, {1}, {0}};
-    std::int64_t x = std::int64_t{1} << 53;
-    auto lit       = mm.add_literal(migraphx::literal{s, {x}});
+    auto s               = migraphx::shape{migraphx::shape::int64_type, {1}, {0}};
+    const std::int64_t x = std::uint64_t{1} << 53u;
+    auto lit             = mm.add_literal(migraphx::literal{s, {x}});
     mm.add_instruction(pass_op{}, lit);
     EXPECT(find_match(mm, match::has_value(x + 1)).result == mm.end());
     EXPECT(find_match(mm, match::has_value(x)).result == lit);

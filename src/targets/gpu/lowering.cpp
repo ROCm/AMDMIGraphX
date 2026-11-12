@@ -37,6 +37,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/sym.hpp>
 
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
@@ -120,6 +121,7 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_lrn_op();
+        add_dyn_concat_op();
         add_nms_op();
         add_nonzero_op();
         add_convolution_backwards_op();
@@ -187,6 +189,12 @@ struct miopen_apply
             }
             else if(has_compiler_for(it->name()))
             {
+                if(not s.dynamic() and s.type() != shape::tuple_type and s.elements() == 0)
+                {
+                    auto output = insert_allocation(it, s);
+                    check_shape(s, mod->replace_instruction(it, output));
+                    continue;
+                }
                 check_shape(s, insert_precompile_op(it));
                 check_shape(s, insert_dynamic_code_object_op(it));
             }
@@ -216,20 +224,21 @@ struct miopen_apply
 
     instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const
     {
-        const auto& custom_op = ins->get_operator();
         if(attrs.at("target") == "cpu")
         {
-            auto s = ins->get_shape();
-            std::vector<instruction_ref> cpu_inputs;
             auto inputs = ins->inputs();
+            if(inputs.empty())
+                MIGRAPHX_THROW("gpu::insert_custom_op: host fallback requires an output buffer "
+                               "input");
             auto output = inputs.back();
+            std::vector<instruction_ref> cpu_inputs;
             std::transform(
-                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
-                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto input) {
+                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), input);
                 });
             cpu_inputs.front() =
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-            auto cpu_out = mod->insert_instruction(ins, custom_op, cpu_inputs);
+            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
             return mod->replace_instruction(ins, gpu_out);
@@ -461,6 +470,38 @@ struct miopen_apply
 
             return mod->replace_instruction(
                 ins, make_op("gpu::loop", ins->get_operator().to_value()), inputs, mod_args);
+        });
+    }
+
+    void add_dyn_concat_op()
+    {
+        apply_map.emplace("dyn_concat", [=](instruction_ref ins) {
+            auto inputs = ins->inputs();
+            bool fixed_strides =
+                all_of(range(inputs.begin() + 1, inputs.end()), [](instruction_ref input) {
+                    const auto& s = input->get_shape();
+                    return not s.dynamic() or
+                           (s.symbolic() and all_of(s.dyn_strides(), [](const auto& stride) {
+                                return sym::fixed_value(stride).has_value();
+                            }));
+                });
+            instruction_ref result;
+            if(fixed_strides)
+            {
+                result = insert_precompile_op(ins);
+            }
+            else
+            {
+                auto offsets =
+                    insert_allocation(ins, shape{shape::int64_type, {inputs.size() - 1}});
+                auto output = insert_allocation(ins, ins->get_shape());
+                inputs.push_back(offsets);
+                inputs.push_back(output);
+                result = mod->replace_instruction(
+                    ins, make_op("gpu::dyn_concat", ins->get_operator().to_value()), inputs);
+            }
+            insert_fill(result, 0);
+            return result;
         });
     }
 

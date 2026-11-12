@@ -26,6 +26,9 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/sym_argument.hpp>
 #include "test.hpp"
+#include <array>
+#include <limits>
+#include <utility>
 
 using migraphx::shape;
 using migraphx::sym::lit;
@@ -126,15 +129,24 @@ TEST_CASE(op_sym_reshape)
 TEST_CASE(op_sym_convert)
 {
     symbolic_tensor_value value{lit(2), lit(3)};
-    EXPECT(symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::int64_type}}),
-                            shape{shape::int64_type, {2}},
-                            {shape{shape::int64_type, {2}}},
-                            {value}) == value);
-    EXPECT(symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::bool_type}}),
-                            shape{shape::bool_type, {2}},
-                            {shape{shape::int64_type, {2}}},
-                            {symbolic_tensor_value{lit(0), lit(1)}}) ==
-           symbolic_tensor_value{lit(0), lit(1)});
+    symbolic_tensor_value bool_value{lit(0), lit(1)};
+    using conversion                            = std::pair<shape::type_t, shape::type_t>;
+    const std::array<conversion, 6> conversions = {{
+        {shape::int32_type, shape::bool_type},
+        {shape::int32_type, shape::int32_type},
+        {shape::int32_type, shape::int64_type},
+        {shape::int64_type, shape::bool_type},
+        {shape::int64_type, shape::int32_type},
+        {shape::int64_type, shape::int64_type},
+    }};
+    std::for_each(conversions.begin(), conversions.end(), [&](const auto& types) {
+        const auto& [input_type, target_type] = types;
+        const auto& input_value = target_type == shape::bool_type ? bool_value : value;
+        EXPECT(symbolic_compute(migraphx::make_op("convert", {{"target_type", target_type}}),
+                                shape{target_type, {2}},
+                                {shape{input_type, {2}}},
+                                {input_value}) == input_value);
+    });
 }
 
 TEST_CASE(op_sym_gather)
@@ -408,13 +420,24 @@ TEST_CASE(op_sym_convert_rejects_unsupported_cases)
 {
     EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::int64_type}}),
                                 shape{shape::int64_type, {1}},
-                                {shape{shape::int32_type, {1}}},
+                                {shape{shape::float_type, {1}}},
+                                {symbolic_tensor_value{lit(1.0)}})
+                   .has_value());
+    EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::float_type}}),
+                                shape{shape::float_type, {1}},
+                                {shape{shape::int64_type, {1}}},
                                 {symbolic_tensor_value{lit(1)}})
                    .has_value());
     EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::bool_type}}),
                                 shape{shape::bool_type, {1}},
                                 {shape{shape::int64_type, {1}}},
                                 {symbolic_tensor_value{lit(2)}})
+                   .has_value());
+    const auto wide = var("wide", {0, int64_t{1} + std::numeric_limits<int32_t>::max()});
+    EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::int32_type}}),
+                                shape{shape::int32_type, {1}},
+                                {shape{shape::int64_type, {1}}},
+                                {symbolic_tensor_value{wide}})
                    .has_value());
 }
 

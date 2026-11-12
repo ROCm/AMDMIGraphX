@@ -24,12 +24,15 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_SELECT_MODULE_HPP
 #define MIGRAPHX_GUARD_OPERATORS_SELECT_MODULE_HPP
 
+#include <migraphx/algorithm.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/context.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 #include <algorithm>
 #include <cassert>
 #include <functional>
@@ -44,6 +47,8 @@ namespace op {
 struct select_module
 {
     shape output_dyn_shapes;
+    // An empty tensor at any listed input bypasses module dispatch.
+    std::vector<std::size_t> zero_guard_inputs;
 
     struct output_location
     {
@@ -83,7 +88,8 @@ struct select_module
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.output_dyn_shapes, "output_dyn_shapes"));
+        return pack(f(self.output_dyn_shapes, "output_dyn_shapes"),
+                    f(self.zero_guard_inputs, "zero_guard_inputs"));
     }
 
     std::string name() const { return "select_module"; }
@@ -93,7 +99,17 @@ struct select_module
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
+        if(any_of(zero_guard_inputs, [&](auto input) { return input >= inputs.size(); }))
+            MIGRAPHX_THROW("SELECT_MODULE: zero guard input is out of range");
         return shape{output_dyn_shapes};
+    }
+
+    void finalize(context&,
+                  const shape&,
+                  const std::vector<shape>&,
+                  const std::vector<module_ref>& submodule_list)
+    {
+        metadata = build_module_metadata(submodule_list);
     }
 
     std::vector<std::string> get_input_parameter_names(const_module_ref mod) const
@@ -121,16 +137,25 @@ struct select_module
         return ret;
     }
 
+    static bool compatible_input_shape(const shape& actual, const shape& expected)
+    {
+        if(actual == expected)
+            return true;
+        if(expected.dynamic())
+            return actual.type() == expected.type() and shape::is_compatible_lens(actual, expected);
+        if(actual.type() != expected.type() or actual.type() == shape::tuple_type or
+           not shape::same_lens(actual, expected))
+            return false;
+        if(actual.elements() == 0)
+            return true;
+        return all_of(range(actual.ndim()), [&](auto axis) {
+            return actual.lens().at(axis) <= 1 or
+                   actual.strides().at(axis) == expected.strides().at(axis);
+        });
+    }
+
     MIGRAPHX_EXPORT module_set_metadata
     build_module_metadata(const std::vector<module_ref>& candidates) const;
-
-    void finalize(context&,
-                  const shape&,
-                  const std::vector<shape>&,
-                  const std::vector<module_ref>& submodule_list)
-    {
-        metadata = build_module_metadata(submodule_list);
-    }
 
     const module_set_metadata& finalized_metadata(std::size_t module_count) const
     {
@@ -139,11 +164,45 @@ struct select_module
         return metadata;
     }
 
-    static bool matches_input_shape(const shape& actual, const shape& expected)
+    bool should_short_circuit(const std::vector<argument>& args) const
     {
-        if(expected.dynamic())
-            return actual.type() == expected.type() and shape::is_compatible_lens(actual, expected);
-        return actual == expected;
+        return any_of(zero_guard_inputs, [&](auto input) {
+            if(input >= args.size())
+                MIGRAPHX_THROW("SELECT_MODULE: zero guard input is out of range");
+            return args.at(input).get_shape().elements() == 0;
+        });
+    }
+
+    argument short_circuit_outputs(const module_set_metadata& finalized,
+                                   const std::vector<argument>& args) const
+    {
+        std::vector<argument> results;
+        results.reserve(num_outputs());
+        if(not finalized.modules.front().outputs.empty())
+        {
+            if(args.size() < num_outputs())
+                MIGRAPHX_THROW("SELECT_MODULE: missing output allocations");
+            std::copy(args.end() - num_outputs(), args.end(), std::back_inserter(results));
+        }
+        else
+        {
+            auto make_max_argument = fix<argument>([](auto self, const shape& s) {
+                if(s.type() != shape::tuple_type)
+                    return argument{shape{s.type(), s.max_lens()}};
+                std::vector<argument> sub_objects;
+                sub_objects.reserve(s.sub_shapes().size());
+                std::transform(s.sub_shapes().begin(),
+                               s.sub_shapes().end(),
+                               std::back_inserter(sub_objects),
+                               [&](const shape& sub_shape) { return self(sub_shape); });
+                return argument{sub_objects};
+            });
+            std::transform(output_dyn_shapes.sub_shapes().begin(),
+                           output_dyn_shapes.sub_shapes().end(),
+                           std::back_inserter(results),
+                           make_max_argument);
+        }
+        return argument{results};
     }
 
     // Input arguments are ordered like the sorted input parameters, followed by one buffer per
@@ -164,7 +223,7 @@ struct select_module
                                     std::all_of(info.selector_indices.begin(),
                                                 info.selector_indices.end(),
                                                 [&](std::size_t index) {
-                                                    return matches_input_shape(
+                                                    return compatible_input_shape(
                                                         get_argument(index).get_shape(),
                                                         info.inputs[index].parameter_shape);
                                                 });
@@ -174,7 +233,7 @@ struct select_module
            not std::all_of(module_iter->shared_dynamic_indices.begin(),
                            module_iter->shared_dynamic_indices.end(),
                            [&](std::size_t index) {
-                               return matches_input_shape(
+                               return compatible_input_shape(
                                    get_argument(index).get_shape(),
                                    module_iter->inputs[index].parameter_shape);
                            }))
@@ -236,6 +295,8 @@ struct select_module
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         const auto& finalized = finalized_metadata(submodule_list.size());
+        if(should_short_circuit(args))
+            return short_circuit_outputs(finalized, args);
         const auto& module_info =
             find_module(finalized, args.size(), [&](std::size_t index) -> const argument& {
                 return args[index];
@@ -245,12 +306,22 @@ struct select_module
         p_map.reserve(module_info.inputs.size() + module_info.outputs.size());
 
         // add input parameters to parameter_map
-        std::transform(
-            module_info.inputs.begin(),
-            module_info.inputs.end(),
-            args.begin(),
-            std::inserter(p_map, p_map.end()),
-            [](const auto& input, const auto& arg) { return std::make_pair(input.name, arg); });
+        std::transform(module_info.inputs.begin(),
+                       module_info.inputs.end(),
+                       args.begin(),
+                       std::inserter(p_map, p_map.end()),
+                       [](const auto& input, const auto& arg) {
+                           const auto& expected = input.parameter_shape;
+                           if(not expected.dynamic() and arg.get_shape() != expected)
+                           {
+                               if(not compatible_input_shape(arg.get_shape(), expected))
+                                   MIGRAPHX_THROW(
+                                       "SELECT_MODULE: no compatible submodules found for given "
+                                       "input shapes");
+                               return std::make_pair(input.name, arg.reshape(expected));
+                           }
+                           return std::make_pair(input.name, arg);
+                       });
 
         // Each output of the submodule writes into the caller's buffer for that output. A compiled
         // output parameter can itself be a tuple when one kernel produces multiple returns.

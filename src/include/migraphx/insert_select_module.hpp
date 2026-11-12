@@ -29,6 +29,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/shape.hpp>
 
+#include <cstddef>
 #include <vector>
 
 namespace migraphx {
@@ -41,7 +42,8 @@ insert_select_module(module_pass_manager& mpm,
                      module& m,
                      const std::vector<instruction_ref>& inputs,
                      std::vector<module> clones,
-                     const std::vector<shape>& output_shapes);
+                     const std::vector<shape>& output_shapes,
+                     const std::vector<std::size_t>& zero_guard_inputs = {});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

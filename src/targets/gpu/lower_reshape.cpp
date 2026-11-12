@@ -73,17 +73,21 @@ bool reaches_return(const std::vector<instruction_ref>& returns, instruction_ref
 
 struct find_reshape : match::supports_dynamic_shapes
 {
-    // Skip reshape(data, output_buffer). Every GPU copy op derives its kernel from one
-    // index space shared by source and destination, so none of them can change rank.
-    auto matcher() const { return match::name("reshape")(match::nargs(1)); }
+    auto matcher() const
+    {
+        return match::name("reshape")(match::any_of(match::nargs(1), match::nargs(2)));
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins        = r.result;
-        auto dims       = ins->get_operator().to_value().at("dims");
-        auto reshape_op = make_op("reshape_lazy", {{"dims", {dims}}});
-        auto input      = ins->inputs().front();
-        const auto& s   = input->get_shape();
+        auto ins           = r.result;
+        bool output_buffer = ins->inputs().size() == 2;
+        auto reshape_op =
+            output_buffer
+                ? make_op("reshape_lazy")
+                : make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}});
+        auto input    = ins->inputs().front();
+        const auto& s = input->get_shape();
 
         if(not s.dynamic() or s.symbolic())
         {
@@ -96,9 +100,13 @@ struct find_reshape : match::supports_dynamic_shapes
                (reshaped->standard() or *reshaped == expected or
                 not reaches_return(m.get_returns(), ins)))
             {
-                m.replace_instruction(ins, reshape_op, {input});
+                m.replace_instruction(
+                    ins, reshape_op, output_buffer ? ins->inputs() : std::vector{input});
                 return;
             }
+
+            if(output_buffer)
+                return;
 
             auto relayout =
                 reshape_dims(ins->get_shape().to_symbolic(), s.sym_dims(), {.lazy = true});
@@ -119,13 +127,23 @@ struct find_reshape : match::supports_dynamic_shapes
             }
         }
 
+        if(output_buffer)
+            return;
+
         auto contiguous = insert_contiguous(m, ins, input);
         m.replace_instruction(ins, reshape_op, {contiguous});
     }
 };
 } // namespace
 
-void lower_reshape::apply(module& m) const { match::find_matches(m, find_reshape{}); }
+void lower_reshape::apply(module& m) const
+{
+    match::find_matches(m, find_reshape{});
+    if(std::any_of(m.begin(), m.end(), [](const auto& ins) {
+           return ins.name() == "reshape" and ins.inputs().size() == 2;
+       }))
+        MIGRAPHX_THROW("gpu::lower_reshape: two-input reshape cannot be lowered");
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -62,27 +62,38 @@ struct dyn_slice
     std::vector<int64_t> axes{};
     std::vector<sym::expr> starts{};
     std::vector<sym::expr> ends{};
+    bool normalize_bounds = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"), f(self.starts, "starts"), f(self.ends, "ends"));
+        return pack(f(self.axes, "axes"),
+                    f(self.starts, "starts"),
+                    f(self.ends, "ends"),
+                    f(self.normalize_bounds, "normalize_bounds"));
+    }
+
+    static value bound_normalization()
+    {
+        return value::array{normalize_attribute::clip_max,
+                            normalize_attribute::clip_min,
+                            normalize_attribute::include_max,
+                            normalize_attribute::use_len,
+                            normalize_attribute::include_min};
     }
 
     /// Ensure the axes attribute is within limits, and clip starts and ends to the sliced axis
     /// length. Symbolic bounds are clipped symbolically; see normalize_attribute.hpp.
     value attributes() const
     {
-        auto bound             = value::array{normalize_attribute::clip_max,
-                                              normalize_attribute::clip_min,
-                                              normalize_attribute::include_max,
-                                              normalize_attribute::use_len,
-                                              normalize_attribute::include_min};
         value normalize_axes   = value::object{};
         normalize_axes["axes"] = value::array{normalize_attribute::include_min};
-        // Both bounds normalize the same way, against the length of the axis they apply to.
-        normalize_axes["starts"] = bound;
-        normalize_axes["ends"]   = bound;
+        if(normalize_bounds)
+        {
+            // Both bounds normalize the same way, against the length of the axis they apply to.
+            normalize_axes["starts"] = bound_normalization();
+            normalize_axes["ends"]   = bound_normalization();
+        }
         return {{"normalize_axes", normalize_axes}, {"fillcolor", "#FFA500" /* orange */}};
     }
 
@@ -153,18 +164,15 @@ struct dyn_slice
         assert(args.size() == 3);
         const auto& input       = args.front();
         const auto& input_shape = input.get_shape();
-        auto axes_attrs         = this->attributes().at("normalize_axes");
+        auto bound_attrs        = bound_normalization();
         // The attributes only describe these inputs at compile time; slice by the inputs.
         auto norm_starts = normalize_indices(args[1].to_vector<int64_t>(),
                                              axes,
                                              input_shape,
-                                             axes_attrs.at("starts"),
+                                             bound_attrs,
                                              "DYN_SLICE: starts input");
-        auto norm_ends   = normalize_indices(args[2].to_vector<int64_t>(),
-                                             axes,
-                                             input_shape,
-                                             axes_attrs.at("ends"),
-                                             "DYN_SLICE: ends input");
+        auto norm_ends   = normalize_indices(
+            args[2].to_vector<int64_t>(), axes, input_shape, bound_attrs, "DYN_SLICE: ends input");
         // Guaranteed by check_inputs_and_attributes() when the shape was computed.
         assert(norm_starts.size() == axes.size() and norm_ends.size() == axes.size());
 
@@ -187,7 +195,10 @@ struct dyn_slice
             new_lens.at(axis) = std::size_t(end) - start_indices.at(axis);
         });
 
-        shape output_shape{input_shape.type(), std::move(new_lens), input_shape.strides()};
+        shape output_shape =
+            contains(new_lens, std::size_t{0})
+                ? shape{input_shape.type(), std::move(new_lens)}
+                : shape{input_shape.type(), std::move(new_lens), input_shape.strides()};
         // A start may be clipped to the axis length, which puts start_indices out of bounds when
         // the slice is empty. There is nothing to point at in that case, so leave the offset at 0.
         std::size_t offset = 0;

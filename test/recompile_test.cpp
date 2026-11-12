@@ -451,7 +451,7 @@ TEST_CASE(older_program_version_refused)
     auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
     mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
     auto v       = c.to_value();
-    v["version"] = 8;
+    v["version"] = 7;
     migraphx::program p;
     EXPECT(test::throws<migraphx::exception>([&] { p.from_value(v); }, "version mismatch"));
 }

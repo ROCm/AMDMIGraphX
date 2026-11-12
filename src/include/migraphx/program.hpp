@@ -194,7 +194,7 @@ struct MIGRAPHX_EXPORT program
     // program file version is for the data structure or format of the MXR
     // file. Version should be bumped if any changes occur to the format of
     // the MXR file. This does not apply to changes made to operators.
-    static constexpr int program_file_version = 9;
+    static constexpr int program_file_version = 8;
 };
 
 /// Lets a program be a member of a reflected type, using the same conversion as saving one.

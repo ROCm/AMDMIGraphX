@@ -62,6 +62,17 @@ resolve_reshape_dims(const shape& sym_in, const std::vector<sym::expr>& dims);
 MIGRAPHX_EXPORT void validate_reshape_dims(const std::string& name,
                                            const std::vector<dim_like>& dims);
 
+// Throws when the element counts are provably different. A symbolic input with an inferred -1 is
+// skipped because its floor division is not generally resolvable here.
+MIGRAPHX_EXPORT void validate_reshape_element_count(const std::string& name,
+                                                    const shape& input,
+                                                    const shape& output,
+                                                    const std::vector<dim_like>& dims);
+MIGRAPHX_EXPORT void validate_reshape_element_count(const std::string& name,
+                                                    const shape& input,
+                                                    const shape& output,
+                                                    const std::vector<sym::expr>& dims);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_RESHAPE_DIMS_HPP

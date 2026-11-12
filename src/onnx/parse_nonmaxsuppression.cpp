@@ -55,6 +55,7 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
         auto num_selected =
             info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
         auto max_selected = indices->get_shape().max_lens().front();
+        // tighten bounds on max_selected using max_output_boxes_per_class if it is constant
         if(args.size() > 2)
         {
             auto max_output          = args.at(2)->eval();

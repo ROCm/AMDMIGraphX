@@ -360,6 +360,144 @@ struct find_channelwise_convolution
     }
 };
 
+struct direct_conv
+{
+    std::vector<std::size_t> padding  = {0, 0};
+    std::vector<std::size_t> stride   = {1, 1};
+    std::vector<std::size_t> dilation = {1, 1};
+
+    std::string name() const { return "gpu::direct_conv"; }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(
+            f(self.padding, "padding"), f(self.stride, "stride"), f(self.dilation, "dilation"));
+    }
+
+    // The dense convolution this op replaces computes the output shape
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        return make_op("convolution",
+                       {{"padding", padding}, {"stride", stride}, {"dilation", dilation}})
+            .compute_shape(inputs);
+    }
+};
+MIGRAPHX_REGISTER_OP(direct_conv);
+
+// Dense 1-D and 2-D float or half convolutions with static shapes and explicit padding.
+// Filters past 256 taps per channel, or 32 rows (the halo rows a lane keeps in registers),
+// are left to the GEMM-based kernels.
+MIGRAPHX_PRED_MATCHER(conv_direct, instruction_ref ins)
+{
+    if(ins->name() != "convolution")
+        return false;
+    auto v = ins->get_operator().to_value();
+    if(v.at("group").to<std::size_t>() != 1)
+        return false;
+    // Padding modes other than the default compute the padding at runtime
+    if(v.at("padding_mode").to<int>() != 0)
+        return false;
+    const auto& x_shape = ins->inputs().front()->get_shape();
+    const auto& w_shape = ins->inputs().back()->get_shape();
+    if(x_shape.dynamic() or w_shape.dynamic())
+        return false;
+    if(not contains({shape::float_type, shape::half_type}, x_shape.type()))
+        return false;
+    if(x_shape.ndim() != 3 and x_shape.ndim() != 4)
+        return false;
+    if(x_shape.ndim() == 4 and w_shape.lens()[2] > 32)
+        return false;
+    return w_shape.elements() / (w_shape.lens()[0] * w_shape.lens()[1]) <= 256;
+}
+
+// Whether every value of a per-dim convolution attribute is one
+bool all_ones(const value& attr)
+{
+    return all_of(attr, [](const value& x) { return x.to<std::size_t>() == 1; });
+}
+
+// Heuristic for when the direct kernel beats the default lowering (MLIR; winograd keeps
+// the convolutions it takes). Derived from tools/bench_conv.py --direct compare on gfx1201
+// over convs from real models plus strided, dilated and 1-D variants, with kernel times
+// checked through the full pipeline:
+//   - The direct kernel multiplies with FMAs, so it only wins where the GEMM-based kernels
+//     waste their tiles on few output channels. fp32 has no matrix instructions here, so up
+//     to 16 output channels win (channels-last 48->3 5x5 3.0x, 48->12 3x3 1.8x, 64->3 7x7
+//     2.3x, 64->4 3x3 dilation 4 2.8x, 24->8 4x4 stride 2 1.7x). fp16 GEMMs run on WMMA, so
+//     only channels-first filters of at least 25 taps with at most 4 output channels win
+//     (64->3 7x7 2.1x, 48->3 5x5 1.6x); channels-last ties MLIR in the full pipeline
+//     (0.97x), and strides or dilations lose (48->3 5x5 stride 2 0.5x).
+//   - Each output needs enough multiply-adds, or the conv is bound by memory and the
+//     kernels tie (16->1 1x1 0.9x). 1x1 convs only won when MLIR read a cold input
+//     (64->3 at 512x512 1.6x, 0.87x after a producer kernel), so they stay with MLIR.
+//   - The kernel does not split the input channels across blocks, so it needs many output
+//     positions to fill the GPU (96->3 at 128x128 0.8x, 512->3 at 16x16 0.1x); fp16 needs
+//     the largest outputs.
+//   - Channels-first 3x3 and 4x4 filters and strides lose to the winograd kernel and MLIR's
+//     channels-first path (48->3 3x3 0.5x, 16->4 3x3 stride 2 0.4x), while large filters
+//     still win there (64->3 7x7 2.4x).
+//   - 1-D convolutions are mixed (64->3 5-tap 1.1x, 48->8 3-tap 0.6-0.9x).
+bool direct_conv_profitable(instruction_ref ins)
+{
+    const auto& x_shape = ins->inputs().front()->get_shape();
+    if(x_shape.ndim() != 4)
+        return false;
+    const auto& w_lens      = ins->inputs().back()->get_shape().lens();
+    const auto out_channels = w_lens[0];
+    const auto taps =
+        std::accumulate(w_lens.begin() + 2, w_lens.end(), std::size_t{1}, std::multiplies<>{});
+    const auto positions     = ins->get_shape().elements() / out_channels;
+    const bool half          = x_shape.type() == shape::half_type;
+    const bool nhwc          = x_shape.strides()[1] == 1;
+    auto v                   = ins->get_operator().to_value();
+    const bool unit_stride   = all_ones(v.at("stride"));
+    const bool unit_dilation = all_ones(v.at("dilation"));
+    if(taps == 1 or positions < (half ? 256 : 64) * 1024)
+        return false;
+    if(half)
+        return not nhwc and unit_stride and unit_dilation and out_channels <= 4 and taps >= 25;
+    if(out_channels > 16 or w_lens[1] * taps < 64)
+        return false;
+    return nhwc or (unit_stride and taps >= 25);
+}
+
+struct find_direct_convolution
+{
+    // Shared memory one thread block may use
+    std::size_t max_lds_bytes = 0;
+    // Offload every supported convolution, skipping the profitability heuristic
+    bool force = false;
+
+    auto matcher() const { return conv_direct(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto input   = ins->inputs().front();
+        auto weights = ins->inputs().back();
+
+        // One input channel of an 8x64 output tile and its filter is the kernel's fallback
+        // solution; larger halos lose to the GEMM-based kernels anyway
+        const auto& w_lens = weights->get_shape().lens();
+        auto taps          = weights->get_shape().elements() / (w_lens[0] * w_lens[1]);
+        if(channelwise_halo_bytes(ins, 8, 64) + taps * input->get_shape().type_size() >
+           max_lds_bytes)
+            return;
+        if(not force and not direct_conv_profitable(ins))
+            return;
+
+        auto v = ins->get_operator().to_value();
+        m.replace_instruction(ins,
+                              direct_conv{v.at("padding").to_vector<std::size_t>(),
+                                          v.at("stride").to_vector<std::size_t>(),
+                                          v.at("dilation").to_vector<std::size_t>()},
+                              input,
+                              weights);
+    }
+};
+
 struct winograd_conv
 {
     // When true the weight input is the raw filter g [3, 3, K, C] and the
@@ -930,6 +1068,15 @@ struct find_winograd_f23
     }
 };
 
+void find_direct_convolutions(module_pass_manager& mpm, const context& ctx, bool force)
+{
+    match::find_matches(
+        mpm.get_module(),
+        find_direct_convolution{.max_lds_bytes =
+                                    ctx.get_current_device().get_max_shared_memory_per_block(),
+                                .force = force});
+}
+
 void inline_group_sub_module(module_pass_manager& mpm)
 {
     auto& m = mpm.get_module();
@@ -970,11 +1117,22 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
             mpm.get_module(),
             find_channelwise_convolution{
                 .max_lds_bytes = ctx->get_current_device().get_max_shared_memory_per_block()});
+    // The direct kernel's heuristic is measured on gfx12; gfx11 runs it only when forced on.
+    // A forced kernel takes every convolution it supports ahead of winograd, otherwise
+    // winograd keeps the 3x3 convolutions its heuristic picks, which the direct kernel only
+    // ties.
+    const bool direct_conv_enabled =
+        not disable_direct_conv and
+        (enable_direct_conv ? is_navi : starts_with(device_name, "gfx12"));
+    if(direct_conv_enabled and enable_direct_conv)
+        find_direct_convolutions(mpm, *ctx, true);
     if(supports_winograd)
     {
         match::find_matches(mpm.get_module(), find_winograd_f23{});
         mpm.run_pass(dead_code_elimination{});
     }
+    if(direct_conv_enabled and not enable_direct_conv)
+        find_direct_convolutions(mpm, *ctx, false);
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))
     {
         inline_group_sub_module(mpm);

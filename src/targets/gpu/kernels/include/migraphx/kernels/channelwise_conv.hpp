@@ -161,6 +161,8 @@ __device__ void channelwise_conv(
         constexpr auto k = get_shape_c<Weights>{}.lens;
         return index_c<(k[i + 2] - 1) * dilation[i + 2] + 1>;
     });
+    static_assert(get_shape_c<Output>{}.lens[1] % ChannelTile == 0,
+                  "Channel tile must divide the output channels");
     auto idx   = make_index();
     auto tiler           = make_spatial_tiler<NTiles, ChannelTile, NRows, ChannelVec>(
         idx, TileLens{}, get_shape_c<Output>{}, Padding{}, Stride{}, reach);

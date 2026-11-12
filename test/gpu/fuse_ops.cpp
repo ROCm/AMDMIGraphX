@@ -524,6 +524,51 @@ TEST_CASE(channelwise_conv_pointwise_already_fused)
     EXPECT(p1 == create_program());
 }
 
+// A pointwise op consuming a direct conv joins its kernel like the channelwise conv
+TEST_CASE(direct_conv_pointwise)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {2, 4, 8, 8}};
+    migraphx::shape sw{migraphx::shape::float_type, {6, 4, 3, 3}};
+    migraphx::shape sout{migraphx::shape::float_type, {2, 6, 6, 6}};
+    auto alloc = migraphx::make_op("allocate", {{"shape", to_value(sout)}});
+
+    migraphx::program p1;
+    {
+        auto* mm       = p1.get_main_module();
+        auto x         = mm->add_parameter("x", sx);
+        auto w         = mm->add_parameter("w", sw);
+        auto z         = mm->add_parameter("z", sout);
+        auto alloc_ins = mm->add_instruction(alloc);
+        auto conv_ins =
+            mm->add_instruction(make_precompile_op("gpu::direct_conv"), x, w, alloc_ins);
+        auto* pw_add =
+            create_pointwise_module(p1, "main:pointwise0", {conv_ins, z}, single_pointwise("add"));
+        auto alloc_ins2 = mm->add_instruction(alloc);
+        auto add_ins    = mm->add_instruction(
+            make_precompile_op("pointwise"), {conv_ins, z, alloc_ins2}, {pw_add});
+        mm->add_return({add_ins});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm       = p2.get_main_module();
+        auto x         = mm->add_parameter("x", sx);
+        auto w         = mm->add_parameter("w", sw);
+        auto z         = mm->add_parameter("z", sout);
+        auto alloc_ins = mm->add_instruction(alloc);
+        auto* pw_add =
+            create_pointwise_module(p2, "main:pointwise0", {x, z}, single_pointwise("add"));
+        auto pre_comp_op =
+            migraphx::make_op("gpu::precompile_op",
+                              {{"op", migraphx::to_value(migraphx::make_op("gpu::direct_conv"))},
+                               {"output_shape", migraphx::to_value(sout)}});
+        auto fused_ins = mm->add_instruction(pre_comp_op, {x, w, z, alloc_ins}, {pw_add});
+        mm->add_return({fused_ins});
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(precompile_copy)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};

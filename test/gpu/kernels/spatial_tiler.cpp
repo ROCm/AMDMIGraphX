@@ -822,6 +822,53 @@ TEST_CASE(halo_vector)
     EXPECT(partial::template halo_vector_for<input_shape>() == 1);
 }
 
+// A dense conv stages a chosen number of input channels, unrelated to the output channel
+// tile
+TEST_CASE(halo_lens_explicit_channels)
+{
+    using output_shape = decltype(make_4d_shape<1, 16, 8, 8>());
+    using input_shape  = decltype(make_4d_shape<1, 6, 10, 10>());
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    8>;
+    EXPECT(tiler::template halo_lens_for<input_shape, 3>() == migraphx::index_ints<1, 3, 6, 6>{});
+    constexpr auto hs = tiler::template halo_shape_for<input_shape, 3>();
+    EXPECT(hs.strides == migraphx::index_ints<108, 36, 6, 1>{});
+}
+
+// The copy vector of an explicit channel halo is the widest power of two that the
+// contiguous channels and the contiguous span both allow
+TEST_CASE(halo_channel_vector)
+{
+    using output_shape = decltype(make_nhwc_shape<1, 16, 8, 8>());
+    using tiler        = halo_tiler<migraphx::index_ints<4, 4>,
+                                    output_shape,
+                                    migraphx::index_ints<0>,
+                                    migraphx::index_ints<1>,
+                                    migraphx::index_ints<3, 3>,
+                                    16>;
+    using nhwc8        = decltype(make_nhwc_shape<1, 8, 10, 10>());
+    using nhwc6        = decltype(make_nhwc_shape<1, 6, 10, 10>());
+    using nchw8        = decltype(make_4d_shape<1, 8, 10, 10>());
+    // All channels: the span merges them with the halo columns
+    EXPECT(tiler::template halo_channel_vector<nhwc8, 8, 4>() == 4);
+    // Two of the channels: the span is just those two
+    EXPECT(tiler::template halo_channel_vector<nhwc8, 2, 4>() == 2);
+    // Six channels keep only pairs aligned
+    EXPECT(tiler::template halo_channel_vector<nhwc6, 6, 4>() == 2);
+    EXPECT(tiler::template halo_channel_vector<nchw8, 8, 4>() == 1);
+}
+
+// Widths that are not a power of two have no vector type as wide as its alignment
+TEST_CASE(channel_vector_aligned_non_pow2)
+{
+    EXPECT(not migraphx::channel_vector_aligned<3>(make_nhwc_shape<2, 12, 8, 8>()));
+    EXPECT(not migraphx::channel_vector_aligned<6>(make_nhwc_shape<2, 12, 8, 8>()));
+}
+
 // ======== load_channels / store_channels ========
 
 // A class element type that must take the element path instead of a native vector

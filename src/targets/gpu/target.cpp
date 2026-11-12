@@ -143,6 +143,11 @@ struct backend_options
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;
+    // Use the direct convolution kernel for every convolution it supports, bypassing its
+    // profitability heuristic.
+    bool enable_direct_conv = false;
+    // Never use the direct convolution kernel.
+    bool disable_direct_conv = false;
     // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
     // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
     std::size_t literal_staging_peak_percent = 5;
@@ -161,6 +166,8 @@ struct backend_options
                     f(self.disable_range_based_splitting, "disable_range_based_splitting"),
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
+                    f(self.enable_direct_conv, "enable_direct_conv"),
+                    f(self.disable_direct_conv, "disable_direct_conv"),
                     f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
@@ -261,7 +268,9 @@ struct pipeline_factory
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},
-            prefuse_ops{get_context()},
+            prefuse_ops{.ctx                 = get_context(),
+                        .enable_direct_conv  = backend_opts.enable_direct_conv,
+                        .disable_direct_conv = backend_opts.disable_direct_conv},
             dead_code_elimination{},
             dead_code_elimination{},
             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,

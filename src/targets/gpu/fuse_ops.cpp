@@ -991,34 +991,37 @@ struct find_layernorm_pointwise
     }
 };
 
-struct find_channelwise_conv_pointwise
+// Fuse a pointwise op into the convolution kernels built on the spatial tiler, which apply
+// it to each output before the store
+struct find_tiled_conv_pointwise
 {
     auto matcher() const
     {
         return precompile_name("pointwise")(
             match::not_tuple(),
-            match::arg(0)(precompile_name("gpu::channelwise_conv").bind("channelwise_conv")));
+            match::arg(0)(
+                precompile_name("gpu::channelwise_conv", "gpu::direct_conv").bind("conv")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto pw_ins          = r.result;
-        auto channelwise_ins = r.instructions["channelwise_conv"];
-        if(not channelwise_ins->module_inputs().empty())
+        auto pw_ins   = r.result;
+        auto conv_ins = r.instructions["conv"];
+        if(not conv_ins->module_inputs().empty())
             return;
         auto* pm       = pw_ins->module_inputs().front();
         auto pw_inputs = pw_ins->inputs();
-        auto cw_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), channelwise_ins);
-        assert(cw_pos != pw_inputs.end());
-        pw_inputs.erase(cw_pos);
-        auto inputs = channelwise_ins->inputs();
+        auto conv_pos  = std::find(pw_inputs.begin(), pw_inputs.end(), conv_ins);
+        assert(conv_pos != pw_inputs.end());
+        pw_inputs.erase(conv_pos);
+        auto inputs = conv_ins->inputs();
         inputs.pop_back();
         inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
 
-        auto cw_op_val            = channelwise_ins->get_operator().to_value();
-        cw_op_val["output_shape"] = to_value(pw_ins->get_shape());
+        auto conv_op_val            = conv_ins->get_operator().to_value();
+        conv_op_val["output_shape"] = to_value(pw_ins->get_shape());
 
-        m.replace_instruction(pw_ins, make_op(channelwise_ins->name(), cw_op_val), inputs, {pm});
+        m.replace_instruction(pw_ins, make_op(conv_ins->name(), conv_op_val), inputs, {pm});
     }
 };
 
@@ -1115,7 +1118,7 @@ void fuse_ops::apply(module& m) const
 #endif
     match::find_matches(m,
                         find_layernorm_pointwise{},
-                        find_channelwise_conv_pointwise{},
+                        find_tiled_conv_pointwise{},
                         find_winograd_conv_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_transpose_rocblas_gemm{},

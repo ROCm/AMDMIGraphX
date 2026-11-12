@@ -452,6 +452,52 @@ parse_inputs(onnx_parser& parser,
     return mod_insts;
 }
 
+// Collect the names that nodes of a subgraph (or of its own subgraphs) read from an enclosing
+// scope, which are not passed to the node as inputs
+static void collect_outer_scope_inputs(const onnx::GraphProto& graph,
+                                       std::unordered_set<std::string>& result)
+{
+    std::unordered_set<std::string> defined;
+    for(auto&& input : graph.input())
+        defined.insert(input.name());
+    for(auto&& initializer : graph.initializer())
+        defined.insert(initializer.name());
+    for(auto&& node : graph.node())
+        defined.insert(node.output().begin(), node.output().end());
+
+    std::unordered_set<std::string> used;
+    for(auto&& node : graph.node())
+    {
+        used.insert(node.input().begin(), node.input().end());
+        for(auto&& attr : node.attribute())
+        {
+            if(attr.has_g())
+                collect_outer_scope_inputs(attr.g(), used);
+            for(auto&& g : attr.graphs())
+                collect_outer_scope_inputs(g, used);
+        }
+    }
+    for(auto&& name : used)
+    {
+        if(not name.empty() and not contains(defined, name))
+            result.insert(name);
+    }
+}
+
+// The values a node reads through its subgraphs, so it has to be parsed after their producers
+static std::unordered_set<std::string> get_implicit_inputs(const onnx::NodeProto& node)
+{
+    std::unordered_set<std::string> result;
+    for(auto&& attr : node.attribute())
+    {
+        if(attr.has_g())
+            collect_outer_scope_inputs(attr.g(), result);
+        for(auto&& g : attr.graphs())
+            collect_outer_scope_inputs(g, result);
+    }
+    return result;
+}
+
 struct node_maps
 {
     std::unordered_map<std::string, std::vector<size_t>> input_to_node_map;
@@ -483,6 +529,9 @@ static node_maps create_node_maps(const onnx::GraphProto& graph)
                 continue;
             maps.input_to_node_map[input].push_back(node_index);
         }
+        // A subgraph reading a value from this graph depends on its producer as well
+        for(auto&& input : get_implicit_inputs(node))
+            maps.input_to_node_map[input].push_back(node_index);
 
         std::vector<std::string> node_outputs;
         std::transform(node.output().begin(),
@@ -572,6 +621,10 @@ static bool check_sorted(const onnx::GraphProto& graph,
     // propagate parent graph input nodes into visited nodes
     visited_nodes.insert(parent_input_nodes.begin(), parent_input_nodes.end());
 
+    std::unordered_set<std::string> node_outputs;
+    for(auto&& node : graph.node())
+        node_outputs.insert(node.output().begin(), node.output().end());
+
     for(auto&& node : graph.node())
     {
         for(auto&& input : node.input())
@@ -580,6 +633,12 @@ static bool check_sorted(const onnx::GraphProto& graph,
             if(not input.empty() and not contains(visited_nodes, input))
                 return false;
         }
+        // Values read by a subgraph must be produced before the node when they come from this graph
+        auto implicit_inputs = get_implicit_inputs(node);
+        if(std::any_of(implicit_inputs.begin(), implicit_inputs.end(), [&](const auto& input) {
+               return contains(node_outputs, input) and not contains(visited_nodes, input);
+           }))
+            return false;
         // node outputs struct is used to keep track of currently visited nodes
         visited_nodes.insert(node.output().begin(), node.output().end());
     }

@@ -9061,6 +9061,39 @@ def loop_test():
 
 
 @onnx_test()
+def loop_outer_scope_unordered_test():
+    # The Loop node comes before the Add that produces a2, which its body reads from the outer
+    # scope without taking it as an input
+    body = helper.make_graph([
+        helper.make_node("Identity", ["keep_going_inp"], ["keep_going"]),
+        helper.make_node("Add", ["a2", "b_in"], ["my_local"]),
+    ], "body", [
+        helper.make_tensor_value_info('iteration_num', TensorProto.INT64, [1]),
+        helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('b_in', TensorProto.FLOAT, [1])
+    ], [
+        helper.make_tensor_value_info('keep_going', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('my_local', TensorProto.FLOAT, [1]),
+    ])
+
+    loop = helper.make_node("Loop",
+                            inputs=["max_trip_count", "keep_going_cond", "b"],
+                            outputs=["b_loop"],
+                            body=body)
+    add = helper.make_node("Add", ["a", "a"], ["a2"])
+
+    iter = helper.make_tensor_value_info('max_trip_count', TensorProto.INT64,
+                                         [1])
+    cond = helper.make_tensor_value_info('keep_going_cond', TensorProto.BOOL,
+                                         [1])
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [1])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [1])
+    b_loop = helper.make_tensor_value_info('b_loop', TensorProto.FLOAT, [1])
+
+    return ([loop, add], [iter, cond, a, b], [b_loop])
+
+
+@onnx_test()
 def loop_test_implicit_tripcnt():
     body = helper.make_graph([
         helper.make_node("Add", ["a", "b_in"], ["my_local"]),

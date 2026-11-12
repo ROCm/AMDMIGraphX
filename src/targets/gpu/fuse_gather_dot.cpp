@@ -27,6 +27,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/register_op.hpp>
@@ -144,25 +145,30 @@ static optional<instruction_ref> find_viewed(instruction_ref view)
     // the views of a tensor that keep it standard keep its order
     if(not view->get_shape().standard())
         return nullopt;
-    auto result = view;
-    while(contains({"reshape_lazy", "squeeze", "unsqueeze"}, result->name()) and
-          result->inputs().front()->outputs().size() == 1)
-        result = result->inputs().front();
-    return result;
+    auto path = get_input_path(view);
+    auto it   = std::find_if_not(path.begin(), path.end(), [](instruction_ref ins) {
+        return contains({"reshape_lazy", "squeeze", "unsqueeze"}, ins->name()) and
+               ins->inputs().front()->outputs().size() == 1;
+    });
+    if(it == path.end())
+        return nullopt;
+    return *it;
 }
 
 optional<gather_dot_column> find_gather_dot_column(instruction_ref ins)
 {
-    auto slice = ins;
-    while(contains({"squeeze", "unsqueeze"}, slice->name()) and slice->outputs().size() == 1)
-        slice = slice->inputs().front();
-    if(slice->name() != "slice" or slice->outputs().size() != 1)
+    auto path = get_input_path(ins);
+    auto it   = std::find_if_not(path.begin(), path.end(), [](instruction_ref x) {
+        return contains({"squeeze", "unsqueeze"}, x->name()) and x->outputs().size() == 1;
+    });
+    if(it == path.end() or (*it)->name() != "slice" or (*it)->outputs().size() != 1)
     {
         auto sums = find_viewed(ins);
         if(not sums.has_value())
             return nullopt;
         return gather_dot_column{*sums, ins};
     }
+    auto slice     = *it;
     auto v         = slice->get_operator().to_value();
     auto axes      = v.at("axes").to_vector<std::size_t>();
     auto starts    = v.at("starts").to_vector<std::size_t>();

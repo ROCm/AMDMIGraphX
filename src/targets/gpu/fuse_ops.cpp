@@ -34,6 +34,7 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/permutation.hpp>
@@ -1173,9 +1174,13 @@ struct find_gather_dot_weights
         if(not input->get_shape().standard())
             return nullopt;
         // the views of a standard tensor that keep it standard keep its order
-        auto unpack = input;
-        while(contains({"reshape_lazy", "squeeze", "unsqueeze"}, unpack->name()))
-            unpack = unpack->inputs().front();
+        auto path = get_input_path(input);
+        auto it   = std::find_if_not(path.begin(), path.end(), [](instruction_ref ins) {
+            return contains({"reshape_lazy", "squeeze", "unsqueeze"}, ins->name());
+        });
+        if(it == path.end())
+            return nullopt;
+        auto unpack = *it;
         if(not is_precompile(unpack, "unpack_int4") or not unpack->get_shape().standard())
             return nullopt;
         auto bytes     = unpack->inputs().front();
@@ -1237,14 +1242,9 @@ struct find_gather_dot_weights
         auto rows  = ins->inputs().at(0);
         auto table = ins->inputs().at(2);
         // the views of the pointwise operator that give the table
-        std::vector<operation> ops;
-        auto base = table;
-        while(is_view(base) and base->outputs().size() == 1)
-        {
-            ops.push_back(base->get_operator());
-            base = base->inputs().front();
-        }
-        std::reverse(ops.begin(), ops.end());
+        auto [base, ops]        = get_input_ops_if(table, [](instruction_ref view) {
+            return is_view(view) and view->outputs().size() == 1;
+        });
         const auto& base_inputs = base->inputs();
         if(not is_precompile(base, "pointwise") or base->outputs().size() != 1 or
            base->get_shape().type() == shape::tuple_type or
@@ -1363,13 +1363,9 @@ struct find_gather_dot_pointwise
     // The views from the sums to an input that reads a column, in order
     static std::vector<instruction_ref> views(instruction_ref sums, instruction_ref input)
     {
-        std::vector<instruction_ref> result;
-        auto ins = input;
-        while(ins != sums)
-        {
-            result.push_back(ins);
-            ins = ins->inputs().front();
-        }
+        auto path = get_input_path(input);
+        std::vector<instruction_ref> result(path.begin(),
+                                            std::find(path.begin(), path.end(), sums));
         std::reverse(result.begin(), result.end());
         return result;
     }

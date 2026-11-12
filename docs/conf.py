@@ -92,27 +92,42 @@ rocm_docs_generate_llms = True
 
 external_projects_current_project = "amdmigraphx"
 
+# Bump these when the docs target a new ROCm or Torch-MIGraphX release; every
+# ROCm-versioned string used below (and in the install docs, via
+# myst_substitutions) is derived from them so a release bump only touches
+# this block. MIGRAPHX_VERSION below is parsed from ../CMakeLists.txt
+# instead, since that file is the source of truth for the MIGraphX version.
+rocm_version = "10.2.0"
+rocm_version_pkg_suffix = "10.2"
+rocm_major = "10"
+rocm_docs_version = f"docs-{rocm_version}"
+torch_migraphx_version = "1.2"
+
 myst_substitutions = {
     "ROCM_VERSION":
-    "10.2.0",
+    rocm_version,
     "ROCM_VERSION_PKG_SUFFIX":
-    "10.2",
+    rocm_version_pkg_suffix,
+    "ROCM_MAJOR":
+    rocm_major,
     "MIGRAPHX_VERSION":
     version,
     "TORCH_MIGRAPHX_VERSION":
-    "1.2",
+    torch_migraphx_version,
+    "WHL":
+    f'"torch_migraphx=={torch_migraphx_version}+rocm{rocm_version}"',
     "WHL_PKG_REPO":
     "https://stable.repo.amd.com/rocm/migraphx/whl-next/",
     "TARBALL_REPO":
     "https://stable.repo.amd.com/rocm/migraphx/tarball/",
     "TARBALL_NAME":
-    "amdrocm10-migraphx-2.18.0.tar.gz",
+    f"amdrocm{rocm_major}-migraphx-{version}.tar.gz",
     "ROCM_INSTALL_DOC":
-    "`Install AMD ROCm 10.2.0 <https://rocm.docs.amd.com/en/docs-10.2.0/install/rocm.html>`__",
+    f"`Install AMD ROCm {rocm_version} <https://rocm.docs.amd.com/en/{rocm_docs_version}/install/rocm.html>`__",
     "ROCM_COMPAT_DOC":
-    "`ROCm 10.2.0 compatibility matrix <https://rocm.docs.amd.com/en/docs-10.2.0/compatibility/compatibility-matrix.html>`__",
+    f"`ROCm {rocm_version} compatibility matrix <https://rocm.docs.amd.com/en/{rocm_docs_version}/compatibility/compatibility-matrix.html>`__",
     "TORCH_INSTALL_DOC":
-    "`Install PyTorch for ROCm <https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver=10.2.0>`__",
+    f"`Install PyTorch for ROCm <https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver={rocm_version}>`__",
 }
 rst_prolog = "\n".join(f".. |{key}| replace:: {val}"
                        for key, val in myst_substitutions.items())

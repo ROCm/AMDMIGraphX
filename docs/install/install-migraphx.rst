@@ -437,20 +437,23 @@ environment.
       .. selected:: os=ubuntu os=debian
 
          .. code-block:: bash
+            :substitutions:
 
-            sudo apt install amdrocm10-migraphx amdrocm10-migraphx-dev
+            sudo apt install amdrocm|ROCM_MAJOR|-migraphx amdrocm|ROCM_MAJOR|-migraphx-dev
 
       .. selected:: os=rhel os=oracle-linux os=rocky-linux
 
          .. code-block:: bash
+            :substitutions:
 
-            sudo dnf install amdrocm10-migraphx amdrocm10-migraphx-devel
+            sudo dnf install amdrocm|ROCM_MAJOR|-migraphx amdrocm|ROCM_MAJOR|-migraphx-devel
 
       .. selected:: os=sles
 
          .. code-block:: bash
+            :substitutions:
 
-            sudo zypper install amdrocm10-migraphx amdrocm10-migraphx-devel
+            sudo zypper install amdrocm|ROCM_MAJOR|-migraphx amdrocm|ROCM_MAJOR|-migraphx-devel
 
    3. Complete the following post-installation steps.
 
@@ -463,12 +466,13 @@ environment.
             :sync: bashrc
 
             .. code-block:: bash
+               :substitutions:
 
                # MIGraphX Environment Setup
                tee --append ~/.bashrc << 'EOF'
                # BEGIN MIGraphX environment configuration
-               export ROCM_PATH=/opt/rocm/core-10.2
-               export MIGRAPHX_PATH=/opt/rocm/extras-10
+               export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+               export MIGRAPHX_PATH=/opt/rocm/extras-|ROCM_MAJOR|
                export PATH=$MIGRAPHX_PATH/bin:$PATH
                export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
                # END MIGraphX environment configuration
@@ -480,12 +484,13 @@ environment.
             :sync: profile
 
             .. code-block:: bash
+               :substitutions:
 
                # MIGraphX Environment Setup
                tee --append ~/.profile << 'EOF'
                # BEGIN MIGraphX environment configuration
-               export ROCM_PATH=/opt/rocm/core-10.2
-               export MIGRAPHX_PATH=/opt/rocm/extras-10
+               export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+               export MIGRAPHX_PATH=/opt/rocm/extras-|ROCM_MAJOR|
                export PATH=$MIGRAPHX_PATH/bin:$PATH
                export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
                # END MIGraphX environment configuration
@@ -497,11 +502,12 @@ environment.
             :sync: system
 
             .. code-block:: bash
+               :substitutions:
 
                # MIGraphX Environment Setup
                sudo tee /etc/profile.d/set-migraphx-env.sh << 'EOF'
-               export ROCM_PATH=/opt/rocm/core-10.2
-               export MIGRAPHX_PATH=/opt/rocm/extras-10
+               export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+               export MIGRAPHX_PATH=/opt/rocm/extras-|ROCM_MAJOR|
                export PATH=$MIGRAPHX_PATH/bin:$PATH
                export LD_LIBRARY_PATH=$MIGRAPHX_PATH/lib:$ROCM_PATH/lib:$LD_LIBRARY_PATH
                EOF
@@ -554,20 +560,23 @@ environment.
       .. selected:: os=ubuntu os=debian
 
          .. code-block:: bash
+            :substitutions:
 
-            sudo apt remove amdrocm10-migraphx amdrocm10-migraphx-dev
+            sudo apt remove amdrocm|ROCM_MAJOR|-migraphx amdrocm|ROCM_MAJOR|-migraphx-dev
 
       .. selected:: os=rhel os=oracle-linux os=rocky-linux
 
          .. code-block:: bash
+            :substitutions:
 
-            sudo dnf remove amdrocm10-migraphx amdrocm10-migraphx-devel
+            sudo dnf remove amdrocm|ROCM_MAJOR|-migraphx amdrocm|ROCM_MAJOR|-migraphx-devel
 
       .. selected:: os=sles
 
          .. code-block:: bash
+            :substitutions:
 
-            sudo zypper remove amdrocm10-migraphx amdrocm10-migraphx-devel
+            sudo zypper remove amdrocm|ROCM_MAJOR|-migraphx amdrocm|ROCM_MAJOR|-migraphx-devel
 
    2. Remove the MIGraphX repository.
 
@@ -673,16 +682,19 @@ environment.
          python -c "import migraphx; print(migraphx.__version__)"
 
       .. important::
+         :substitutions:
 
          If you installed ROCm using your Linux distribution's package manager
          instead of pip, both commands fail with ``libhsa-runtime64.so.1:
          cannot open shared object file``. The ROCm libraries are in
-         ``/opt/rocm/core-10.2/lib``, which isn't on the default linker path,
-         so add it before running them:
+         :substitution-code:`/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|/lib`,
+         which isn't on the default linker path, so add it before running
+         them:
 
          .. code-block:: bash
+            :substitutions:
 
-            export ROCM_PATH=/opt/rocm/core-10.2
+            export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
             export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
 
          To make this permanent, add these lines to your shell startup script.
@@ -713,8 +725,9 @@ environment.
       installation. Set the ``ROCM_INSTALL_PATH`` variable to the install
       directory of ROCm. For example, if you installed the ROCm Core SDK
       using your Linux distribution's package manager, set it to
-      ``/opt/rocm/core-10.2``. If ROCm was installed via tarball to a custom
-      location, set ``ROCM_INSTALL_PATH`` to that location, for example
+      :substitution-code:`/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|`. If ROCm
+      was installed via tarball to a custom location, set
+      ``ROCM_INSTALL_PATH`` to that location, for example
       ``$HOME/therock-tarball/install``.
 
       ``MIGRAPHX_INSTALL_PATH`` is set to the installation of MIGraphX to an
@@ -725,7 +738,7 @@ environment.
 
          # Set installation paths
          ROCM_INSTALL_PATH="$HOME/therock-tarball/install"
-         MIGRAPHX_INSTALL_PATH="$HOME/therock-tarball/install/extras-10"
+         MIGRAPHX_INSTALL_PATH="$HOME/therock-tarball/install/extras-|ROCM_MAJOR|"
 
          # Extract to the MIGraphX directory
          mkdir -p $MIGRAPHX_INSTALL_PATH
@@ -818,16 +831,18 @@ environment.
       To uninstall MIGraphX, remove your MIGraphX installation directory.
 
       .. important::
+         :substitutions:
 
          The following command assumes you're working with the
          ``MIGRAPHX_INSTALL_PATH`` directory set to
-         ``$HOME/therock-tarball/install/extras-10``. If you chose a
-         different directory when installing MIGraphX, adjust the command
-         accordingly.
+         :substitution-code:`$HOME/therock-tarball/install/extras-|ROCM_MAJOR|`.
+         If you chose a different directory when installing MIGraphX, adjust
+         the command accordingly.
 
       .. code-block:: bash
+         :substitutions:
 
-         rm -rf "$HOME/therock-tarball/install/extras-10"
+         rm -rf "$HOME/therock-tarball/install/extras-|ROCM_MAJOR|"
 
    2. Remove the MIGraphX environment configuration.
 

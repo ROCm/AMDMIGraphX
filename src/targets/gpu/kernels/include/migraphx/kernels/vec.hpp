@@ -424,17 +424,14 @@ __device__ float vec_dot(vec<half, N> x, vec<half, N> y, float acc)
 #endif
 #endif
 
+// The sum is kept in at least float or int32, so types narrower than that neither round nor
+// overflow
 template <class T, class U>
 constexpr auto vec_dot(T x, U y)
 {
-    return vec_reduce(x * y, [](auto a, auto b) { return a + b; });
-}
-
-// Half products accumulate in float, as the hardware dot instruction does
-template <index_int N>
-__device__ float vec_dot(vec<half, N> x, vec<half, N> y)
-{
-    return vec_dot(x, y, 0.0f);
+    using type = common_type_t<vec_type<T>, vec_type<U>>;
+    using acc  = common_type_t<type, conditional_t<is_integral<type>{}, int32_t, float>>;
+    return vec_dot(x, y, acc{0});
 }
 
 template <class T>

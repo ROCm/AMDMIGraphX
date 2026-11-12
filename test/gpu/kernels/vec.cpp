@@ -91,3 +91,47 @@ TEST_CASE(vec_dot_half_float_sum)
     EXPECT(migraphx::float_equal(migraphx::vec_dot(x, y), 2049.0f));
     EXPECT(migraphx::float_equal(migraphx::vec_dot(x, y, 2.0f), 2051.0f));
 }
+
+TEST_CASE(vec_dot_half3_float_sum)
+{
+    migraphx::vec<migraphx::half, 3> x = {2048, 1, 1};
+    migraphx::vec<migraphx::half, 3> y = {1, 1, 1};
+    auto result                        = migraphx::vec_dot(x, y);
+    EXPECT(migraphx::is_same<decltype(result), float>{});
+    EXPECT(migraphx::float_equal(result, 2050.0f));
+}
+
+TEST_CASE(vec_dot_half_scalar)
+{
+    auto result = migraphx::vec_dot(migraphx::half{2048}, migraphx::half{3});
+    EXPECT(migraphx::is_same<decltype(result), float>{});
+    EXPECT(migraphx::float_equal(result, 6144.0f));
+}
+
+// 257 has no bf16 representation
+TEST_CASE(vec_dot_bf16_float_sum)
+{
+    migraphx::vec<migraphx::bf16, 2> x = {256, 1};
+    migraphx::vec<migraphx::bf16, 2> y = {1, 1};
+    auto result                        = migraphx::vec_dot(x, y);
+    EXPECT(migraphx::is_same<decltype(result), float>{});
+    EXPECT(migraphx::float_equal(result, 257.0f));
+}
+
+TEST_CASE(vec_dot_int8_int32_sum)
+{
+    migraphx::vec<int8_t, 4> x = {100, 100, 100, -100};
+    migraphx::vec<int8_t, 4> y = {100, 100, 100, 100};
+    auto result                = migraphx::vec_dot(x, y);
+    EXPECT(migraphx::is_same<decltype(result), int32_t>{});
+    EXPECT(result == 20000);
+}
+
+TEST_CASE(vec_dot_double)
+{
+    migraphx::vec<double, 2> x = {1.0, 2.0};
+    migraphx::vec<double, 2> y = {3.0, 4.0};
+    auto result                = migraphx::vec_dot(x, y);
+    EXPECT(migraphx::is_same<decltype(result), double>{});
+    EXPECT(migraphx::float_equal(result, 11.0));
+}

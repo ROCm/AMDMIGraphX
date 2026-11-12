@@ -143,9 +143,8 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto x_shape = x->get_shape();
         auto x_dtype = x_shape.type();
         auto x_dims  = x_shape.lens();
-        const auto compute_dtype =
-            (x_dtype == shape::half_type and stash_type) ? shape::float_type : x_dtype;
-        const auto affine_dtype = is_contrib ? compute_dtype : x_dtype;
+        const auto compute_dtype = stash_type ? shape::float_type : x_dtype;
+        const auto affine_dtype  = is_contrib ? compute_dtype : x_dtype;
         // Half moments and normalization overflow half range for valid input; stash in float
         // unless the model sets stash_type=0.
         x = convert_tensor_type(info, x, compute_dtype);

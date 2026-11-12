@@ -514,10 +514,8 @@ inline migraphx::program make_group_norm(
     auto bias  = mm->add_parameter(param2.first, {param2.second, bias_dims});
 
     auto x_dims = x->get_shape().lens();
-    const auto compute_dtype = (dtype == migraphx::shape::half_type and (is_contrib or stash_type))
-                                   ? migraphx::shape::float_type
-                                   : dtype;
-    const auto affine_dtype = is_contrib ? compute_dtype : dtype;
+    const auto compute_dtype = (is_contrib or stash_type) ? migraphx::shape::float_type : dtype;
+    const auto affine_dtype  = is_contrib ? compute_dtype : dtype;
     if(compute_dtype != dtype)
         x = mm->add_instruction(migraphx::make_op("convert", {{"target_type", compute_dtype}}), x);
 

@@ -292,6 +292,20 @@ TEST_CASE(dyn_slice_sym_ends_clamped_test)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(dyn_slice_sym_ends_not_normalized_test)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+    auto attributes = migraphx::value{
+        {"axes", {3}}, {"starts", {0}}, {"ends", sym_bound(n)}, {"normalize_bounds", false}};
+
+    auto m1 = create_dyn_slice(s, attributes);
+    auto m2 = create_dyn_slice(s, attributes);
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(dyn_slice_sym_ends_below_len_test)
 {
     // n < 5 is provable, so the bound keeps the bare symbol rather than gaining a min wrapper.

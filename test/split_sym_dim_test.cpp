@@ -322,7 +322,8 @@ TEST_CASE(split_sym_dim_supports_zero_length_root)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -388,7 +389,8 @@ TEST_CASE(split_sym_dim_covers_full_interval)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         output,
         output_start,
         output_end);
@@ -460,7 +462,8 @@ TEST_CASE(split_sym_dim_materializes_roialign)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{r})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{r})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -546,7 +549,8 @@ TEST_CASE(split_sym_dim_supports_one_to_one_axis_transforms)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         output,
         output_start,
         output_end);
@@ -632,7 +636,8 @@ TEST_CASE(split_sym_dim_freezes_one_input_reshape_symbolic_dims)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         output_start,
         output_end);
@@ -695,7 +700,8 @@ TEST_CASE(split_sym_dim_freezes_non_unit_one_input_reshape_symbolic_dims)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         output_start,
         output_end);
@@ -763,7 +769,8 @@ TEST_CASE(split_sym_dim_splits_at_nonparallel_symbolic_reshape)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -835,7 +842,8 @@ TEST_CASE(split_sym_dim_materializes_symbolic_multibroadcast)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -911,7 +919,8 @@ TEST_CASE(split_sym_dim_materializes_symbolic_multibroadcast_with_multiple_shape
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -998,7 +1007,8 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_multibroadcast)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -1073,7 +1083,8 @@ TEST_CASE(split_sym_dim_materializes_symbolic_broadcast)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -1150,7 +1161,8 @@ TEST_CASE(split_sym_dim_materializes_symbolic_broadcast_with_dims)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{2, 3}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n, n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n, n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -1225,7 +1237,8 @@ TEST_CASE(split_sym_dim_coalesces_into_symbolic_broadcast_with_dims)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1, 2}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n, n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n, n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -1289,7 +1302,8 @@ TEST_CASE(split_sym_dim_materializes_symbolic_allocate)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -1359,7 +1373,8 @@ TEST_CASE(split_sym_dim_materializes_two_input_symbolic_reshape)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -1429,7 +1444,8 @@ TEST_CASE(split_sym_dim_specializes_two_input_symbolic_reshape_with_unit_axis)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{2}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -1512,7 +1528,8 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_reshape)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -1601,7 +1618,8 @@ TEST_CASE(split_sym_dim_drops_absorbed_reshape_shape_dependencies)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -1678,7 +1696,8 @@ TEST_CASE(split_sym_dim_keeps_padded_reshape_dependency_at_boundary)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         before_output,
         before_output_start,
         before_output_end);
@@ -1706,7 +1725,8 @@ TEST_CASE(split_sym_dim_keeps_padded_reshape_dependency_at_boundary)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -1822,7 +1842,8 @@ TEST_CASE(split_sym_dim_retries_affected_connected_edge)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0, 1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n, q})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n, q})},
+                           {"normalize_bounds", false}}),
         output_nq,
         output_nq_start,
         output_nq_end);
@@ -1850,7 +1871,8 @@ TEST_CASE(split_sym_dim_retries_affected_connected_edge)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{m})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{m})},
+                           {"normalize_bounds", false}}),
         output_m,
         output_m_start,
         output_m_end);
@@ -1964,7 +1986,8 @@ TEST_CASE(split_sym_dim_preserves_routed_symbolic_parameter_strides)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -2045,7 +2068,8 @@ TEST_CASE(split_sym_dim_keeps_variable_stride_dependency_at_boundary)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -2104,7 +2128,8 @@ TEST_CASE(split_sym_dim_uses_clone_output_layout_for_dispatch)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -2166,7 +2191,8 @@ TEST_CASE(split_sym_dim_uses_non_degenerate_clone_layout_for_dispatch)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0, 1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n, n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n, n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -2250,7 +2276,8 @@ TEST_CASE(split_sym_dim_materializes_reshape_with_shape_chain_target)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -2341,7 +2368,8 @@ TEST_CASE(split_sym_dim_uses_interval_bounds_without_optimals)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         output,
         output_start,
         output_end);
@@ -2575,7 +2603,8 @@ TEST_CASE(split_sym_dim_reduce_all_uses_one)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{b})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{b})},
+                           {"normalize_bounds", false}}),
         output,
         output_start,
         output_end);
@@ -2662,7 +2691,8 @@ TEST_CASE(split_sym_dim_pads_absorbed_reduction_input)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -2778,7 +2808,8 @@ TEST_CASE(split_sym_dim_global_max_pooling_preserves_runtime_spatial_extent)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{2}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         neg_output,
         output_start,
         output_end);
@@ -2884,7 +2915,8 @@ TEST_CASE(split_sym_dim_splits_windowed_boundary)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{2, 3}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{s - 2, s - 2})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{s - 2, s - 2})},
+                           {"normalize_bounds", false}}),
         conv_output,
         conv_output_start,
         conv_output_end);
@@ -2940,7 +2972,8 @@ TEST_CASE(split_sym_dim_splits_windowed_boundary)
             "dyn_slice",
             {{"axes", std::vector<int64_t>{2, 3}},
              {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-             {"ends", migraphx::to_value(std::vector<se>{output_extent, output_extent})}}),
+             {"ends", migraphx::to_value(std::vector<se>{output_extent, output_extent})},
+             {"normalize_bounds", false}}),
         output,
         output_start,
         output_end);
@@ -3025,11 +3058,11 @@ TEST_CASE(split_sym_dim_retains_only_nonparallel_boundary_axes)
             {{"expressions", migraphx::to_value(std::vector<se>{spatial - 2, spatial - 2})}}),
         std::vector<migraphx::instruction_ref>{expected_input});
     conv_output = expected_main.add_instruction(
-        migraphx::make_op(
-            "dyn_slice",
-            {{"axes", std::vector<int64_t>{2, 3}},
-             {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-             {"ends", migraphx::to_value(std::vector<se>{spatial - 2, spatial - 2})}}),
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{2, 3}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{spatial - 2, spatial - 2})},
+                           {"normalize_bounds", false}}),
         conv_output,
         conv_output_start,
         conv_output_end);
@@ -3089,7 +3122,8 @@ TEST_CASE(split_sym_dim_retains_only_nonparallel_boundary_axes)
             "dyn_slice",
             {{"axes", std::vector<int64_t>{0, 2, 3}},
              {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0), lit(0)})},
-             {"ends", migraphx::to_value(std::vector<se>{batch, output_extent, output_extent})}}),
+             {"ends", migraphx::to_value(std::vector<se>{batch, output_extent, output_extent})},
+             {"normalize_bounds", false}}),
         output,
         output_start,
         output_end);
@@ -3156,7 +3190,8 @@ TEST_CASE(split_sym_dim_merges_independent_supported_branches)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         output0,
         output0_start,
         output0_end);
@@ -3174,7 +3209,8 @@ TEST_CASE(split_sym_dim_merges_independent_supported_branches)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         output1,
         output1_start,
         output1_end);
@@ -3325,7 +3361,8 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge)
             migraphx::make_op("dyn_slice",
                               {{"axes", std::vector<int64_t>{2, 3}},
                                {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})}}),
+                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})},
+                               {"normalize_bounds", false}}),
             activation,
             activation_start,
             activation_end);
@@ -3352,7 +3389,8 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge)
             migraphx::make_op("dyn_slice",
                               {{"axes", std::vector<int64_t>{2, 3}},
                                {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})}}),
+                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})},
+                               {"normalize_bounds", false}}),
             output,
             output_start,
             output_end);
@@ -3453,7 +3491,8 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge_reversed_inputs)
             migraphx::make_op("dyn_slice",
                               {{"axes", std::vector<int64_t>{2, 3}},
                                {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})}}),
+                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})},
+                               {"normalize_bounds", false}}),
             activation,
             activation_start,
             activation_end);
@@ -3480,7 +3519,8 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge_reversed_inputs)
             migraphx::make_op("dyn_slice",
                               {{"axes", std::vector<int64_t>{2, 3}},
                                {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})}}),
+                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})},
+                               {"normalize_bounds", false}}),
             output,
             output_start,
             output_end);
@@ -3545,7 +3585,8 @@ TEST_CASE(split_sym_dim_materializes_fixed_axis_slice)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         output,
         output_start,
         output_end);
@@ -3714,7 +3755,8 @@ TEST_CASE(split_sym_dim_materializes_gathernd)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -3890,7 +3932,8 @@ TEST_CASE(split_sym_dim_materializes_fill_range_and_scatter)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -3958,7 +4001,8 @@ TEST_CASE(split_sym_dim_materializes_scatternd_with_static_indices)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -4032,7 +4076,8 @@ TEST_CASE(split_sym_dim_rewrites_padded_scatter_indices)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -4116,7 +4161,8 @@ TEST_CASE(split_sym_dim_rewrites_zero_depth_scatter_indices)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{m_dim})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{m_dim})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -4480,7 +4526,8 @@ TEST_CASE(split_sym_dim_materializes_attention_chain)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -4563,7 +4610,8 @@ TEST_CASE(split_sym_dim_clones_fixed_shape_dependencies_into_cases)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -4720,7 +4768,8 @@ TEST_CASE(split_sym_dim_applies_clone_cap_per_block)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         output_n,
         output_n_start,
         output_n_end);
@@ -4748,7 +4797,8 @@ TEST_CASE(split_sym_dim_applies_clone_cap_per_block)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{m_dim})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{m_dim})},
+                           {"normalize_bounds", false}}),
         output_m,
         output_m_start,
         output_m_end);
@@ -4833,7 +4883,8 @@ TEST_CASE(split_sym_dim_keeps_literals_in_clones)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         output,
         output_start,
         output_end);
@@ -4926,11 +4977,11 @@ TEST_CASE(split_sym_dim_coalesces_spatial_cnn)
             {{"expressions", migraphx::to_value(std::vector<se>{real_extent, real_extent})}}),
         std::vector<migraphx::instruction_ref>{input});
     output = expected_main.add_instruction(
-        migraphx::make_op(
-            "dyn_slice",
-            {{"axes", std::vector<int64_t>{2, 3}},
-             {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-             {"ends", migraphx::to_value(std::vector<se>{real_extent, real_extent})}}),
+        migraphx::make_op("dyn_slice",
+                          {{"axes", std::vector<int64_t>{2, 3}},
+                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
+                           {"ends", migraphx::to_value(std::vector<se>{real_extent, real_extent})},
+                           {"normalize_bounds", false}}),
         output,
         output_start,
         output_end);
@@ -5014,7 +5065,8 @@ TEST_CASE(split_sym_dim_preserves_compound_mask_extent)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{2}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence - 2})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{sequence - 2})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -5123,7 +5175,8 @@ TEST_CASE(split_sym_dim_freezes_fixed_roots_in_mask_extents)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{2}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{-kernel + sequence + 1})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{-kernel + sequence + 1})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -5224,7 +5277,8 @@ TEST_CASE(split_sym_dim_specializes_transformer_core)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
+                           {"normalize_bounds", false}}),
         expected_output,
         output_start,
         output_end);
@@ -5327,7 +5381,8 @@ TEST_CASE(split_sym_dim_specializes_transformer)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
+                           {"normalize_bounds", false}}),
         expected_output,
         output_start,
         output_end);
@@ -5438,7 +5493,8 @@ TEST_CASE(split_sym_dim_masks_contraction_operands_independently)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{2}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -5530,7 +5586,8 @@ TEST_CASE(split_sym_dim_keeps_softmax_mask_off_contract_axis)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{1}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
+                           {"normalize_bounds", false}}),
         expected_output,
         output_start,
         output_end);
@@ -5614,7 +5671,8 @@ TEST_CASE(split_sym_dim_keeps_reduction_of_padded_body_outside_clone)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_exp,
         expected_exp_start,
         expected_exp_end);
@@ -5639,7 +5697,8 @@ TEST_CASE(split_sym_dim_keeps_reduction_of_padded_body_outside_clone)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -5920,7 +5979,8 @@ TEST_CASE(split_sym_dim_keeps_unsupported_dependency_outside_clone)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);
@@ -5980,10 +6040,10 @@ TEST_CASE(split_sym_dim_preserves_original_output_expr)
 
     EXPECT(m.get_returns().size() == 1);
     EXPECT(m.get_returns().front()->name() == "dyn_slice");
-    auto target_n = var("split_sym_dim_n_target", {1, 8}, {1, 2, 4, 8});
     EXPECT(m.get_returns().front()->get_shape() ==
-           migraphx::shape{migraphx::shape::float_type,
-                           {dd{migraphx::sym::min(n, target_n)}, dd{lit(4)}}});
+           migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
+    EXPECT(
+        not m.get_returns().front()->get_operator().to_value().at("normalize_bounds").to<bool>());
 }
 
 TEST_CASE(split_sym_dim_materializes_bounded_prefix_dyn_slice)
@@ -6138,7 +6198,8 @@ TEST_CASE(split_sym_dim_memoizes_unchanged_shared_dependencies)
         migraphx::make_op("dyn_slice",
                           {{"axes", std::vector<int64_t>{0}},
                            {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})}}),
+                           {"ends", migraphx::to_value(std::vector<se>{n})},
+                           {"normalize_bounds", false}}),
         expected_output,
         expected_output_start,
         expected_output_end);

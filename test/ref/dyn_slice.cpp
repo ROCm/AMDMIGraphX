@@ -387,6 +387,43 @@ TEST_CASE(dyn_slice_runtime_bounds_clamped_test)
            migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
 }
 
+TEST_CASE(dyn_slice_runtime_bounds_clamped_without_bound_normalization_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
+    std::vector<int> data(s.elements());
+    std::iota(data.begin(), data.end(), 0);
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape bounds_shape{migraphx::shape::int64_type, {1}};
+    auto starts = mm->add_parameter("starts", bounds_shape);
+    auto ends   = mm->add_parameter("ends", bounds_shape);
+    mm->add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {2}},
+                           {"starts", migraphx::value::array{migraphx::to_value(var("m", {0, 1}))}},
+                           {"ends", migraphx::value::array{migraphx::to_value(var("n", {1, 8}))}},
+                           {"normalize_bounds", false}}),
+        l0,
+        starts,
+        ends);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int64_t> starts_data = {-2};
+    std::vector<int64_t> ends_data   = {100};
+    migraphx::parameter_map params;
+    params["starts"] = migraphx::argument(bounds_shape, starts_data.data());
+    params["ends"]   = migraphx::argument(bounds_shape, ends_data.data());
+
+    auto result = p.eval(params).back();
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
+    EXPECT(results_vector == gold);
+    EXPECT(result.get_shape() ==
+           migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
+}
+
 TEST_CASE(dyn_slice_negative_axis_test)
 {
     // The axes attribute is normalized when the program is compiled, so the runtime bounds are

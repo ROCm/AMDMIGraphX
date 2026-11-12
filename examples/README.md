@@ -8,3 +8,4 @@ This directory contains examples of common use cases for MIGraphX.
 - [Vision inference examples](./vision)
 - [Natural language inference examples](./nlp)
 - [Diffusion inference examples](./diffusion)
+- [Dynamic model examples](./dynamic)

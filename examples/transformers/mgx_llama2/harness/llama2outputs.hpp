@@ -1,0 +1,82 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+#pragma once
+
+#include "buffer.hpp"
+#include "config.hpp"
+
+#include <migraphx/migraphx.hpp>
+
+struct LLama2Outputs
+{
+    LLama2Outputs() {}
+
+    void prepareProgArgs(migraphx::program_parameters& prog_args,
+                         migraphx::program_parameters& prog_args_one_dim)
+    {
+        output_buffer = std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(OUTPUT_SIZE));
+        one_dim_output_buffer =
+            std::make_unique<LLama2PastKeyValueBuffer>(std::vector<half>(BATCH_SIZE * VOCAB_SIZE));
+        migraphx::shape out_shape{migraphx_shape_half_type, {BATCH_SIZE, SEQ_SIZE, VOCAB_SIZE}};
+        prog_args.add(OUTPUT_NAME, migraphx::argument(out_shape, output_buffer->data()));
+
+        migraphx::shape x_shape_one_dim{migraphx_shape_half_type, {BATCH_SIZE, 1, VOCAB_SIZE}};
+        prog_args_one_dim.add(OUTPUT_NAME,
+                              migraphx::argument(x_shape_one_dim, one_dim_output_buffer->data()));
+    }
+
+    void prepareProgArgsArgMax(migraphx::program_parameters& prog_args_argmax,
+                               migraphx::program_parameters& prog_args_argmax_one_dim)
+    {
+        // setting up argmax arguments
+        migraphx::shape x_shape{migraphx_shape_half_type, {BATCH_SIZE, SEQ_SIZE, VOCAB_SIZE}};
+        prog_args_argmax.add("x", migraphx::argument(x_shape, output_buffer->data()));
+        argm_output_buffer =
+            std::make_unique<ArgMaxOutputBuffer>(std::vector<int64_t>(BATCH_SIZE * SEQ_SIZE));
+        migraphx::shape argm_out_shape{migraphx_shape_int64_type, {BATCH_SIZE, SEQ_SIZE, 1}};
+        prog_args_argmax.add(OUTPUT_NAME,
+                             migraphx::argument(argm_out_shape, argm_output_buffer->data()));
+
+        migraphx::shape x_shape_one_dim{migraphx_shape_half_type, {BATCH_SIZE, 1, VOCAB_SIZE}};
+        prog_args_argmax_one_dim.add(
+            "x", migraphx::argument(x_shape_one_dim, one_dim_output_buffer->data()));
+        argm_output_buffer_one_dim =
+            std::make_unique<ArgMaxOutputBuffer>(std::vector<int64_t>(BATCH_SIZE));
+        migraphx::shape argm_out_shape_one_dim{migraphx_shape_int64_type, {BATCH_SIZE, 1, 1}};
+        prog_args_argmax_one_dim.add(
+            OUTPUT_NAME,
+            migraphx::argument(argm_out_shape_one_dim, argm_output_buffer_one_dim->data()));
+    }
+
+    LLama2Outputs(const LLama2Outputs& buf)            = delete;
+    LLama2Outputs& operator=(const LLama2Outputs& buf) = delete;
+
+    std::unique_ptr<LLama2PastKeyValueBuffer> output_buffer;
+    std::unique_ptr<LLama2PastKeyValueBuffer> one_dim_output_buffer;
+    std::unique_ptr<ArgMaxOutputBuffer> argm_output_buffer;
+    std::unique_ptr<ArgMaxOutputBuffer> argm_output_buffer_one_dim;
+
+    const char* OUTPUT_NAME  = "main:#output_0";
+    const size_t OUTPUT_SIZE = BATCH_SIZE * SEQ_SIZE * VOCAB_SIZE;
+};

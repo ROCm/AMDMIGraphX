@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// A 5x5 convolution to three output channels, which the direct kernel takes on gfx11/gfx12
+// A 5x5 convolution to three output channels, which the direct kernel takes on gfx12
 template <migraphx::shape::type_t DType>
 struct test_direct_conv_small_k : verify_program<test_direct_conv_small_k<DType>>
 {

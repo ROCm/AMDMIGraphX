@@ -400,11 +400,12 @@ constexpr Acc vec_dot(T x, U y, Acc acc)
     static_assert(vec_size<T>() == vec_size<U>(), "Dot product of different sizes");
     if constexpr(vec_size<T>() == 0)
     {
-        return acc + Acc(x) * Acc(y);
+        return acc + static_cast<Acc>(x) * static_cast<Acc>(y);
     }
     else
     {
-        repeat(vec_size<T>(), [&](index_int i) { acc += Acc(x[i]) * Acc(y[i]); });
+        repeat(vec_size<T>(),
+               [&](index_int i) { acc += static_cast<Acc>(x[i]) * static_cast<Acc>(y[i]); });
         return acc;
     }
 }
@@ -424,8 +425,7 @@ __device__ float vec_dot(vec<half, N> x, vec<half, N> y, float acc)
 #endif
 #endif
 
-// The sum is kept in at least float or int32, so types narrower than that neither round nor
-// overflow
+// Sums in at least float or int32, so narrow types do not round or overflow in their own type
 template <class T, class U>
 constexpr auto vec_dot(T x, U y)
 {

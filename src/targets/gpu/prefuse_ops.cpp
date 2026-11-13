@@ -386,18 +386,19 @@ struct direct_conv
 };
 MIGRAPHX_REGISTER_OP(direct_conv);
 
+// Filter taps per input channel of (K, C, k...) convolution weights
+std::size_t filter_taps(const shape& w)
+{
+    const auto& lens = w.lens();
+    return std::accumulate(lens.begin() + 2, lens.end(), std::size_t{1}, std::multiplies<>{});
+}
+
 // Dense 1-D and 2-D float or half convolutions with static shapes and explicit padding.
 // Filters past 256 taps per channel, or 32 rows (the halo rows a lane keeps in registers),
 // are left to the GEMM-based kernels.
 MIGRAPHX_PRED_MATCHER(conv_direct, instruction_ref ins)
 {
     if(ins->name() != "convolution")
-        return false;
-    auto v = ins->get_operator().to_value();
-    if(v.at("group").to<std::size_t>() != 1)
-        return false;
-    // Padding modes other than the default compute the padding at runtime
-    if(v.at("padding_mode").to<int>() != 0)
         return false;
     const auto& x_shape = ins->inputs().front()->get_shape();
     const auto& w_shape = ins->inputs().back()->get_shape();
@@ -409,13 +410,11 @@ MIGRAPHX_PRED_MATCHER(conv_direct, instruction_ref ins)
         return false;
     if(x_shape.ndim() == 4 and w_shape.lens()[2] > 32)
         return false;
-    return w_shape.elements() / (w_shape.lens()[0] * w_shape.lens()[1]) <= 256;
-}
-
-// Whether every value of a per-dim convolution attribute is one
-bool all_ones(const value& attr)
-{
-    return all_of(attr, [](const value& x) { return x.to<std::size_t>() == 1; });
+    if(filter_taps(w_shape) > 256)
+        return false;
+    auto v = ins->get_operator().to_value();
+    // Padding modes other than the default compute the padding at runtime
+    return v.at("group").to<std::size_t>() == 1 and v.at("padding_mode").to<int>() == 0;
 }
 
 // Heuristic for when the direct kernel beats the default lowering (MLIR; winograd keeps
@@ -431,7 +430,7 @@ bool all_ones(const value& attr)
 //     7x7 1.5-2.5x, 48->3 5x5 1.4-1.8x, 48->3 5x5 dilation 2 1.2-1.5x, 32->6 7x7 1.2-2.1x);
 //     8 output channels are mixed (48->8 5x5 1.0-1.5x), and 3x3 filters (48->3 0.35-0.96x)
 //     and strides (48->3 5x5 stride 2 0.8-0.95x) lose.
-//   - Each output needs enough multiply-adds, or the conv is bound by memory and the
+//   - fp32 outputs need at least 64 multiply-adds, or the conv is bound by memory and the
 //     kernels tie (16->1 1x1 0.9x). 1x1 convs only won when MLIR read a cold input
 //     (64->3 at 512x512 1.6x, 0.87x after a producer kernel), so they stay with MLIR.
 //   - The kernel does not split the input channels across blocks, so it needs many output
@@ -441,24 +440,24 @@ bool all_ones(const value& attr)
 //     channels-first path (48->3 3x3 0.5x, 16->4 3x3 stride 2 0.4x), while large filters
 //     still win there (64->3 7x7 2.4x).
 //   - 1-D convolutions are mixed (64->3 5-tap 1.1x, 48->8 3-tap 0.6-0.9x).
-bool direct_conv_profitable(instruction_ref ins)
+bool direct_conv_profitable(instruction_ref ins, const value& v)
 {
     const auto& x_shape = ins->inputs().front()->get_shape();
     if(x_shape.ndim() != 4)
         return false;
-    const auto& w_lens      = ins->inputs().back()->get_shape().lens();
-    const auto out_channels = w_lens[0];
-    const auto taps =
-        std::accumulate(w_lens.begin() + 2, w_lens.end(), std::size_t{1}, std::multiplies<>{});
-    const auto positions   = ins->get_shape().elements() / out_channels;
-    const bool half        = x_shape.type() == shape::half_type;
-    const bool nhwc        = x_shape.strides()[1] == 1;
-    const bool unit_stride = all_ones(ins->get_operator().to_value().at("stride"));
+    const auto& w_shape     = ins->inputs().back()->get_shape();
+    const auto out_channels = w_shape.lens()[0];
+    const auto taps         = filter_taps(w_shape);
+    const auto positions    = ins->get_shape().elements() / out_channels;
     if(taps == 1 or positions < 64 * 1024)
         return false;
+    const bool half = x_shape.type() == shape::half_type;
+    const bool nhwc = x_shape.strides()[1] == 1;
+    const bool unit_stride =
+        all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; });
     if(half)
         return unit_stride and taps >= 25 and out_channels <= (taps >= 49 ? 6 : 4);
-    if(out_channels > 16 or w_lens[1] * taps < 64)
+    if(out_channels > 16 or w_shape.lens()[1] * taps < 64)
         return false;
     return nhwc or (unit_stride and taps >= 25);
 }
@@ -480,15 +479,13 @@ struct find_direct_convolution
 
         // One input channel of an 8x64 output tile and its filter is the kernel's fallback
         // solution; larger halos lose to the GEMM-based kernels anyway
-        const auto& w_lens = weights->get_shape().lens();
-        auto taps          = weights->get_shape().elements() / (w_lens[0] * w_lens[1]);
-        if(channelwise_halo_bytes(ins, 8, 64) + taps * input->get_shape().type_size() >
+        if(channelwise_halo_bytes(ins, 8, 64) +
+               filter_taps(weights->get_shape()) * input->get_shape().type_size() >
            max_lds_bytes)
             return;
-        if(not force and not direct_conv_profitable(ins))
-            return;
-
         auto v = ins->get_operator().to_value();
+        if(not force and not direct_conv_profitable(ins, v))
+            return;
         m.replace_instruction(ins,
                               direct_conv{v.at("padding").to_vector<std::size_t>(),
                                           v.at("stride").to_vector<std::size_t>(),

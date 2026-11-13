@@ -27,12 +27,11 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/math.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/serialize.hpp>
-#include <array>
 #include <numeric>
 #include <set>
 
@@ -81,14 +80,7 @@ static std::vector<std::size_t> divisors_up_to(std::size_t n, std::size_t max_va
     return result;
 }
 
-// Largest divisor of `n` up to `max_value`
-static std::size_t largest_divisor(std::size_t n, std::size_t max_value)
-{
-    return divisors_up_to(n, max_value).back();
-}
-
-// Bytes a shared-memory buffer of `bytes` occupies with the kernel's 16-byte alignment
-static std::size_t lds_aligned(std::size_t bytes) { return (bytes + 15) / 16 * 16; }
+static bool is_power_of_2(std::size_t n) { return n > 0 and (n & (n - 1)) == 0; }
 
 // One tuning solution: a lane computes kvec output channels of nrows rows by noutputs
 // columns spaced tile_w apart; a block covers tile_k output channels over a
@@ -197,7 +189,7 @@ struct direct_conv_problem
         return std::min(span, nrows * row_taps());
     }
 
-    // Per-lane spatial tile: tile_h on the first spatial dim, tile_w on the last
+    // Lanes of a block along the spatial dims: tile_h on the first, tile_w on the last
     std::vector<std::size_t> lane_tile(const direct_conv_config& c) const
     {
         std::vector<std::size_t> result(num_spatial, 1);
@@ -217,8 +209,8 @@ struct direct_conv_problem
         return result;
     }
 
-    // Shared memory for the halo of tile_c input channels plus their weights, each buffer
-    // aligned to 16 bytes
+    // Shared memory for the halo of tile_c input channels plus their weights. The buffers
+    // align to 16 bytes, or to a lane's weight vector when it is a wider power of two.
     std::size_t lds_bytes(const direct_conv_config& c) const
     {
         auto tile = output_tile(c);
@@ -227,26 +219,32 @@ struct direct_conv_problem
             dims.begin(), dims.end(), std::size_t{1}, std::multiplies<>{}, [&](auto i) {
                 return (tile[i] - 1) * stride[i] + reach(i);
             });
-        return lds_aligned(halo * c.tile_c * type_size()) +
-               lds_aligned(c.tile_k * taps() * c.tile_c * type_size());
+        std::size_t dot_size =
+            inputs.front().type() == shape::half_type and c.tile_c % 2 == 0 ? 2 : 1;
+        auto w_vec        = c.kvec * dot_size * type_size();
+        std::size_t align = w_vec > 16 and is_power_of_2(w_vec) ? w_vec : 16;
+        return ceil_mul_of(halo * c.tile_c * type_size(), align) +
+               ceil_mul_of(c.tile_k * taps() * c.tile_c * type_size(), align);
     }
 
     std::size_t num_blocks(const direct_conv_config& c) const
     {
         const auto& out_lens = inputs.back().lens();
         auto tile            = output_tile(c);
-        return std::inner_product(
-            out_lens.begin() + 2,
-            out_lens.end(),
-            tile.begin(),
-            out_lens[0] * ((out_lens[1] + c.tile_k - 1) / c.tile_k),
-            std::multiplies<>{},
-            [](auto out_spatial, auto t) { return (out_spatial + t - 1) / t; });
+        return std::inner_product(out_lens.begin() + 2,
+                                  out_lens.end(),
+                                  tile.begin(),
+                                  out_lens[0] * integer_divide_ceil(out_lens[1], c.tile_k),
+                                  std::multiplies<>{},
+                                  integer_divide_ceil);
     }
 
     // Whether the kernel can run the configuration and keeps its registers in budget
     bool valid(const direct_conv_config& c, std::size_t wave) const
     {
+        // A solution read from a problem cache may hold zeros
+        if(c.kvec == 0 or c.tile_c == 0)
+            return false;
         if(num_spatial < 2 and (c.tile_h != 1 or c.nrows != 1))
             return false;
         if(c.tile_k % c.kvec != 0)
@@ -255,8 +253,7 @@ struct direct_conv_problem
             return false;
         // Power-of-two channel vectors load as one vector, which shared memory only aligns
         // up to 16 bytes; other widths load element by element
-        bool pow2 = (c.kvec & (c.kvec - 1)) == 0;
-        if(c.kvec > 8 or (pow2 and c.kvec * type_size() > 16))
+        if(c.kvec > 8 or (is_power_of_2(c.kvec) and c.kvec * type_size() > 16))
             return false;
         if(c.accumulators() > 64 or c.noutputs * halo_rows(c.nrows) > 64)
             return false;
@@ -267,17 +264,15 @@ struct direct_conv_problem
     }
 };
 
-// Candidate tuning solutions for a direct conv problem
 struct direct_conv_solutions
 {
     direct_conv_problem problem;
     std::size_t wave;
-    std::vector<value> solutions              = {};
-    std::set<std::array<std::size_t, 7>> seen = {};
+    std::vector<value> solutions = {};
+    std::set<value> seen         = {};
 
-    void add(const direct_conv_config& c)
+    void add(direct_conv_config config)
     {
-        auto config = c;
         if(problem.num_spatial < 2)
         {
             config.tile_w *= config.tile_h;
@@ -286,20 +281,13 @@ struct direct_conv_solutions
         }
         if(not problem.valid(config, wave))
             return;
-        if(not seen.insert({config.tile_h,
-                            config.tile_w,
-                            config.noutputs,
-                            config.nrows,
-                            config.tile_k,
-                            config.kvec,
-                            config.tile_c})
-                   .second)
-            return;
-        solutions.push_back(to_value(config));
+        auto v = to_value(config);
+        if(seen.insert(v).second)
+            solutions.push_back(std::move(v));
     }
 
-    // Largest input channel tile up to max_tile, in steps of the problem's channel step,
-    // whose shared memory fits
+    // Largest divisor of the input channels up to max_tile that is a multiple of the channel
+    // step and whose shared memory fits, else 1
     std::size_t fit_tile_c(direct_conv_config c, std::size_t max_tile) const
     {
         auto tiles = divisors_up_to(problem.in_channels(), max_tile);
@@ -315,14 +303,13 @@ struct direct_conv_solutions
     // natively
     std::vector<std::size_t> kvecs(std::size_t tile_k) const
     {
+        const std::vector<std::size_t> candidates = {4, 8};
         std::vector<std::size_t> result;
-        for(std::size_t v : {4, 8})
-        {
-            if(tile_k % v == 0 and v * problem.type_size() <= 16)
-                result.push_back(v);
-        }
+        std::copy_if(candidates.begin(), candidates.end(), std::back_inserter(result), [&](auto v) {
+            return tile_k % v == 0 and v * problem.type_size() <= 16;
+        });
         if(result.empty())
-            result.push_back(largest_divisor(tile_k, 4));
+            result.push_back(divisors_up_to(tile_k, 4).back());
         return result;
     }
 
@@ -343,7 +330,7 @@ struct direct_conv_solutions
     {
         auto k    = problem.out_channels();
         auto kvec = k;
-        if((k & (k - 1)) == 0 and k * problem.type_size() > 16)
+        if(is_power_of_2(k) and k * problem.type_size() > 16)
             kvec = 16 / problem.type_size();
         std::vector<std::size_t> row_runs = {1, 2};
         if(problem.row_taps() > 1)
@@ -355,8 +342,8 @@ struct direct_conv_solutions
         }
     }
 
-    // Blocks of 16 or 32 output channels over narrow spatial tiles; filters along the rows
-    // reuse long row runs, 1-row filters take two columns per lane
+    // Blocks of 16 or 32 output channels (8 or 16 below 16) over narrow spatial tiles;
+    // multi-row filters reuse long row runs, 1-row filters take two columns per lane
     void add_many_outputs()
     {
         std::vector<std::size_t> tile_ks = {16, 32};
@@ -369,22 +356,16 @@ struct direct_conv_solutions
             row_runs = {1, 2};
             noutputs = 2;
         }
-        std::vector<direct_conv_config> lane_tiles;
         for(auto tile_k : tile_ks)
         {
             for(auto kvec : kvecs(tile_k))
             {
                 for(auto [tile_h, tile_w] :
                     {std::pair<std::size_t, std::size_t>{1, 32}, {2, 16}, {2, 32}})
-                    lane_tiles.push_back({tile_h, tile_w, noutputs, 1, tile_k, kvec});
-            }
-        }
-        for(auto c : lane_tiles)
-        {
-            for(auto nrows : row_runs)
-            {
-                c.nrows = nrows;
-                add_channel_tiles(c, {4, 8});
+                {
+                    for(auto nrows : row_runs)
+                        add_channel_tiles({tile_h, tile_w, noutputs, nrows, tile_k, kvec}, {4, 8});
+                }
             }
         }
     }

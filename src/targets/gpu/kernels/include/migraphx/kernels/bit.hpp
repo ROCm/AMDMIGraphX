@@ -36,6 +36,8 @@ constexpr bool get_bit(uint32_t x, uint32_t i) noexcept
     return ((x >> i) & 1u) != 0;
 }
 
+constexpr bool is_power_of_2(unsigned int x) { return x > 0 and (x & (x - 1)) == 0u; }
+
 constexpr uint64_t bit_ceil(uint64_t x) noexcept
 {
     if(x <= 1)

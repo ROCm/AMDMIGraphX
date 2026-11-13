@@ -35,7 +35,6 @@
 #include <migraphx/value.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <algorithm>
 #include <numeric>
 #include <test.hpp>
 
@@ -112,8 +111,8 @@ static migraphx::argument run_program(migraphx::program p,
     direct_conv_gpu_target t;
     p.compile(t);
     migraphx::parameter_map m;
-    for(auto&& input : inputs)
-        m[input.first] = t.copy_to(input.second);
+    for(const auto& [name, arg] : inputs)
+        m[name] = t.copy_to(arg);
     m["output"] = t.allocate(out_shape);
     return t.copy_from(p.eval(m).front());
 }
@@ -139,7 +138,7 @@ static migraphx::argument run_gpu(const migraphx::shape& x_shape,
     auto w      = mm->add_parameter("w", w_shape);
     auto output = mm->add_parameter("output", out_shape);
     mm->add_return({mm->add_instruction(op, x, w, output)});
-    return run_program(p, out_shape, inputs);
+    return run_program(std::move(p), out_shape, inputs);
 }
 
 static bool verify_solution(const std::string& name,
@@ -200,7 +199,7 @@ TEST_CASE(direct_conv_channels_last)
                            config(2, 8, 2, 2, 16, 2, 8)));
 }
 
-// Channels-last half tensors with a partial input channel stage per block and wide output
+// Channels-last half tensors staging 4 of the 16 input channels at a time, with wide output
 // channel vectors
 TEST_CASE(direct_conv_channels_last_half)
 {
@@ -213,7 +212,7 @@ TEST_CASE(direct_conv_channels_last_half)
                            config(2, 16, 1, 2, 16, 8, 4)));
 }
 
-// Three output channels per lane load the weights one at a time since no vector is that wide
+// Three output channels per lane are not a power of two, so their weights load one at a time
 TEST_CASE(direct_conv_three_outputs)
 {
     migraphx::shape x_shape{migraphx::shape::float_type, {1, 12, 13, 17}};
@@ -271,7 +270,7 @@ TEST_CASE(direct_conv_stride)
                            config(2, 16, 1, 2, 8, 2, 3)));
 }
 
-// Dilation 2 with row runs reading every other halo row
+// Dilation 2: each output row of a row run reads every other halo row
 TEST_CASE(direct_conv_dilation)
 {
     migraphx::shape x_shape{migraphx::shape::float_type, {1, 4, 12, 12}};
@@ -283,7 +282,7 @@ TEST_CASE(direct_conv_dilation)
                            config(4, 8, 1, 2, 4, 4, 2)));
 }
 
-// Asymmetric padding with a stride that leaves an unread input column
+// Asymmetric padding with a stride that skips the last end-padding row
 TEST_CASE(direct_conv_asymmetric_padding)
 {
     migraphx::shape x_shape{migraphx::shape::float_type, {1, 2, 10, 11}};
@@ -398,7 +397,7 @@ TEST_CASE(direct_conv_fused_bias_relu)
 
     EXPECT(
         migraphx::verify_args_with_tolerance("direct_conv_fused_bias_relu",
-                                             run_program(p, out_shape, inputs),
+                                             run_program(std::move(p), out_shape, inputs),
                                              migraphx::verify::expected{ref.eval(inputs).front()}));
 }
 

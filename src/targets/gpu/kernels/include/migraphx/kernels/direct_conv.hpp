@@ -37,38 +37,19 @@ constexpr index_int direct_conv_dot_size()
     return is_same<T, half>{} and CTile % 2 == 0 ? 2 : 1;
 }
 
-// A dot product operand of D input channels: a scalar, or a vector of D
-template <class T, index_int D>
-using direct_conv_dot_type = conditional_t<D == 1, T, vec<T, D>>;
-
-template <index_int D, class F>
-__device__ auto direct_conv_dot_operand(F f)
-{
-    if constexpr(D == 1)
-        return f(_c<0>);
-    else
-        return vec_generate<D>(f);
-}
-
-// Lens of the weights one input channel stage uses: (CTile, KTile, k...)
+// Shared-memory layout of the staged (CTile, KTile, k...) weights with dim 1 fastest, so a
+// lane reads its KVec output channels as one vector. With dot products of D channels, dim 1
+// holds D input channels per output channel, so an operand's values are adjacent.
 template <index_int CTile, index_int KTile, class Weights>
-constexpr auto direct_conv_weights_lens(Weights)
+constexpr auto direct_conv_weights_shape(Weights)
 {
-    return return_array_c([] {
+    constexpr auto lens    = return_array_c([] {
         auto result = get_shape_c<Weights>{}.lens;
         result[0]   = CTile;
         result[1]   = KTile;
         return result;
     });
-}
-
-// Shared-memory layout of the staged weights with the output channel fastest, so a lane
-// reads its KVec output channels as one vector. Dot products of D input channels stage
-// (CTile / D, D * KTile, k...) weights, so the D values of an operand are adjacent.
-template <index_int CTile, index_int KTile, class Weights>
-constexpr auto direct_conv_weights_shape(Weights w)
-{
-    constexpr index_int nd = get_shape_c<Weights>{}.lens.size();
+    constexpr index_int nd = lens.size();
     constexpr auto perm    = generate_const_array<index_int>(_c<nd>, [](auto i) {
         if constexpr(i == 0)
             return index_c<0>;
@@ -77,28 +58,12 @@ constexpr auto direct_conv_weights_shape(Weights w)
         else
             return index_c<i + 1>;
     });
-    return make_shape_from_permutation(direct_conv_weights_lens<CTile, KTile>(w), perm);
+    return make_shape_from_permutation(lens, perm);
 }
 
-// Position of the block's first output channel and input channel `channel` in the
-// (K, C, k...) weights
-template <class Weights, class Tiler>
-__device__ auto direct_conv_weights_origin(const Tiler& tiler, index_int channel)
-{
-    return generate_array<index_int>(get_shape_c<Weights>{}.lens.size(), [&](auto d) -> index_int {
-        if constexpr(d == 0)
-            return tiler.origin[1];
-        else if constexpr(d == 1)
-            return channel;
-        else
-            return 0;
-    });
-}
-
-// Stage the weights of the block's output channels for input channels
-// [channel, channel + CTile) in the layout of direct_conv_weights_shape for dot products of
-// D input channels. Elements are visited in the global memory order so the loads coalesce;
-// the missing channels of a partial tile get zeros.
+// Stage the block's weights for the input channels starting at `channel` in the
+// direct_conv_weights_shape layout. Elements are visited in global memory order so the loads
+// coalesce; output channels past the end of a partial tile get zeros.
 template <index_int D, class Tiler, class Weights, class WeightsLds>
 __device__ void
 direct_conv_copy_weights(const Tiler& tiler, Weights w, WeightsLds w_lds, index_int channel)
@@ -112,7 +77,9 @@ direct_conv_copy_weights(const Tiler& tiler, Weights w, WeightsLds w_lds, index_
     });
     constexpr auto dot_shape  = make_shape(index_ints<lds_lens[0], D>{});
     constexpr auto perm       = find_permutation(get_shape_c<Weights>{});
-    auto start                = direct_conv_weights_origin<Weights>(tiler, channel);
+    array<index_int, lds_lens.size()> start{};
+    start[0] = tiler.origin[1];
+    start[1] = channel;
     tiler.idx.local_stride(_c<chunk_lens.product()>, [&](auto i) {
         auto multi     = multi_from_permutation(chunk_lens, perm, i);
         auto dot_multi = dot_shape.multi(multi[1]);
@@ -187,11 +154,18 @@ __device__ auto direct_conv_load_weights(Weights w_ch, Pos w_multi)
             repeat(_c<D>, [&](auto d) { values[v * D + d] = operand[d]; });
         });
     }
-    array<direct_conv_dot_type<type, D>, KVec> result;
-    repeat(_c<KVec>, [&](auto v) {
-        result[v] = direct_conv_dot_operand<D>([&](auto d) { return values[v * D + d]; });
-    });
-    return result;
+    if constexpr(D == 1)
+    {
+        return values;
+    }
+    else
+    {
+        array<vec<type, D>, KVec> result;
+        repeat(_c<KVec>, [&](auto v) {
+            result[v] = vec_generate<D>([&](auto d) { return values[v * D + d]; });
+        });
+        return result;
+    }
 }
 
 // Multiply the KVec weight operands of filter row r with the column values each of the
@@ -199,6 +173,7 @@ __device__ auto direct_conv_load_weights(Weights w_ch, Pos w_multi)
 template <index_int NTiles,
           index_int NRows,
           index_int KVec,
+          index_int Taps,
           class Acc,
           class Col,
           class Values,
@@ -215,7 +190,10 @@ __device__ Acc direct_conv_fma(Acc acc, const Col& col, const Values& wv, R r, S
         repeat(_c<NTiles>, [&](auto t) {
             repeat(_c<NRows>, [&](auto q) {
                 constexpr index_int row = q * stride[2] + r * dilation[2];
-                auto i                  = acc_shape.index(array<index_int, 3>{t, q, v});
+                static_assert(row < col_rows.lens[1] and
+                                  halo_row_used<NRows, Taps, stride[2], dilation[2]>(row),
+                              "Tap reads an unloaded halo row");
+                auto i = acc_shape.index(array<index_int, 3>{t, q, v});
                 acc[i] = vec_dot(col[col_rows.index(array<index_int, 2>{t, row})], wv[v], acc[i]);
             });
         });
@@ -223,11 +201,10 @@ __device__ Acc direct_conv_fma(Acc acc, const Col& col, const Values& wv, R r, S
     return acc;
 }
 
-// Accumulate one halo element of D staged input channels into the lane's NTiles column
-// tiles of NRows rows and KVec output channels from the weights laid out by
-// direct_conv_weights_shape. in_multi is the lane's first input position in the halo with
-// the element's channel group in dim 1. A filter column's halo rows load into registers once
-// for all its taps, and every weight vector serves all the lane's outputs.
+// Accumulate one staged channel group (D input channels) over every filter tap into the
+// lane's NTiles x NRows x KVec outputs. in_multi is the lane's first halo position with the
+// group in dim 1. A column's halo rows load once for all its taps, and each weight operand
+// serves all the lane's outputs.
 template <index_int NTiles,
           index_int NRows,
           index_int KVec,
@@ -266,7 +243,7 @@ __device__ Acc direct_conv_accumulate(Acc acc,
             w_multi[0]   = in_multi[1];
             w_multi[1]   = lane_k * D;
             w_multi[2]   = r;
-            acc          = direct_conv_fma<NTiles, NRows, KVec>(
+            acc          = direct_conv_fma<NTiles, NRows, KVec, kh>(
                 acc, col, direct_conv_load_weights<KVec, D>(w_ch, w_multi), r, stride, dilation);
         });
     });
@@ -335,6 +312,10 @@ __device__ void direct_conv(
     constexpr index_int channels     = input_shape{}.lens[1];
     constexpr index_int out_channels = get_shape_c<Output>{}.lens[1];
     static_assert(channels % CTile == 0, "Input channel tile must divide the input channels");
+    static_assert(get_shape_c<Weights>{}.lens[0] == out_channels and
+                      get_shape_c<Weights>{}.lens[1] == channels,
+                  "Weights must be (K, C, k...) for a dense convolution");
+    static_assert(is_same<typename Weights::type, type>{}, "Weights must have the input type");
     constexpr auto dilation = spatial_steps<ndim>(Dilation{});
     // Input extent one output reads per spatial dim: the dilated filter
     constexpr auto reach = generate_const_array<index_int>(TileLens{}.size(), [&](auto i) {
@@ -359,7 +340,11 @@ __device__ void direct_conv(
         make_shape(tiler_type::template halo_lens_for<input_shape, CTile / dot_size>());
 
     __shared__ decltype(tiler.template shared_allocate<Input, CTile>()) smem;
-    __shared__ uninitialized_buffer<type, w_lds_shape.element_space(), 16> wmem;
+    // A lane's weight operands load as one vector, which can be wider than 16 bytes
+    constexpr index_int w_vec_bytes = KVec * dot_size * sizeof(type);
+    constexpr index_int w_align =
+        w_vec_bytes > 16 and is_power_of_2(w_vec_bytes) ? w_vec_bytes : 16;
+    __shared__ uninitialized_buffer<type, w_lds_shape.element_space(), w_align> wmem;
     auto w_ch = make_tensor_view(wmem.data(), w_lds_shape);
 
     array<float, NTiles * NRows * KVec> acc{};

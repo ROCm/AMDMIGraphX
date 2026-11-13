@@ -32,6 +32,7 @@
 #include <migraphx/kernels/permutation.hpp>
 #include <migraphx/kernels/uninitialized_buffer.hpp>
 #include <migraphx/kernels/vec.hpp>
+#include <migraphx/kernels/bit.hpp>
 
 namespace migraphx {
 
@@ -63,7 +64,7 @@ constexpr auto spatial_steps(Spatial)
 template <index_int V, class Shape>
 constexpr bool channel_vector_aligned(Shape s)
 {
-    if constexpr(V == 1 or (V & (V - 1)) != 0)
+    if constexpr(V == 1 or not is_power_of_2(V))
         return false;
     else
     {
@@ -403,9 +404,9 @@ struct spatial_tiler
         return uninitialized_buffer<type, hl.product(), 16>{};
     }
 
-    // View of an (N, C, spatial...) tensor over this block's batch and channel group
-    template <index_int TC, class Tensor>
-    __device__ auto slice_channels(Tensor t) const
+    // View of an (N, C, spatial...) tensor over one batch and TC channels from start
+    template <index_int TC, class Tensor, class Start>
+    static __device__ auto channel_view(Tensor t, Start start)
     {
         constexpr auto s    = get_shape_c<Tensor>{};
         constexpr auto lens = return_array_c([] {
@@ -414,13 +415,20 @@ struct spatial_tiler
             result[1]   = TC;
             return result;
         });
+        return make_tensor_view(t.data() + s.index(start), make_shape(lens, s.strides));
+    }
+
+    // View of an (N, C, spatial...) tensor over this block's batch and channel group
+    template <index_int TC, class Tensor>
+    __device__ auto slice_channels(Tensor t) const
+    {
         // Channel origin scaled for tensors with fewer channels (channel multiplier)
         constexpr auto scale = return_array_c([] {
             auto result = transform(get_shape_c<Tensor>{}.lens, [](auto) { return index_c<1>; });
             result[1]   = channel_multiplier<get_shape_c<Tensor>>();
             return result;
         });
-        return make_tensor_view(t.data() + s.index(origin / scale), make_shape(lens, s.strides));
+        return channel_view<TC>(t, origin / scale);
     }
 
     // View of an output-shaped tensor over this block: (1, ChannelTile, spatial...)
@@ -434,6 +442,7 @@ struct spatial_tiler
     template <class Tensor>
     __device__ auto slice_weights(Tensor w) const
     {
+        static_assert(not partial_channel_tile(), "Weights of a partial channel tile");
         constexpr auto s    = get_shape_c<Tensor>{};
         constexpr auto lens = return_array_c([] {
             auto result = make_slice(get_shape_c<Tensor>{}, keep_spatial()).lens;
@@ -480,6 +489,7 @@ struct spatial_tiler
     template <class Input, class Smem>
     __device__ auto copy(Input input, Smem& smem) const
     {
+        static_assert(not partial_channel_tile(), "Halo of a partial channel tile");
         using input_shape            = get_shape_c<Input>;
         constexpr index_int channels = input_channel_tile<input_shape>();
         copy_halo<input_shape, channels, halo_vector_for<input_shape>()>(
@@ -487,11 +497,9 @@ struct spatial_tiler
         return make_tensor_view(smem.data(), halo_view_shape_for<input_shape>());
     }
 
-    // Copy the halo of input channels [channel, channel + Channels) of the block's batch
-    // into shared memory laid out as HaloShape, Vec channels per global load, and return
-    // the halo view. The default layout packs the halo in the input's memory order. A
-    // HaloShape over fewer channels holds each group of consecutive channels as one vector
-    // element (see copy_halo), and the view returns those vectors.
+    // Copy the halo of input channels [channel, channel + Channels) of the block's batch into
+    // shared memory as HaloShape (the input's memory order by default), Vec channels per
+    // load, and return the halo view, whose elements are vectors when HaloShape packs channels.
     template <index_int Channels,
               index_int Vec = 1,
               class Input,
@@ -499,19 +507,17 @@ struct spatial_tiler
               class HaloShape = decltype(halo_shape_for<get_shape_c<Input>, Channels>())>
     __device__ auto copy_channels(Input input, Smem& smem, index_int channel, HaloShape = {}) const
     {
-        using input_shape   = get_shape_c<Input>;
-        constexpr auto lens = return_array_c([] {
-            auto result = input_shape{}.lens;
-            result[0]   = 1;
-            result[1]   = Channels;
-            return result;
-        });
-        auto start          = origin;
-        start[1]            = channel;
-        auto in_ch          = make_tensor_view(input.data() + input_shape{}.index(start),
-                                               make_shape(lens, input_shape{}.strides));
-        copy_halo<input_shape, Channels, Vec>(in_ch, smem, HaloShape{});
-        return make_tensor_view(as_vec<Channels / HaloShape{}.lens[1]>(smem.data()), HaloShape{});
+        using input_shape        = get_shape_c<Input>;
+        constexpr index_int pack = Channels / HaloShape{}.lens[1];
+        static_assert(HaloShape{}.element_space() * pack * sizeof(typename Input::type) <=
+                          sizeof(Smem),
+                      "Halo layout must fit in shared memory");
+        MIGRAPHX_ASSERT(channel % Vec == 0 and channel + Channels <= input_shape{}.lens[1]);
+        auto start = origin;
+        start[1]   = channel;
+        copy_halo<input_shape, Channels, Vec>(
+            channel_view<Channels>(input, start), smem, HaloShape{});
+        return make_tensor_view(as_vec<pack>(smem.data()), HaloShape{});
     }
 
     // Shared-memory offset of a halo element in a HaloShape whose elements each hold Pack
@@ -526,8 +532,8 @@ struct spatial_tiler
     }
 
     // Copy the halo of a view over this block's batch and Channels input channels into
-    // shared memory laid out as HaloShape, moving Step elements at a time. When HaloShape
-    // covers fewer channels, each of its elements packs that many consecutive channels.
+    // shared memory laid out as HaloShape, moving Step elements at a time. A HaloShape over
+    // fewer channels packs each group of consecutive channels into one element.
     template <class InputShape,
               index_int Channels,
               index_int Step,
@@ -641,6 +647,7 @@ struct spatial_tiler
     template <class F>
     __device__ void for_each(F f) const
     {
+        static_assert(not partial_channel_tile(), "Outputs of a partial channel tile");
         for_each_run([&](auto out_pos, auto out_multi) {
             repeat(_c<NRows * ChannelVec>, [&](auto k) {
                 auto rv    = make_shape(index_ints<NRows, ChannelVec>{}).multi(k);

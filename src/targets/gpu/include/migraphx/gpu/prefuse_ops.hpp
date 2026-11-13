@@ -40,8 +40,8 @@ struct MIGRAPHX_GPU_EXPORT prefuse_ops
 {
     context* ctx          = nullptr;
     bool enable_attention = false;
-    // Use the direct convolution kernel for every convolution it supports, bypassing the
-    // profitability heuristic
+    // Use the direct convolution kernel for every convolution it supports on gfx11/gfx12,
+    // bypassing the profitability heuristic
     bool enable_direct_conv = false;
     // Never use the direct convolution kernel
     bool disable_direct_conv = false;

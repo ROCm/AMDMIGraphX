@@ -28,7 +28,7 @@
 #include <migraphx/make_op.hpp>
 
 // Bias and relu fused into a direct convolution whose 12 output channels leave the last
-// 8-channel tile partial
+// channel tile partial
 template <migraphx::shape::type_t DType>
 struct test_direct_conv_add_relu : verify_program<test_direct_conv_add_relu<DType>>
 {

@@ -9061,6 +9061,37 @@ def loop_test():
 
 
 @onnx_test()
+def loop_fixed_symbolic_scan_test():
+    # The body pads the NonZero result to 8: a symbolic shape whose dim is the literal 8
+    body = helper.make_graph([
+        helper.make_node('Identity', ['cond_in'], ['cond_out']),
+        helper.make_node('NonZero', ['m'], ['nz2']),
+        helper.make_node('Squeeze', ['nz2', 'axes'], ['nz']),
+        helper.make_node('Shape', ['nz'], ['n']),
+        helper.make_node('Sub', ['eight', 'n'], ['pad']),
+        helper.make_node('Expand', ['zero', 'pad'], ['zeros']),
+        helper.make_node('Concat', ['nz', 'zeros'], ['padded'], axis=0),
+    ], 'body', [
+        helper.make_tensor_value_info('iter', TensorProto.INT64, [1]),
+        helper.make_tensor_value_info('cond_in', TensorProto.BOOL, [1]),
+    ], [
+        helper.make_tensor_value_info('cond_out', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('padded', TensorProto.INT64, [8]),
+    ], [
+        helper.make_tensor('axes', TensorProto.INT64, [1], [0]),
+        helper.make_tensor('eight', TensorProto.INT64, [1], [8]),
+        helper.make_tensor('zero', TensorProto.INT64, [], [0]),
+    ])
+    m = helper.make_tensor_value_info('m', TensorProto.BOOL, [8])
+    scan = helper.make_tensor_value_info('scan', TensorProto.INT64, [1, 8])
+    trip = helper.make_tensor('trip', TensorProto.INT64, [1], [1])
+    cond = helper.make_tensor('cond', TensorProto.BOOL, [1], [1])
+    node = helper.make_node('Loop', ['trip', 'cond'], ['scan'], body=body)
+
+    return ([node], [m], [scan], [trip, cond])
+
+
+@onnx_test()
 def loop_test_implicit_tripcnt():
     body = helper.make_graph([
         helper.make_node("Add", ["a", "b_in"], ["my_local"]),

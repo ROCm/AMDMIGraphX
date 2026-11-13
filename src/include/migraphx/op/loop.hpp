@@ -72,6 +72,15 @@ struct loop
         if(mod_out_shapes.size() < dep_param_num)
             MIGRAPHX_THROW("LOOP: missing output shapes for dependency parameters");
 
+        // A symbolic shape whose dims are all literals, such as a padded result, has fixed lens
+        std::transform(
+            mod_out_shapes.begin(), mod_out_shapes.end(), mod_out_shapes.begin(), [](auto s) {
+                if(not s.dynamic())
+                    return s;
+                if(not s.symbolic() or not s.is_fixed())
+                    MIGRAPHX_THROW("LOOP: body outputs must have fixed dims, got " + to_string(s));
+                return s.to_static();
+            });
         std::vector<shape> ins_out_shapes(mod_out_shapes.begin(),
                                           mod_out_shapes.begin() + dep_param_num);
         mod_out_shapes.erase(mod_out_shapes.begin(), mod_out_shapes.begin() + dep_param_num);

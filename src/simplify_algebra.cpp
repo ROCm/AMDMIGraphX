@@ -1797,6 +1797,14 @@ struct find_splits
         // There should be no dependency between instructions in the group
         if(is_interdependent(group, &m, root))
             return {};
+        // Nor any member reading another one, as replacing that member with a slice of the fused
+        // result would make the fused instruction depend on itself
+        if(std::any_of(group.begin(), group.end(), [&](instruction_ref a) {
+               return std::any_of(group.begin(), group.end(), [&](instruction_ref b) {
+                   return a != b and is_dependent(m, root, a, b);
+               });
+           }))
+            return {};
         return group;
     }
 

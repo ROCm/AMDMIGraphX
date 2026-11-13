@@ -2685,6 +2685,37 @@ TEST_CASE(simplify_slice_concat_interleaved_mixed_source)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_split_dependent_group_members)
+{
+    // a1 reads a3 and a0 reads a2 through their constant argument, as in the TensorFlow box
+    // decoder, so fusing the four adds would make the fused add depend on itself
+    migraphx::module m1;
+    {
+        std::vector<float> data(16);
+        std::iota(data.begin(), data.end(), 0.0f);
+        auto x = m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {16}}, data});
+        std::vector<migraphx::instruction_ref> s;
+        for(int64_t i = 0; i < 4; i++)
+            s.push_back(m1.add_instruction(
+                migraphx::make_op("slice",
+                                  {{"axes", {0}}, {"starts", {i * 4}}, {"ends", {i * 4 + 4}}}),
+                x));
+        auto half = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}),
+                                       m1.add_literal(0.5f));
+        auto neg1 = m1.add_instruction(migraphx::make_op("neg"), s[1]);
+        auto a3   = m1.add_instruction(migraphx::make_op("add"), s[3], neg1);
+        auto h3   = m1.add_instruction(migraphx::make_op("mul"), a3, half);
+        auto a1   = m1.add_instruction(migraphx::make_op("add"), s[1], h3);
+        auto neg0 = m1.add_instruction(migraphx::make_op("neg"), s[0]);
+        auto a2   = m1.add_instruction(migraphx::make_op("add"), s[2], neg0);
+        auto h2   = m1.add_instruction(migraphx::make_op("mul"), a2, half);
+        auto a0   = m1.add_instruction(migraphx::make_op("add"), s[0], h2);
+        m1.add_return({a0, a1, a2, a3});
+    }
+    run_pass(m1);
+    EXPECT(m1.validate() == m1.end());
+}
+
 TEST_CASE(simplify_split_add_relu)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};

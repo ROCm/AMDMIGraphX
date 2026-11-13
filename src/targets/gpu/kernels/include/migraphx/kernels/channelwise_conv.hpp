@@ -25,24 +25,11 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_CHANNELWISE_CONV_HPP
 #define MIGRAPHX_GUARD_KERNELS_CHANNELWISE_CONV_HPP
 
-#include <migraphx/kernels/spatial_tiler.hpp>
+#include <migraphx/kernels/tiled_conv.hpp>
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/copy.hpp>
 
 namespace migraphx {
-
-// Whether halo row i of a run feeds some output row r and filter tap t: i = r*S + t*D
-template <index_int NRows, index_int Taps, index_int S, index_int D>
-constexpr bool halo_row_used(index_int i)
-{
-    for(index_int r = 0; r < NRows and r * S <= i; r++)
-    {
-        auto offset = i - r * S;
-        if(offset % D == 0 and offset / D < Taps)
-            return true;
-    }
-    return false;
-}
 
 // Accumulate ChannelVec channels of NRows consecutive output rows starting at out_multi.
 // Channels move as vectors, and a filter column's taps reuse the overlapping halo rows from
@@ -64,7 +51,7 @@ channelwise_conv_accumulate(Halo x_ch, Weights wregs, Pos out_multi, Stride, Dil
     constexpr index_int kh        = k_shape.lens[2];
     constexpr auto stride         = Stride{};
     constexpr auto dilation       = Dilation{};
-    constexpr index_int halo_rows = (NRows - 1) * stride[2] + (kh - 1) * dilation[2] + 1;
+    constexpr index_int halo_rows = run_halo_rows<NRows, kh, stride[2], dilation[2]>();
     static_assert(halo_rows <= get_shape_c<Halo>{}.lens[2], "Row run reads past the halo");
     constexpr auto col_shape = make_shape(return_array_c([] {
         auto result = get_shape_c<Weights>{}.lens;
@@ -109,35 +96,6 @@ channelwise_conv_accumulate(Halo x_ch, Weights wregs, Pos out_multi, Stride, Dil
     return acc;
 }
 
-// Apply the fused pointwise op to row r of the accumulators and store its channel vector.
-// The conv result is passed to f at the conv's own precision (ConvType) so the post-op
-// matches the reference; f's result converts to the output type at the store.
-template <index_int ChannelVec,
-          class ConvType,
-          class F,
-          class Output,
-          class Pack,
-          class Pos,
-          class Acc,
-          class R>
-__device__ void
-channelwise_conv_store(F f, Output out_ch, Pack xs_pack, Pos pos, const Acc& acc, R r)
-{
-    using type = typename Output::type;
-    constexpr auto acc_shape =
-        make_shape(index_ints<decltype(acc.size()){} / ChannelVec, ChannelVec>{});
-    xs_pack([&](auto... xs) {
-        pack(load_channels<ChannelVec>(xs, pos)...)([&](auto... xv) {
-            array<type, ChannelVec> out;
-            repeat(_c<ChannelVec>, [&](auto v) {
-                out[v] = f(static_cast<ConvType>(acc[acc_shape.index(array<index_int, 2>{r, v})]),
-                           xv[v]...);
-            });
-            store_channels<ChannelVec>(out_ch, pos, out);
-        });
-    });
-}
-
 template <class TileLens,
           index_int NTiles,
           index_int ChannelTile = 1,
@@ -156,11 +114,7 @@ __device__ void channelwise_conv(
 {
     constexpr index_int ndim = get_shape_c<Output>{}.lens.size();
     constexpr auto dilation  = spatial_steps<ndim>(Dilation{});
-    // Input extent one output reads per spatial dim: the dilated filter
-    constexpr auto reach = generate_const_array<index_int>(TileLens{}.size(), [&](auto i) {
-        constexpr auto k = get_shape_c<Weights>{}.lens;
-        return index_c<(k[i + 2] - 1) * dilation[i + 2] + 1>;
-    });
+    constexpr auto reach     = conv_reach<Weights>(dilation);
     static_assert(get_shape_c<Output>{}.lens[1] % ChannelTile == 0,
                   "Channel tile must divide the output channels");
     auto idx   = make_index();
@@ -183,7 +137,7 @@ __device__ void channelwise_conv(
 
     __syncthreads();
 
-    tiler.for_each_run([&](auto out_pos, auto out_multi) {
+    tiler.for_each_run([&](auto out_pos, auto out_multi, auto) {
         auto acc = channelwise_conv_accumulate<NRows, ChannelVec>(
             x_ch, wregs, out_multi, stride, dilation);
         repeat(_c<NRows>, [&](auto r) {
@@ -194,7 +148,7 @@ __device__ void channelwise_conv(
                 if(not tiler.contains(pos))
                     return;
             }
-            channelwise_conv_store<ChannelVec, type>(f, out_ch, xs_pack, pos, acc, r);
+            tiled_conv_store<ChannelVec, type>(f, out_ch, xs_pack, pos, acc, r);
         });
     });
 }

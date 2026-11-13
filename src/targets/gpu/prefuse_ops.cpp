@@ -295,10 +295,10 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
     return group == 1 or group == c_in;
 }
 
-// Shared memory the channelwise kernel stages for one channel of an output tile spanning
+// Shared memory a tiled conv kernel stages for one input channel of an output tile spanning
 // `rows` outputs along the first spatial dim and `cols` along the last: per dim, the tile
 // stepped by the stride plus the dilated filter
-std::size_t channelwise_halo_bytes(instruction_ref conv, std::size_t rows, std::size_t cols)
+std::size_t conv_halo_bytes(instruction_ref conv, std::size_t rows, std::size_t cols)
 {
     auto v             = conv->get_operator().to_value();
     auto stride        = v.at("stride").to_vector<std::size_t>();
@@ -347,7 +347,7 @@ struct find_channelwise_convolution
         // Strides, dilations and large filters grow the halo a block stages in shared
         // memory. Conservatively require one channel of an 8x128 output tile to fit: the
         // kernel's smaller tiles then fit too, and bigger halos lose to MLIR anyway.
-        if(channelwise_halo_bytes(ins, 8, 128) > max_lds_bytes)
+        if(conv_halo_bytes(ins, 8, 128) > max_lds_bytes)
             return;
 
         auto v = ins->get_operator().to_value();
@@ -479,7 +479,7 @@ struct find_direct_convolution
 
         // One input channel of an 8x64 output tile and its filter is the kernel's fallback
         // solution; larger halos lose to the GEMM-based kernels anyway
-        if(channelwise_halo_bytes(ins, 8, 64) +
+        if(conv_halo_bytes(ins, 8, 64) +
                filter_taps(weights->get_shape()) * input->get_shape().type_size() >
            max_lds_bytes)
             return;

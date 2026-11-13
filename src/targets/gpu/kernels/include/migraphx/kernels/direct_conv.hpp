@@ -25,7 +25,7 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_DIRECT_CONV_HPP
 #define MIGRAPHX_GUARD_KERNELS_DIRECT_CONV_HPP
 
-#include <migraphx/kernels/channelwise_conv.hpp>
+#include <migraphx/kernels/tiled_conv.hpp>
 
 namespace migraphx {
 
@@ -116,7 +116,7 @@ __device__ auto direct_conv_load_column(Halo x_ch, Pos origin, Stride, Dilation)
     constexpr index_int ndim      = get_shape_c<Halo>{}.lens.size();
     constexpr auto stride         = Stride{};
     constexpr auto dilation       = Dilation{};
-    constexpr index_int halo_rows = (NRows - 1) * stride[2] + (Taps - 1) * dilation[2] + 1;
+    constexpr index_int halo_rows = run_halo_rows<NRows, Taps, stride[2], dilation[2]>();
     static_assert(halo_rows <= get_shape_c<Halo>{}.lens[2], "Row run reads past the halo");
     constexpr auto col_rows = make_shape(index_ints<NTiles, halo_rows>{});
     array<type, col_rows.elements()> col;
@@ -251,10 +251,10 @@ __device__ Acc direct_conv_accumulate(Acc acc,
 }
 
 // Apply the fused op to row r of the lane's accumulators and store its channels. A partial
-// channel tile stores only the channels below `channels`, element by element.
+// channel tile stores only the channels the tiler contains, element by element.
 template <index_int KVec,
           class ConvType,
-          bool Partial,
+          class Tiler,
           class F,
           class Output,
           class Pack,
@@ -262,11 +262,11 @@ template <index_int KVec,
           class Acc,
           class R>
 __device__ void direct_conv_store(
-    F f, Output out_ch, Pack xs_pack, Pos pos, const Acc& acc, R r, index_int channels)
+    const Tiler& tiler, F f, Output out_ch, Pack xs_pack, Pos pos, const Acc& acc, R r)
 {
-    if constexpr(not Partial)
+    if constexpr(not Tiler::partial_channel_tile())
     {
-        channelwise_conv_store<KVec, ConvType>(f, out_ch, xs_pack, pos, acc, r);
+        tiled_conv_store<KVec, ConvType>(f, out_ch, xs_pack, pos, acc, r);
     }
     else
     {
@@ -275,7 +275,7 @@ __device__ void direct_conv_store(
             repeat(_c<KVec>, [&](auto v) {
                 auto p = pos;
                 p[1] += v;
-                if(p[1] >= channels)
+                if(not tiler.contains(p))
                     return;
                 out_ch[p] =
                     f(static_cast<ConvType>(acc[acc_shape.index(array<index_int, 2>{r, v})]),
@@ -317,13 +317,9 @@ __device__ void direct_conv(
                   "Weights must be (K, C, k...) for a dense convolution");
     static_assert(is_same<typename Weights::type, type>{}, "Weights must have the input type");
     constexpr auto dilation = spatial_steps<ndim>(Dilation{});
-    // Input extent one output reads per spatial dim: the dilated filter
-    constexpr auto reach = generate_const_array<index_int>(TileLens{}.size(), [&](auto i) {
-        constexpr auto k = get_shape_c<Weights>{}.lens;
-        return index_c<(k[i + 2] - 1) * dilation[i + 2] + 1>;
-    });
-    auto idx             = make_index();
-    auto tiler           = make_spatial_tiler<NTiles, KTile, NRows, KVec>(
+    constexpr auto reach    = conv_reach<Weights>(dilation);
+    auto idx                = make_index();
+    auto tiler              = make_spatial_tiler<NTiles, KTile, NRows, KVec>(
         idx, TileLens{}, get_shape_c<Output>{}, Padding{}, Stride{}, reach);
     using tiler_type      = decltype(tiler);
     constexpr auto stride = tiler_type::get_stride();
@@ -368,22 +364,19 @@ __device__ void direct_conv(
     auto out_ch              = tiler.slice(output);
     auto xs_pack             = pack(tiler.slice(inputs)...);
     constexpr auto acc_shape = make_shape(index_ints<NTiles, NRows * KVec>{});
-    repeat(_c<NTiles>, [&](auto t) {
+    tiler.for_each_run([&](auto out_pos, auto, auto t) {
         array<float, NRows * KVec> tile_acc;
         repeat(_c<NRows * KVec>,
                [&](auto i) { tile_acc[i] = acc[acc_shape.index(array<index_int, 2>{t, i})]; });
-        auto out_pos = tiler.tile_origin + tiler.lane;
-        out_pos[ndim - 1] += t * TileLens{}.back();
         repeat(_c<NRows>, [&](auto r) {
             auto pos = out_pos;
             pos[2] += r;
-            if constexpr(tiler_type::is_padded())
+            if constexpr(tiler_type::needs_bounds_check())
             {
                 if(not tiler.contains(pos))
                     return;
             }
-            direct_conv_store<KVec, type, tiler_type::partial_channel_tile()>(
-                f, out_ch, xs_pack, pos, tile_acc, r, out_channels - tiler.origin[1]);
+            direct_conv_store<KVec, type>(tiler, f, out_ch, xs_pack, pos, tile_acc, r);
         });
     });
 }

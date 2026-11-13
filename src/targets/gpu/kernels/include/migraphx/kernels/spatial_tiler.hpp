@@ -625,21 +625,31 @@ struct spatial_tiler
         });
     }
 
-    // Whether an output position lies inside the block's region (partial tiles)
+    // Whether an output position lies inside the block's region (partial tiles) and, for a
+    // partial channel tile, inside the output channels
     __device__ bool contains(const array<index_int, ndim()>& pos) const
     {
+        if constexpr(partial_channel_tile())
+        {
+            if(origin[1] + pos[1] >= OutputShape{}.lens[1])
+                return false;
+        }
         return in_bounds(pos, region_lens());
     }
 
-    // Iterate over the first row of each run of NRows consecutive rows this lane owns.
-    // Runs step by a constant along the last spatial dim so offsets fold into immediates.
+    // Whether some output positions of a lane fall outside contains()
+    static constexpr bool needs_bounds_check() { return is_padded() or partial_channel_tile(); }
+
+    // Iterate over the first row of each run of NRows consecutive rows this lane owns, with
+    // the index of its column tile. Runs step by a constant along the last spatial dim so
+    // offsets fold into immediates.
     template <class F>
     __device__ void for_each_run(F f) const
     {
         repeat(_c<NTiles>, [&](auto k) {
             auto out_multi = lane;
             out_multi[ndim() - 1] += k * TileLens{}.back();
-            f(tile_origin + out_multi, out_multi);
+            f(tile_origin + out_multi, out_multi, k);
         });
     }
 
@@ -647,8 +657,7 @@ struct spatial_tiler
     template <class F>
     __device__ void for_each(F f) const
     {
-        static_assert(not partial_channel_tile(), "Outputs of a partial channel tile");
-        for_each_run([&](auto out_pos, auto out_multi) {
+        for_each_run([&](auto out_pos, auto out_multi, auto) {
             repeat(_c<NRows * ChannelVec>, [&](auto k) {
                 auto rv    = make_shape(index_ints<NRows, ChannelVec>{}).multi(k);
                 auto pos   = out_pos;
@@ -657,7 +666,7 @@ struct spatial_tiler
                 multi[1] += rv[1];
                 pos[2] += rv[0];
                 multi[2] += rv[0];
-                if constexpr(is_padded())
+                if constexpr(needs_bounds_check())
                 {
                     if(not contains(pos))
                         return;

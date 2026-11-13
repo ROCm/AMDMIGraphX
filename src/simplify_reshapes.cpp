@@ -2543,6 +2543,9 @@ struct find_slice_squeeze
         auto sl_axes = slice_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
         if(sq_axes.size() != 1 or sl_axes.size() != 1 or sq_axes.front() != sl_axes.front())
             return;
+        // A squeeze to a scalar keeps the rank, so unsqueezing the other inputs would not match it
+        if(squeeze->get_shape().ndim() == slice_ins->get_shape().ndim())
+            return;
 
         auto axis = sq_axes.front();
 

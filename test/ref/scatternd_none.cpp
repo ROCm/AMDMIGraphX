@@ -30,6 +30,8 @@
 
 #include <test.hpp>
 
+#include <tuple>
+
 TEST_CASE(scatternd_shapes_test_1)
 {
     // broadcasted input
@@ -272,6 +274,119 @@ TEST_CASE(scatternd_test_5)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold(32, 0);
     std::copy(data_vec.begin(), data_vec.begin() + 16, gold.begin());
+
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(scatternd_negative_indices_test)
+{
+    // A negative index counts back from the end of its dimension: the second and third index
+    // tuples address row 7 and row 1 of the second dimension, and the first dimension has one
+    // element so -1 is element 0.
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto dtype = migraphx::shape::float_type;
+    auto itype = migraphx::shape::int64_type;
+    migraphx::shape ds{dtype, {1, 8, 4}};
+    migraphx::shape is{itype, {1, 3, 2}};
+    migraphx::shape us{dtype, {1, 3, 4}};
+
+    std::vector<float> data_vec(32, 0);
+    std::vector<int64_t> ind_vec{0, 2, -1, -1, -1, 1};
+    std::vector<float> upd_vec{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+    auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+    auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+    auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+    auto scatternd =
+        mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+    mm->add_return({scatternd});
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0, 0, 0, 0, 9, 10, 11, 12, 1, 2, 3, 4, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0,  0,  0,  0, 0, 0, 0, 5, 6, 7, 8};
+
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(scatternd_negative_indices_int32_test)
+{
+    // int32 indices take the same path as int64 ones
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto dtype = migraphx::shape::float_type;
+    auto itype = migraphx::shape::int32_type;
+    migraphx::shape ds{dtype, {8}};
+    migraphx::shape is{itype, {4, 1}};
+    migraphx::shape us{dtype, {4}};
+
+    std::vector<float> data_vec(8, 0);
+    std::vector<int32_t> ind_vec{-1, -8, 3, -5};
+    std::vector<float> upd_vec{9, 10, 11, 12};
+
+    auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+    auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+    auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+    auto scatternd =
+        mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+    mm->add_return({scatternd});
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    // -1 -> 7, -8 -> 0, 3 -> 3, -5 -> 3 (the later update wins)
+    std::vector<float> gold{10, 0, 0, 12, 0, 0, 0, 9};
+
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(scatternd_index_out_of_bounds_test)
+{
+    // An index outside [-dim, dim) raises an error instead of writing out of bounds, and the
+    // extremes that are in bounds do not.
+    std::vector<std::vector<int64_t>> bad_indices{{0, 8}, {-9, 0}, {0, -1000000}, {8, 8}};
+    for(const auto& ind_vec : bad_indices)
+    {
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {2, 1}};
+        migraphx::shape us{dtype, {2}};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, std::vector<float>(8, 0)});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, std::vector<float>{1, 2}});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::make_target("ref"));
+        EXPECT(test::throws<migraphx::exception>([&] { std::ignore = p.eval({}).back(); },
+                                                 "out of bounds"));
+    }
+
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto dtype = migraphx::shape::float_type;
+    auto itype = migraphx::shape::int64_type;
+    migraphx::shape ds{dtype, {8}};
+    migraphx::shape is{itype, {2, 1}};
+    migraphx::shape us{dtype, {2}};
+
+    auto data    = mm->add_literal(migraphx::literal{ds, std::vector<float>(8, 0)});
+    auto indices = mm->add_literal(migraphx::literal{is, std::vector<int64_t>{-8, 7}});
+    auto updates = mm->add_literal(migraphx::literal{us, std::vector<float>{1, 2}});
+    auto scatternd =
+        mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+    mm->add_return({scatternd});
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1, 0, 0, 0, 0, 0, 0, 2};
 
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

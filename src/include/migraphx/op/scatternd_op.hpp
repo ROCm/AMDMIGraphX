@@ -125,6 +125,7 @@ struct scatternd_op : op_name<Derived>
                 auto k             = indices_shape.lens().back();
                 auto q             = indices_shape.ndim();
                 auto r             = dyn_out.computed_shape.ndim();
+                const auto& out_lens = dyn_out.computed_shape.lens();
                 for(auto i = 0u; i < updates_shape.elements(); ++i)
                 {
                     auto updates_idx = updates_std.multi(i);
@@ -134,8 +135,21 @@ struct scatternd_op : op_name<Derived>
                     auto index_start = indices.begin_at(indices_idx);
                     auto index_end   = index_start + k;
 
+                    // A negative index counts back from the end of its dimension.
                     std::vector<std::size_t> out_idx(r, 0);
-                    std::copy(index_start, index_end, out_idx.begin());
+                    std::transform(
+                        index_start,
+                        index_end,
+                        out_lens.begin(),
+                        out_idx.begin(),
+                        [](std::int64_t index, std::size_t dim) {
+                            auto size = static_cast<std::int64_t>(dim);
+                            if(index < -size or index >= size)
+                                MIGRAPHX_THROW("ScatterND: index " + std::to_string(index) +
+                                               " is out of bounds for dim of len " +
+                                               std::to_string(dim));
+                            return static_cast<std::size_t>(index < 0 ? index + size : index);
+                        });
                     std::copy(
                         updates_idx.begin() + (q - 1), updates_idx.end(), out_idx.begin() + k);
 

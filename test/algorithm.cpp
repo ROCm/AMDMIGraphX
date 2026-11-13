@@ -228,4 +228,36 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_if_two_range_empty, int)
     EXPECT(result.empty());
 }
 
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(exclusive_scan_basic, int)
+{
+    Container v = {3, 1, 4, 1, 5};
+    std::vector<int> result;
+    migraphx::exclusive_scan(v.begin(), v.end(), std::back_inserter(result), 0);
+    EXPECT(result == std::vector<int>{0, 3, 4, 8, 9});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(exclusive_scan_in_place, int)
+{
+    Container v = {3, 1, 4, 1, 5};
+    migraphx::exclusive_scan(v.begin(), v.end(), v.begin(), 10);
+    EXPECT(v == Container{10, 13, 14, 18, 19});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(exclusive_scan_custom_op, int)
+{
+    Container v = {2, 3, 4};
+    std::vector<int> result;
+    migraphx::exclusive_scan(
+        v.begin(), v.end(), std::back_inserter(result), 1, std::multiplies<>{});
+    EXPECT(result == std::vector<int>{1, 2, 6});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(exclusive_scan_empty, int)
+{
+    Container v;
+    std::vector<int> result;
+    migraphx::exclusive_scan(v.begin(), v.end(), std::back_inserter(result), 0);
+    EXPECT(result.empty());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -44,6 +44,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/reshape_dims.hpp>
 #include <migraphx/instruction_traversal.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/par.hpp>
@@ -2475,6 +2476,158 @@ struct find_flatten
     }
 };
 
+// Rewrite layout(reshape(x)) to reshape(layout(x)) when the reshape cannot alias
+// x as a view: the reshape then copies and the layout copies again, whereas the
+// layout alone can produce the memory order the reshape aliases.
+struct find_layout_reshape
+{
+    // A static reshape that cannot alias its input as a view
+    static bool is_copying_reshape(instruction_ref ins)
+    {
+        const auto& s = ins->inputs().front()->get_shape();
+        if(s.dynamic() or ins->get_shape().dynamic())
+            return false;
+        return not reshape_dims(s, ins->get_shape().lens(), {.lazy = true}).has_value();
+    }
+
+    auto matcher() const
+    {
+        auto copying_reshape =
+            match::name("reshape")(match::nargs(1),
+                                   match::used_once(),
+                                   match::make_basic_pred_matcher(&is_copying_reshape));
+        return match::name("layout")(match::args(copying_reshape));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto layout      = r.result;
+        auto reshape     = layout->inputs().front();
+        auto x           = reshape->inputs().front();
+        const auto& xs   = x->get_shape();
+        const auto& outs = layout->get_shape();
+        // Strides for x's lens that the output layout is a lazy reshape of
+        auto relayout = reshape_dims(outs, xs.lens(), {.lazy = true});
+        if(not relayout.has_value())
+            return;
+        auto perm      = find_permutation(*relayout);
+        auto layout_op = make_op("layout", {{"permutation", perm}});
+        auto rs        = reshape_dims(layout_op.compute_shape({xs}), outs.lens(), {.lazy = true});
+        if(not rs.has_value() or rs->to_static() != outs)
+            return;
+        auto new_layout = m.insert_instruction(layout, layout_op, x);
+        m.replace_instruction(layout, make_op("reshape", {{"dims", outs.lens()}}), new_layout);
+    }
+};
+
+// Move a layout above the ops that carry their input's layout unchanged (pad and
+// pointwise ops with one non-broadcast input), and above a slice of a copying
+// reshape, so the layout reaches that reshape for find_layout_reshape to fold
+// into a single copy. The whole chain is moved at once: the moved layout lands
+// before the cursor, so one hop per pass would cost a repeat round each.
+struct find_layout_passthrough
+{
+    static bool keeps_input_layout(instruction_ref ins)
+    {
+        if(ins->name() == "pad")
+            return true;
+        // layout carries the unary pointwise attribute but changes the layout
+        return ins->name() != "layout" and ins->get_operator().attributes().get("pointwise", false);
+    }
+
+    static bool is_data_input(instruction_ref ins)
+    {
+        const auto& s = ins->get_shape();
+        return not s.dynamic() and not s.broadcasted() and s.elements() > 1;
+    }
+
+    static bool slices_copying_reshape(instruction_ref ins)
+    {
+        if(ins->name() != "slice" or ins->inputs().size() != 1)
+            return false;
+        auto reshape = ins->inputs().front();
+        return reshape->name() == "reshape" and reshape->inputs().size() == 1 and
+               find_layout_reshape::is_copying_reshape(reshape);
+    }
+
+    static bool is_passthrough(instruction_ref ins)
+    {
+        return keeps_input_layout(ins) or slices_copying_reshape(ins);
+    }
+
+    auto matcher() const
+    {
+        return match::name("layout")(match::args(
+            match::any(match::used_once(), match::make_basic_pred_matcher(&is_passthrough))));
+    }
+
+    // Whether applying the layout to x before op yields the same shape as after it
+    static bool carries_layout(const operation& layout_op, instruction_ref op, instruction_ref x)
+    {
+        std::vector<shape> shapes;
+        std::transform(op->inputs().begin(),
+                       op->inputs().end(),
+                       std::back_inserter(shapes),
+                       [&](instruction_ref in) {
+                           return in == x ? layout_op.compute_shape({x->get_shape()})
+                                          : in->get_shape();
+                       });
+        return op->get_operator().compute_shape(shapes) ==
+               layout_op.compute_shape({op->get_shape()});
+    }
+
+    // The input whose layout op carries to its output when the layout moves above it
+    static std::optional<instruction_ref> carried_input(const operation& layout_op,
+                                                        instruction_ref op)
+    {
+        const auto& args = op->inputs();
+        if(slices_copying_reshape(op))
+            return args.front();
+        if(not keeps_input_layout(op))
+            return std::nullopt;
+        auto it = std::find_if(args.begin(), args.end(), &is_data_input);
+        if(it == args.end() or std::any_of(std::next(it), args.end(), &is_data_input))
+            return std::nullopt;
+        if(not carries_layout(layout_op, op, *it))
+            return std::nullopt;
+        return *it;
+    }
+
+    // Follows the carried inputs from ins while each op is single-use; the last
+    // element is the one the layout cannot move above
+    static auto get_carried_input_path(const operation& layout_op, instruction_ref ins)
+    {
+        return unfold(ins, [=](instruction_ref x) -> std::optional<instruction_ref> {
+            if(x->outputs().size() != 1)
+                return std::nullopt;
+            return carried_input(layout_op, x);
+        });
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto layout    = r.result;
+        auto layout_op = layout->get_operator();
+        // The ops the layout moves above, nearest first, ending at the layout's new input
+        auto path = get_carried_input_path(layout_op, layout->inputs().front());
+        std::vector<instruction_ref> chain(path.begin(), path.end());
+        auto x = chain.back();
+        chain.pop_back();
+        if(chain.empty())
+            return;
+        // Rebuild the chain on top of the moved layout
+        auto y = m.insert_instruction(chain.back(), layout_op, x);
+        for(auto op : reverse(chain))
+        {
+            auto args = op->inputs();
+            std::replace(args.begin(), args.end(), x, y);
+            x = op;
+            y = m.insert_instruction(layout, op->get_operator(), args);
+        }
+        m.replace_instruction(layout, y);
+    }
+};
+
 // Rewrite layout(multibroadcast|broadcast(x)) to broadcast(layout(x)), skipping
 // the inner layout when it would be a no-op, so only the unique data is
 // materialized instead of a full copy per broadcast output.
@@ -2613,7 +2766,9 @@ void simplify_reshapes::apply(module& m) const
                             find_reshape_dot{},
                             find_mul_add_shape_op_dot{},
                             find_op_shape_transform_op{.enable = enable_op_shape_transform_op},
-                            find_entry_shape_transform_op{.enable = enable_op_shape_transform_op});
+                            find_entry_shape_transform_op{.enable = enable_op_shape_transform_op},
+                            find_layout_passthrough{},
+                            find_layout_reshape{});
         dead_code_elimination{}.apply(m);
     });
 }

@@ -48,6 +48,40 @@ TEST_CASE(convert_downcast_overflow_test)
     }));
 }
 
+TEST_CASE(convert_float_to_bool_test)
+{
+    // Any nonzero value, including a fraction, a negative value and nan, is true
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {7}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> data = {
+        -0.95f, 0.5f, 0.997f, 2.0f, 0.0f, 300.0f, std::numeric_limits<float>::quiet_NaN()};
+    auto result = p.eval({{"x", migraphx::argument{s, data.data()}}}).back();
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector == std::vector<int>{1, 1, 1, 1, 0, 1, 1});
+}
+
+TEST_CASE(convert_int_to_bool_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int32_type, {4}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+    std::vector<int32_t> data = {-1, 0, 2, 256};
+    auto result               = p.eval({{"x", migraphx::argument{s, data.data()}}}).back();
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector == std::vector<int>{1, 0, 1, 1});
+}
+
 TEST_CASE(convert_downcast_underflow_test)
 {
     migraphx::program p;

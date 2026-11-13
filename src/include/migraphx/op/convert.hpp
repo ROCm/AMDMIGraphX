@@ -99,9 +99,13 @@ struct convert : unary<convert>
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
                 using output_type = typename decltype(output)::value_type;
+                // bool is visited as int8_t, so a bool result is not a narrowing of the value
+                const bool to_bool = target_type == shape::bool_type;
                 par_transform(
-                    input.begin(), input.end(), output.begin(), [](auto x) -> output_type {
+                    input.begin(), input.end(), output.begin(), [&](auto x) -> output_type {
                         double dx = x;
+                        if(to_bool)
+                            return output_type(dx != 0 ? 1.0 : 0.0);
                         if(std::isnan(dx))
                             return std::numeric_limits<output_type>::quiet_NaN();
                         if(not std::is_integral<output_type>{} and std::isinf(dx))

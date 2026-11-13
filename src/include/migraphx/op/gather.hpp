@@ -90,8 +90,19 @@ struct gather
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const
     {
-        if(args.size() != 2 or args[0].get_shape().ndim() != 1 or axis != 0 or args[0].empty() or
-           args[1].empty())
+        if(args.size() != 2 or args[0].get_shape().ndim() != 1 or axis != 0 or args[0].empty())
+            return {};
+        // Every element of the data is the same, so the indices do not need to be known
+        const auto values = args[0].get();
+        if(values.size() > 0 and
+           std::all_of(values.begin(), values.end(), [&](const auto& e) { return e == values[0]; }))
+        {
+            sym_argument result{output_shape};
+            auto output = result.get();
+            std::fill(output.begin(), output.end(), values[0]);
+            return result;
+        }
+        if(args[1].empty())
             return {};
         auto indices = sym::fixed_values<int64_t>(args[1].get());
         if(not indices.has_value() or indices->size() != output_shape.elements())

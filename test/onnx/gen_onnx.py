@@ -18124,6 +18124,27 @@ def skip_layer_normalization_invalid_input_test():
 
 
 @onnx_test()
+def slice_gather_end_test():
+    # The end is read with a run-time index from a tensor holding one repeated value, like the
+    # per-image box count in the TensorFlow object detection postprocessing
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [8, 4])
+    index = helper.make_tensor_value_info('index', TensorProto.INT64, [])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5, 4])
+
+    counts = helper.make_tensor('counts', TensorProto.INT64, [2], [5, 5])
+    starts = helper.make_tensor('starts', TensorProto.INT64, [1], [0])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+
+    nodes = [
+        helper.make_node('Gather', ['counts', 'index'], ['count'], axis=0),
+        helper.make_node('Unsqueeze', ['count', 'axes'], ['ends']),
+        helper.make_node('Slice', ['data', 'starts', 'ends', 'axes'], ['y']),
+    ]
+
+    return (nodes, [data, index], [out], [counts, starts, axes])
+
+
+@onnx_test()
 def slice_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])

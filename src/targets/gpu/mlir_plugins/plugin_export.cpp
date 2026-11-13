@@ -174,6 +174,21 @@ static mlir_backend_result* plugin_is_module_fusible(const module* m,
     });
 }
 
+static mlir_backend_result* plugin_mlir_compile_key(const context* migraphx_ctx,
+                                                    const module* m,
+                                                    const shape* in_shapes,
+                                                    std::size_t in_shape_count,
+                                                    const char* solution,
+                                                    std::size_t solution_size) noexcept
+{
+    return make_backend_result([&](auto& result) {
+        result.data = mlir_compile_key(required(migraphx_ctx, "context"),
+                                       required(m, "module"),
+                                       copy_range(in_shapes, in_shape_count),
+                                       value(copy_string(solution, solution_size)));
+    });
+}
+
 static mlir_backend_result* plugin_compile_mlir(const context* migraphx_ctx,
                                                 const module* m,
                                                 const shape* in_shapes,
@@ -318,6 +333,7 @@ migraphx_gpu_get_mlir_backend_v3() noexcept
         &plugin_get_tuning_config_mlir,
         &plugin_dump_mlir_to_mxr,
         &plugin_mlir_lds_usage_fits_arch,
+        &plugin_mlir_compile_key,
         &plugin_result_error,
         &plugin_result_string,
         &plugin_result_bool,

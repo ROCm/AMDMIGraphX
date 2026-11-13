@@ -80,6 +80,7 @@ static void validate_mlir_backend(const mlir_backend_v3* table, const fs::path& 
     require(table->get_tuning_config_mlir, "get_tuning_config_mlir");
     require(table->dump_mlir_to_mxr, "dump_mlir_to_mxr");
     require(table->mlir_lds_usage_fits_arch, "mlir_lds_usage_fits_arch");
+    require(table->mlir_compile_key, "mlir_compile_key");
     require(table->result_error, "result_error");
     require(table->result_string, "result_string");
     require(table->result_bool, "result_bool");
@@ -384,7 +385,13 @@ std::string mlir_compile_key(const context& migraphx_ctx,
                              const std::vector<shape>& in_shapes,
                              const value& solution)
 {
-    return mlir_backend().mlir_compile_key(migraphx_ctx, std::move(m), in_shapes, solution);
+    const auto& key     = solution_string(solution);
+    const auto& backend = mlir_backend(migraphx_ctx);
+    auto result         = checked_result(
+        backend.mlir_compile_key(
+            &migraphx_ctx, &m, in_shapes.data(), in_shapes.size(), key.data(), key.size()),
+        backend);
+    return result_string(result);
 }
 
 #else // MIGRAPHX_MLIR

@@ -118,6 +118,12 @@ struct mlir_backend_v3
                                                      std::size_t arch_size,
                                                      shape::type_t elem_type,
                                                      const module* m) noexcept;
+    mlir_backend_result* (*mlir_compile_key)(const context* migraphx_ctx,
+                                             const module* m,
+                                             const shape* in_shapes,
+                                             std::size_t in_shape_count,
+                                             const char* solution,
+                                             std::size_t solution_size) noexcept;
 
     mlir_backend_string_view (*result_error)(const mlir_backend_result* result) noexcept;
     mlir_backend_string_view (*result_string)(const mlir_backend_result* result) noexcept;

@@ -55,6 +55,9 @@ dyn_concat_copy(index idx, Input input, index_int count, index_int offset, Outpu
     });
 }
 
+//NOTE: this only runs with one block.
+//TODO: investigate if we get better performance by doing multiple kernel launches such
+//that we concatenate inputs i and i+1 until all the inputs are concatenated.
 template <index_int Axis, class Counts, class Output, class Total, class... Inputs>
 __device__ void dyn_concat(Counts counts, Output output, Total total, Inputs... inputs)
 {

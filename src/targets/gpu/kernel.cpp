@@ -258,6 +258,34 @@ void kernel::launch(hipStream_t stream,
     launch_kernel(impl->fun, stream, global, local, kernargs, kernargs_size, start, stop);
 }
 
+graph_kernargs::graph_kernargs(std::vector<char> b)
+    : buffer(std::move(b)), size(buffer.size()), config(pack_kernel_config(buffer.data(), &size))
+{
+}
+
+hipGraphNode_t kernel::add_to_graph(hipGraph_t graph,
+                                    const std::vector<hipGraphNode_t>& deps,
+                                    std::size_t global,
+                                    std::size_t local,
+                                    graph_kernargs& kernargs) const
+{
+    assert(impl != nullptr);
+    // Unlike hipExtModuleLaunchKernel, a node only launches whole workgroups
+    if(local == 0 or global % local != 0)
+        MIGRAPHX_THROW("Cannot add a launch of " + std::to_string(global) +
+                       " threads in workgroups of " + std::to_string(local) + " to a graph");
+    hipKernelNodeParams params{};
+    params.func         = impl->fun;
+    params.gridDim      = dim3(static_cast<uint32_t>(global / local));
+    params.blockDim     = dim3(static_cast<uint32_t>(local));
+    params.extra        = kernargs.config.data();
+    hipGraphNode_t node = nullptr;
+    auto status         = hipGraphAddKernelNode(&node, graph, deps.data(), deps.size(), &params);
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Failed to add kernel node: " + hip_error(status));
+    return node;
+}
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

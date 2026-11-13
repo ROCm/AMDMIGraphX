@@ -259,13 +259,17 @@ struct rewrite_reshapes
             return supports(ins, cdims, axes_map);
         }
 
-        /// Replace ins by its rebuild reading new_x_ins in place of the chain.
-        /// The other inputs are reshaped to the common dims, with the
-        /// broadcasts of the chain unless no_broadcast
-        void apply(module_pass_manager& mpm, instruction_ref new_x_ins, bool no_broadcast) const
+        /// Replace ins by its rebuild reading new_x_ins in place of the chain,
+        /// broadcast to the common dims when broadcast_x. The other inputs are
+        /// reshaped to the common dims, with the broadcasts of the chain
+        /// unless no_broadcast
+        void apply(module_pass_manager& mpm,
+                   instruction_ref new_x_ins,
+                   bool no_broadcast,
+                   bool broadcast_x = true) const
         {
             auto& m = mpm.get_module();
-            if(new_x_ins->get_shape().lens() != cdims)
+            if(broadcast_x and new_x_ins->get_shape().lens() != cdims)
             {
                 new_x_ins = m.insert_instruction(
                     ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_x_ins);
@@ -464,9 +468,19 @@ struct rewrite_reshapes
                 return insert_transforms(m, x_ins, to_common_src, input);
             });
             auto new_x_ins = insert(mpm, x_ins, x_inputs, cr.desc.common_axes_map_from_src());
+            // Only broadcast the op1 output to the common dims when op2 read
+            // duplicated elements to begin with: a pointwise needs matching
+            // lens, and a chain with a broadcast fed op2 the duplicates as
+            // data. Otherwise a fused_reduce reducing a broadcast axis would
+            // count each element once per duplicate, so it takes the output
+            // unbroadcast and broadcasts internally after the reduce.
+            const bool broadcast_x =
+                ins->name() == "pointwise" or any_input_of(input_ins, x_ins, [](instruction_ref i) {
+                    return contains(i->name(), "broadcast");
+                });
             // In the expand case the other inputs already hold the broadcast
             // axes as data, so they are reshaped rather than broadcast
-            cr.apply(mpm, new_x_ins, expand);
+            cr.apply(mpm, new_x_ins, expand, broadcast_x);
         }
 
         static bool same_dims(instruction_ref ins)

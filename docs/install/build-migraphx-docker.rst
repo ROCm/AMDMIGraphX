@@ -21,7 +21,7 @@ Prerequisites
 Before you build or run a MIGraphX Docker image, install the following on
 your host:
 
-* `ROCm <https://rocm.docs.amd.com/projects/install-on-linux/en/latest/>`__
+* :doc:`ROCm <rocm:install/rocm>`
   with GPU drivers configured
 * Docker with access to ``/dev/kfd`` and ``/dev/dri``
 

@@ -52,7 +52,7 @@ struct parse_concat : op_parser<parse_concat>
             parser.parse_value(info.attributes.at("axis")).template at<int64_t>();
         const auto axis = tune_axis(args.front()->get_shape().ndim(), axis_value, opd.onnx_name);
 
-        const auto symbolic_axis_inputs = std::count_if(args.begin(), args.end(), [&](auto arg) {
+        const auto symbolic_axis_inputs  = std::count_if(args.begin(), args.end(), [&](auto arg) {
             const auto& s = arg->get_shape();
             return s.symbolic() and s.dyn_dims().at(axis).is_symbolic() and
                    s.dyn_dims().at(axis).sym_expr.name() != "literal";

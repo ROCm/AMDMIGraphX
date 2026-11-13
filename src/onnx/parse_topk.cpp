@@ -121,9 +121,9 @@ struct parse_topk : op_parser<parse_topk>
         }
         if(k_end.empty())
             k_end = sym::var(info.name, {0, max_k});
-        auto outputs   = add_topk_and_gets(info, args, max_k, norm_axis, largest);
-        auto starts    = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
-        auto slice     = make_op(
+        auto outputs = add_topk_and_gets(info, args, max_k, norm_axis, largest);
+        auto starts  = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
+        auto slice   = make_op(
             "dyn_slice",
             {{"axes", {norm_axis}}, {"starts", {0}}, {"ends", value::array{to_value(k_end)}}});
         std::transform(outputs.begin(), outputs.end(), outputs.begin(), [&](auto output) {

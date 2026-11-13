@@ -358,7 +358,7 @@ struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
         const auto symbolic_value = ins->sym_eval();
         if(symbolic_value.empty())
             return;
-        const auto expressions = symbolic_value.get().to_vector();
+        const auto expressions  = symbolic_value.get().to_vector();
         auto expression_sources = find_expression_sources(expressions, root_sources, sources);
         if(not expression_sources.has_value())
             return;
@@ -2267,11 +2267,11 @@ struct block_frame
             const auto& output   = outputs.at(output_index);
             auto selected_output = selected_outputs.at(logical_output_indices.at(output_index));
             auto sliced          = add_output_slice(m,
-                                                    output,
-                                                    selected_output,
-                                                    plans.at(output.source).info,
-                                                    root_sources,
-                                                    replacements);
+                                           output,
+                                           selected_output,
+                                           plans.at(output.source).info,
+                                           root_sources,
+                                           replacements);
             output_values.emplace_back(output, sliced);
             if(output == plans.full_output_for(output.source))
                 replacements.insert(output.source, sliced);

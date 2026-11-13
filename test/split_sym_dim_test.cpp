@@ -6063,9 +6063,9 @@ TEST_CASE(split_sym_dim_materializes_bounded_prefix_dyn_slice)
     auto end_expr = migraphx::sym::min(lit(1000), n);
     auto output   = m.add_instruction(
         migraphx::make_op("dyn_slice",
-                          {{"axes", {0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{end_expr})}}),
+                            {{"axes", {0}},
+                             {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
+                             {"ends", migraphx::to_value(std::vector<se>{end_expr})}}),
         data,
         start,
         end);
@@ -6131,11 +6131,11 @@ TEST_CASE(split_sym_dim_shared_replacement_memo)
     std::vector<float> values1_data    = {8.0f, 7.0f, 6.0f, 5.0f, 4.0f, 3.0f, 2.0f, 1.0f};
     migraphx::parameter_map params;
     params["condition"]   = migraphx::argument{migraphx::shape{migraphx::shape::bool_type, {4}},
-                                               condition_values.data()};
+                                             condition_values.data()};
     params["values0"]     = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {4, 2}},
-                                               values0_data.data()};
+                                           values0_data.data()};
     params["values1"]     = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {4, 2}},
-                                               values1_data.data()};
+                                           values1_data.data()};
     auto expected_results = reference.eval(params);
     auto actual_results   = p.eval(params);
     EXPECT(actual_results.size() == expected_results.size());

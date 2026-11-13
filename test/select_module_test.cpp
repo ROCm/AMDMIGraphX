@@ -584,16 +584,15 @@ TEST_CASE(select_module_zero_guard_builds_max_output_arguments)
     submod.add_return({guard, tuple_output});
 
     migraphx::shape output_s{migraphx::shape::float_type, {{0, 4}, {2, 2}}};
-    migraphx::shape output_leaf_s{
-        migraphx::shape::int32_type, {migraphx::shape::dynamic_dimension{0, 3}}};
+    migraphx::shape output_leaf_s{migraphx::shape::int32_type,
+                                  {migraphx::shape::dynamic_dimension{0, 3}}};
     migraphx::shape output_nested_leaf_s{migraphx::shape::float_type, {{0, 2}, {1, 1}}};
-    migraphx::shape output_tuple_s{{output_leaf_s,
-                                    migraphx::shape{{output_nested_leaf_s}}}};
+    migraphx::shape output_tuple_s{{output_leaf_s, migraphx::shape{{output_nested_leaf_s}}}};
     std::vector<migraphx::shape> output_shapes = {output_s, output_tuple_s};
-    auto op = migraphx::make_op(
+    auto op                                    = migraphx::make_op(
         "select_module",
         {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{output_shapes})},
-         {"zero_guard_inputs", {0}}});
+                                            {"zero_guard_inputs", {0}}});
     migraphx::argument empty_arg{{migraphx::shape::float_type, {0, 2}}, nullptr};
     migraphx::argument tuple_arg{candidate_tuple_s};
     migraphx::context ctx;
@@ -602,16 +601,15 @@ TEST_CASE(select_module_zero_guard_builds_max_output_arguments)
     auto result  = op.compute(migraphx::shape{output_shapes},
                               {empty_arg, tuple_arg},
                               {&submod},
-                              [&](const migraphx::module_ref&, const auto&) {
-                                  invoked = true;
-                                  return std::vector<migraphx::argument>{};
-                              });
+                             [&](const migraphx::module_ref&, const auto&) {
+                                 invoked = true;
+                                 return std::vector<migraphx::argument>{};
+                             });
 
     EXPECT(not invoked);
     auto outputs = result.get_sub_objects();
     EXPECT(outputs.size() == 2);
-    EXPECT(outputs.front().get_shape() ==
-           migraphx::shape{migraphx::shape::float_type, {4, 2}});
+    EXPECT(outputs.front().get_shape() == migraphx::shape{migraphx::shape::float_type, {4, 2}});
     migraphx::shape expected_tuple_s{
         {migraphx::shape{migraphx::shape::int32_type, {3}},
          migraphx::shape{{migraphx::shape{migraphx::shape::float_type, {2, 1}}}}}};

@@ -533,7 +533,7 @@ TEST_CASE(select_module_empty_stride_mismatch)
     bool invoked             = false;
     migraphx::context ctx;
     select.finalize(ctx, {}, {actual}, {&submodule});
-    auto result              = select.compute(
+    auto result = select.compute(
         {}, {migraphx::argument{actual, nullptr}}, {&submodule}, [&](auto&, const auto& params) {
             invoked = true;
             EXPECT(params.at("data").get_shape() == expected);
@@ -557,14 +557,14 @@ TEST_CASE(select_module_unit_stride_mismatch)
     bool invoked              = false;
     migraphx::context ctx;
     select.finalize(ctx, {}, {actual}, {&submodule});
-    auto result               = select.compute({},
-                                               {migraphx::argument{actual, data.data()}},
-                                               {&submodule},
-                                               [&](auto&, const auto& params) {
+    auto result = select.compute({},
+                                 {migraphx::argument{actual, data.data()}},
+                                 {&submodule},
+                                 [&](auto&, const auto& params) {
                                      invoked = true;
                                      EXPECT(params.at("data").get_shape() == expected);
                                      return std::vector<migraphx::argument>{params.at("data")};
-                                               });
+                                 });
     EXPECT(invoked);
     EXPECT(result.get_sub_objects().front().get_shape() == expected);
     EXPECT(result.get_sub_objects().front().at<int64_t>() == 42);

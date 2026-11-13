@@ -58,11 +58,11 @@
 #include <string>
 #include <vector>
 
-static migraphx::program pointwise_program()
+static migraphx::program pointwise_program(const std::vector<std::size_t>& lens = {4, 8})
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {4, 8}};
+    migraphx::shape s{migraphx::shape::float_type, lens};
     auto x    = mm->add_parameter("x", s);
     auto y    = mm->add_parameter("y", s);
     auto add  = mm->add_instruction(migraphx::make_op("add"), x, y);
@@ -279,6 +279,118 @@ static void corrupt_entry_is_ignored()
 TEST_CASE_REGISTER(corrupt_entry_is_ignored<directory_backend>);
 TEST_CASE_REGISTER(corrupt_entry_is_ignored<database_backend>);
 
+// A read-only cache serves what storage already holds, and keeps what it compiles in memory
+// without storing it. The writable path is cleared so MIGRAPHX_BINARY_CACHE cannot supply one.
+template <class Backend>
+static void read_only_cache_serves_hits_and_skips_stores()
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto path = Backend::path(td);
+    {
+        migraphx::gpu::binary_cache writer{migraphx::gpu::binary_cache_settings{.path = path}};
+        writer.insert(ctx, {make_entry("existing")});
+    }
+
+    migraphx::gpu::binary_cache reader{
+        migraphx::gpu::binary_cache_settings{.path = "", .read_only_path = path}};
+    EXPECT(reader.get(ctx, "existing").has_value());
+    EXPECT(reader.get_stats().hits == 1);
+
+    EXPECT(not reader.get(ctx, "new").has_value());
+    EXPECT(reader.get_stats().misses == 1);
+    reader.insert(ctx, {make_entry("new")});
+    EXPECT(reader.get(ctx, "new").has_value());
+    EXPECT(reader.get_stats().reused == 1);
+    EXPECT(Backend::stored(path) == 1);
+}
+TEST_CASE_REGISTER(read_only_cache_serves_hits_and_skips_stores<directory_backend>);
+TEST_CASE_REGISTER(read_only_cache_serves_hits_and_skips_stores<database_backend>);
+
+// A read-only cache with nothing behind it runs from memory and creates no storage, neither the
+// directory tree nor the database file.
+TEST_CASE(read_only_cache_does_not_create_storage)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto dir = (td.path / "files").string();
+    migraphx::gpu::binary_cache files{
+        migraphx::gpu::binary_cache_settings{.path = "", .read_only_path = dir}};
+    EXPECT(not files.get(ctx, "missing").has_value());
+    files.insert(ctx, {make_entry("new")});
+    EXPECT(files.get(ctx, "new").has_value());
+    EXPECT(not migraphx::fs::exists(dir));
+
+    auto db = db_path(td);
+    migraphx::gpu::binary_cache database{
+        migraphx::gpu::binary_cache_settings{.path = "", .read_only_path = db}};
+    EXPECT(not database.get(ctx, "missing").has_value());
+    database.insert(ctx, {make_entry("new")});
+    EXPECT(database.get(ctx, "new").has_value());
+    EXPECT(not migraphx::fs::exists(db));
+}
+
+// With both caches set, a shipped kernel is served from the read-only cache and a kernel it
+// lacks is stored in the writable one, leaving the read-only cache as it was.
+template <class Backend>
+static void misses_go_to_the_writable_cache_not_the_read_only_one()
+{
+    migraphx::tmp_dir writable_td{"binary-cache"};
+    migraphx::tmp_dir read_only_td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto writable  = Backend::path(writable_td);
+    auto read_only = Backend::path(read_only_td);
+    {
+        migraphx::gpu::binary_cache shipper{
+            migraphx::gpu::binary_cache_settings{.path = read_only}};
+        shipper.insert(ctx, {make_entry("shipped")});
+    }
+
+    migraphx::gpu::binary_cache cache{
+        migraphx::gpu::binary_cache_settings{.path = writable, .read_only_path = read_only}};
+    EXPECT(cache.get(ctx, "shipped").has_value());
+    EXPECT(cache.get_stats().hits == 1);
+    EXPECT(not cache.get(ctx, "new").has_value());
+    cache.insert(ctx, {make_entry("new")});
+
+    EXPECT(Backend::stored(writable) == 1);
+    EXPECT(Backend::stored(read_only) == 1);
+}
+TEST_CASE_REGISTER(misses_go_to_the_writable_cache_not_the_read_only_one<directory_backend>);
+TEST_CASE_REGISTER(misses_go_to_the_writable_cache_not_the_read_only_one<database_backend>);
+
+// A key held by both caches is served from the writable one, so a locally built kernel wins over
+// a shipped one, as with the problem cache.
+template <class Backend>
+static void writable_cache_is_searched_first()
+{
+    migraphx::tmp_dir writable_td{"binary-cache"};
+    migraphx::tmp_dir read_only_td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto writable  = Backend::path(writable_td);
+    auto read_only = Backend::path(read_only_td);
+    auto shipped   = make_entry("k");
+    auto local     = make_entry("k");
+
+    local.code.fill_map["float_type{2}"] = 5.0;
+    {
+        migraphx::gpu::binary_cache shipper{
+            migraphx::gpu::binary_cache_settings{.path = read_only}};
+        shipper.insert(ctx, {shipped});
+        migraphx::gpu::binary_cache builder{migraphx::gpu::binary_cache_settings{.path = writable}};
+        builder.insert(ctx, {local});
+    }
+
+    migraphx::gpu::binary_cache cache{
+        migraphx::gpu::binary_cache_settings{.path = writable, .read_only_path = read_only}};
+    auto code = cache.get(ctx, "k");
+    EXPECT(code.has_value());
+    if(code.has_value())
+        EXPECT(code->fill_map == local.code.fill_map);
+}
+TEST_CASE_REGISTER(writable_cache_is_searched_first<directory_backend>);
+TEST_CASE_REGISTER(writable_cache_is_searched_first<database_backend>);
+
 // Without a directory nothing reaches disk, though results are still shared in memory.
 TEST_CASE(no_directory_writes_nothing)
 {
@@ -483,6 +595,31 @@ static void verified_reuse_matches_fresh_compiles()
 
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<directory_backend>);
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<database_backend>);
+
+// A cache named by read_only_binary_cache is only read: kernels it lacks are compiled but not
+// added.
+template <class Backend>
+static void read_only_backend_option_is_not_written()
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = Backend::path(td);
+
+    auto warmup = pointwise_program();
+    warmup.compile(migraphx::make_target("gpu"), cache_options(path));
+    auto stored = Backend::stored(path);
+    EXPECT(stored > 0);
+
+    // Different lens make every kernel of this program new to the cache.
+    migraphx::compile_options options;
+    migraphx::set_backend_options(options,
+                                  {{"binary_cache", ""}, {"read_only_binary_cache", path}});
+    auto p = pointwise_program({2, 3});
+    p.compile(migraphx::make_target("gpu"), options);
+    EXPECT(Backend::stored(path) == stored);
+}
+
+TEST_CASE_REGISTER(read_only_backend_option_is_not_written<directory_backend>);
+TEST_CASE_REGISTER(read_only_backend_option_is_not_written<database_backend>);
 
 // The extension of the path picks the backend and nothing else does, so the only way to see the
 // choice from outside is the artifact it leaves: a database file, or a directory tree.

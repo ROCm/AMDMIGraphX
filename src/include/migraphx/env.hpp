@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <string>
 #include <map>
 #include <migraphx/config.hpp>
+#include <migraphx/optional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,18 +62,23 @@ bool disabled(T)
     return result;
 }
 
+// Only the variable is cached, callers may pass a different fallback each call
 template <class T>
 std::size_t value_of(T, std::size_t fallback = 0)
 {
-    static const std::size_t result = value_of(T::value(), fallback);
-    return result;
+    static const auto result = env(T::value()).empty()
+                                   ? optional<std::size_t>{}
+                                   : optional<std::size_t>{value_of(T::value())};
+    return result.value_or(fallback);
 }
 
 template <class T>
 std::string string_value_of(T, std::string fallback = "")
 {
-    static const std::string result = string_value_of(T::value(), std::move(fallback));
-    return result;
+    static const auto result = env(T::value()).empty()
+                                   ? optional<std::string>{}
+                                   : optional<std::string>{string_value_of(T::value())};
+    return result.value_or(std::move(fallback));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

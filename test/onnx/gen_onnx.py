@@ -14792,6 +14792,29 @@ def randomuniformlike_type_error_test():
 
 
 @onnx_test()
+def range_bounded_limit_test():
+    # The limit is a count of the elements of x above 0.5, only known at run time but at most 8
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('y', TensorProto.INT64, ['M'])
+
+    half = helper.make_tensor('half', TensorProto.FLOAT, [], [0.5])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    start = helper.make_tensor('start', TensorProto.INT64, [], [0])
+    delta = helper.make_tensor('delta', TensorProto.INT64, [], [1])
+
+    nodes = [
+        helper.make_node('Greater', ['x', 'half'], ['above']),
+        helper.make_node('Cast', ['above'], ['above_int'],
+                         to=TensorProto.INT64),
+        helper.make_node('ReduceSum', ['above_int', 'axes'], ['count'],
+                         keepdims=0),
+        helper.make_node('Range', ['start', 'count', 'delta'], ['y']),
+    ]
+
+    return (nodes, [x], [out], [half, axes, start, delta])
+
+
+@onnx_test()
 def range_test():
 
     start_val = np.array([10])

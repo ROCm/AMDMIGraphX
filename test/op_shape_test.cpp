@@ -4804,6 +4804,19 @@ TEST_CASE(reshape_transposed_broadcast)
     EXPECT(output.standard());
 }
 
+TEST_CASE(reshape_transposed_broadcast_merge)
+{
+    // Nearest-neighbor 2x upsample of an NHWC input: every broadcast axis merges into a spatial
+    // axis that places it in memory, so the output keeps the NHWC layout.
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 2, 2, 3, 2}, {24, 1, 12, 0, 4, 0}};
+    std::vector<std::size_t> lens = {1, 4, 4, 6};
+    migraphx::shape output =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, lens, {0, 2, 3, 1});
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
+    EXPECT(output.packed());
+    EXPECT(not output.standard());
+}
+
 TEST_CASE(reshape_transposed_slice)
 {
     // Input is transposed (axis 0 fastest, axis 1 slowest) with stride gaps (sliced).

@@ -72,7 +72,8 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                 MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + migraphx::to_string_range(s0) +
                                "} and {" + migraphx::to_string_range(s1) + "} mismatch!");
             }
-            return std::max(a, b);
+            // A dimension of 1 broadcasts to the other one, including to 0
+            return a == 1 ? b : a;
         });
     return out_lens;
 }

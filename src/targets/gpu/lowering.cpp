@@ -770,6 +770,8 @@ struct miopen_apply
         };
         apply_map.emplace("slice", lower_runtime_bounds);
         apply_map.emplace("dyn_slice", lower_runtime_bounds);
+        // The dims of broadcast_with_dims are run-time metadata as well, read on the host
+        apply_map.emplace("broadcast_with_dims", lower_runtime_bounds);
     }
 
     // Get the argument's shape dimensions on host and then copy to gpu

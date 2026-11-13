@@ -958,39 +958,6 @@ struct find_precompile_copy
     }
 };
 
-struct find_layernorm_pointwise
-{
-    auto matcher() const
-    {
-        return precompile_name("pointwise")(
-            match::not_tuple(),
-            match::arg(0)(
-                precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto pw_ins    = r.result;
-        auto layernorm = r.instructions["layernorm"];
-        if(not layernorm->module_inputs().empty())
-            return;
-        auto* pm       = pw_ins->module_inputs().front();
-        auto pw_inputs = pw_ins->inputs();
-        auto ln_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), layernorm);
-        assert(ln_pos != pw_inputs.end());
-        pw_inputs.erase(ln_pos);
-        auto inputs = layernorm->inputs();
-        inputs.pop_back();
-        inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
-
-        // Ensure the output shape retains the memory layout
-        auto layernorm_op_val            = layernorm->get_operator().to_value();
-        layernorm_op_val["output_shape"] = to_value(pw_ins->get_shape());
-
-        m.replace_instruction(pw_ins, make_op(layernorm->name(), layernorm_op_val), inputs, {pm});
-    }
-};
-
 // Fuse a pointwise op into the convolution kernels built on the spatial tiler, which apply
 // it to each output before the store
 struct find_tiled_conv_pointwise
@@ -1117,7 +1084,6 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m, find_hipblas_gemm_pointwise{});
 #endif
     match::find_matches(m,
-                        find_layernorm_pointwise{},
                         find_tiled_conv_pointwise{},
                         find_winograd_conv_pointwise{},
                         find_concat_pointwise{},

@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/optional.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <algorithm>
@@ -126,6 +127,51 @@ struct find_concat_past_present
                cs.lens()[seq_axis] <= ks.lens()[seq_axis];
     }
 
+    static bool is_pointwise(instruction_ref ins)
+    {
+        return ins->get_operator().to_value().at("op").at("name").to<std::string>() == "pointwise";
+    }
+
+    // The shape after the view chain, if it applies without copying
+    static optional<shape> view_shape(const shape& s, const std::vector<operation>& ops)
+    {
+        try
+        {
+            return std::accumulate(
+                ops.begin(), ops.end(), s, [](const shape& acc, const operation& op) {
+                    return op.compute_shape({acc});
+                });
+        }
+        catch(const migraphx::exception&)
+        {
+            return nullopt;
+        }
+    }
+
+    // A pointwise kernel indexes every input by the output dims, so when the
+    // slot cannot be viewed in the producer's dims the chain between them can
+    // move onto the inputs instead and the producer computes in the slot dims
+    static bool can_sink_views(instruction_ref producer, const std::vector<operation>& ops)
+    {
+        if(not is_pointwise(producer))
+            return false;
+        return std::all_of(
+            producer->inputs().begin(),
+            std::prev(producer->inputs().end()),
+            [&](instruction_ref x) { return view_shape(x->get_shape(), ops).has_value(); });
+    }
+
+    static instruction_ref apply_views(module& m,
+                                       instruction_ref at,
+                                       instruction_ref start,
+                                       const std::vector<operation>& ops)
+    {
+        return std::accumulate(
+            ops.begin(), ops.end(), start, [&](instruction_ref x, const operation& op) {
+                return m.insert_instruction(at, op, x);
+            });
+    }
+
     // One host copy of the sequence length serves every concat that reads it
     static instruction_ref load_scalar(module& m, instruction_ref ins, instruction_ref slk)
     {
@@ -152,7 +198,8 @@ struct find_concat_past_present
             return;
 
         // The producer writes in its own dims and layout, so the slot is
-        // re-indexed back through the views between it and the concat
+        // re-indexed back through the views between it and the concat, or
+        // the views move onto the inputs when the slot cannot be re-indexed
         auto path = get_input_path(cur);
         std::vector<instruction_ref> chain(path.begin(),
                                            std::find(path.begin(), path.end(), producer));
@@ -161,8 +208,10 @@ struct find_concat_past_present
                        chain.rend(),
                        std::back_inserter(chain_ops),
                        [](instruction_ref x) { return x->get_operator(); });
-        auto inverse = invert_view_chain(chain_ops, producer->get_shape(), slot_shape(cur, cache));
-        if(not inverse.has_value())
+        auto slot    = slot_shape(cur, cache);
+        auto inverse = invert_view_chain(chain_ops, producer->get_shape(), slot);
+        bool sink    = not inverse.has_value();
+        if(sink and not can_sink_views(producer, chain_ops))
             return;
 
         auto seq = cur->get_shape().lens()[seq_axis];
@@ -190,17 +239,22 @@ struct find_concat_past_present
         // A retargeted copy of the producer is inserted at the concat rather
         // than rewriting it in place: the new strides could make the original
         // view chain fail shape recomputation before it becomes dead
-        assert(view->get_shape() == slot_shape(cur, cache));
-        view = std::accumulate(inverse->first.begin(),
-                               inverse->first.end(),
-                               view,
-                               [&](instruction_ref start, const operation& op) {
-                                   return m.insert_instruction(ins, op, start);
-                               });
-        assert(view->get_shape() == inverse->second);
+        assert(view->get_shape() == slot);
+        auto inputs = producer->inputs();
+        if(sink)
+        {
+            std::transform(inputs.begin(),
+                           std::prev(inputs.end()),
+                           inputs.begin(),
+                           [&](instruction_ref x) { return apply_views(m, ins, x, chain_ops); });
+        }
+        else
+        {
+            view = apply_views(m, ins, view, inverse->first);
+            assert(view->get_shape() == inverse->second);
+        }
         auto v            = producer->get_operator().to_value();
-        v["output_shape"] = to_value(inverse->second);
-        auto inputs       = producer->inputs();
+        v["output_shape"] = to_value(view->get_shape());
         inputs.back()     = view;
         auto fused        = m.insert_instruction(
             ins, make_op("gpu::precompile_op", v), inputs, producer->module_inputs());

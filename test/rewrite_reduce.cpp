@@ -1226,7 +1226,9 @@ TEST_CASE(reduce_mean_variance_sqdiff)
         auto x2       = m2.add_instruction(migraphx::make_op("mul"), x, x);
         auto mean_x2  = add_reduce_mean(m2, {2}, x2);
         auto mean2    = m2.add_instruction(migraphx::make_op("mul"), mean, mean);
-        auto variance = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
+        auto sub      = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
+        auto zero     = m2.add_literal(migraphx::literal{migraphx::shape::float_type, {0}});
+        auto variance = migraphx::add_common_op(m2, migraphx::make_op("max"), {sub, zero});
         m2.add_return({mean, variance});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -1254,7 +1256,9 @@ TEST_CASE(reduce_mean_variance_mul_x_minus)
         auto x2       = m2.add_instruction(migraphx::make_op("mul"), x, x);
         auto mean_x2  = add_reduce_mean(m2, {2}, x2);
         auto mean2    = m2.add_instruction(migraphx::make_op("mul"), mean, mean);
-        auto variance = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
+        auto sub      = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
+        auto zero     = m2.add_literal(migraphx::literal{migraphx::shape::float_type, {0}});
+        auto variance = migraphx::add_common_op(m2, migraphx::make_op("max"), {sub, zero});
         m2.add_return({mean, variance});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -1283,7 +1287,9 @@ TEST_CASE(reduce_mean_variance_pow_x_minus)
         auto x2       = m2.add_instruction(migraphx::make_op("mul"), x, x);
         auto mean_x2  = add_reduce_mean(m2, {2}, x2);
         auto mean2    = m2.add_instruction(migraphx::make_op("mul"), mean, mean);
-        auto variance = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
+        auto sub      = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
+        auto zero     = m2.add_literal(migraphx::literal{migraphx::shape::float_type, {0}});
+        auto variance = migraphx::add_common_op(m2, migraphx::make_op("max"), {sub, zero});
         m2.add_return({mean, variance});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -1379,7 +1385,9 @@ TEST_CASE(reduce_mean_variance_sqdiff_reshaped)
         auto x2r     = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 24}}}), x2);
         auto mean_x2 = add_reduce_mean(m2, {2}, x2r);
         auto mean2   = m2.add_instruction(migraphx::make_op("mul"), mean, mean);
-        auto variance = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
+        auto sub      = m2.add_instruction(migraphx::make_op("sub"), mean_x2, mean2);
+        auto zero     = m2.add_literal(migraphx::literal{migraphx::shape::float_type, {0}});
+        auto variance = migraphx::add_common_op(m2, migraphx::make_op("max"), {sub, zero});
         m2.add_return({mean, variance});
     }
     EXPECT(m1.sort() == m2.sort());

@@ -223,7 +223,8 @@ bool replace_alias_allocation(module& m, instruction_ref ins)
 }
 
 // The caller of these modules binds every output to its own buffer (such as a loop body writing
-// its scan outputs), so a returned parameter or a value returned twice needs its own copy
+// its scan outputs), so a returned parameter, literal or outer value, or a value returned twice,
+// needs its own copy
 bool is_output_bound_module_input(module_ref root, module_ref submodule)
 {
     auto modules = root->get_sub_modules();
@@ -293,7 +294,10 @@ void insert_copy(module& m, const allocation_model& model, bool copy_aliased_ret
     std::transform(returns.begin(), returns.end(), returns.begin(), [&](instruction_ref ins) {
         if(ins->get_shape().any_of_dynamic() and not ins->get_shape().dynamic())
             return ins;
-        if(returned.insert(ins).second and ins->name() != "@param")
+        // A parameter, a literal or a value of another module is not written to an output
+        // buffer of this module
+        if(returned.insert(ins).second and ins->name() != "@param" and ins->name() != "@literal" and
+           m.has_instruction(ins))
             return ins;
         changed = true;
         return insert_output_copy(m, model, return_ins, ins);

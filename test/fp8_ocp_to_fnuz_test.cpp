@@ -65,7 +65,8 @@ static auto bit_cast_and_handle_specials(migraphx::module& m,
                                          const migraphx::instruction_ref bits_0x80_lit,
                                          const migraphx::instruction_ref bits_0x7f_lit,
                                          const migraphx::instruction_ref bits_0xff_lit,
-                                         const migraphx::instruction_ref bits_0x00_lit)
+                                         const migraphx::instruction_ref bits_0x00_lit,
+                                         const migraphx::instruction_ref neg_zero_bits_lit)
 {
     auto x_lens = x->get_shape().lens();
     auto cast_input =
@@ -80,7 +81,11 @@ static auto bit_cast_and_handle_specials(migraphx::module& m,
         m.add_instruction(make_op("multibroadcast", {{"out_lens", x_lens}}), bits_0x00_lit);
     // negative zero in fp8e4m3fn to zero in fp8e4m3fnuz
     // a == 0x80 ? 0x0 : a
-    auto is_neg_zero = m.add_instruction(make_op("equal"), cast_input, mb_bits_0x80_lit);
+    auto input_bits =
+        m.add_instruction(make_op("bit_cast", {{"target_type", shape::uint8_type}}), x);
+    auto mb_neg_zero_bits =
+        m.add_instruction(make_op("multibroadcast", {{"out_lens", x_lens}}), neg_zero_bits_lit);
+    auto is_neg_zero = m.add_instruction(make_op("equal"), input_bits, mb_neg_zero_bits);
     auto ret         = m.add_instruction(make_op("where"), is_neg_zero, mb_zero_lit, cast_input);
 
     // positive and negative NaN in fp8e4m3fn to NaN in fp8e4m3fnuz
@@ -108,11 +113,13 @@ static auto cast_fp8_helper(migraphx::module& m,
     auto bits_0x7f_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}, {0}}, bits_0x7f);
     auto bits_0xff_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}, {0}}, bits_0xff);
     auto bits_0x00_lit = m.add_literal(shape{shape::fp8e4m3fnuz_type, {1}, {0}}, bits_0x00);
+    std::vector<uint8_t> neg_zero_bits = {0x80};
+    auto neg_zero_bits_lit = m.add_literal(shape{shape::uint8_type, {1}, {0}}, neg_zero_bits);
 
     auto cast_input = bit_cast_and_handle_specials(
-        m, dq_input, bits_0x80_lit, bits_0x7f_lit, bits_0xff_lit, bits_0x00_lit);
+        m, dq_input, bits_0x80_lit, bits_0x7f_lit, bits_0xff_lit, bits_0x00_lit, neg_zero_bits_lit);
     auto adj_zp = bit_cast_and_handle_specials(
-        m, dq_zp, bits_0x80_lit, bits_0x7f_lit, bits_0xff_lit, bits_0x00_lit);
+        m, dq_zp, bits_0x80_lit, bits_0x7f_lit, bits_0xff_lit, bits_0x00_lit, neg_zero_bits_lit);
 
     auto two_lit = m.add_literal(migraphx::literal{shape{dq_scale->get_shape().type()}, {2}});
     two_lit      = m.add_instruction(

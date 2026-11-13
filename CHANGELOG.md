@@ -12,6 +12,7 @@ Full documentation for MIGraphX is available at
 * Added the `split_sym_dim` pass, which specializes bounded symbolic dimensions into static `select_module` submodules (#5123).
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
+* Added ONNX parser support for the `FLOAT8E4M3FN` and `FLOAT8E5M2` tensor element types.
 
 ### Changed
 
@@ -31,6 +32,8 @@ Full documentation for MIGraphX is available at
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).
 * Fixed mixed `uint8` and `int8` quantization (#5075).
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
+* Fixed the ONNX parser decoding `FLOAT8E4M3FNUZ` tensors stored in `int32_data` as numeric values instead of as 8-bit patterns.
+* Fixed `fp8_ocp_to_fnuz` turning `fp8e4m3fn` negative zero into NaN on GPUs without OCP fp8 support.
 
 ### Optimized
 

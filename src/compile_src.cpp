@@ -57,7 +57,9 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         }
     }
 
-    params.emplace_back("-o " + out);
+    // Separate arguments: the compiler is spawned directly, with no shell to split them.
+    params.emplace_back("-o");
+    params.emplace_back(out.string());
 
     std::vector<std::string> args;
     if(not launcher.empty())

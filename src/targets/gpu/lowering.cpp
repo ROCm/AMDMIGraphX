@@ -52,6 +52,8 @@
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/bit.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -132,6 +134,7 @@ struct miopen_apply
         add_dyn_slice_op();
         add_dimensions_of_op();
         add_eval_expr_from_shape_op();
+        add_topk_op();
     }
 
     void copy_params() const
@@ -783,6 +786,32 @@ struct miopen_apply
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
             return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
+    // The topk kernel selects through lds, which holds about 8192 pairs, and each lane reads at
+    // most 255 elements of a row, so a larger topk runs on the host
+    bool topk_fits_kernel(instruction_ref ins) const
+    {
+        const auto& input = ins->inputs().front()->get_shape();
+        if(input.dynamic())
+            return true;
+        auto v = ins->normalized_operator().to_value();
+        auto k = v.at("k").to<std::size_t>();
+        auto n = input.lens().at(v.at("axis").to<std::size_t>());
+        if(bit_ceil(std::uint64_t{k}) > 8192)
+            return false;
+        auto block_size = compute_topk_block_size(get_context(), k, n / 4);
+        return (n + block_size - 1) / block_size < 256;
+    }
+
+    void add_topk_op()
+    {
+        apply_map.emplace("topk", [=](instruction_ref ins) {
+            if(not topk_fits_kernel(ins))
+                return lower_tuple_op_to_ref(ins);
+            auto preop = insert_precompile_op(ins);
+            return insert_dynamic_code_object_op(preop);
         });
     }
 

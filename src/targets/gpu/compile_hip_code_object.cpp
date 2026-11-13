@@ -128,6 +128,9 @@ static std::vector<std::string> get_compiler_warnings()
     if(hip_has_flags({"-Werror", "-Wlifetime-safety-cross-tu-suggestions"}))
         warnings.push_back("-Wno-lifetime-safety-cross-tu-suggestions");
 
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-experimental-field-origin-escape"}))
+        warnings.push_back("-Wno-lifetime-safety-experimental-field-origin-escape");
+
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
         warnings.push_back("-Wno-unsafe-buffer-usage");
 

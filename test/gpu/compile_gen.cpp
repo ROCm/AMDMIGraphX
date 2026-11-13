@@ -158,6 +158,17 @@ TEST_CASE(test_reduce_dims_axis_not_merged)
     EXPECT(reduce_dims_axis(inputs, 1) == std::make_pair(expected, std::size_t{1}));
 }
 
+TEST_CASE(test_reduce_dims_axis_unit_axis)
+{
+    // A concat with an empty input: the output axis has length 1, which would merge into the
+    // trailing dims and lose the axis, so the shapes stay as they are
+    std::vector<migraphx::shape> inputs = {
+        migraphx::shape{migraphx::shape::float_type, {100, 1, 1}},
+        migraphx::shape{migraphx::shape::float_type, {100, 0, 1}, {0, 0, 0}},
+        migraphx::shape{migraphx::shape::float_type, {100, 1, 1}}};
+    EXPECT(reduce_dims_axis(inputs, 1) == std::make_pair(inputs, std::size_t{1}));
+}
+
 // A fused int4 dequant reduce: unpack -> pointwise(dequantizelinear, mul) -> reduce_sum,
 // with the zero point either a literal of the pointwise or a tensor input
 static migraphx::program make_unpack_reduce(bool literal_zero_point)

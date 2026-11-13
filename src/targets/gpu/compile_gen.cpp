@@ -317,8 +317,13 @@ std::vector<shape> reduce_dims_axis(std::vector<shape> inputs, std::size_t& axis
 
     auto result         = reduce_dims(normalize_permutation(inputs));
     const auto& rstride = result.back().strides();
-    axis                = std::find(rstride.begin(), rstride.end(), 1) - rstride.begin();
-    assert(axis < result.back().ndim());
+    auto it             = std::find(rstride.begin(), rstride.end(), 1);
+    // An axis of length 1 merges into its neighbor and the marker loses it, so keep the shapes
+    // unreduced then
+    inputs.pop_back();
+    if(it == rstride.end())
+        return inputs;
+    axis = it - rstride.begin();
     result.pop_back();
     return result;
 }

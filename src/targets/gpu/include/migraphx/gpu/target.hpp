@@ -48,7 +48,8 @@ struct MIGRAPHX_GPU_EXPORT target
                     f(self.desc.num_chiplets, "gpu_num_chiplets"),
                     f(self.desc.max_threads_per_cu, "gpu_max_threads_per_cu"),
                     f(self.desc.max_threads_per_block, "gpu_max_threads_per_block"),
-                    f(self.desc.wavefront_size, "gpu_wavefront_size"));
+                    f(self.desc.wavefront_size, "gpu_wavefront_size"),
+                    f(self.desc.max_shared_memory_per_block, "gpu_max_shared_memory_per_block"));
     }
 
     bool is_cross_compile() const { return not desc.arch.empty(); }

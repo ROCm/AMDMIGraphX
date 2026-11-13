@@ -64,6 +64,8 @@ struct MIGRAPHX_GPU_EXPORT device_description : reflect_equality<device_descript
                     f(self.max_threads_per_block, "max_threads_per_block"),
                     f(self.wavefront_size, "wavefront_size"));
     }
+    /// Shared memory (LDS) available to one workgroup, in bytes
+    std::size_t max_shared_memory_per_block = 64 * 1024;
 };
 
 } // namespace gpu

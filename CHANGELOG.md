@@ -12,6 +12,7 @@ Full documentation for MIGraphX is available at
 * Added the `split_sym_dim` pass, which specializes bounded symbolic dimensions into static `select_module` submodules (#5123).
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
+* Added parsing of ONNX `Pad` with `pads` that are not constant but resolve to symbolic expressions, such as the pads tf2onnx computes from a tensor's shape, along with symbolic evaluation of `transpose` and of `concat` on inputs of any rank (#5514).
 
 ### Changed
 

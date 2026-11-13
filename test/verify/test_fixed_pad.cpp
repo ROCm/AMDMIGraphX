@@ -64,6 +64,27 @@ struct test_fixed_pad_int64 : verify_program<test_fixed_pad_int64>
     }
 };
 
+// A column sliced out of a wider tensor is not standard, so the pad reads it through its strides
+struct test_fixed_pad_int64_strided : verify_program<test_fixed_pad_int64_strided>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::int64_type, {{1, 4}, {3, 3}}};
+        auto x      = mm->add_parameter("x", s);
+        auto column = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), x);
+        mm->add_instruction(migraphx::make_op("fixed_pad", {{"value", -2.0f}}), column);
+        return p;
+    }
+
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
+    {
+        return {{"x", migraphx::shape{migraphx::shape::int64_type, {2, 3}}}};
+    }
+};
+
 struct test_fixed_pad_lowest_half : verify_program<test_fixed_pad_lowest_half>
 {
     migraphx::program create_program() const

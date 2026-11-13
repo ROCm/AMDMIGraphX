@@ -14834,6 +14834,35 @@ def randomuniformlike_type_error_test():
 
 
 @onnx_test()
+def range_float_min_test():
+    # Range over min(5, len(x)), computed in float the way tf2onnx exports a TensorFlow minimum
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N'])
+    out = helper.make_tensor_value_info('y', TensorProto.INT32, ['M'])
+
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+    one = helper.make_tensor('one', TensorProto.INT64, [1], [1])
+    limit = helper.make_tensor('limit', TensorProto.FLOAT, [], [5.0])
+    start = helper.make_tensor('start', TensorProto.INT32, [], [0])
+    delta = helper.make_tensor('delta', TensorProto.INT32, [], [1])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['x_shape']),
+        helper.make_node('Cast', ['x_shape'], ['x_shape_int32'],
+                         to=TensorProto.INT32),
+        helper.make_node('Slice', ['x_shape_int32', 'zero', 'one'], ['n']),
+        helper.make_node('Squeeze', ['n', 'zero'], ['n_scalar']),
+        helper.make_node('Cast', ['n_scalar'], ['n_float'],
+                         to=TensorProto.FLOAT),
+        helper.make_node('Min', ['limit', 'n_float'], ['count_float']),
+        helper.make_node('Cast', ['count_float'], ['count'],
+                         to=TensorProto.INT32),
+        helper.make_node('Range', ['start', 'count', 'delta'], ['y']),
+    ]
+
+    return (nodes, [x], [out], [zero, one, limit, start, delta])
+
+
+@onnx_test()
 def range_test():
 
     start_val = np.array([10])

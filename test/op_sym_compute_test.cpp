@@ -157,6 +157,33 @@ TEST_CASE(op_sym_convert_int32)
            symbolic_tensor_value{lit(0), lit(1)});
 }
 
+TEST_CASE(op_sym_convert_float_whole_numbers)
+{
+    const auto s = var("S", {1, 16});
+    // To float and back, through a whole-number literal as a float min would leave it
+    EXPECT(symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::float_type}}),
+                            shape{shape::float_type, {1}},
+                            {shape{shape::int32_type, {1}}},
+                            {symbolic_tensor_value{s}}) == symbolic_tensor_value{s});
+    EXPECT(symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::int32_type}}),
+                            shape{shape::int32_type, {1}},
+                            {shape{shape::float_type, {1}}},
+                            {symbolic_tensor_value{migraphx::sym::min(lit(5.0), s)}}) ==
+           symbolic_tensor_value{migraphx::sym::min(lit(5), s)});
+    // A fraction would be truncated at run time
+    EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::int64_type}}),
+                                shape{shape::int64_type, {1}},
+                                {shape{shape::float_type, {1}}},
+                                {symbolic_tensor_value{lit(0.5)}})
+                   .has_value());
+    // Not every value of T is exact as float
+    EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::float_type}}),
+                                shape{shape::float_type, {1}},
+                                {shape{shape::int64_type, {1}}},
+                                {symbolic_tensor_value{var("T", {0, int64_t{1} << 30})}})
+                   .has_value());
+}
+
 TEST_CASE(op_sym_gather)
 {
     const auto s = var("S", {1, 16});
@@ -342,6 +369,19 @@ TEST_CASE(op_sym_sub_int32)
                    .has_value());
 }
 
+TEST_CASE(op_sym_min_max_float)
+{
+    const auto s = var("S", {1, 16});
+    const shape output{shape::float_type, {1}};
+    const std::vector<shape> inputs = {shape{shape::float_type, {1}},
+                                       shape{shape::float_type, {1}}};
+    const symbolic_inputs values    = {symbolic_tensor_value{lit(5.0)}, symbolic_tensor_value{s}};
+    EXPECT(symbolic_compute(migraphx::make_op("min"), output, inputs, values) ==
+           symbolic_tensor_value{migraphx::sym::min(lit(5.0), s)});
+    EXPECT(symbolic_compute(migraphx::make_op("max"), output, inputs, values) ==
+           symbolic_tensor_value{migraphx::sym::max(lit(5.0), s)});
+}
+
 TEST_CASE(op_sym_mul)
 {
     const auto s = var("S", {1, 16});
@@ -447,8 +487,8 @@ TEST_CASE(op_sym_compute_unsupported)
 
 TEST_CASE(op_sym_convert_rejects_unsupported_cases)
 {
-    EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::float_type}}),
-                                shape{shape::float_type, {1}},
+    EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::half_type}}),
+                                shape{shape::half_type, {1}},
                                 {shape{shape::int64_type, {1}}},
                                 {symbolic_tensor_value{lit(1)}})
                    .has_value());

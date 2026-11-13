@@ -134,6 +134,7 @@ add_library(migraphx
     rewrite_reduce.cpp
     rewrite_resize.cpp
     rewrite_dot.cpp
+    rewrite_gather_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
     sqlite.cpp

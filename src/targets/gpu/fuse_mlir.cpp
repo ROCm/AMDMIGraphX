@@ -1323,19 +1323,20 @@ struct find_pointwise_mlir
         return match::name("gpu::mlir_op")(match::any_of[match::inputs()](supported_pointwise()));
     }
 
-    static bool is_simple_op(const_module_ref pm, std::initializer_list<std::string> op_names)
+    /// A dequantizelinear, with its result optionally converted to another type
+    static bool is_dequantize(const_module_ref pm)
     {
         auto last = std::prev(pm->end());
         assert(last->name() == "@return");
         if(last->inputs().size() != 1)
             return false;
-        auto rins   = last->inputs().front();
+        auto rins = last->inputs().front();
+        if(rins->name() == "convert")
+            rins = rins->inputs().front();
         auto op_ins = std::find_if(pm->begin(), pm->end(), [](const instruction& x) {
             return not contains({"@param", "@literal", "broadcast", "multibroadcast"}, x.name());
         });
-        if(op_ins != rins)
-            return false;
-        return contains(op_names, op_ins->name());
+        return op_ins == rins and op_ins->name() == "dequantizelinear";
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -1352,7 +1353,7 @@ struct find_pointwise_mlir
                 if(not match::instruction_matches(mpm.get_module(), input, supported_pointwise()))
                     return false;
                 auto* pm = input->module_inputs().front();
-                return input->inputs().size() <= 1 or is_simple_op(pm, {"dequantizelinear"}) or
+                return input->inputs().size() <= 1 or is_dequantize(pm) or
                        enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{});
             });
         if(pws.empty())

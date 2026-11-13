@@ -55,6 +55,7 @@
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_convolution.hpp>
 #include <migraphx/rewrite_dot.hpp>
+#include <migraphx/rewrite_gather_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
@@ -159,6 +160,9 @@ struct backend_options
     // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
     // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
     std::size_t literal_staging_peak_percent = 5;
+    // Gathered rows per table entry from which dots with gathered matrices, such as the experts
+    // of a MoE layer, run as one batched dot over the whole table.
+    float gather_dot_min_rows_per_entry = 1.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -178,6 +182,7 @@ struct backend_options
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
                     f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
+                    f(self.gather_dot_min_rows_per_entry, "gather_dot_min_rows_per_entry"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
@@ -313,6 +318,7 @@ struct pipeline_factory
             dead_code_elimination{},
             prefuse_ops{get_context()},
             dead_code_elimination{},
+            rewrite_gather_dot{.min_rows_per_entry = backend_opts.gather_dot_min_rows_per_entry},
             dead_code_elimination{},
             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
                            .fast_math         = options.fast_math},
@@ -467,6 +473,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             p.dynamic_shapes_pipeline(),
             p.required_pipeline(),
             {optimize_module{},
+             rewrite_gather_dot{.min_rows_per_entry = backend_opts.gather_dot_min_rows_per_entry},
              dead_code_elimination{},
              rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
                             .fast_math         = options.fast_math},

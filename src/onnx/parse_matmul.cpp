@@ -22,9 +22,13 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <algorithm>
+#include <iterator>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -32,6 +36,21 @@ namespace onnx {
 
 struct parse_matmul : op_parser<parse_matmul>
 {
+    // Four signed correction terms are bounded by 65536*K before the final result.
+    static constexpr std::size_t integer_output_signed_limit = 32767;
+    // 16384*K stays within int32; a multiple of four also keeps full chunks eligible for CK.
+    static constexpr std::size_t integer_dot_chunk_size = 131068;
+
+    struct integer_output_state
+    {
+        instruction_ref qa;
+        instruction_ref qb;
+        instruction_ref za_unsigned;
+        instruction_ref zb_unsigned;
+        bool zero_a;
+        bool zero_b;
+    };
+
     std::vector<op_desc> operators() const
     {
         return {{"MatMul", "dot"},
@@ -195,6 +214,208 @@ struct parse_matmul : op_parser<parse_matmul>
         return res;
     }
 
+    static instruction_ref integer_operand(const onnx_parser::node_info& info,
+                                           instruction_ref input)
+    {
+        if(input->get_shape().type() != shape::uint8_type)
+            return input;
+        auto wide =
+            info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), input);
+        auto offset  = info.add_literal(literal{shape{shape::int32_type}, {128}});
+        auto shifted = info.add_common_op("sub", wide, offset);
+        return info.add_instruction(make_op("convert", {{"target_type", shape::int8_type}}),
+                                    shifted);
+    }
+
+    static instruction_ref integer_zero_point(const onnx_parser::node_info& info,
+                                              const std::vector<instruction_ref>& args,
+                                              std::size_t index,
+                                              instruction_ref input,
+                                              bool lhs)
+    {
+        instruction_ref zp;
+        if(args.size() > index and args[index]->name() != "undefined")
+        {
+            zp = args[index];
+            if(zp->get_shape().type() != input->get_shape().type())
+                MIGRAPHX_THROW("MatMulInteger: zero point must be the same type as data");
+            if(zp->get_shape().dynamic())
+                MIGRAPHX_THROW("MatMulInteger: dynamic zero points not supported");
+            if(is_symmetric_zero_point(zp))
+                return info.add_literal(literal{shape{shape::int32_type}, {0}});
+            const auto& lens = zp->get_shape().lens();
+            if(zp->get_shape().elements() == 1)
+                zp = info.add_instruction(make_op("reshape", {{"dims", {1}}}), zp);
+            else
+            {
+                auto axis = input->get_shape().ndim() - (lhs ? 2 : 1);
+                if(lens.size() == 1 and lens[0] == input->get_shape().lens()[axis])
+                {
+                    if(lhs)
+                        zp = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), zp);
+                }
+                else
+                {
+                    auto expected                             = input->get_shape().lens();
+                    expected[expected.size() - (lhs ? 1 : 2)] = 1;
+                    // Batch dimensions may broadcast, but zero points cannot vary along K.
+                    if(not can_multibroadcast(lens, expected))
+                        MIGRAPHX_THROW(
+                            "MatMulInteger: zero point must be scalar or match rows/columns");
+                }
+            }
+            zp = info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), zp);
+        }
+        else
+            zp = info.add_literal(literal{shape{shape::int32_type}, {0}});
+        if(input->get_shape().type() == shape::uint8_type)
+        {
+            auto offset = info.add_literal(literal{shape{shape::int32_type}, {128}});
+            zp          = info.add_common_op("sub", zp, offset);
+        }
+        return zp;
+    }
+
+    static instruction_ref handle_integer_output_chunk(const onnx_parser::node_info& info,
+                                                       const integer_output_state& state,
+                                                       std::size_t start,
+                                                       std::size_t end)
+    {
+        auto qa = state.qa;
+        auto qb = state.qb;
+        if(start != 0 or end != qa->get_shape().lens().back())
+        {
+            qa = info.add_instruction(
+                make_op(
+                    "slice",
+                    {{"axes", {qa->get_shape().ndim() - 1}}, {"starts", {start}}, {"ends", {end}}}),
+                qa);
+            qb = info.add_instruction(
+                make_op(
+                    "slice",
+                    {{"axes", {qb->get_shape().ndim() - 2}}, {"starts", {start}}, {"ends", {end}}}),
+                qb);
+        }
+
+        auto raw_dot = op::builder::add("quant_dot", *info.mod, {qa, qb}).at(0);
+        auto result  = info.add_instruction(
+            make_op("bit_cast", {{"target_type", shape::uint32_type}}), raw_dot);
+
+        // Unsigned operations make every correction wrap modulo 2^32 by definition.
+        if(not state.zero_a)
+        {
+            auto wb =
+                info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), qb);
+            auto sum_b = info.add_instruction(
+                make_op("reduce_sum", {{"axes", {qb->get_shape().ndim() - 2}}}), wb);
+            auto sum_b_unsigned = info.add_instruction(
+                make_op("bit_cast", {{"target_type", shape::uint32_type}}), sum_b);
+            result = info.add_common_op(
+                "sub", result, info.add_common_op("mul", state.za_unsigned, sum_b_unsigned));
+        }
+        if(not state.zero_b)
+        {
+            auto wa =
+                info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), qa);
+            auto sum_a = info.add_instruction(
+                make_op("reduce_sum", {{"axes", {qa->get_shape().ndim() - 1}}}), wa);
+            auto sum_a_unsigned = info.add_instruction(
+                make_op("bit_cast", {{"target_type", shape::uint32_type}}), sum_a);
+            result = info.add_common_op(
+                "sub", result, info.add_common_op("mul", sum_a_unsigned, state.zb_unsigned));
+        }
+        if(not state.zero_a and not state.zero_b)
+        {
+            auto k = info.add_literal(
+                literal{shape{shape::uint32_type}, {static_cast<uint32_t>(end - start)}});
+            auto correction = info.add_common_op(
+                "mul", info.add_common_op("mul", state.za_unsigned, state.zb_unsigned), k);
+            result = info.add_common_op("add", result, correction);
+        }
+        return result;
+    }
+
+    static instruction_ref handle_integer_output_large(const onnx_parser::node_info& info,
+                                                       const integer_output_state& state,
+                                                       std::size_t k)
+    {
+        // The raw quant_dot still accumulates to int32, so keep every reduction within this bound.
+        const auto number_of_chunks = 1 + (k - 1) / integer_dot_chunk_size;
+        std::vector<instruction_ref> chunks;
+        chunks.reserve(number_of_chunks);
+        std::generate_n(
+            std::back_inserter(chunks), number_of_chunks, [&, start = std::size_t{0}]() mutable {
+                const auto end = start + std::min(integer_dot_chunk_size, k - start);
+                auto result    = handle_integer_output_chunk(info, state, start, end);
+                start          = end;
+                return result;
+            });
+        auto result = std::accumulate(
+            std::next(chunks.begin()), chunks.end(), chunks.front(), [&](auto x, auto y) {
+                return info.add_common_op("add", x, y);
+            });
+        return info.add_instruction(make_op("bit_cast", {{"target_type", shape::int32_type}}),
+                                    result);
+    }
+
+    static instruction_ref handle_integer_output(const onnx_parser::node_info& info,
+                                                 const std::vector<instruction_ref>& args,
+                                                 instruction_ref a,
+                                                 instruction_ref b)
+    {
+        auto za           = integer_zero_point(info, args, 2, a, true);
+        auto zb           = integer_zero_point(info, args, 3, b, false);
+        auto qa           = integer_operand(info, a);
+        auto qb           = integer_operand(info, b);
+        const bool zero_a = is_symmetric_zero_point(za);
+        const bool zero_b = is_symmetric_zero_point(zb);
+        const auto k      = a->get_shape().lens().back();
+
+        if(k != b->get_shape().lens()[b->get_shape().ndim() - 2])
+        {
+            MIGRAPHX_THROW("MatMulInteger: input inner dimensions must match");
+        }
+
+        if(k <= integer_output_signed_limit)
+        {
+            auto result = op::builder::add("quant_dot", *info.mod, {qa, qb}).at(0);
+            if(not zero_a)
+            {
+                auto wb = info.add_instruction(
+                    make_op("convert", {{"target_type", shape::int32_type}}), qb);
+                auto sum_b = info.add_instruction(
+                    make_op("reduce_sum", {{"axes", {b->get_shape().ndim() - 2}}}), wb);
+                result = info.add_common_op("sub", result, info.add_common_op("mul", za, sum_b));
+            }
+            if(not zero_b)
+            {
+                auto wa = info.add_instruction(
+                    make_op("convert", {{"target_type", shape::int32_type}}), qa);
+                auto sum_a = info.add_instruction(
+                    make_op("reduce_sum", {{"axes", {a->get_shape().ndim() - 1}}}), wa);
+                result = info.add_common_op("sub", result, info.add_common_op("mul", sum_a, zb));
+            }
+            if(not zero_a and not zero_b)
+            {
+                auto k_literal =
+                    info.add_literal(literal{shape{shape::int32_type}, {static_cast<int32_t>(k)}});
+                auto correction =
+                    info.add_common_op("mul", info.add_common_op("mul", za, zb), k_literal);
+                result = info.add_common_op("add", result, correction);
+            }
+            return result;
+        }
+
+        integer_output_state state{
+            qa,
+            qb,
+            info.add_instruction(make_op("bit_cast", {{"target_type", shape::uint32_type}}), za),
+            info.add_instruction(make_op("bit_cast", {{"target_type", shape::uint32_type}}), zb),
+            zero_a,
+            zero_b};
+        return handle_integer_output_large(info, state, k);
+    }
+
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
@@ -262,8 +483,10 @@ struct parse_matmul : op_parser<parse_matmul>
                 }
             }
 
-            instruction_ref ba0 = set_bias_arg(op_name, args, a0_zp_index, a0, has_ba0);
-            instruction_ref ba1 = set_bias_arg(op_name, args, a1_zp_index, a1, has_ba1);
+            instruction_ref ba0 =
+                is_quant_dot ? a0 : set_bias_arg(op_name, args, a0_zp_index, a0, has_ba0);
+            instruction_ref ba1 =
+                is_quant_dot ? a1 : set_bias_arg(op_name, args, a1_zp_index, a1, has_ba1);
 
             // handle optional bias arg to the result
             instruction_ref scaled_bias;
@@ -286,21 +509,14 @@ struct parse_matmul : op_parser<parse_matmul>
                 MIGRAPHX_THROW(op_name + ": Unsupported type");
             }
 
-            if((is_quant_dot and ((a0_type == migraphx::shape::uint8_type) or
-                                  (a1_type == migraphx::shape::uint8_type))))
-            {
-                auto unpack2 = [](auto&& v) { return std::make_pair(v[0], v[1]); };
-
-                std::tie(a0, ba0) = unpack2(
-                    op::builder::add("bias_uint8", *info.mod, {a0, ba0}, {{"has_bias", has_ba0}}));
-                std::tie(a1, ba1) = unpack2(
-                    op::builder::add("bias_uint8", *info.mod, {a1, ba1}, {{"has_bias", has_ba1}}));
-            }
-
             // Apply the scale to dequantize input to then perform a simple dot
             // after the zero points are applied otherwise get a int32 output from the quantized
             // equivalent. Ensure these are broadcasted accordingly before we perform a dot
-            if(is_quant_dot_scaled)
+            if(is_quant_dot)
+            {
+                dot_res = handle_integer_output(info, args, a0, a1);
+            }
+            else if(is_quant_dot_scaled)
             {
                 dot_res = handle_scaled_output(
                     info, a0, a1, scale_a0, scale_a1, ba0, ba1, scaled_bias, has_scale_bias);

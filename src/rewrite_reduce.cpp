@@ -689,7 +689,13 @@ struct find_reduce_mean_variance
         }
         auto mean_x2  = m.insert_instruction(ins, mean->get_operator(), x2);
         auto mean_x_2 = m.insert_instruction(ins, make_op("mul"), mean, mean);
-        m.replace_instruction(ins, make_op("sub"), mean_x2, mean_x_2);
+        auto variance = m.insert_instruction(ins, make_op("sub"), mean_x2, mean_x_2);
+        // mean(x^2) - mean(x)^2 is a single-pass variance formula, so it can round
+        // slightly negative from cancellation even though the true variance can't be
+        // negative; clamp before any downstream rsqrt(variance + eps) sees it.
+        auto zero             = m.add_literal(literal{shape{variance->get_shape().type()}, {0}});
+        auto variance_clamped = insert_common_op(m, ins, make_op("max"), {variance, zero});
+        m.replace_instruction(ins, variance_clamped);
     }
 };
 

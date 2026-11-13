@@ -64,6 +64,11 @@ struct onnx_options
     /// Path to use for the external data if it is stored at different location compared to onnx
     /// file
     std::string external_data_path = "";
+    /// Raw data of initializers provided by the caller instead of being stored in the onnx
+    /// buffer, keyed by initializer name. This takes precedence over any data in the onnx
+    /// tensor. The data is not owned: it must stay valid for every parse that uses these options,
+    /// and can be freed once parsing is done because the parser copies it into the program.
+    std::unordered_map<std::string, std::pair<const void*, std::size_t>> external_initializers = {};
 };
 
 /// Create a program from an onnx file

@@ -733,6 +733,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_limit_loop_iteration
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
     migraphx_onnx_options_t onnx_options, const char* external_data_path);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_initializer(
+    migraphx_onnx_options_t onnx_options, const char* name, const void* data, size_t size);
+
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value);
 

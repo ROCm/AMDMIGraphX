@@ -361,6 +361,15 @@ std::optional<std::vector<T>> fixed_values(const Range& expressions)
     return result;
 }
 
+// Whether every value the expression can take is representable as T
+template <class T>
+bool fits(const expr& expression)
+{
+    const auto bounds = expression.eval_interval();
+    const interval range{std::numeric_limits<T>::lowest(), std::numeric_limits<T>::max()};
+    return range.contains(bounds.min) and range.contains(bounds.max);
+}
+
 // `min`/`max` that collapse to one operand when `strict_less` proves the ordering.
 MIGRAPHX_EXPORT expr resolve_min(const expr& a, const expr& b);
 MIGRAPHX_EXPORT expr resolve_max(const expr& a, const expr& b);

@@ -1711,6 +1711,7 @@ instruction_ref add_output_slice(module& m,
                                  instruction_ref selected_output,
                                  const symbolic_op_info& info,
                                  const std::unordered_map<sym::expr, instruction_ref>& root_sources,
+                                 const std::vector<instruction_ref>& root_source_order,
                                  replacement_context& replacements)
 {
     if(info.output_symbolic_axes.empty())
@@ -1729,25 +1730,16 @@ instruction_ref add_output_slice(module& m,
     if(axes.empty())
         return selected_output;
     std::vector<sym::expr> start_expressions(axes.size(), sym::lit(int64_t{0}));
-    std::vector<instruction_ref> data_sources;
-    for(const auto& expression : end_expressions)
-    {
-        for(const auto& variable : sym::find_variables(expression))
-        {
-            auto found = root_sources.find(variable);
-            if(found != root_sources.end() and found->second->name() != "@param" and
-               not contains(data_sources, found->second))
-                data_sources.push_back(found->second);
-        }
-    }
-    auto sources = data_sources.empty() ? m.get_parameters() : data_sources;
-    std::transform(sources.begin(), sources.end(), sources.begin(), [&](instruction_ref source) {
+    auto sources = find_expression_sources(end_expressions, root_sources, root_source_order);
+    if(not sources.has_value() or sources->empty())
+        MIGRAPHX_THROW("SPLIT_SYM_DIM: cannot resolve output slice bounds from root sources");
+    std::transform(sources->begin(), sources->end(), sources->begin(), [&](instruction_ref source) {
         return replacements.materialize(source);
     });
     auto starts = m.add_instruction(
-        make_op("eval_expr_from_shape", {{"expressions", to_value(start_expressions)}}), sources);
+        make_op("eval_expr_from_shape", {{"expressions", to_value(start_expressions)}}), *sources);
     auto ends = m.add_instruction(
-        make_op("eval_expr_from_shape", {{"expressions", to_value(end_expressions)}}), sources);
+        make_op("eval_expr_from_shape", {{"expressions", to_value(end_expressions)}}), *sources);
     auto result = m.add_instruction(make_op("dyn_slice",
                                             {{"axes", axes},
                                              {"starts", to_value(start_expressions)},
@@ -2201,6 +2193,7 @@ struct block_frame
     wire_select_module(module_pass_manager& mpm,
                        const symbolic_op_plans& plans,
                        const std::unordered_map<sym::expr, instruction_ref>& root_sources,
+                       const std::vector<instruction_ref>& root_source_order,
                        const std::vector<const root_spec*>& roots,
                        std::vector<module> clones,
                        const std::vector<clone_output_case>& clone_outputs,
@@ -2271,6 +2264,7 @@ struct block_frame
                                            selected_output,
                                            plans.at(output.source).info,
                                            root_sources,
+                                           root_source_order,
                                            replacements);
             output_values.emplace_back(output, sliced);
             if(output == plans.full_output_for(output.source))
@@ -2282,7 +2276,8 @@ struct block_frame
 void specialize_blocks(module_pass_manager& mpm,
                        const block_dependency_graph& graph,
                        const symbolic_op_plans& plans,
-                       const std::unordered_map<sym::expr, instruction_ref>& root_sources)
+                       const std::unordered_map<sym::expr, instruction_ref>& root_sources,
+                       const std::vector<instruction_ref>& root_source_order)
 {
     // Replace each discovered block with one clone per cartesian product of its root buckets and a
     // select_module that dispatches to the compatible clone. The selected fixed-size outputs are
@@ -2347,6 +2342,7 @@ void specialize_blocks(module_pass_manager& mpm,
         frame->wire_select_module(mpm,
                                   plans,
                                   root_sources,
+                                  root_source_order,
                                   block.roots,
                                   std::move(clones),
                                   clone_outputs,
@@ -2437,7 +2433,7 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
 
     // Materialize one clone for each target combination, dispatch through select_module, slice
     // fixed-size outputs back to their runtime extents, and rewire uses outside each block.
-    specialize_blocks(mpm, graph, plans, root_sources);
+    specialize_blocks(mpm, graph, plans, root_sources, root_info.ordered);
     run_passes(m, {dead_code_elimination{}});
 }
 

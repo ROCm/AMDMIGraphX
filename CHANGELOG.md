@@ -12,6 +12,7 @@ Full documentation for MIGraphX is available at
 * Added the `split_sym_dim` pass, which specializes bounded symbolic dimensions into static `select_module` submodules (#5123).
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
+* Added OCP fp8 support for gfx1170, gfx1171, and gfx1172.
 
 ### Changed
 
@@ -21,6 +22,7 @@ Full documentation for MIGraphX is available at
 * Updated `eliminate_convert` to remove no-op and redundant nested `convert` instructions for dynamic and symbolic shapes (#5385).
 * Updated `nonmaxsuppression` kernel to use uint32_t bitmask instead of bool type to get around number of elements > uint32_t (#5302).
 * Enabled MLIR attention fusion by default on every GPU, not just gfx94x/gfx95x, gated per attention block on profitability: blocks whose head dim exceeds `attn_max_head_dim` (512 on wave64 devices, 256 on wave32) at kv lengths past `attn_wide_head_kv_len` (1024 on wave64, none on wave32), or with fewer than `attn_min_q_rows` total query rows (24 per CU), run as separate gemm and softmax kernels instead. The thresholds are configurable through the matching backend options, requesting `attention` in `MIGRAPHX_MLIR_USE_SPECIFIC_OPS` or the `mlir_use_specific_ops` backend option fuses every block regardless of the gate, and `!attention` in the backend option now disables the fusion on every device (#5405).
+* Changed fp8 `quant_dot` to stay in fp8 on GPUs without hipBLASLt when `fuse_mlir` takes every dot, instead of being converted to float.
 
 ### Resolved issues
 
@@ -31,6 +33,7 @@ Full documentation for MIGraphX is available at
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).
 * Fixed mixed `uint8` and `int8` quantization (#5075).
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
+* Fixed fp8 convolutions failing in MIOpen when MLIR is disabled or does not take convolutions; they now run in float.
 
 ### Optimized
 

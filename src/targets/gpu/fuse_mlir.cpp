@@ -1666,38 +1666,81 @@ struct find_channel_slice_convolution
 
 } // namespace
 
+static mlir_mode get_mlir_mode(std::string_view option,
+                               const std::string& device_name,
+                               const op_usage& ops,
+                               mlir_mode m1,
+                               mlir_mode m2 = mlir_mode::fast)
+{
+    if(env_op_usage().is_rejected(option))
+        return mlir_mode::none;
+    if(env_op_usage().is_requested(option))
+        return mlir_mode::all;
+    if(starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12"))
+        return mlir_mode::all;
+#if !MIGRAPHX_USE_MIOPEN
+    if(contains(option, "conv"))
+        return mlir_mode::all;
+#endif
+#if !MIGRAPHX_USE_ROCBLAS and !MIGRAPHX_USE_HIPBLASLT
+    if(contains(option, "dot") or contains(option, "fused_dot"))
+        return mlir_mode::all;
+#endif
+    // compile_options is checked last: the env var and architecture/build-config forcing
+    // above win, but this still overrides the m1/m2 default.
+    if(ops.is_rejected(option))
+        return mlir_mode::none;
+    if(ops.is_requested(option))
+        return mlir_mode::all;
+    return std::max(m1, m2);
+}
+
+// Shared with eliminate_data_type_for_gpu so it keeps fp8 only for what fuse_mlir takes
+static mlir_mode get_standalone_dot_mode(const std::string& device_name, const op_usage& ops)
+{
+    return get_mlir_mode("dot", device_name, ops, mlir_mode::fast);
+}
+
+static mlir_mode get_standalone_conv_mode(const std::string& device_name, const op_usage& ops)
+{
+    return get_mlir_mode("convolution", device_name, ops, mlir_mode::fast);
+}
+
 #endif // MIGRAPHX_MLIR
+
+bool mlir_all_dots_enabled(const context& ctx, const std::vector<std::string>& use_specific_ops)
+{
+#ifdef MIGRAPHX_MLIR
+    if(not mlir_enabled())
+        return false;
+    return get_standalone_dot_mode(ctx.get_current_device().get_gfx_name(),
+                                   parse_op_usage(use_specific_ops)) == mlir_mode::all;
+#else
+    return false;
+#endif
+}
+
+bool mlir_convolutions_enabled(const context& ctx, const std::vector<std::string>& use_specific_ops)
+{
+#ifdef MIGRAPHX_MLIR
+    if(not mlir_enabled())
+        return false;
+    return get_standalone_conv_mode(ctx.get_current_device().get_gfx_name(),
+                                    parse_op_usage(use_specific_ops)) != mlir_mode::none;
+#else
+    return false;
+#endif
+}
 
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-    const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
     const auto ops          = parse_op_usage(use_specific_ops);
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
-        if(env_op_usage().is_rejected(option))
-            return mlir_mode::none;
-        if(env_op_usage().is_requested(option))
-            return mlir_mode::all;
-        if(is_navi)
-            return mlir_mode::all;
-#if !MIGRAPHX_USE_MIOPEN
-        if(contains(option, "conv"))
-            return mlir_mode::all;
-#endif
-#if !MIGRAPHX_USE_ROCBLAS and !MIGRAPHX_USE_HIPBLASLT
-        if(contains(option, "dot") or contains(option, "fused_dot"))
-            return mlir_mode::all;
-#endif
-        // compile_options is checked last: the env var and the navi/build-config forcing above
-        // win, but this still overrides the m1/m2 default.
-        if(ops.is_rejected(option))
-            return mlir_mode::none;
-        if(ops.is_requested(option))
-            return mlir_mode::all;
-        return std::max(m1, m2);
+        return get_mlir_mode(option, device_name, ops, m1, m2);
     };
 
     match::find_matches(mpm, find_channel_slice_convolution{});
@@ -1726,10 +1769,11 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_mode::fast),
+        find_mlir_standalone_conv_op{.mode    = get_standalone_conv_mode(device_name, ops),
                                      .counter = &counter},
         find_mlir_standalone_conv_backwards_op{.mode = conv_backwards_mode, .counter = &counter},
-        find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
+        find_mlir_standalone_dot_op{.mode    = get_standalone_dot_mode(device_name, ops),
+                                    .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});
 

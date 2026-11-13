@@ -277,7 +277,12 @@ struct pipeline_factory
             simplify_qdq{.use_mx_quant = gpu::gfx_has_mx_intrinsics(*get_context())},
             enable_pass(not mlir_enabled(), rewrite_quantization{}),
             dead_code_elimination{},
-            eliminate_data_type_for_gpu{.disable_64bit = options.fast_math, .ctx = get_context()},
+            eliminate_data_type_for_gpu{.disable_64bit = options.fast_math,
+                                        .ctx           = get_context(),
+                                        .mlir_all_dots = mlir_all_dots_enabled(
+                                            *get_context(), backend_opts.mlir_use_specific_ops),
+                                        .mlir_convolutions = mlir_convolutions_enabled(
+                                            *get_context(), backend_opts.mlir_use_specific_ops)},
             rewrite_resize{.affine_only = true},
             dead_code_elimination{},
             simplify_reshapes{.enable_gather_rewrite = true},

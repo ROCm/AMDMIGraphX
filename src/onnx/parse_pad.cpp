@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/pad.hpp>
+#include <migraphx/sym.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -150,11 +151,88 @@ struct parse_pad : op_parser<parse_pad>
         return new_pads;
     }
 
+    // `pads` that are not constant but known as expressions over the symbols of the program: pad
+    // by concatenating the fill value, broadcast to the run-time pad size, along each padded axis
+    instruction_ref parse_symbolic_pads(const onnx_parser& parser,
+                                        const onnx_parser::node_info& info,
+                                        const std::vector<instruction_ref>& args,
+                                        const std::vector<sym::expr>& pads) const
+    {
+        auto x            = args.front();
+        size_t input_rank = x->get_shape().ndim();
+        if(x->get_shape().dynamic() and not x->get_shape().symbolic())
+            MIGRAPHX_THROW("PARSE_PAD: non-constant `pads` need a static or symbolic input shape");
+        if(parse_mode(info, args) != "constant")
+            MIGRAPHX_THROW("PARSE_PAD: non-constant `pads` are only supported in constant mode");
+        if(not parse_axes(args, true).empty())
+            MIGRAPHX_THROW("PARSE_PAD: non-constant `pads` are not supported with `axes`");
+        if(pads.size() != input_rank * 2)
+        {
+            MIGRAPHX_THROW("PARSE_PAD: number of elements of pads should be equal to 2 * "
+                           "input rank");
+        }
+
+        const auto zero = sym::lit(int64_t{0});
+        auto fill =
+            info.add_literal(literal{shape{x->get_shape().type()},
+                                     std::vector<float>{parse_constant_value(parser, info, args)}});
+        auto slice_of = [&](instruction_ref ins, std::size_t start, std::size_t end) {
+            return info.add_instruction(
+                make_op("slice", {{"axes", {0}}, {"starts", {start}}, {"ends", {end}}}), ins);
+        };
+        for(std::size_t axis = 0; axis < input_rank; axis++)
+        {
+            for(auto at_end : {false, true})
+            {
+                auto index      = axis + (at_end ? input_rank : 0);
+                const auto& pad = pads[index];
+                if(pad == zero)
+                    continue;
+                if(sym::strict_less(pad, zero).value_or(false))
+                    MIGRAPHX_THROW("PARSE_PAD: non-constant `pads` cannot be negative");
+                // The run-time dims of the fill: those of x, with the pad size on this axis
+                auto x_dims =
+                    info.add_instruction(make_op("dimensions_of", {{"end", input_rank}}), x);
+                std::vector<instruction_ref> parts;
+                if(axis > 0)
+                    parts.push_back(slice_of(x_dims, 0, axis));
+                parts.push_back(slice_of(args.at(1), index, index + 1));
+                if(axis + 1 < input_rank)
+                    parts.push_back(slice_of(x_dims, axis + 1, input_rank));
+                auto fill_dims =
+                    parts.size() == 1
+                        ? parts.front()
+                        : info.add_instruction(make_op("concat", {{"axis", 0}}), parts);
+                auto dims     = x->get_shape().to_symbolic().dyn_dims();
+                dims.at(axis) = shape::dynamic_dimension{pad};
+                auto filled   = info.add_instruction(
+                    make_op("broadcast_with_dims", {{"out_dyn_dims", to_value(dims)}}),
+                    fill,
+                    fill_dims);
+                std::vector<instruction_ref> inputs{filled, x};
+                if(at_end)
+                    std::swap(inputs.front(), inputs.back());
+                x = info.add_instruction(make_op("concat", {{"axis", axis}}), inputs);
+            }
+        }
+        return x;
+    }
+
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
+        if(args.size() >= 2 and args.at(1)->eval().empty())
+        {
+            const auto pads_value = args.at(1)->sym_eval();
+            if(not pads_value.empty())
+            {
+                const auto expressions = pads_value.get();
+                return parse_symbolic_pads(
+                    parser, info, args, {expressions.begin(), expressions.end()});
+            }
+        }
         std::vector<int64_t> pads = parse_pads(info, args);
 
         // check if padding is actually being done (at least one value is nonzero)

@@ -13035,6 +13035,34 @@ def pad_cnst_dyn_test():
 
 
 @onnx_test()
+def pad_symbolic_pads_test():
+    # Pads x to 10 rows, with the pads computed from its symbolic shape the way tf2onnx exports
+    # them: a [2, 2] begin/end table transposed and flattened
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 4])
+
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+    one = helper.make_tensor('one', TensorProto.INT64, [1], [1])
+    size = helper.make_tensor('size', TensorProto.INT64, [1], [10])
+    begin = helper.make_tensor('begin', TensorProto.INT64, [2, 1], [0, 0])
+    flat = helper.make_tensor('flat', TensorProto.INT64, [1], [-1])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['x_shape']),
+        helper.make_node('Slice', ['x_shape', 'zero', 'one'], ['rows']),
+        helper.make_node('Sub', ['size', 'rows'], ['row_pad']),
+        helper.make_node('Concat', ['row_pad', 'zero'], ['end'], axis=0),
+        helper.make_node('Unsqueeze', ['end', 'one'], ['end_column']),
+        helper.make_node('Concat', ['begin', 'end_column'], ['table'], axis=1),
+        helper.make_node('Transpose', ['table'], ['table_t'], perm=[1, 0]),
+        helper.make_node('Reshape', ['table_t', 'flat'], ['pads']),
+        helper.make_node('Pad', ['x', 'pads'], ['y']),
+    ]
+
+    return (nodes, [x], [out], [zero, one, size, begin, flat])
+
+
+@onnx_test()
 def pad_dyn_reflect_error():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, None])

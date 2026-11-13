@@ -168,6 +168,27 @@ TEST_CASE(op_sym_concat)
     EXPECT(result == symbolic_tensor_value{lit(1), lit(2), lit(3)});
 }
 
+TEST_CASE(op_sym_concat_axis1)
+{
+    const auto s = var("S", {1, 16});
+    auto result  = symbolic_compute(
+        migraphx::make_op("concat", {{"axis", 1}}),
+        shape{shape::int64_type, {2, 2}},
+        {shape{shape::int64_type, {2, 1}}, shape{shape::int64_type, {2, 1}}},
+        {symbolic_tensor_value{lit(0), lit(1)}, symbolic_tensor_value{lit(10) - s, lit(2)}});
+    EXPECT(result == symbolic_tensor_value{lit(0), lit(10) - s, lit(1), lit(2)});
+}
+
+TEST_CASE(op_sym_transpose)
+{
+    const auto s = var("S", {1, 16});
+    auto result  = symbolic_compute(migraphx::make_op("transpose", {{"permutation", {1, 0}}}),
+                                    shape{shape::int64_type, {2, 2}, {1, 2}},
+                                    {shape{shape::int64_type, {2, 2}}},
+                                    {symbolic_tensor_value{lit(0), lit(10) - s, lit(1), lit(2)}});
+    EXPECT(result == symbolic_tensor_value{lit(0), lit(1), lit(10) - s, lit(2)});
+}
+
 TEST_CASE(op_sym_concat_rejects_wrong_output_size)
 {
     EXPECT(

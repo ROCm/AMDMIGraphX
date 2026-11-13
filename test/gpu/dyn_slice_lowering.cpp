@@ -165,4 +165,32 @@ TEST_CASE(dyn_slice_lowering_single_input)
     EXPECT(m1 == m2);
 }
 
+// broadcast_with_dims reads its dims on the host, so they are copied back like slice bounds,
+// while the data stays on the GPU.
+TEST_CASE(broadcast_with_dims_lowering_runtime_dims)
+{
+    migraphx::shape data_s{migraphx::shape::float_type, {1}};
+    migraphx::shape dims_s{migraphx::shape::int64_type, {1}};
+
+    migraphx::module m1;
+    {
+        auto data = m1.add_parameter("data", data_s);
+        auto dims = m1.add_parameter("dims", dims_s);
+        auto b    = m1.add_instruction(migraphx::make_op("broadcast_with_dims"), data, dims);
+        m1.add_return({b});
+    }
+    run_lowering(m1);
+
+    migraphx::module m2;
+    {
+        auto data      = m2.add_parameter("data", data_s);
+        auto dims      = m2.add_parameter("dims", dims_s);
+        auto copy_dims = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), dims);
+        auto sync      = m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_dims);
+        auto b         = m2.add_instruction(migraphx::make_op("broadcast_with_dims"), data, sync);
+        m2.add_return({b});
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

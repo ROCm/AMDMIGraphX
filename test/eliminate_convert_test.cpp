@@ -398,4 +398,51 @@ TEST_CASE(nested_branch_convert1)
     EXPECT(m0 == m1);
 }
 
+static migraphx::module make_round_trip(migraphx::shape::type_t from, migraphx::shape::type_t mid)
+{
+    migraphx::module m;
+    auto s = migraphx::shape{from, {1, 2, 3}};
+    auto x = m.add_parameter("x", s);
+    auto a = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::to_value(mid)}}), x);
+    auto b = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::to_value(from)}}), a);
+    m.add_return({b});
+    return m;
+}
+
+TEST_CASE(nested_convert_value_changing_kept)
+{
+    // float -> bool -> float gives 0 or 1, and float -> int32 -> float truncates, so these are not
+    // a nop
+    for(auto mid : {migraphx::shape::bool_type, migraphx::shape::int32_type})
+    {
+        auto m0 = make_round_trip(migraphx::shape::float_type, mid);
+        auto m1 = m0;
+        run_pass(m0);
+        EXPECT(m0 == m1);
+    }
+}
+
+TEST_CASE(nested_convert_precision_removed)
+{
+    // A round trip through another floating point or a wider integer type is still removed, as
+    // the converts inserted around fp8 and half ops rely on
+    for(auto [from, mid] :
+        {std::make_pair(migraphx::shape::float_type, migraphx::shape::half_type),
+         std::make_pair(migraphx::shape::float_type, migraphx::shape::fp8e4m3fnuz_type),
+         std::make_pair(migraphx::shape::bool_type, migraphx::shape::float_type),
+         std::make_pair(migraphx::shape::uint8_type, migraphx::shape::int16_type)})
+    {
+        auto m0 = make_round_trip(from, mid);
+        run_pass(m0);
+        migraphx::module m1;
+        {
+            auto x = m1.add_parameter("x", migraphx::shape{from, {1, 2, 3}});
+            m1.add_return({x});
+        }
+        EXPECT(m0 == m1);
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

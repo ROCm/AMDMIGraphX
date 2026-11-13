@@ -216,6 +216,10 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
 }
 
 int program::get_program_file_version() const { return program_file_version; }
+int program::get_min_supported_program_file_version() const
+{
+    return min_supported_program_file_version;
+}
 
 std::size_t program::size() const { return impl->modules.size(); }
 
@@ -940,17 +944,69 @@ static void mod_from_val(module_ref mod,
     }
 }
 
+static std::string describe_version_field(const value& v)
+{
+    if(v.is_string())
+        return "a string";
+    if(v.is_float())
+        return "a floating point number";
+    if(v.is_bool())
+        return "a boolean";
+    if(v.is_null())
+        return "null";
+    if(v.is_array())
+        return "an array";
+    if(v.is_object())
+        return "an object";
+    return "a value that is not an integer";
+}
+
+void program::check_file_version(const value* version_field)
+{
+    if(version_field == nullptr)
+        MIGRAPHX_THROW("Error: MXR file has no `version` field, it is not a valid MXR file.");
+    // The version is read as a 64-bit integer: narrowing it to an int first could wrap a large
+    // value into the supported range.
+    std::uint64_t version = 0;
+    if(version_field->is_int64())
+    {
+        auto i = version_field->get_int64();
+        if(i < 1)
+            MIGRAPHX_THROW("Error: invalid `version` field in MXR file: " + std::to_string(i) +
+                           " is not a valid program file version.");
+        version = static_cast<std::uint64_t>(i);
+    }
+    else if(version_field->is_uint64())
+    {
+        version = version_field->get_uint64();
+        if(version < 1)
+            MIGRAPHX_THROW("Error: invalid `version` field in MXR file: 0 is not a valid program "
+                           "file version.");
+    }
+    else
+    {
+        MIGRAPHX_THROW("Error: invalid `version` field in MXR file: expected an integer, found " +
+                       describe_version_field(*version_field) + ".");
+    }
+
+    if(version >= min_supported_program_file_version and version <= program_file_version)
+        return;
+    auto message =
+        "Error: Program version mismatch. MXR file was created using program file version: " +
+        std::to_string(version) + ", but installed MIGraphX (" + get_migraphx_version() +
+        ") supports program file versions " + std::to_string(min_supported_program_file_version) +
+        " to " + std::to_string(program_file_version) + ". ";
+    if(version < min_supported_program_file_version)
+        message += "Regenerate the MXR file using the installed MIGraphX and run again.";
+    else
+        message += "Upgrade MIGraphX to read this file.";
+    MIGRAPHX_THROW(message);
+}
+
 void program::from_value(const value& v)
 {
-    auto version = v.at("version").to<int>();
-    if(version != program_file_version)
-    {
-        MIGRAPHX_THROW(
-            "Error: Program version mismatch. MXR file was created using program file version: " +
-            std::to_string(version) + ", while installed MIGraphX is using program file version: " +
-            std::to_string(program_file_version) +
-            ", Try regenerating MXR file using installed MIGraphX and running again.");
-    }
+    // Check before anything is changed, so a rejected file leaves the program untouched.
+    check_file_version(v.contains("version") ? &v.at("version") : nullptr);
 
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())

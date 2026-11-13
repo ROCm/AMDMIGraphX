@@ -524,7 +524,7 @@ TEST_CASE(select_module_compute_maps_parameters_by_name)
     EXPECT(result.get_sub_objects().front().get_shape() == s);
 }
 
-TEST_CASE(select_module_zero_guard_returns_output_allocation)
+TEST_CASE(select_module_empty_guard_returns_output_allocation)
 {
     migraphx::shape candidate_s{migraphx::shape::float_type, {1, 4}};
     migraphx::shape empty_s{migraphx::shape::float_type, {0, 4}};
@@ -538,7 +538,7 @@ TEST_CASE(select_module_zero_guard_returns_output_allocation)
         "select_module",
         {{"output_dyn_shapes",
           migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{output_s}})},
-         {"zero_guard_inputs", {0}}});
+         {"empty_guard_inputs", {0}}});
     std::vector<float> output_data(candidate_s.elements());
     migraphx::argument data_arg{empty_s, nullptr};
     migraphx::argument output_arg{candidate_s, output_data.data()};
@@ -571,7 +571,7 @@ TEST_CASE(select_module_zero_guard_returns_output_allocation)
     EXPECT(other_result.get_sub_objects().front().data() == output_arg.data());
 }
 
-TEST_CASE(select_module_zero_guard_builds_max_output_arguments)
+TEST_CASE(select_module_empty_guard_builds_max_output_arguments)
 {
     migraphx::shape candidate_s{migraphx::shape::float_type, {1, 2}};
     migraphx::shape candidate_leaf_s{migraphx::shape::int32_type, {1}};
@@ -592,7 +592,7 @@ TEST_CASE(select_module_zero_guard_builds_max_output_arguments)
     auto op                                    = migraphx::make_op(
         "select_module",
         {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{output_shapes})},
-                                            {"zero_guard_inputs", {0}}});
+                                            {"empty_guard_inputs", {0}}});
     migraphx::argument empty_arg{{migraphx::shape::float_type, {0, 2}}, nullptr};
     migraphx::argument tuple_arg{candidate_tuple_s};
     migraphx::context ctx;
@@ -630,7 +630,7 @@ TEST_CASE(select_module_unlisted_empty_input_runs)
         "select_module",
         {{"output_dyn_shapes",
           migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{data_s}})},
-         {"zero_guard_inputs", {0}}});
+         {"empty_guard_inputs", {0}}});
     std::vector<float> data(data_s.elements());
     std::vector<float> output_data(data_s.elements());
     migraphx::argument data_arg{data_s, data.data()};

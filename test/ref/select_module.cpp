@@ -687,7 +687,7 @@ TEST_CASE(select_module_zero_output_short_circuit)
     auto select                          = mm->add_instruction(
         migraphx::make_op("select_module",
                                                    {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-                                                    {"zero_guard_inputs", {0}}}),
+                                                    {"empty_guard_inputs", {0}}}),
         {input},
         {submod});
     auto output = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);

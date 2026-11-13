@@ -38,7 +38,7 @@ std::vector<instruction_ref> insert_select_module(module_pass_manager& mpm,
                                                   const std::vector<instruction_ref>& inputs,
                                                   std::vector<module> clones,
                                                   const std::vector<shape>& output_shapes,
-                                                  const std::vector<std::size_t>& zero_guard_inputs)
+                                                  const std::vector<std::size_t>& empty_guard_inputs)
 {
     std::vector<module_ref> submodules;
     submodules.reserve(clones.size());
@@ -49,8 +49,8 @@ std::vector<instruction_ref> insert_select_module(module_pass_manager& mpm,
         });
 
     value attributes{{"output_dyn_shapes", to_value(shape{output_shapes})}};
-    if(not zero_guard_inputs.empty())
-        attributes["zero_guard_inputs"] = zero_guard_inputs;
+    if(not empty_guard_inputs.empty())
+        attributes["empty_guard_inputs"] = empty_guard_inputs;
     auto selection = m.add_instruction(make_op("select_module", attributes), inputs, submodules);
     std::vector<instruction_ref> outputs;
     outputs.reserve(output_shapes.size());

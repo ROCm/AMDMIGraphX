@@ -2147,7 +2147,7 @@ struct block_frame
                });
     }
 
-    bool input_supports_zero_guard(
+    bool input_supports_empty_guard(
         const block_input& input,
         const std::vector<const root_spec*>& roots,
         const symbolic_op_plans& plans,
@@ -2181,16 +2181,16 @@ struct block_frame
     }
 
     std::vector<std::size_t>
-    find_zero_guard_inputs(const std::vector<const root_spec*>& roots,
-                           const symbolic_op_plans& plans,
-                           const std::unordered_map<sym::expr, instruction_ref>& root_sources) const
+    find_empty_guard_inputs(const std::vector<const root_spec*>& roots,
+                            const symbolic_op_plans& plans,
+                            const std::unordered_map<sym::expr, instruction_ref>& root_sources) const
     {
         std::vector<std::size_t> result;
         std::size_t input_index = 0;
         for(const auto& entry : params)
         {
             const auto& input = inputs.at(entry.second);
-            if(input_supports_zero_guard(input, roots, plans, root_sources))
+            if(input_supports_empty_guard(input, roots, plans, root_sources))
                 result.push_back(input_index);
             input_index++;
         }
@@ -2258,9 +2258,9 @@ struct block_frame
                                                             clone_outputs,
                                                             physical_output_index);
                        });
-        auto zero_guard_inputs = find_zero_guard_inputs(roots, plans, root_sources);
-        auto selected_outputs  = insert_select_module(
-            mpm, m, selection_inputs, std::move(clones), body_output_shapes, zero_guard_inputs);
+        auto empty_guard_inputs = find_empty_guard_inputs(roots, plans, root_sources);
+        auto selected_outputs   = insert_select_module(
+            mpm, m, selection_inputs, std::move(clones), body_output_shapes, empty_guard_inputs);
 
         for(std::size_t output_index = 0; output_index < outputs.size(); ++output_index)
         {

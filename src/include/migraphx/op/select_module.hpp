@@ -48,7 +48,7 @@ struct select_module
 {
     shape output_dyn_shapes;
     // An empty tensor at any listed input bypasses module dispatch.
-    std::vector<std::size_t> zero_guard_inputs;
+    std::vector<std::size_t> empty_guard_inputs;
 
     struct output_location
     {
@@ -89,7 +89,7 @@ struct select_module
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.output_dyn_shapes, "output_dyn_shapes"),
-                    f(self.zero_guard_inputs, "zero_guard_inputs"));
+                    f(self.empty_guard_inputs, "empty_guard_inputs"));
     }
 
     std::string name() const { return "select_module"; }
@@ -99,8 +99,8 @@ struct select_module
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
-        if(any_of(zero_guard_inputs, [&](auto input) { return input >= inputs.size(); }))
-            MIGRAPHX_THROW("SELECT_MODULE: zero guard input is out of range");
+        if(any_of(empty_guard_inputs, [&](auto input) { return input >= inputs.size(); }))
+            MIGRAPHX_THROW("SELECT_MODULE: empty guard input is out of range");
         return shape{output_dyn_shapes};
     }
 
@@ -166,9 +166,9 @@ struct select_module
 
     bool should_short_circuit(const std::vector<argument>& args) const
     {
-        return any_of(zero_guard_inputs, [&](auto input) {
+        return any_of(empty_guard_inputs, [&](auto input) {
             if(input >= args.size())
-                MIGRAPHX_THROW("SELECT_MODULE: zero guard input is out of range");
+                MIGRAPHX_THROW("SELECT_MODULE: empty guard input is out of range");
             return args.at(input).get_shape().elements() == 0;
         });
     }

@@ -25,6 +25,7 @@
 #include <migraphx/onnx/map_activation_functions.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/op/builder/lstm.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
@@ -83,7 +84,7 @@ struct parse_lstm : op_parser<parse_lstm>
     std::vector<op_desc> operators() const { return {{"LSTM"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
-                                       const onnx_parser& parser,
+                                       onnx_parser& parser,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
     {
@@ -193,10 +194,10 @@ struct parse_lstm : op_parser<parse_lstm>
         }
 
         auto results =
-            op::builder::add("lstm",
-                             *info.mod,
-                             args,
-                             {{"actv_func", to_value(vec_actv_funcs)}, {"direction", dirct}});
+            op::builder::add_lstm(parser.prog,
+                                  *info.mod,
+                                  args,
+                                  {{"actv_func", to_value(vec_actv_funcs)}, {"direction", dirct}});
         auto hidden_states    = results.at(0);
         auto last_output      = results.at(1);
         auto last_cell_output = results.at(2);

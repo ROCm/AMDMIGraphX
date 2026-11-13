@@ -289,6 +289,7 @@ add_library(migraphx_gpu
     lower_device_ops.cpp
     lower_reshape.cpp
     lowering.cpp
+    limit_concat.cpp
     loop.cpp
     lrn.cpp
     mlir.cpp
@@ -427,14 +428,18 @@ else()
     string(REGEX REPLACE "--cuda-gpu-arch=[a-z0-9]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
     string(REGEX REPLACE "--offload-arch=[a-z0-9:+-]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 
-    # Skip library paths since hip will incorrectly treat it as a source file
+    # Linker inputs are not compile flags. Clang treats them as extra source files
+    # and then rejects -o. Match the filename, not a leading slash: Windows paths
+    # look like C:/.../clang_rt.builtins-x86_64.lib and also carry --hip-link.
     string(APPEND HIP_COMPILER_FLAGS " ")
 
     if(WIN32)
         string(REPLACE "\\" "/" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
     endif()
-    foreach(_unused RANGE 2)
-        string(REGEX REPLACE " /[^ ]+\\.(a|so) " " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+    foreach(_unused RANGE 4)
+        string(REGEX REPLACE "(^| )--hip-link( |$)" " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+        string(REGEX REPLACE "(^| )[^ ]+\\.(a|so|lib|dll|obj)( |$)" " " HIP_COMPILER_FLAGS
+                             "${HIP_COMPILER_FLAGS}")
     endforeach()
 
     message(STATUS "Hip compiler flags: \"${HIP_COMPILER_FLAGS}\"")

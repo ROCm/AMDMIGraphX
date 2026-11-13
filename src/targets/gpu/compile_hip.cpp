@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <iterator>
 #include <deque>
 #include <string_view>
 
@@ -356,7 +357,18 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     compiler.flags.emplace_back("-c");
     compiler.flags.emplace_back("--cuda-device-only");
     compiler.flags.emplace_back("-Wno-unused-command-line-argument");
-    compiler.flags.emplace_back(MIGRAPHX_HIP_COMPILER_FLAGS);
+    // The device link line still contains Windows .lib paths and --hip-link. Clang
+    // treats those as extra inputs and then rejects -o.
+    auto hip_flags = split_string(MIGRAPHX_HIP_COMPILER_FLAGS, ' ');
+    std::copy_if(hip_flags.begin(),
+                 hip_flags.end(),
+                 std::back_inserter(compiler.flags),
+                 [](const std::string& flag) {
+                     return not flag.empty() and flag != "--hip-link" and
+                            not ends_with(flag, ".lib") and not ends_with(flag, ".a") and
+                            not ends_with(flag, ".so") and not ends_with(flag, ".dll") and
+                            not ends_with(flag, ".obj");
+                 });
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {

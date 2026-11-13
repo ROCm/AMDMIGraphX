@@ -874,8 +874,8 @@ TEST_CASE(pointwise_concat_of_slices_single_input)
 }
 
 // A chain longer than any kernel limit still flattens to one concat. The input
-// count is not capped here: later passes change arity, and the limit belongs
-// after fuse_ops.
+// count is not capped here: later passes change arity, and gpu::limit_concat_inputs
+// applies the limit after fuse_ops.
 TEST_CASE(long_concat_chain_flattens)
 {
     migraphx::program p;

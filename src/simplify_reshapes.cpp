@@ -967,11 +967,16 @@ struct find_concat_multibroadcasts
             return;
         }
 
-        // Reduce axis by number of leading broadcasted dimensions
-        if(inputs.front()->get_shape().lens().size() < concat_out_lens.size())
+        // Reduce axis by number of leading broadcasted dimensions, or raise
+        // it by the leading unit axes the broadcast drops
+        if(first_shape.ndim() < concat_out_lens.size())
         {
             concat_op.axis -=
                 std::count(front_mb_strides.begin(), front_mb_strides.begin() + concat_op.axis, 0);
+        }
+        else
+        {
+            concat_op.axis += first_shape.ndim() - concat_out_lens.size();
         }
 
         // Inputs to broadcasts should have the same dimensions except for the axis to
@@ -2493,24 +2498,31 @@ struct find_layout_broadcast
         auto input     = broadcast->inputs().front();
         auto permutation =
             ins->get_operator().to_value().at("permutation").to_vector<std::size_t>();
-        auto ndim = input->get_shape().ndim();
-        // multibroadcast aligns the input to the trailing axes of the output;
-        // broadcast places it at the range starting at its axis attribute
+        auto in_ndim = input->get_shape().ndim();
+        // multibroadcast aligns the input to the trailing axes of the output
+        // and drops any leading axes beyond its rank; broadcast places it at
+        // the range starting at its axis attribute
         const auto& bcast_op = broadcast->get_operator();
+        auto ndim            = std::min(in_ndim, permutation.size());
+        auto extra           = in_ndim - ndim;
         auto offset          = permutation.size() - ndim;
         if(bcast_op.name() == "broadcast")
             offset = bcast_op.to_value().at("axis").to<std::size_t>();
-        std::vector<std::size_t> inner_permutation;
+        // The dropped leading axes keep their place
+        std::vector<std::size_t> inner_permutation(extra);
+        std::iota(inner_permutation.begin(), inner_permutation.end(), 0);
         transform_if(
             permutation.begin(),
             permutation.end(),
             std::back_inserter(inner_permutation),
             [&](auto axis) { return axis >= offset and axis < offset + ndim; },
-            [&](auto axis) { return axis - offset; });
-        assert(inner_permutation.size() == ndim);
+            [&](auto axis) { return axis - offset + extra; });
+        assert(inner_permutation.size() == in_ndim);
         auto data = input;
-        if(input->get_shape().transposed() or
-           not std::is_sorted(inner_permutation.begin(), inner_permutation.end()))
+        // A scalar has nothing to lay out
+        if(not input->get_shape().scalar() and
+           (input->get_shape().transposed() or
+            not std::is_sorted(inner_permutation.begin(), inner_permutation.end())))
             data = m.insert_instruction(
                 ins, make_op("layout", {{"permutation", inner_permutation}}), input);
         m.replace_instruction(ins, bcast_op, data);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,15 +31,16 @@ namespace cpu {
 
 struct dnnl_lrn : dnnl_extend_op<dnnl_lrn, dnnl::lrn_forward, op::lrn>
 {
-    dnnl::lrn_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    auto get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {dnnl::prop_kind::forward_inference,
-                dnnl::algorithm::lrn_across_channels,
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_0)),
-                this->op.size,
-                this->op.alpha,
-                this->op.beta,
-                this->op.bias};
+        return std::make_tuple(dnnl::prop_kind::forward_inference,
+                               dnnl::algorithm::lrn_across_channels,
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_0)),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
+                               this->op.size,
+                               this->op.alpha,
+                               this->op.beta,
+                               this->op.bias);
     }
 };
 

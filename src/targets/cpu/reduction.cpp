@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,13 +58,13 @@ struct dnnl_reduction : dnnl_op<dnnl_reduction, dnnl::reduction>
         return r;
     }
 
-    dnnl::reduction::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    auto get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {to_dnnl_algo(algo),
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
-                0,
-                0};
+        return std::make_tuple(to_dnnl_algo(algo),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
+                               0.0f,
+                               0.0f);
     }
 };
 

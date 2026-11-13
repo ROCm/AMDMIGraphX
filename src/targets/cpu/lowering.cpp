@@ -306,10 +306,12 @@ MIGRAPHX_REGISTER_OP(cpu_rnn_var_sl_last_output)
 
 static bool has_dnnl_type(instruction_ref ins)
 {
-    return is_dnnl_supported_type(ins->get_shape().type());
+    const auto& s = ins->get_shape();
+    return is_dnnl_supported_type(s.type()) and is_dnnl_supported_layout(s);
 }
 
 // oneDNN cannot run an op whose output or inputs use a type it lacks (bool, int64, fp8, ...)
+// or a layout it cannot describe
 static bool has_dnnl_types(instruction_ref ins, const std::vector<instruction_ref>& inputs)
 {
     return has_dnnl_type(ins) and std::all_of(inputs.begin(), inputs.end(), &has_dnnl_type);
@@ -560,7 +562,7 @@ struct cpu_apply
         return modl->replace_instruction(ins, op, inputs);
     }
 
-    // Leave the op for the reference implementation when oneDNN lacks one of its types
+    // Leave the op for the reference implementation when oneDNN lacks one of its types or layouts
     instruction_ref replace_dnnl(instruction_ref ins, const operation& op) const
     {
         return replace_dnnl(ins, op, ins->inputs());

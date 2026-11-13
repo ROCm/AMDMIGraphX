@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,13 +29,16 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
-struct dnnl_logsoftmax : dnnl_extend_op<dnnl_logsoftmax, dnnl::logsoftmax_forward, op::logsoftmax>
+struct dnnl_logsoftmax : dnnl_extend_op<dnnl_logsoftmax, dnnl::softmax_forward, op::logsoftmax>
 {
-    dnnl::logsoftmax_forward::desc
-    get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    auto get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         int axis = this->op.axis;
-        return {dnnl::prop_kind::forward_inference, m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_0)), axis};
+        return std::make_tuple(dnnl::prop_kind::forward_inference,
+                               dnnl::algorithm::softmax_log,
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_0)),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
+                               axis);
     }
 };
 

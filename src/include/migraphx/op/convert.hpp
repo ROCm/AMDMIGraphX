@@ -27,7 +27,10 @@
 #include <migraphx/config.hpp>
 #include <migraphx/op/unary.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <migraphx/functional.hpp>
 #include <cmath>
+#include <unordered_map>
+#include <variant>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -66,25 +69,63 @@ struct convert : unary<convert>
     bool supports_symbolic_compute(const shape& output_shape,
                                    const std::vector<sym_argument>& args) const
     {
-        return args.size() == 1 and args[0].get_shape().type() == shape::int64_type and
-               output_shape.type() == target_type and
-               (target_type == shape::int64_type or target_type == shape::bool_type);
+        auto is_supported = [](shape::type_t t) {
+            return t == shape::int64_type or t == shape::int32_type or t == shape::bool_type or
+                   t == shape::float_type or t == shape::double_type;
+        };
+        return args.size() == 1 and is_supported(args[0].get_shape().type()) and
+               output_shape.type() == target_type and is_supported(target_type);
+    }
+
+    // A floating-point value converted to an integer keeps its expression only when it is a
+    // whole number: its literals, the only part that can hold a fraction, have to be whole
+    static sym::expr to_integer(const sym::expr& x)
+    {
+        std::unordered_map<sym::expr, sym::expr> whole;
+        bool fraction = false;
+        fix([&](auto self, const sym::expr& e) -> void {
+            if(e.name() == "literal")
+            {
+                const auto value = sym::fixed_value(e);
+                if(not value.has_value() or std::holds_alternative<int64_t>(*value))
+                    return;
+                const auto d = sym::to<double>(*value);
+                if(std::trunc(d) != d)
+                    fraction = true;
+                else
+                    whole.emplace(e, sym::lit(static_cast<int64_t>(d)));
+                return;
+            }
+            for(const auto& child : e.children())
+                self(child);
+        })(x);
+        if(fraction)
+            return {};
+        return whole.empty() ? x : x.subs(whole);
     }
 
     auto apply() const
     {
         return [target = target_type](const sym::expr& x) {
+            // Integers up to 2^24 (2^53 for double) are exact as floating point
+            if(target == shape::float_type)
+                return sym::fits_range(x, -(int64_t{1} << 24), int64_t{1} << 24) ? x : sym::expr{};
+            if(target == shape::double_type)
+                return sym::fits_range(x, -(int64_t{1} << 53), int64_t{1} << 53) ? x : sym::expr{};
+            const auto whole = to_integer(x);
+            if(whole.empty())
+                return whole;
             if(target == shape::int64_type)
-                return x;
-            if(target != shape::bool_type)
-                return sym::expr{};
-            const auto value = sym::fixed_value(x);
+                return whole;
+            if(target == shape::int32_type)
+                return sym::fits<int32_t>(whole) ? whole : sym::expr{};
+            const auto value = sym::fixed_value(whole);
             if(not value.has_value())
                 return sym::expr{};
             const auto integer = sym::to<int64_t>(*value);
             if(integer != 0 and integer != 1)
                 return sym::expr{};
-            return x;
+            return whole;
         };
     }
 

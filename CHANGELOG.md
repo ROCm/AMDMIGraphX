@@ -21,6 +21,8 @@ Full documentation for MIGraphX is available at
 * Updated `eliminate_convert` to remove no-op and redundant nested `convert` instructions for dynamic and symbolic shapes (#5385).
 * Updated `nonmaxsuppression` kernel to use uint32_t bitmask instead of bool type to get around number of elements > uint32_t (#5302).
 * Enabled MLIR attention fusion by default on every GPU, not just gfx94x/gfx95x, gated per attention block on profitability: blocks whose head dim exceeds `attn_max_head_dim` (512 on wave64 devices, 256 on wave32) at kv lengths past `attn_wide_head_kv_len` (1024 on wave64, none on wave32), or with fewer than `attn_min_q_rows` total query rows (24 per CU), run as separate gemm and softmax kernels instead. The thresholds are configurable through the matching backend options, requesting `attention` in `MIGRAPHX_MLIR_USE_SPECIFIC_OPS` or the `mlir_use_specific_ops` backend option fuses every block regardless of the gate, and `!attention` in the backend option now disables the fusion on every device (#5405).
+* Changed symbolic evaluation of `convert` and the binary ops to also compute int32 values (and `convert` from `bool`), when their range fits in int32, so sizes that tf2onnx computes in int32, such as the pad size after `NonMaxSuppression`, keep a symbolic or static dimension (#5511).
+* Changed symbolic evaluation of `convert` to also cover `float` and `double` for whole-number values, and added it to `min` and `max`, so a size computed as `int(min(limit, float(n)))`, as tf2onnx exports a TensorFlow `minimum`, keeps a symbolic value (#5515).
 
 ### Resolved issues
 

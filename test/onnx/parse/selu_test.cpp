@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,24 +32,29 @@ TEST_CASE(selu_test)
     migraphx::shape s{migraphx::shape::double_type, lens};
     auto x = mm->add_parameter("x", s);
 
-    migraphx::shape ls{migraphx::shape::double_type, {1}};
-    auto la   = mm->add_literal({ls, {0.3}});
-    auto lg   = mm->add_literal({ls, {0.25}});
-    auto mbla = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), la);
-    auto mblg = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), lg);
+    migraphx::shape ls{migraphx::shape::double_type};
+    auto zero  = mm->add_literal({ls, {0.0f}});
+    auto one   = mm->add_literal({ls, {1.0f}});
+    auto alpha = mm->add_literal({ls, {0.3f}});
+    auto gamma = mm->add_literal({ls, {0.5f}});
 
-    auto sign_x = mm->add_instruction(migraphx::make_op("sign"), x);
+    auto mb_zero =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), zero);
+    auto linear = mm->add_instruction(migraphx::make_op("max"), mb_zero, x);
     auto exp_x  = mm->add_instruction(migraphx::make_op("exp"), x);
-
-    auto mlax  = mm->add_instruction(migraphx::make_op("mul"), mbla, exp_x);
-    auto smlax = mm->add_instruction(migraphx::make_op("sub"), mlax, mbla);
-
-    auto item1 = mm->add_instruction(migraphx::make_op("add"), smlax, x);
-    auto item2 = mm->add_instruction(migraphx::make_op("sub"), smlax, x);
-
-    auto sitem2 = mm->add_instruction(migraphx::make_op("mul"), sign_x, item2);
-    auto item12 = mm->add_instruction(migraphx::make_op("sub"), item1, sitem2);
-    auto r      = mm->add_instruction(migraphx::make_op("mul"), item12, mblg);
+    auto mb_one =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), one);
+    auto exp_sub = mm->add_instruction(migraphx::make_op("sub"), exp_x, mb_one);
+    auto mb_alpha =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), alpha);
+    auto exp_mul = mm->add_instruction(migraphx::make_op("mul"), mb_alpha, exp_sub);
+    auto mb_zero2 =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), zero);
+    auto exp_part = mm->add_instruction(migraphx::make_op("min"), mb_zero2, exp_mul);
+    auto sum      = mm->add_instruction(migraphx::make_op("add"), linear, exp_part);
+    auto mb_gamma =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), gamma);
+    auto r = mm->add_instruction(migraphx::make_op("mul"), mb_gamma, sum);
     mm->add_return({r});
 
     auto prog = read_onnx("selu_test.onnx");

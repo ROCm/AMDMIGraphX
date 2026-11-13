@@ -492,10 +492,7 @@ struct miopen_apply
             }
             else
             {
-                auto offsets =
-                    insert_allocation(ins, shape{shape::int64_type, {inputs.size() - 1}});
                 auto output = insert_allocation(ins, ins->get_shape());
-                inputs.push_back(offsets);
                 inputs.push_back(output);
                 result = mod->replace_instruction(
                     ins, make_op("gpu::dyn_concat", ins->get_operator().to_value()), inputs);

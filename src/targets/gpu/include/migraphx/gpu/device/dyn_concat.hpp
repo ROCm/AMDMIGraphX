@@ -39,7 +39,6 @@ void MIGRAPHX_DEVICE_EXPORT dyn_concat(hipStream_t stream,
                                        std::int64_t axis,
                                        const argument& counts,
                                        const std::vector<argument>& inputs,
-                                       const argument& offsets,
                                        const argument& output,
                                        const argument& total);
 

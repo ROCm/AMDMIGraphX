@@ -27,6 +27,7 @@
 #include <migraphx/gpu/device/scan.hpp>
 #include <migraphx/gpu/device/visit.hpp>
 #include <migraphx/gpu/device/types.hpp>
+#include <algorithm>
 #include <cassert>
 
 namespace migraphx {
@@ -38,55 +39,57 @@ void dyn_concat(hipStream_t stream,
                 std::int64_t axis,
                 const argument& counts,
                 const std::vector<argument>& inputs,
-                const argument& offsets,
                 const argument& output,
                 const argument& total)
 {
     assert(not inputs.empty());
-    const auto rank = inputs.front().get_shape().ndim();
+    const std::int64_t rank = inputs.front().get_shape().ndim();
     if(axis < 0)
-        axis += static_cast<std::int64_t>(rank);
-    assert(axis >= 0 and axis < static_cast<std::int64_t>(rank));
-    const auto normalized_axis     = static_cast<index_int>(axis);
-    const auto ninputs             = static_cast<index_int>(inputs.size());
+        axis += rank;
+    assert(axis >= 0 and axis < rank);
+    const index_int normalized_axis = axis;
+    const index_int ninputs         = inputs.size();
     constexpr index_int block_size = 256;
     const auto n_aligned           = ((ninputs + block_size - 1) / block_size) * block_size;
 
-    hip_pointer_visit_all(
-        counts, offsets, total)([&](auto counts_ptr, auto offsets_ptr, auto total_ptr) {
-        launch(stream, block_size, block_size)([=](auto idx) __device__ {
-            block_scan<block_size>(
-                idx,
-                sum{},
-                int64_t{0},
-                [&](auto f) -> decltype(f(index_int{})) { return idx.local_stride(n_aligned, f); },
-                [&](auto i) { return i < ninputs ? counts_ptr[i] : int64_t{0}; },
-                [&](auto i, auto inclusive_value) {
-                    if(i < ninputs)
-                    {
-                        offsets_ptr[i] = inclusive_value - counts_ptr[i];
-                        if(i == ninputs - 1)
-                            total_ptr[0] = inclusive_value;
-                    }
-                });
-        });
-
+    hip_pointer_visit_all(counts, total)([&](auto counts_ptr, auto total_ptr) {
         for(std::size_t input_index = 0; input_index < inputs.size(); ++input_index)
         {
             const auto& input = inputs.at(input_index);
-            if(input.get_shape().elements() == 0)
-                continue;
+            const index_int current_input = input_index;
+            const index_int elements      = input.get_shape().elements();
+            const auto nblocks = std::max<index_int>(1, (elements + block_size - 1) / block_size);
             hip_visit_all(output, input)([&](auto output_view, auto input_view) {
-                gs_launch(stream, input.get_shape().elements())([=](auto i) __device__ {
-                    auto count = counts_ptr[input_index];
-                    if(count <= 0)
-                        return;
-                    auto input_pos = input_view.get_shape().multi(i);
-                    if(input_pos[normalized_axis] >= static_cast<index_int>(count))
-                        return;
-                    auto output_pos = input_pos;
-                    output_pos[normalized_axis] += offsets_ptr[input_index];
-                    output_view[output_pos] = input_view[input_pos];
+                launch(stream, nblocks * block_size, block_size)([=](auto idx) __device__ {
+                    MIGRAPHX_DEVICE_SHARED int64_t offset;
+                    block_scan<block_size>(
+                        idx,
+                        sum{},
+                        int64_t{0},
+                        [&](auto f) -> decltype(f(index_int{})) {
+                            return idx.local_stride(n_aligned, f);
+                        },
+                        [&](auto i) { return i < ninputs ? counts_ptr[i] : int64_t{0}; },
+                        [&](auto i, auto inclusive_value) {
+                            if(i == current_input)
+                            {
+                                offset = inclusive_value - counts_ptr[i];
+                                if(i == ninputs - 1 and idx.group == 0)
+                                    total_ptr[0] = inclusive_value;
+                            }
+                        });
+                    __syncthreads();
+                    auto count = counts_ptr[current_input];
+                    idx.global_stride(elements, [&](auto i) {
+                        if(count <= 0)
+                            return;
+                        auto input_pos = input_view.get_shape().multi(i);
+                        if(input_pos[normalized_axis] >= count)
+                            return;
+                        auto output_pos = input_pos;
+                        output_pos[normalized_axis] += offset;
+                        output_view[output_pos] = input_view[input_pos];
+                    });
                 });
             });
         }

@@ -30,25 +30,24 @@ namespace gpu {
 
 shape hip_dyn_concat::compute_shape(std::vector<shape> inputs) const
 {
-    if(inputs.size() < 4)
+    if(inputs.size() < 3)
         MIGRAPHX_THROW("GPU_DYN_CONCAT: invalid input list");
-    inputs.resize(inputs.size() - 2);
+    inputs.resize(inputs.size() - 1);
     return op.normalize_compute_shape(inputs);
 }
 
 argument
 hip_dyn_concat::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    if(args.size() < 4)
+    if(args.size() < 3)
         MIGRAPHX_THROW("GPU_DYN_CONCAT: invalid input list");
-    const auto n = args.size() - 3;
+    const auto n = args.size() - 2;
     std::vector<argument> inputs(args.begin() + 1, args.begin() + 1 + n);
-    const auto& counts  = args.front();
-    const auto& offsets = args.at(n + 1);
-    const auto& output  = args.back();
-    auto outputs        = output.get_sub_objects();
+    const auto& counts = args.front();
+    const auto& output = args.back();
+    auto outputs       = output.get_sub_objects();
     device::dyn_concat(
-        ctx.get_stream().get(), op.axis, counts, inputs, offsets, outputs.front(), outputs.back());
+        ctx.get_stream().get(), op.axis, counts, inputs, outputs.front(), outputs.back());
     return output;
 }
 

@@ -68,6 +68,9 @@ template struct test_topk<migraphx::shape::half_type, 1031, 1033>;
 
 template struct test_topk<migraphx::shape::float_type, 30, 2400>;
 template struct test_topk<migraphx::shape::float_type, 100, 80000>;
+// Larger than the topk kernel handles, so these run on the host
+template struct test_topk<migraphx::shape::float_type, 8192, 8192>;
+template struct test_topk<migraphx::shape::float_type, 9000, 9000>;
 template struct test_topk<migraphx::shape::float_type, 1000, 1875>;
 template struct test_topk<migraphx::shape::float_type, 1000, 120000>;
 // n just above a power of two, with and without the slack of a non power of two k

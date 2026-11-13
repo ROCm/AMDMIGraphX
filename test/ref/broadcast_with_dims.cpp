@@ -115,6 +115,28 @@ TEST_CASE(broadcast_with_dims_static2)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(broadcast_with_dims_zero)
+{
+    // A dimension of 1 broadcasts to an empty dimension, as in numpy
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape input_shape{migraphx::shape::float_type, {2, 1}};
+    migraphx::shape dims_shape{migraphx::shape::int64_type, {2}};
+    auto input_param = mm->add_parameter("x", input_shape);
+    auto dims_param  = mm->add_parameter("dims", dims_shape);
+    mm->add_instruction(migraphx::make_op("broadcast_with_dims"), input_param, dims_param);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data{7, 11};
+    std::vector<int64_t> dims_data{1, 0};
+    migraphx::parameter_map params;
+    params["x"]    = migraphx::argument(input_shape, input_data.data());
+    params["dims"] = migraphx::argument(dims_shape, dims_data.data());
+    auto result    = p.eval(params).back();
+    EXPECT(result.get_shape().lens() == std::vector<std::size_t>{2, 0});
+    EXPECT(result.get_shape().elements() == 0);
+}
+
 TEST_CASE(broadcast_with_dims_dyn)
 {
     migraphx::program p;

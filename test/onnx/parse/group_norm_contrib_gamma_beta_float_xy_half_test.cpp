@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,8 @@ TEST_CASE(group_norm_contrib_gamma_beta_float_xy_half_test)
                                           1e-5f,
                                           migraphx::shape::half_type,
                                           {"gamma", migraphx::shape::float_type},
-                                          {"beta", migraphx::shape::float_type});
+                                          {"beta", migraphx::shape::float_type},
+                                          true);
     auto prog           = optimize_onnx("group_norm_contrib_gamma_beta_float_xy_half_test.onnx");
     EXPECT(p == prog);
 }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,31 +22,70 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/sync_device.hpp>
-#include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/module.hpp>
+#include <algorithm>
+#include <iterator>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+namespace {
+
+struct find_copy_from_gpu : match::supports_dynamic_shapes
+{
+    auto matcher() const { return match::name("hip::copy_from_gpu"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto pos = std::next(r.result);
+        if(pos == m.end())
+            pos = m.add_return({r.result});
+        auto sync = m.insert_instruction(pos, make_op("hip::sync_stream"), r.result);
+        m.replace_instruction(r.result, sync);
+    }
+};
+
+bool reads_copied_host_value(instruction_ref ins)
+{
+    return std::any_of(ins->inputs().begin(), ins->inputs().end(), [](instruction_ref input) {
+        auto path = get_alias_path(input);
+        return std::any_of(path.begin(), path.end(), [](instruction_ref path_ins) {
+            return path_ins->name() == "hip::copy_from_gpu";
+        });
+    });
+}
+
+} // namespace
+
 void sync_device::apply(module& m) const
 {
-    auto last = std::prev(m.end());
-    if(last->name() == "@return")
+    match::find_matches(m, find_copy_from_gpu{});
+
+    bool covered = false;
+    for(auto ins : reverse_iterator_for(m))
     {
-        auto inputs = last->inputs();
-        if(std::any_of(inputs.begin(), inputs.end(), [](auto i) {
-               return (i->name() == "hip::copy_from_gpu");
-           }))
+        if(ins->name() == "hip::copy_from_gpu")
+            continue;
+        if(is_context_free(ins->get_operator()))
         {
-            auto sync_in = m.insert_instruction(last, make_op("hip::sync_stream"), inputs);
-            if(not inputs.empty())
-            {
-                m.replace_instruction(inputs.front(), sync_in);
-            }
+            if(reads_copied_host_value(ins))
+                covered = false;
+            continue;
         }
+        if(ins->name() != "hip::sync_stream")
+        {
+            covered = false;
+            continue;
+        }
+        if(covered and not ins->inputs().empty())
+            m.replace_instruction(ins, ins->inputs().front());
+        covered = true;
     }
 }
 

@@ -25,6 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
@@ -53,6 +54,7 @@ static void run_lowering(migraphx::program& p, bool offload_copy = false)
         *p.get_main_module(),
         {migraphx::auto_contiguous{},
          migraphx::gpu::lowering{&ctx, offload_copy},
+         migraphx::gpu::eliminate_device_copy{},
          migraphx::dead_code_elimination{},
          migraphx::eliminate_contiguous{"gpu::contiguous"},
          migraphx::dead_code_elimination{},

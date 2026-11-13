@@ -34,6 +34,7 @@ Full documentation for MIGraphX is available at
 
 ### Optimized
 
+* Improved convolution performance on large inputs by having the default `channels_auto` value of the `convolution_layout` backend option weigh each layout and contiguous copy by the bytes it moves instead of counting copies, so full-resolution activation copies no longer make it pick `channels_last` over a faster `channels_first`.
 * Optimized `dot` with repeated broadcasted input rows to evaluate one row and broadcast the result, avoiding large duplicate literals during constant propagation.
 * Added a `simplify_algebra` rewrite that folds `dot(a, b) + dot(a, c)` into `dot(a, b + c)` when `b` and `c` are constant, so one GEMM with half the weights replaces two GEMMs (or a double-width horizontally fused GEMM plus slices and an add) (#5415).
 * Reduced compile-time heap allocations in `simplify_algebra`, `simplify_reshapes`, and `fuse_pointwise`: `match::name` shares its name set across matcher copies, and read-only uses of an instruction's inputs bind a reference or move instead of copying the vector (#5362).

@@ -26,8 +26,11 @@
 #include <tuple>
 #include <migraphx/dfor.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -163,35 +166,29 @@ struct find_gemm_softmax_gemm
 
 struct channelwise_conv
 {
-    std::size_t num_spatial = 2;
-    std::vector<std::size_t> padding;
+    std::vector<std::size_t> padding  = {0, 0};
+    std::vector<std::size_t> stride   = {1, 1};
+    std::vector<std::size_t> dilation = {1, 1};
 
     std::string name() const { return "gpu::channelwise_conv"; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.num_spatial, "num_spatial"), f(self.padding, "padding"));
+        return pack(
+            f(self.padding, "padding"), f(self.stride, "stride"), f(self.dilation, "dilation"));
     }
 
+    // The depthwise convolution this op replaces computes the output shape
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_ndims();
-        auto x_lens = inputs[0].lens();
-        auto w_lens = inputs[1].lens();
-        std::vector<std::size_t> out_lens;
-        out_lens.push_back(x_lens[0]);
-        out_lens.push_back(w_lens[0]);
-        for(std::size_t i = 0; i < num_spatial; i++)
-        {
-            std::size_t total_pad = 0;
-            if(i < padding.size())
-                total_pad += padding[i];
-            if(i + num_spatial < padding.size())
-                total_pad += padding[i + num_spatial];
-            out_lens.push_back(x_lens[i + 2] + total_pad - w_lens[i + 2] + 1);
-        }
-        return inputs[0].with_lens(out_lens);
+        check_shapes{inputs, *this}.has(2);
+        return make_op("convolution",
+                       {{"padding", padding},
+                        {"stride", stride},
+                        {"dilation", dilation},
+                        {"group", inputs.front().lens()[1]}})
+            .compute_shape(inputs);
     }
 };
 MIGRAPHX_REGISTER_OP(channelwise_conv);
@@ -200,11 +197,7 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
 {
     if(ins->name() != "convolution")
         return false;
-    auto v = ins->get_operator().to_value();
-    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
-        return false;
-    if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
-        return false;
+    auto v      = ins->get_operator().to_value();
     auto w_lens = ins->inputs().back()->get_shape().lens();
     if(w_lens[1] != 1)
         return false;
@@ -214,19 +207,41 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
     return group == 1 or group == c_in;
 }
 
+// Shared memory the channelwise kernel stages for one channel of an output tile spanning
+// `rows` outputs along the first spatial dim and `cols` along the last: per dim, the tile
+// stepped by the stride plus the dilated filter
+std::size_t channelwise_halo_bytes(instruction_ref conv, std::size_t rows, std::size_t cols)
+{
+    auto v             = conv->get_operator().to_value();
+    auto stride        = v.at("stride").to_vector<std::size_t>();
+    auto dilation      = v.at("dilation").to_vector<std::size_t>();
+    const auto& w_lens = conv->inputs().back()->get_shape().lens();
+    std::vector<std::size_t> tile(stride.size(), 1);
+    tile.front() = rows;
+    tile.back()  = cols;
+    auto dims    = range(tile.size());
+    return transform_accumulate(
+        dims.begin(),
+        dims.end(),
+        conv->inputs().front()->get_shape().type_size(),
+        std::multiplies<>{},
+        [&](auto i) { return (tile[i] - 1) * stride[i] + (w_lens[i + 2] - 1) * dilation[i] + 1; });
+}
+
 struct find_channelwise_convolution
 {
     // Minimum C*H*W for half_type to use channelwise kernel instead of MLIR
     std::size_t channelwise_half_min_chw = 48 * 1024;
+    // Shared memory one thread block may use
+    std::size_t max_lds_bytes = 0;
 
     auto matcher() const { return conv_channelwise(); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins         = r.result;
-        auto input       = ins->inputs().front();
-        auto weights     = ins->inputs().back();
-        auto num_spatial = ins->get_shape().ndim() - 2;
+        auto ins     = r.result;
+        auto input   = ins->inputs().front();
+        auto weights = ins->inputs().back();
 
         const auto type = input->get_shape().type();
         if(type != shape::float_type and type != shape::half_type)
@@ -241,16 +256,19 @@ struct find_channelwise_convolution
                 return;
         }
 
-        auto v        = ins->get_operator().to_value();
-        auto pad_vals = v.at("padding");
-        std::vector<std::size_t> padding;
-        std::transform(pad_vals.begin(),
-                       pad_vals.end(),
-                       std::back_inserter(padding),
-                       [](const value& x) { return x.to<std::size_t>(); });
+        // Strides, dilations and large filters grow the halo a block stages in shared
+        // memory. Conservatively require one channel of an 8x128 output tile to fit: the
+        // kernel's smaller tiles then fit too, and bigger halos lose to MLIR anyway.
+        if(channelwise_halo_bytes(ins, 8, 128) > max_lds_bytes)
+            return;
 
-        m.replace_instruction(
-            ins, channelwise_conv{num_spatial, std::move(padding)}, input, weights);
+        auto v = ins->get_operator().to_value();
+        m.replace_instruction(ins,
+                              channelwise_conv{v.at("padding").to_vector<std::size_t>(),
+                                               v.at("stride").to_vector<std::size_t>(),
+                                               v.at("dilation").to_vector<std::size_t>()},
+                              input,
+                              weights);
     }
 };
 
@@ -854,7 +872,10 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     const bool supports_winograd = device_name == "gfx1151" or starts_with(device_name, "gfx12");
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
     if(is_navi)
-        match::find_matches(mpm.get_module(), find_channelwise_convolution{});
+        match::find_matches(
+            mpm.get_module(),
+            find_channelwise_convolution{
+                .max_lds_bytes = ctx->get_current_device().get_max_shared_memory_per_block()});
     if(supports_winograd)
     {
         match::find_matches(mpm.get_module(), find_winograd_f23{});

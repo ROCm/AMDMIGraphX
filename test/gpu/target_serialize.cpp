@@ -54,6 +54,19 @@ TEST_CASE(gpu_target_to_value_with_max_threads)
     CHECK(v.at("gpu_max_threads_per_block").without_key().to<std::size_t>() == 256);
 }
 
+TEST_CASE(gpu_target_to_value_with_shared_memory)
+{
+    auto t = migraphx::make_target(
+        "gpu",
+        migraphx::value{{"gpu_arch", "gfx950"}, {"gpu_max_shared_memory_per_block", 160 * 1024}});
+    auto v = t.to_value();
+    CHECK(v.at("gpu_max_shared_memory_per_block").without_key().to<std::size_t>() == 160 * 1024);
+
+    auto t2 = migraphx::make_target("gpu");
+    t2.from_value(v);
+    CHECK(t2.to_value() == v);
+}
+
 TEST_CASE(gpu_target_to_value_with_wavefront_size)
 {
     auto t = migraphx::make_target(

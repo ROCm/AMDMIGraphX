@@ -100,8 +100,28 @@ struct parse_topk : op_parser<parse_topk>
 
         auto norm_axis = tune_axis(input_shape.ndim(), axis, "TopK");
         int64_t max_k  = input_shape.max_lens().at(norm_axis);
+        sym::expr k_end;
+        auto symbolic_k = k_ins->sym_eval();
+        if(not symbolic_k.empty() and symbolic_k.get_shape().elements() == 1 and
+           shape::is_integral(symbolic_k.get_shape().type()))
+        {
+            const auto& expression = symbolic_k.get()[0];
+            auto interval          = expression.eval_interval_default();
+            if(interval.valid())
+            {
+                auto min_k          = sym::to<int64_t>(interval.min);
+                auto max_symbolic_k = sym::to<int64_t>(interval.max);
+                if(min_k >= 0 and max_symbolic_k > 0)
+                {
+                    max_k = std::min(max_k, max_symbolic_k);
+                    k_end = max_symbolic_k > max_k ? sym::resolve_min(expression, sym::lit(max_k))
+                                                   : expression;
+                }
+            }
+        }
+        if(k_end.empty())
+            k_end = sym::var(info.name, {0, max_k});
         auto outputs   = add_topk_and_gets(info, args, max_k, norm_axis, largest);
-        auto k_end     = sym::var(info.name, {0, max_k});
         auto starts    = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
         auto slice     = make_op(
             "dyn_slice",

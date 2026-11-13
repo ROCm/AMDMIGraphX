@@ -46,7 +46,9 @@ struct analyze_slice : analyzer<analyze_slice>
                       is_variable_axis(input.dyn_dims().at(*normalized));
            }))
             return symbolic_op_info{ins};
-        return analyze_axes(ins);
+        auto result                    = analyze_axes(ins);
+        result.force_static_parameters = true;
+        return result;
     }
 };
 

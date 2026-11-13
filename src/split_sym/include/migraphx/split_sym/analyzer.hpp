@@ -143,6 +143,8 @@ struct symbolic_op_info
     bool supported = false;
     // Isolated specializations avoid duplicating large producer blocks across independent roots.
     bool allow_block_merge = true;
+    // Static parameter shapes are required for operations whose output layout depends on them.
+    bool force_static_parameters = false;
 
     const shape& get_output_shape() const { return ins->get_shape(); }
 

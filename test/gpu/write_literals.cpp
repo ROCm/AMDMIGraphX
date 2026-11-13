@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/gpu/kernel.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -30,6 +31,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/memory_coloring.hpp>
+#include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
@@ -287,8 +289,10 @@ TEST_CASE(existing_allocation)
     EXPECT(m1 == m2);
 }
 
-// A kernel stand-in with the given code object, writing its output in place of its last input
-static migraphx::operation make_code_object(const std::string& image, const migraphx::shape& s)
+// A kernel stand-in with the given code object, writing its output in place of its last input;
+// code objects with the same module_id share one loaded module
+static migraphx::operation
+make_code_object(const std::string& image, const migraphx::shape& s, std::int64_t module_id = -1)
 {
     return migraphx::make_op(
         "gpu::code_object",
@@ -297,7 +301,8 @@ static migraphx::operation make_code_object(const std::string& image, const migr
          {"global", 1},
          {"local", 1},
          {"expected_inputs", migraphx::to_value(std::vector<migraphx::shape>{s})},
-         {"output", migraphx::to_value(s)}});
+         {"output", migraphx::to_value(s)},
+         {"module_id", module_id}});
 }
 
 TEST_CASE(literal_is_not_scratch)
@@ -345,6 +350,41 @@ TEST_CASE(staged_copies_sort_next_to_consumer)
     }
     EXPECT(std::count_if(
                m.begin(), m.end(), [](const auto& ins) { return ins.name() == "hip::copy"; }) == 2);
+}
+
+// A 40000-byte literal, added by add(m, shape, seed), read by three code objects: two sharing
+// module 0 and one without a shared module
+template <class Add>
+static migraphx::module make_code_object_module(Add add)
+{
+    migraphx::shape s{migraphx::shape::float_type, {10000}};
+    migraphx::module m;
+    auto lit = add(m, s, 9);
+    auto a1  = m.add_instruction(make_code_object("kernel-shared", s, 0), lit);
+    auto a2  = m.add_instruction(make_code_object("kernel-shared", s, 0), lit);
+    auto b   = m.add_instruction(make_code_object("kernel-private", s), lit);
+    m.add_return({a1, a2, b});
+    return m;
+}
+
+TEST_CASE(code_objects_sharing_a_module_counted_once)
+{
+    const std::size_t code_object_bytes = migraphx::gpu::code_module_bytes;
+    // The kernels write in place, so the literal is the only memory besides the code objects
+    const std::size_t literal_bytes = 40000;
+
+    auto m1 = make_code_object_module(&add_literal);
+    // The two code objects sharing module 0 load it once, so two modules and the literal fit.
+    run_pass(m1, {.max_memory = literal_bytes + 2 * code_object_bytes});
+    auto m2 = make_code_object_module(
+        [](auto& m, const auto& s, auto seed) { return add_gpu_literal(m, s, seed); });
+    EXPECT(m1 == m2);
+
+    auto m3 = make_code_object_module(&add_literal);
+    // Without room for the second module, the literal is staged.
+    run_pass(m3, {.max_memory = literal_bytes + code_object_bytes});
+    auto m4 = make_code_object_module(&add_host_copy);
+    EXPECT(m3 == m4);
 }
 
 TEST_CASE(memory_limit_stages_smallest_first)
@@ -536,7 +576,7 @@ TEST_CASE(memory_fits_after_coloring_literals_read_together)
     migraphx::run_passes(m,
                          {migraphx::gpu::write_literals{.max_memory = 150000},
                           migraphx::schedule{migraphx::gpu::schedule_model{1}, true},
-                          migraphx::memory_coloring{"hip::allocate"},
+                          migraphx::memory_coloring{migraphx::gpu::gpu_allocation_model{}},
                           migraphx::dead_code_elimination{}});
     EXPECT(gpu_memory(m) <= 150000);
 }
@@ -605,7 +645,7 @@ TEST_CASE(indexed_literal_stays_when_memory_fits)
         auto i   = m1.add_parameter("i", idx);
         m1.add_return({m1.add_instruction(indexed_op{}, lit, i)});
     }
-    run_pass(m1, {.max_memory = 1 << 30});
+    run_pass(m1, {.max_memory = std::size_t{1} << 30u});
 
     migraphx::module m2;
     {
@@ -788,7 +828,7 @@ run_write_literals_and_color(const std::vector<std::array<std::size_t, 3>>& ival
     migraphx::run_passes(m,
                          {migraphx::gpu::write_literals{.max_memory               = max_memory,
                                                         .scratch_overhead_percent = overhead},
-                          migraphx::memory_coloring{"hip::allocate"},
+                          migraphx::memory_coloring{migraphx::gpu::gpu_allocation_model{}},
                           migraphx::dead_code_elimination{}});
     coloring_result r;
     auto scratch = m.get_parameter("scratch");

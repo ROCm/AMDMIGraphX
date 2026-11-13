@@ -39,13 +39,20 @@ TEST_CASE(symbolic_reshape_if_test)
     auto x    = mm->add_parameter("x", input_shape);
 
     auto* then_mod = p.create_module("main_If_2_if");
-    auto then_output =
-        then_mod->add_instruction(migraphx::make_op("reshape", {{"dims", {0, 4}}}), x);
+    const auto expressions = migraphx::to_value(std::vector<migraphx::sym::expr>{batch, lit(4)});
+    auto then_dims         = then_mod->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), x);
+    auto then_allocation = then_mod->add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(input_shape)}}), then_dims);
+    auto then_output = then_mod->add_instruction(migraphx::make_op("reshape"), x, then_allocation);
     then_mod->add_return({then_output});
 
     auto* else_mod = p.create_module("main_If_2_else");
-    auto else_output =
-        else_mod->add_instruction(migraphx::make_op("reshape", {{"dims", {0, 4}}}), x);
+    auto else_dims = else_mod->add_instruction(
+        migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), x);
+    auto else_allocation = else_mod->add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(input_shape)}}), else_dims);
+    auto else_output = else_mod->add_instruction(migraphx::make_op("reshape"), x, else_allocation);
     else_mod->add_return({else_output});
 
     auto result = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});

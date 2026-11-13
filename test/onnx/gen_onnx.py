@@ -18124,6 +18124,29 @@ def skip_layer_normalization_invalid_input_test():
 
 
 @onnx_test()
+def slice_runtime_end_symbolic_test():
+    # x has a symbolic length and the end is a count computed from y, only known at run time
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 4])
+
+    half = helper.make_tensor('half', TensorProto.FLOAT, [], [0.5])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+
+    nodes = [
+        helper.make_node('Greater', ['y', 'half'], ['above']),
+        helper.make_node('Cast', ['above'], ['above_int'],
+                         to=TensorProto.INT64),
+        helper.make_node('ReduceSum', ['above_int', 'axes'], ['count'],
+                         keepdims=1),
+        helper.make_node('Slice', ['x', 'zero', 'count', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x, y], [out], [half, axes, zero])
+
+
+@onnx_test()
 def slice_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])

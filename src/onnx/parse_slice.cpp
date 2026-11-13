@@ -68,7 +68,7 @@ struct parse_slice : op_parser<parse_slice>
     };
 
     instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
+                          onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
@@ -99,6 +99,35 @@ struct parse_slice : op_parser<parse_slice>
             else if(axes.has_value())
             {
                 steps.emplace(axes->size(), int64_t{1});
+            }
+            // A start or end only known at run time gets a symbol per axis, bounded by the axis
+            // length, since dyn_slice clips it to the axis
+            if((starts.empty() or ends.empty()) and axes.has_value() and steps.has_value() and
+               steps->size() == axes->size() and
+               all_of(*steps, [](auto step) { return step == 1; }) and
+               args[1]->get_shape().elements() == axes->size() and
+               args[2]->get_shape().elements() == axes->size())
+            {
+                const auto max_lens = args[0]->get_shape().max_lens();
+                auto bounds         = [&](const sym_argument& known, const std::string& suffix) {
+                    if(not known.empty())
+                        return known.get().to_vector();
+                    std::vector<sym::expr> result;
+                    std::transform(
+                        axes->begin(), axes->end(), std::back_inserter(result), [&](auto axis) {
+                            auto len = max_lens.at(axis < 0 ? axis + max_lens.size() : axis);
+                            return sym::var(parser.symbol_names.allocate(info.name + suffix),
+                                            {0, static_cast<int64_t>(len)});
+                        });
+                    return result;
+                };
+                return info.add_instruction(make_op("dyn_slice",
+                                                    {{"axes", *axes},
+                                                     {"starts", to_value(bounds(starts, "_start"))},
+                                                     {"ends", to_value(bounds(ends, "_end"))}}),
+                                            args[0],
+                                            args[1],
+                                            args[2]);
             }
             if(not starts.empty() and not ends.empty() and axes.has_value() and
                steps.has_value() and starts.get_shape().elements() == axes->size() and

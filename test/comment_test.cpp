@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/stringutils.hpp>
 
 #include "test.hpp"
@@ -62,6 +63,19 @@ TEST_CASE(comment_stream_operator)
     std::ostringstream ss;
     ss << op;
     EXPECT(ss.str() == "@comment: streamed text");
+}
+
+TEST_CASE(comment_tag)
+{
+    migraphx::builtin::comment op{"gfx1100", "gpu_target"};
+    std::ostringstream ss;
+    ss << op;
+    EXPECT(ss.str() == "@comment[gpu_target]: gfx1100");
+    auto op2 = migraphx::make_op("@comment", migraphx::to_value(op));
+    EXPECT(migraphx::any_cast<migraphx::builtin::comment>(op2).tag == "gpu_target");
+    // Comments saved without a tag still load
+    auto op3 = migraphx::make_op("@comment", {{"text", "untagged"}});
+    EXPECT(migraphx::any_cast<migraphx::builtin::comment>(op3).tag.empty());
 }
 
 static migraphx::program create_program_with_comment()

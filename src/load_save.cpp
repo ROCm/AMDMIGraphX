@@ -45,11 +45,11 @@ program load_buffer(const char* buffer, std::size_t size, const file_options& op
     program p;
     if(options.format == "msgpack")
     {
-        p.from_value(from_msgpack(buffer, size));
+        p.from_value(from_msgpack(buffer, size), options.finalize);
     }
     else if(options.format == "json")
     {
-        p.from_value(from_json_string(buffer, size));
+        p.from_value(from_json_string(buffer, size), options.finalize);
     }
     else
     {

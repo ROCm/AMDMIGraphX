@@ -37,6 +37,7 @@
 #include <migraphx/logger.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/builtin.hpp>
+#include <migraphx/charconv.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/fileutils.hpp>
@@ -61,6 +62,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
@@ -425,7 +427,85 @@ struct dynamic_code_object_op
 MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 
 // forward declared since it requires compile_manager
-static void replace_inserted_device_ops(context& ctx, const std::vector<module_ref>& mods);
+static void
+replace_inserted_device_ops(context& ctx,
+                            const std::vector<module_ref>& mods,
+                            const std::function<module_ref()>& make_recipe_module = nullptr);
+
+// Bypass a recipe module and the modules it uses, so later passes such as write_literals do not
+// rewrite them
+static void set_bypass(module_ref recipe)
+{
+    recipe->set_bypass();
+    for(auto* smod : recipe->get_sub_modules())
+        smod->set_bypass();
+}
+
+// The path from kernel to input: "j" for its j-th input, or "j.k" for the k-th input of its j-th
+// input, since a compiler can insert an instruction between them, such as the hip::copy of
+// scatter or the hip::fill of split-K.
+static optional<std::string> input_path(instruction_ref kernel, instruction_ref input)
+{
+    const auto& args = kernel->inputs();
+    auto direct      = std::find(args.begin(), args.end(), input);
+    if(direct != args.end())
+        return std::to_string(std::distance(args.begin(), direct));
+    auto outer = std::find_if(args.begin(), args.end(), [&](instruction_ref arg) {
+        return contains(arg->inputs(), input);
+    });
+    if(outer == args.end())
+        return nullopt;
+    const auto& inner = (*outer)->inputs();
+    return std::to_string(std::distance(args.begin(), outer)) + "." +
+           std::to_string(
+               std::distance(inner.begin(), std::find(inner.begin(), inner.end(), input)));
+}
+
+// The input_path of each input, or nothing when an input cannot be found from kernel
+static optional<std::vector<std::string>> input_paths(instruction_ref kernel,
+                                                      const std::vector<instruction_ref>& inputs)
+{
+    std::vector<std::string> paths;
+    for(auto input : inputs)
+    {
+        auto path = input_path(kernel, input);
+        if(not path.has_value())
+            return nullopt;
+        paths.push_back(*path);
+    }
+    return paths;
+}
+
+// A parameter of recipe for each input, named by its path. An input passed twice has one
+// parameter.
+static std::vector<instruction_ref>
+add_recipe_parameters(module& recipe,
+                      const std::vector<std::string>& paths,
+                      const std::vector<instruction_ref>& inputs)
+{
+    assert(paths.size() == inputs.size());
+    std::vector<instruction_ref> params;
+    std::transform(paths.begin(),
+                   paths.end(),
+                   inputs.begin(),
+                   std::back_inserter(params),
+                   [&](const std::string& path, instruction_ref input) {
+                       auto param = recipe.get_parameter(path);
+                       if(param != recipe.end())
+                           return param;
+                       return recipe.add_parameter(path, input->get_shape());
+                   });
+    return params;
+}
+
+// The only gpu::code_object in [first, last), or nothing when there are none or several
+static optional<instruction_ref> single_code_object(instruction_ref first, instruction_ref last)
+{
+    auto is_code_object = [](const instruction& i) { return i.name() == "gpu::code_object"; };
+    if(std::count_if(first, last, is_code_object) != 1)
+        return nullopt;
+    return std::find_if(first, last, is_code_object);
+}
 
 /// One compilation and its result, shared by every result slot whose key matches. Each cell is
 /// written by exactly one worker during the parallel compile; sharers read it after the join.
@@ -734,7 +814,46 @@ struct compile_plan
         return *any_cast<candidate>(best).cr;
     }
 
-    void replace(module& m) const { benchmark().replace(m, ins); }
+    /// Replace the precompile op with its compiled kernel. When make_recipe_module is set, the
+    /// precompile op is also kept in a new recipe submodule of the kernel, so the kernel can be
+    /// recompiled later.
+    void replace(module& m, const std::function<module_ref()>& make_recipe_module) const
+    {
+        const auto& cr = benchmark();
+        if(not make_recipe_module or ins == m.begin())
+        {
+            cr.replace(m, ins);
+            return;
+        }
+        auto start      = std::prev(ins);
+        auto precompile = ins->get_operator();
+        auto inputs     = ins->inputs();
+        auto mods       = ins->module_inputs();
+        cr.replace(m, ins);
+
+        // The replacement inserts its instructions before ins, or rewrites it in place. Only a
+        // single kernel can be put back to its precompile op by recompile.
+        assert(m.has_instruction(start) and m.has_instruction(ins));
+        auto co_ins = single_code_object(std::next(start), std::next(ins));
+        if(not co_ins.has_value())
+        {
+            log::debug() << "No recipe for " << preop.name() << ": not compiled to one kernel";
+            return;
+        }
+
+        auto paths = input_paths(*co_ins, inputs);
+        if(not paths.has_value())
+        {
+            log::debug() << "No recipe for " << preop.name()
+                         << ": its inputs cannot be found from the kernel";
+            return;
+        }
+        auto* recipe = make_recipe_module();
+        auto params  = add_recipe_parameters(*recipe, *paths, inputs);
+        recipe->add_return({recipe->add_instruction(precompile, params, mods)});
+        set_bypass(recipe);
+        m.replace_instruction(*co_ins, (*co_ins)->get_operator(), (*co_ins)->inputs(), {recipe});
+    }
 
     std::size_t save_binaries(const fs::path& mxr_dir) const
     {
@@ -787,6 +906,8 @@ struct compile_manager
     std::vector<compile_plan> cps;
     bool exhaustive     = false;
     bool skip_benchmark = false;
+    /// Creates a recipe submodule for each compiled kernel. Empty unless recompilable is set.
+    std::function<module_ref()> make_recipe_module = nullptr;
     /// When set, plans with several candidates are saved here as benchmark MXR files instead of
     /// being replaced. Left empty by the nested batch in replace_inserted_device_ops.
     fs::path mxr_dir             = {};
@@ -933,7 +1054,7 @@ struct compile_manager
             if(dump_mxr and cp.results.size() > 1)
                 dumped_mxr_files += cp.save_binaries(mxr_dir);
             else
-                cp.replace(*cp.mod);
+                cp.replace(*cp.mod, make_recipe_module);
         }
 
         // Remove compile_plan already executed
@@ -962,9 +1083,12 @@ struct compile_manager
     }
 };
 
-static void replace_inserted_device_ops(context& ctx, const std::vector<module_ref>& mods)
+static void replace_inserted_device_ops(context& ctx,
+                                        const std::vector<module_ref>& mods,
+                                        const std::function<module_ref()>& make_recipe_module)
 {
     compile_manager cm;
+    cm.make_recipe_module = make_recipe_module;
     for(auto* m : mods)
     {
         run_passes(*m, {dead_code_elimination{}});
@@ -1037,7 +1161,7 @@ static void assign_module_ids(const std::vector<module_ref>& mods)
             continue;
         auto op      = any_cast<code_object_op>(a.ins->get_operator());
         op.module_id = a.module_id;
-        a.m->replace_instruction(a.ins, std::move(op), a.ins->inputs());
+        a.m->replace_instruction(a.ins, std::move(op), a.ins->inputs(), a.ins->module_inputs());
     }
 }
 
@@ -1052,6 +1176,17 @@ void compile_ops::apply(module_pass_manager& mpm) const
     cm.exhaustive     = exhaustive_tune;
     cm.skip_benchmark = skip_benchmark;
     cm.mxr_dir        = dump_mxr_dir;
+    // One counter for every batch, since each recipe module needs a unique name. It must outlive
+    // the if below, because make_recipe_module refers to it.
+    // cppcheck-suppress variableScope
+    std::size_t recipes = 0;
+    if(recompilable)
+    {
+        cm.make_recipe_module = [&] {
+            return mpm.create_module(mpm.get_root_module()->name() + ":recipe" +
+                                     std::to_string(recipes++));
+        };
+    }
     for(auto* m : mods)
         cm.add_plans(*ctx, m);
     cm.update_configs();
@@ -1063,8 +1198,61 @@ void compile_ops::apply(module_pass_manager& mpm) const
     cm.compile();
     assert(cm.cps.empty());
 
-    replace_inserted_device_ops(*ctx, mods);
+    replace_inserted_device_ops(*ctx, mods, cm.make_recipe_module);
     assign_module_ids(mods);
+}
+
+optional<instruction_ref> find_recipe(instruction_ref ins)
+{
+    if(ins->name() != "gpu::code_object" or ins->module_inputs().size() != 1)
+        return nullopt;
+    auto* recipe = ins->module_inputs().front();
+    if(recipe->begin() == recipe->end())
+        return nullopt;
+    auto rets = recipe->get_returns();
+    if(rets.size() != 1 or rets.front()->name() != "gpu::precompile_op")
+        return nullopt;
+    return std::make_optional(rets.front());
+}
+
+// The instruction a path made by input_path leads to from kernel, or nothing
+static optional<instruction_ref> follow_path(instruction_ref kernel, const std::string& path)
+{
+    auto ins = kernel;
+    for(const auto& part : split_string(path, '.'))
+    {
+        std::size_t i   = 0;
+        const auto* end = part.data() + part.size();
+        auto [ptr, ec]  = from_chars(part.data(), end, i);
+        if(ec != std::errc{} or ptr != end or i >= ins->inputs().size())
+            return nullopt;
+        ins = ins->inputs()[i];
+    }
+    return ins;
+}
+
+optional<std::vector<instruction_ref>> recipe_inputs(instruction_ref ins)
+{
+    auto recipe = find_recipe(ins);
+    if(not recipe.has_value())
+        return nullopt;
+    std::vector<instruction_ref> result;
+    for(auto param : (*recipe)->inputs())
+    {
+        if(param->name() != "@param")
+            return nullopt;
+        auto input = follow_path(ins, any_cast<builtin::param>(param->get_operator()).parameter);
+        if(not input.has_value())
+            return nullopt;
+        result.push_back(*input);
+    }
+    return result;
+}
+
+std::string recipe_op_name(instruction_ref recipe)
+{
+    assert(recipe->name() == "gpu::precompile_op");
+    return any_cast<precompile_op>(recipe->get_operator()).op.name();
 }
 
 } // namespace gpu

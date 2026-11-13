@@ -44,6 +44,11 @@ struct compile_options
 
     bool fast_math       = true;
     bool exhaustive_tune = false;
+    /**
+     * Keep what the target needs to recompile the program's kernels, so program::recompile can
+     * recompile them for the same or another device without the original model.
+     */
+    bool recompilable = false;
 
     compile_modes compile_mode = compile_modes::balanced;
     /**

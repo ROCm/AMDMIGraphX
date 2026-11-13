@@ -243,6 +243,12 @@ struct hip_device
 
     std::size_t nstreams() const { return streams.size(); }
 
+    void create_streams(std::size_t n)
+    {
+        while(streams.size() < n + 1)
+            add_stream();
+    }
+
     std::size_t stream_id() const { return current_stream; }
 
     const device_description& get_device_description() const { return desc; }
@@ -358,6 +364,8 @@ struct context
     }
 
     void set_stream(std::size_t n) { get_current_device().set_stream(n); }
+
+    void create_streams(std::size_t n) { get_current_device().create_streams(n); }
 
     void create_events(std::size_t num_of_events)
     {

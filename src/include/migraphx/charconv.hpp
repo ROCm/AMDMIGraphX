@@ -31,6 +31,7 @@
 #include <cmath>
 #include <limits>
 #include <locale>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -43,6 +44,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct to_chars_result
 {
     char* ptr;
+    std::errc ec;
+};
+
+struct from_chars_result
+{
+    const char* ptr;
     std::errc ec;
 };
 
@@ -103,6 +110,29 @@ to_chars_result to_chars(char* first, char* last, T value)
     if(static_cast<std::size_t>(last - first) < formatted.first.size())
         return {last, std::errc::value_too_large};
     return {std::copy(formatted.first.begin(), formatted.first.end(), first), {}};
+}
+
+/// Parse the decimal digits at the start of [first, last) as an unsigned integer, like
+/// std::from_chars, which is not available in every standard library MIGraphX is built with
+template <class T>
+from_chars_result from_chars(const char* first, const char* last, T& value)
+{
+    static_assert(std::is_integral<T>{} and std::is_unsigned<T>{},
+                  "from_chars requires an unsigned integral type");
+    const auto* digits_end = std::find_if(first, last, [](char c) { return c < '0' or c > '9'; });
+    if(digits_end == first)
+        return {first, std::errc::invalid_argument};
+    bool overflow = false;
+    auto result   = std::accumulate(first, digits_end, T{0}, [&](T acc, char c) {
+        const T digit = c - '0';
+        if(acc > (std::numeric_limits<T>::max() - digit) / 10)
+            overflow = true;
+        return static_cast<T>(acc * 10 + digit);
+    });
+    if(overflow)
+        return {digits_end, std::errc::result_out_of_range};
+    value = result;
+    return {digits_end, {}};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

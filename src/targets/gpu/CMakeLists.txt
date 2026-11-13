@@ -258,6 +258,7 @@ add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
     binary_cache.cpp
+    check_recompiled_memory.cpp
     code_object_op.cpp
     compiled_code.cpp
     compile_ops.cpp
@@ -271,6 +272,7 @@ add_library(migraphx_gpu
     device_description.cpp
     device_name.cpp
     eliminate_data_type_for_gpu.cpp
+    eliminate_recompile_anchors.cpp
     file_binary_cache.cpp
     fixed_pad.cpp
     fuse_ck.cpp
@@ -300,6 +302,8 @@ add_library(migraphx_gpu
     prepare_reduce.cpp
     pooling.cpp
     problem_cache.cpp
+    record_compiled_for.cpp
+    restore_recipes.cpp
     rocblas.cpp
     schedule_model.cpp
     sqlite_binary_cache.cpp

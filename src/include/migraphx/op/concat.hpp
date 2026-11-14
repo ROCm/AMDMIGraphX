@@ -123,8 +123,9 @@ struct concat
     sym_argument symbolic_compute(const shape& output_shape,
                                   const std::vector<sym_argument>& args) const
     {
-        if(args.empty() or
-           any_of(args, [](const auto& arg) { return arg.empty() or arg.get_shape().ndim() != 1; }))
+        if(args.empty() or any_of(args, [&](const auto& arg) {
+               return arg.empty() or arg.get_shape().ndim() != output_shape.ndim();
+           }))
             return {};
         const auto input_elements = std::accumulate(
             args.begin(), args.end(), std::size_t{0}, [](auto sum, const auto& arg) {
@@ -133,13 +134,18 @@ struct concat
         if(input_elements != output_shape.elements())
             return {};
 
+        // Copy each input into its slice of the output along the axis, as compute() does
         sym_argument result{output_shape};
-        auto output = result.get();
-        auto out    = output.begin();
+        auto output        = result.get();
+        std::size_t offset = 0;
         for(const auto& arg : args)
         {
             const auto input = arg.get();
-            out              = std::copy(input.begin(), input.end(), out);
+            auto slice_shape =
+                shape{output_shape.type(), arg.get_shape().lens(), output_shape.strides()};
+            auto slice = make_view(slice_shape, output.data() + offset);
+            std::copy(input.begin(), input.end(), slice.begin());
+            offset += arg.get_shape().lens()[axis] * output_shape.strides()[axis];
         }
         return result;
     }

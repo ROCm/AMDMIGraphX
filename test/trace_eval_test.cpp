@@ -101,6 +101,39 @@ TEST_CASE(trace_eval_level_2)
     EXPECT(out.str().find("Output has") != std::string::npos);
 }
 
+// Returns an empty tensor and a tuple with an empty element
+struct empty_outputs_op
+{
+    std::string name() const { return "empty_outputs"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        return migraphx::shape{{migraphx::shape{migraphx::shape::float_type, {0}},
+                                migraphx::shape{migraphx::shape::float_type, {2}}}};
+    }
+    migraphx::argument compute(const migraphx::shape& output_shape,
+                               const std::vector<migraphx::argument>&) const
+    {
+        return migraphx::argument{output_shape};
+    }
+};
+
+TEST_CASE(trace_eval_level_2_empty)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {0}});
+    auto empty = mm->add_instruction(migraphx::make_op("relu"), x);
+    auto tuple = mm->add_instruction(empty_outputs_op{});
+    mm->add_return({empty, tuple});
+    p.compile(test_target{});
+    std::stringstream out;
+    {
+        cout_redirect cr{out};
+        p.eval({{"x", migraphx::argument{migraphx::shape{migraphx::shape::float_type, {0}}}}});
+    }
+    EXPECT(out.str().find("Empty") != std::string::npos);
+}
+
 TEST_CASE(trace_eval_migraphx_exception)
 {
     auto p = make_add_program(migraphx_throw_target{});

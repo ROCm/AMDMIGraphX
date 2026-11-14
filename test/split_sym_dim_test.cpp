@@ -5827,6 +5827,140 @@ TEST_CASE(split_sym_dim_output_slice_uses_parameter_and_data_root_sources)
     EXPECT(matches_expected(p, expected));
 }
 
+// A loop body splits on a nonzero count and gathers from a value computed in the main module. The
+// block keeps that value as an input instead of collecting the instruction that computes it.
+TEST_CASE(split_sym_dim_submodule_reads_outer_value)
+{
+    auto count = var("nonzero_count", {0, 4});
+    migraphx::shape si{migraphx::shape::int64_type, {1}};
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::program p;
+    auto& m      = *p.get_main_module();
+    auto data    = m.add_parameter("data", migraphx::shape{migraphx::shape::bool_type, {4}});
+    auto b       = m.add_parameter("b", s);
+    auto y       = m.add_instruction(migraphx::make_op("relu"), b);
+    auto in_iter = m.add_literal(migraphx::literal(si, {2}));
+    auto in_cond = m.add_literal(migraphx::literal(sc, {true}));
+
+    auto* body = p.create_module("loop_body");
+    body->add_parameter("iter_num", si);
+    auto cond    = body->add_parameter("cond", sc);
+    auto nonzero = body->add_instruction(migraphx::make_op("nonzero"), data);
+    auto indices =
+        body->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+    auto num_nonzero =
+        body->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero);
+    auto starts   = body->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto selected = body->add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(count)}}}),
+        indices,
+        starts,
+        num_nonzero);
+    auto idx      = body->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), selected);
+    auto gathered = body->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), y, idx);
+    auto padded =
+        body->add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), gathered);
+    body->add_return({cond, padded});
+
+    auto loop = m.add_instruction(
+        migraphx::make_op("loop", {{"max_iterations", 2}}), {in_iter, in_cond}, {body});
+    auto output = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), loop);
+    m.add_return({output});
+
+    run_pass(p);
+
+    EXPECT(migraphx::all_of(p.get_modules(),
+                            [](auto* module) { return module->validate() == module->end(); }));
+    // relu stays in the main module, and the block reads its result
+    EXPECT(m.has_instruction(y));
+    auto selections = migraphx::find_all(migraphx::iterator_for(*body),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 1);
+    if(selections.size() == 1)
+        EXPECT(migraphx::contains(selections.front()->inputs(), y));
+
+    p.compile(migraphx::make_target("ref"));
+    std::vector<char> data_values = {0, 1, 1, 0};
+    std::vector<float> b_values   = {1.0f, -2.0f, 3.0f, 4.0f};
+    migraphx::parameter_map params;
+    params["data"] =
+        migraphx::argument{migraphx::shape{migraphx::shape::bool_type, {4}}, data_values.data()};
+    params["b"] = migraphx::argument{s, b_values.data()};
+    auto result = p.eval(params).back();
+    std::vector<float> values;
+    result.visit(
+        [&](auto output_values) { values.assign(output_values.begin(), output_values.end()); });
+    // relu(b) at indices 1 and 2, padded to 4, for each of the 2 iterations
+    EXPECT(values == std::vector<float>{0.0f, 3.0f, 0.0f, 0.0f, 0.0f, 3.0f, 0.0f, 0.0f});
+}
+
+// A static block input that is a non-standard view gets a standard parameter: later passes may
+// still change the layout of the input, and lowering copies it into the parameter layout. The view
+// is computed in the main module, so it stays an input of the loop body's block.
+TEST_CASE(split_sym_dim_view_input_standard_parameter)
+{
+    auto count = var("nonzero_count", {0, 4});
+    migraphx::shape si{migraphx::shape::int64_type, {1}};
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    migraphx::program p;
+    auto& m      = *p.get_main_module();
+    auto data    = m.add_parameter("data", migraphx::shape{migraphx::shape::bool_type, {4}});
+    auto x       = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 2}});
+    auto view    = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+    auto in_iter = m.add_literal(migraphx::literal(si, {1}));
+    auto in_cond = m.add_literal(migraphx::literal(sc, {true}));
+
+    auto* body = p.create_module("loop_body");
+    body->add_parameter("iter_num", si);
+    auto cond    = body->add_parameter("cond", sc);
+    auto nonzero = body->add_instruction(migraphx::make_op("nonzero"), data);
+    auto indices =
+        body->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nonzero);
+    auto num_nonzero =
+        body->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nonzero);
+    auto starts   = body->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto selected = body->add_instruction(
+        migraphx::make_op("dyn_slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", migraphx::value::array{migraphx::to_value(count)}}}),
+        indices,
+        starts,
+        num_nonzero);
+    auto idx      = body->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), selected);
+    auto gathered = body->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), view, idx);
+    auto padded =
+        body->add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), gathered);
+    body->add_return({cond, padded});
+
+    auto loop = m.add_instruction(
+        migraphx::make_op("loop", {{"max_iterations", 1}}), {in_iter, in_cond}, {body});
+    m.add_return({m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), loop)});
+
+    run_pass(p);
+
+    auto selections = migraphx::find_all(migraphx::iterator_for(*body),
+                                         [](auto ins) { return ins->name() == "select_module"; });
+    EXPECT(selections.size() == 1);
+    if(selections.size() != 1)
+        return;
+    EXPECT(migraphx::contains(selections.front()->inputs(), view));
+    for(auto* sub : selections.front()->module_inputs())
+    {
+        for(const auto& name : sub->get_parameter_names())
+        {
+            auto ps = sub->get_parameter_shape(name);
+            if(ps.dynamic())
+                continue;
+            EXPECT(ps.standard());
+        }
+    }
+}
+
 TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
 {
     auto count = var("nonzero_count", {0, 4});

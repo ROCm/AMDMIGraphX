@@ -447,6 +447,12 @@ static void print_statistics(std::ostream& os, const argument& a)
 {
     a.visit(
         [&](auto t) {
+            // min, max and the mean of an empty tensor are undefined
+            if(t.size() == 0)
+            {
+                os << "Empty\n";
+                return;
+            }
             os << "Min value: " << *std::min_element(t.begin(), t.end()) << ", ";
             os << "Max value: " << *std::max_element(t.begin(), t.end()) << ", ";
             double num_elements = t.size();
@@ -490,7 +496,11 @@ static void preview_argument(std::ostream& os, const argument& a)
 {
     a.visit(
         [&](auto t) {
-            if(t.size() <= 10)
+            if(t.size() == 0)
+            {
+                os << "empty";
+            }
+            else if(t.size() <= 10)
             {
                 os << t;
             }

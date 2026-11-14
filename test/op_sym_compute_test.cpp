@@ -189,6 +189,15 @@ TEST_CASE(op_sym_transpose)
     EXPECT(result == symbolic_tensor_value{lit(0), lit(1), lit(10) - s, lit(2)});
 }
 
+TEST_CASE(op_sym_transpose_rejects_wrong_input_count)
+{
+    EXPECT(not symbolic_compute(migraphx::make_op("transpose", {{"permutation", {1, 0}}}),
+                                shape{shape::int64_type, {2, 2}, {1, 2}},
+                                {},
+                                {})
+                   .has_value());
+}
+
 TEST_CASE(op_sym_concat_rejects_wrong_output_size)
 {
     EXPECT(

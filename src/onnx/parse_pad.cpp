@@ -172,10 +172,28 @@ struct parse_pad : op_parser<parse_pad>
                            "input rank");
         }
 
-        const auto zero = sym::lit(int64_t{0});
+        const auto zero  = sym::lit(int64_t{0});
+        const auto value = parse_constant_value(parser, info, args);
+        // Padding only at the end of each axis up to its upper bound, as for a pad to the maximum
+        // count of a data-dependent length, is fixed_pad: one op with a static output, instead of
+        // a concat along a symbolic axis
+        if(x->get_shape().symbolic() and std::all_of(pads.begin(),
+                                                     pads.begin() + input_rank,
+                                                     [&](const auto& pad) { return pad == zero; }))
+        {
+            const auto dims     = x->get_shape().to_symbolic().dyn_dims();
+            const auto max_lens = x->get_shape().max_lens();
+            auto padded_to_max  = [&](std::size_t axis) {
+                auto size = sym::fixed_value(dims.at(axis).sym_expr + pads.at(axis + input_rank));
+                return size.has_value() and sym::to<int64_t>(*size) >= 0 and
+                       sym::to<std::size_t>(*size) == max_lens.at(axis);
+            };
+            auto axes = range(input_rank);
+            if(std::all_of(axes.begin(), axes.end(), padded_to_max))
+                return info.add_instruction(make_op("fixed_pad", {{"value", value}}), x);
+        }
         auto fill =
-            info.add_literal(literal{shape{x->get_shape().type()},
-                                     std::vector<float>{parse_constant_value(parser, info, args)}});
+            info.add_literal(literal{shape{x->get_shape().type()}, std::vector<float>{value}});
         auto slice_of = [&](instruction_ref ins, std::size_t start, std::size_t end) {
             return info.add_instruction(
                 make_op("slice", {{"axes", {0}}, {"starts", {start}}, {"ends", {end}}}), ins);

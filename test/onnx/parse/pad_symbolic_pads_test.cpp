@@ -28,7 +28,8 @@ TEST_CASE(pad_symbolic_pads_test)
 {
     using migraphx::sym::lit;
     using migraphx::sym::var;
-    const auto n = var("N", {1, 10});
+    // N is at most 8, so the pad to 10 rows does not end at the bound of N: concat a fill
+    const auto n = var("N", {1, 8});
     const migraphx::shape x_shape{migraphx::shape::float_type, sym_dims({n, lit(4)})};
 
     migraphx::program p;

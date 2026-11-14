@@ -200,7 +200,8 @@ TEST_CASE(channelwise_conv_halo_too_large)
 static bool runs_direct_conv(const migraphx::gpu::context& ctx)
 {
     const auto gfx = ctx.get_current_device().get_gfx_name();
-    return migraphx::starts_with(gfx, "gfx11") or migraphx::starts_with(gfx, "gfx12");
+    return migraphx::starts_with(gfx, "gfx11") or migraphx::starts_with(gfx, "gfx12") or
+           migraphx::starts_with(gfx, "gfx94");
 }
 
 // enable_direct_conv offloads every dense convolution the kernel supports
@@ -208,7 +209,7 @@ TEST_CASE(direct_conv_enabled)
 {
     migraphx::gpu::context ctx;
     if(not runs_direct_conv(ctx))
-        test::skip("The direct conv kernel only runs on gfx11 and gfx12");
+        test::skip("The direct conv kernel only runs on gfx11, gfx12 and gfx94x");
     migraphx::shape xs{migraphx::shape::float_type, {1, 8, 32, 32}};
     migraphx::shape ws{migraphx::shape::float_type, {16, 8, 5, 5}};
     migraphx::value attrs = {{"padding", {2, 2, 2, 2}}, {"stride", {2, 2}}, {"dilation", {1, 1}}};
@@ -292,7 +293,7 @@ TEST_CASE(direct_conv_tall_filter)
 }
 
 // Dilation 48 on a 3x3 filter needs (7 + 97) * (63 + 97) floats of halo for one input
-// channel of the fallback 8x64 tile, more than the 64KB a gfx11 or gfx12 block may use
+// channel of the fallback 8x64 tile, more than the 64KB a gfx11, gfx12 or gfx94x block may use
 TEST_CASE(direct_conv_halo_too_large)
 {
     migraphx::gpu::context ctx;
@@ -317,7 +318,7 @@ TEST_CASE(direct_conv_halo_fits)
 {
     migraphx::gpu::context ctx;
     if(not runs_direct_conv(ctx))
-        test::skip("The direct conv kernel only runs on gfx11 and gfx12");
+        test::skip("The direct conv kernel only runs on gfx11, gfx12 and gfx94x");
     migraphx::shape xs{migraphx::shape::float_type, {1, 4, 257, 257}};
     migraphx::shape ws{migraphx::shape::float_type, {8, 4, 3, 3}};
     migraphx::value attrs = {{"padding", {0, 0, 0, 0}}, {"stride", {1, 1}}, {"dilation", {47, 47}}};
@@ -394,7 +395,8 @@ TEST_CASE(direct_conv_heuristic_few_outputs)
 
 // The GEMM-based kernels keep many output channels, small outputs, convs with little work
 // per output, channels-first 3x3 filters and strides, 1x1 filters, 1-D convolutions, and
-// fp16 filters under 25 taps, with a stride, or with 8 output channels
+// fp16 filters under 25 taps, with a stride, or with 8 output channels. The gfx94x
+// heuristic leaves all of these too.
 TEST_CASE(direct_conv_heuristic_default_lowering)
 {
     auto f32 = migraphx::shape::float_type;
@@ -424,6 +426,70 @@ TEST_CASE(direct_conv_heuristic_default_lowering)
         nhwc(f16, {1, 32, 512, 512}), nhwc(f16, {8, 32, 7, 7}), {{"padding", {3, 3}}}));
     EXPECT(not offloads_direct_conv(
         {f16, {1, 48, 128, 128}}, {f16, {3, 48, 5, 5}}, {{"padding", {2, 2}}}));
+}
+
+static bool is_gfx94()
+{
+    migraphx::gpu::context ctx;
+    return migraphx::starts_with(ctx.get_current_device().get_gfx_name(), "gfx94");
+}
+
+// fp32 with up to 3 output channels from 128K outputs, or from 64K with filters of at least
+// 25 taps; channels-first fp32 dilated filters; channels-last fp16 with up to 3 output
+// channels over few input channels from 256K outputs; channels-first fp16 large or dilated
+// filters
+TEST_CASE(direct_conv_heuristic_gfx94_few_outputs)
+{
+    if(not is_gfx94())
+        test::skip("The gfx94x direct conv heuristic only runs on gfx94x");
+    auto f32 = migraphx::shape::float_type;
+    EXPECT(offloads_direct_conv(
+        nhwc(f32, {1, 64, 640, 640}), nhwc(f32, {3, 64, 3, 3}), {{"padding", {1, 1}}}));
+    EXPECT(offloads_direct_conv(
+        nhwc(f32, {1, 64, 256, 256}), nhwc(f32, {3, 64, 5, 5}), {{"padding", {2, 2}}}));
+    EXPECT(offloads_direct_conv({f32, {1, 64, 256, 256}},
+                                {f32, {8, 64, 3, 3}},
+                                {{"padding", {2, 2}}, {"dilation", {2, 2}}}));
+    auto f16 = migraphx::shape::half_type;
+    EXPECT(offloads_direct_conv(
+        nhwc(f16, {1, 16, 640, 640}), nhwc(f16, {1, 16, 3, 3}), {{"padding", {1, 1}}}));
+    EXPECT(offloads_direct_conv(
+        nhwc(f16, {1, 48, 512, 512}), nhwc(f16, {3, 48, 5, 5}), {{"padding", {2, 2}}}));
+    EXPECT(offloads_direct_conv(
+        {f16, {1, 64, 640, 640}}, {f16, {8, 64, 7, 7}}, {{"padding", {3, 3}}}));
+    EXPECT(offloads_direct_conv({f16, {1, 16, 384, 384}},
+                                {f16, {3, 16, 3, 3}},
+                                {{"padding", {2, 2}}, {"dilation", {2, 2}}}));
+}
+
+// MLIR keeps fp32 with 6 or more output channels, channels-last fp32 dilated filters,
+// strides, channels-last fp16 below 256K outputs or with large filters over many input
+// channels, and channels-first fp16 3x3 filters
+TEST_CASE(direct_conv_heuristic_gfx94_default_lowering)
+{
+    if(not is_gfx94())
+        test::skip("The gfx94x direct conv heuristic only runs on gfx94x");
+    auto f32 = migraphx::shape::float_type;
+    EXPECT(not offloads_direct_conv(
+        nhwc(f32, {1, 64, 640, 640}), nhwc(f32, {6, 64, 7, 7}), {{"padding", {3, 3}}}));
+    EXPECT(not offloads_direct_conv(
+        {f32, {1, 3, 128, 128}}, {f32, {64, 3, 3, 3}}, {{"padding", {1, 1}}}));
+    EXPECT(not offloads_direct_conv(nhwc(f32, {1, 64, 640, 640}),
+                                    nhwc(f32, {3, 64, 3, 3}),
+                                    {{"padding", {2, 2}}, {"dilation", {2, 2}}}));
+    EXPECT(not offloads_direct_conv(nhwc(f32, {1, 64, 768, 768}),
+                                    nhwc(f32, {1, 64, 3, 3}),
+                                    {{"padding", {1, 1}}, {"stride", {2, 2}}}));
+    auto f16 = migraphx::shape::half_type;
+    EXPECT(not offloads_direct_conv(
+        nhwc(f16, {1, 16, 384, 384}), nhwc(f16, {3, 16, 7, 7}), {{"padding", {3, 3}}}));
+    EXPECT(not offloads_direct_conv(
+        nhwc(f16, {1, 64, 640, 640}), nhwc(f16, {3, 64, 5, 5}), {{"padding", {2, 2}}}));
+    EXPECT(not offloads_direct_conv(
+        {f16, {1, 64, 640, 640}}, {f16, {3, 64, 3, 3}}, {{"padding", {1, 1}}}));
+    EXPECT(not offloads_direct_conv({f16, {1, 16, 1280, 1280}},
+                                    {f16, {1, 16, 5, 5}},
+                                    {{"padding", {2, 2}}, {"stride", {2, 2}}}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

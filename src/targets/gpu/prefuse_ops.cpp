@@ -329,8 +329,8 @@ MIGRAPHX_PRED_MATCHER(conv_direct, instruction_ref ins)
     return v.at("group").to<std::size_t>() == 1 and v.at("padding_mode").to<int>() == 0;
 }
 
-// Heuristic for when the direct kernel beats the default lowering (MLIR; winograd keeps
-// the convolutions it takes). Derived from tools/bench_conv.py --direct compare on gfx1201
+// Heuristic for when the direct kernel beats the default lowering on gfx12 (MLIR; winograd
+// keeps the convolutions it takes). Derived from tools/bench_conv.py --direct compare on gfx1201
 // over convs from real models plus strided, dilated and 1-D variants, with kernel times
 // checked through the full pipeline:
 //   - The direct kernel multiplies with FMAs (fp16 with dot2, two input channels per
@@ -352,7 +352,7 @@ MIGRAPHX_PRED_MATCHER(conv_direct, instruction_ref ins)
 //     channels-first path (48->3 3x3 0.5x, 16->4 3x3 stride 2 0.4x), while large filters
 //     still win there (64->3 7x7 2.4x).
 //   - 1-D convolutions are mixed (64->3 5-tap 1.1x, 48->8 3-tap 0.6-0.9x).
-bool direct_conv_profitable(instruction_ref ins, const value& v)
+bool direct_conv_profitable_gfx12(instruction_ref ins, const value& v)
 {
     const auto& x_shape = ins->inputs().front()->get_shape();
     if(x_shape.ndim() != 4)
@@ -374,14 +374,75 @@ bool direct_conv_profitable(instruction_ref ins, const value& v)
     return nhwc or (unit_stride and taps >= 25);
 }
 
+// Heuristic for when the direct kernel beats the default lowering on gfx94x (MI300): MLIR,
+// or MIOpen for channels-first dilated filters. Derived on gfx942 from tools/bench_conv.py
+// --direct compare over the same convs in both layouts plus a grid of 16 and 64 input
+// channels to 1-8 outputs at 256x256 to 1280x1280, then cut back to where the kernel still
+// wins with the conv between a 1x1 conv producer and a bias + relu epilogue.
+// Isolated convs can overstate the direct kernel (fp32 64->6 3x3 1.1x alone, 0.87x in the
+// pipeline; fp16 16->1 3x3 2.2x alone, 1.08x). Speedups below are kernel times in that
+// pipeline unless marked alone:
+//   - Only a few output channels win over the GEMM tiles: up to 3 in fp32 (channels-last
+//     16->1 7x7 1.4x, 256->3 3x3 1.3x, 64->3 3x3 1.07x), while 6 are mixed (64->6 7x7 1.3x,
+//     5x5 0.98x, 3x3 0.87x). Channels-last fp16 also needs few input channels or a large
+//     filter over few input channels (16->1 3x3 1.08x, 48->3 5x5 1.06x, 64->1 7x7 1.6x;
+//     64->3 5x5 0.86x alone).
+//   - The kernel does not split input channels across blocks, so it needs at least 128K
+//     output positions, or 64K for fp32 filters of at least 25 taps or channels-first
+//     dilation (64->3 5x5 at 256x256 1.08x, 64->8 3x3 dilation 2 at 256x256 1.7x).
+//     Channels-last fp16 needs 256K (16->3 7x7 at 384x384 0.91x).
+//   - Channels-first large filters are slow in MLIR, and channels-first dilated filters go to
+//     MIOpen with the epilogue in a separate kernel, so there the direct kernel wins with up
+//     to 8 output channels (fp16 64->1 7x7 4.7x, 64->8 7x7 1.7x, 16->3 3x3 dilation 2 2.3x;
+//     fp32 64->8 3x3 dilation 2 1.7x). Channels-first fp16 3x3 filters lose (64->3 0.56x
+//     alone) and channels-last fp32 dilation is mixed (64->3 3x3 0.92x, 128->3 1.1x).
+//   - Strides lose or only tie in the pipeline (fp16 channels-first 16->8 5x5 stride 2 0.93x
+//     for the whole pipeline), and 1-D convolutions are mixed or lose alone, so both stay
+//     with the default lowering.
+bool direct_conv_profitable_gfx94(instruction_ref ins, const value& v)
+{
+    const auto& x_shape = ins->inputs().front()->get_shape();
+    if(x_shape.ndim() != 4)
+        return false;
+    const auto& w_shape     = ins->inputs().back()->get_shape();
+    const auto out_channels = w_shape.lens()[0];
+    const auto in_channels  = w_shape.lens()[1];
+    const auto taps         = filter_taps(w_shape);
+    const auto positions    = ins->get_shape().elements() / out_channels;
+    const bool unit_stride =
+        all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; });
+    if(taps == 1 or not unit_stride or out_channels > 8 or positions < 64 * 1024)
+        return false;
+    const bool nhwc = x_shape.strides()[1] == 1;
+    const bool dilated =
+        not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; });
+    if(x_shape.type() == shape::half_type)
+    {
+        if(not nhwc)
+            return positions >= 128 * 1024 and (taps >= 25 or dilated);
+        return positions >= 256 * 1024 and out_channels <= 3 and
+               (in_channels <= 16 or (taps >= 25 and out_channels * in_channels <= 144));
+    }
+    if(dilated)
+        return not nhwc;
+    return out_channels <= 3 and (positions >= 128 * 1024 or taps >= 25);
+}
+
 struct find_direct_convolution
 {
     // Shared memory one thread block may use
     std::size_t max_lds_bytes = 0;
     // Offload every supported convolution, skipping the profitability heuristic
     bool force = false;
+    // Use the heuristic measured on gfx94x instead of the gfx12 one
+    bool gfx94 = false;
 
     auto matcher() const { return conv_direct(); }
+
+    bool profitable(instruction_ref ins, const value& v) const
+    {
+        return gfx94 ? direct_conv_profitable_gfx94(ins, v) : direct_conv_profitable_gfx12(ins, v);
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -396,7 +457,7 @@ struct find_direct_convolution
            max_lds_bytes)
             return;
         auto v = ins->get_operator().to_value();
-        if(not force and not direct_conv_profitable(ins, v))
+        if(not force and not profitable(ins, v))
             return;
         m.replace_instruction(ins,
                               direct_conv{v.at("padding").to_vector<std::size_t>(),
@@ -979,11 +1040,12 @@ struct find_winograd_f23
 
 void find_direct_convolutions(module_pass_manager& mpm, const context& ctx, bool force)
 {
+    const auto& device = ctx.get_current_device();
     match::find_matches(
         mpm.get_module(),
-        find_direct_convolution{.max_lds_bytes =
-                                    ctx.get_current_device().get_max_shared_memory_per_block(),
-                                .force = force});
+        find_direct_convolution{.max_lds_bytes = device.get_max_shared_memory_per_block(),
+                                .force         = force,
+                                .gfx94         = starts_with(device.get_gfx_name(), "gfx94")});
 }
 
 void inline_group_sub_module(module_pass_manager& mpm)
@@ -1020,13 +1082,14 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
             mpm.get_module(),
             find_channelwise_convolution{
                 .max_lds_bytes = ctx->get_current_device().get_max_shared_memory_per_block()});
-    // The direct kernel's heuristic is measured on gfx12; gfx11 runs it only when forced on.
-    // A forced kernel takes every convolution it supports ahead of winograd, otherwise
-    // winograd keeps the 3x3 convolutions its heuristic picks, which the direct kernel only
-    // ties.
+    // The direct kernel's heuristics are measured on gfx12 and gfx94x; gfx11 runs it only when
+    // forced on. A forced kernel takes every convolution it supports ahead of winograd,
+    // otherwise winograd keeps the 3x3 convolutions its heuristic picks, which the direct
+    // kernel only ties.
     const bool direct_conv_enabled =
         not disable_direct_conv and
-        (enable_direct_conv ? is_navi : starts_with(device_name, "gfx12"));
+        (starts_with(device_name, "gfx12") or starts_with(device_name, "gfx94") or
+         (enable_direct_conv and is_navi));
     if(direct_conv_enabled and enable_direct_conv)
         find_direct_convolutions(mpm, *ctx, true);
     if(supports_winograd)

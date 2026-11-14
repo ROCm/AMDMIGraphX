@@ -156,6 +156,8 @@ static bool verify_solution(const std::string& name,
         migraphx::verify::expected{run_ref(x_shape, w_shape, attrs, inputs)});
 }
 
+// Blocks are tile_h * tile_w * tile_k / kvec lanes; the tests keep them a multiple of 64 so
+// every solution is valid on wave32 and wave64 devices
 static migraphx::value config(std::size_t tile_h,
                               std::size_t tile_w,
                               std::size_t noutputs,
@@ -221,7 +223,7 @@ TEST_CASE(direct_conv_three_outputs)
                            x_shape,
                            w_shape,
                            {{2, 2, 2, 2}},
-                           config(4, 8, 2, 4, 3, 3, 4)));
+                           config(8, 8, 2, 4, 3, 3, 4)));
 }
 
 // Half input channel pairs for three output channels per lane, which load their weight
@@ -234,7 +236,7 @@ TEST_CASE(direct_conv_three_outputs_half)
                            x_shape,
                            w_shape,
                            {{2, 2, 2, 2}},
-                           config(4, 8, 2, 4, 3, 3, 4)));
+                           config(8, 8, 2, 4, 3, 3, 4)));
 }
 
 // An odd half input channel tile has no channel pairs and reduces one channel at a time
@@ -255,7 +257,7 @@ TEST_CASE(direct_conv_1x1)
     auto x_shape = channels_last(migraphx::shape::half_type, {2, 16, 7, 9});
     auto w_shape = channels_last(migraphx::shape::half_type, {4, 16, 1, 1});
     EXPECT(verify_solution(
-        "direct_conv_1x1", x_shape, w_shape, {{0, 0, 0, 0}}, config(4, 8, 2, 2, 4, 4, 8)));
+        "direct_conv_1x1", x_shape, w_shape, {{0, 0, 0, 0}}, config(8, 8, 2, 2, 4, 4, 8)));
 }
 
 // Stride 2 with a 4x4 filter, as in encoder downsampling
@@ -279,7 +281,7 @@ TEST_CASE(direct_conv_dilation)
                            x_shape,
                            w_shape,
                            {{2, 2, 2, 2}, {1, 1}, {2, 2}},
-                           config(4, 8, 1, 2, 4, 4, 2)));
+                           config(8, 8, 1, 2, 4, 4, 2)));
 }
 
 // Asymmetric padding with a stride that skips the last end-padding row
@@ -313,7 +315,7 @@ TEST_CASE(direct_conv_partial_channel_tile)
                            x_shape,
                            w_shape,
                            {{1, 1, 1, 1}},
-                           config(2, 8, 2, 2, 8, 4, 3)));
+                           config(4, 8, 2, 2, 8, 4, 3)));
 }
 
 // Ten output channels split a lane's channel vector, so its stores are masked one by one
@@ -390,7 +392,7 @@ TEST_CASE(direct_conv_fused_bias_relu)
         mm->add_return({ins});
 
         migraphx::gpu::context ctx;
-        auto cr = migraphx::gpu::compile(ctx, ins, conv_op, config(2, 8, 2, 2, 8, 4, 4));
+        auto cr = migraphx::gpu::compile(ctx, ins, conv_op, config(4, 8, 2, 2, 8, 4, 4));
         cr.replace(*mm, ins);
         migraphx::run_passes(*mm, {migraphx::dead_code_elimination{}});
     }

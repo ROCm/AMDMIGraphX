@@ -36,15 +36,73 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+static const sym::interval& bool_bounds()
+{
+    static const sym::interval result{int64_t{0}, int64_t{1}};
+    return result;
+}
+
+static sym::interval merge_bounds(const sym::interval& a, const sym::interval& b)
+{
+    return sym::interval{sym::scalar_min(a.min, b.min), sym::scalar_max(a.max, b.max)};
+}
+
+// The range of a convert to type `t` of values in the range `x`
+static std::optional<sym::interval> convert_bounds(shape::type_t t,
+                                                   const std::optional<sym::interval>& x)
+{
+    if(t == shape::bool_type)
+        return bool_bounds();
+    if(not x.has_value() or not shape::is_integral(t))
+        return x;
+    // A float truncates toward zero, so it stays within the floor and ceil of its range
+    return sym::interval{static_cast<int64_t>(std::floor(sym::to<double>(x->min))),
+                         static_cast<int64_t>(std::ceil(sym::to<double>(x->max)))};
+}
+
+// The range of a binary op, or of a where choosing between `x` and `y`
+static std::optional<sym::interval> binary_bounds(const std::string& name,
+                                                  const std::optional<sym::interval>& x,
+                                                  const std::optional<sym::interval>& y)
+{
+    if(not x.has_value() or not y.has_value())
+        return std::nullopt;
+    if(name == "add")
+        return *x + *y;
+    if(name == "sub")
+        return *x - *y;
+    if(name == "mul")
+        return *x * *y;
+    if(name == "min")
+        return min(*x, *y);
+    if(name == "max")
+        return max(*x, *y);
+    return merge_bounds(*x, *y);
+}
+
+// The range of a reduce_sum of values in the range `x`
+static std::optional<sym::interval> reduce_sum_bounds(instruction_ref ins,
+                                                      const std::optional<sym::interval>& x)
+{
+    if(not x.has_value())
+        return std::nullopt;
+    const auto& in_shape = ins->inputs().front()->get_shape();
+    if(in_shape.dynamic() and not in_shape.symbolic())
+        return std::nullopt;
+    // A sum of up to n values in [lo, hi], n the most elements reduced into one output
+    auto count = [](const shape& sh) {
+        auto lens = sh.max_lens();
+        return std::accumulate(lens.begin(), lens.end(), std::size_t{1}, std::multiplies<>{});
+    };
+    auto n = count(in_shape) / std::max<std::size_t>(count(ins->get_shape()), 1);
+    return *x * sym::interval{int64_t{0}, static_cast<int64_t>(n)};
+}
+
 // The range of values an instruction can hold, inferred from the ranges of its inputs, or nullopt
 // when it cannot be bounded. It bounds a value only known at run time, such as a count of selected
 // elements, so the length that depends on it can be a bounded symbol.
 static std::optional<sym::interval> value_bounds(instruction_ref ins, int depth = 0)
 {
-    const auto bool_range = sym::interval{int64_t{0}, int64_t{1}};
-    auto merge            = [](const sym::interval& a, const sym::interval& b) {
-        return sym::interval{sym::scalar_min(a.min, b.min), sym::scalar_max(a.max, b.max)};
-    };
     const auto& s = ins->get_shape();
     if((s.dynamic() and not s.symbolic()) or s.type() == shape::tuple_type)
         return std::nullopt;
@@ -55,7 +113,7 @@ static std::optional<sym::interval> value_bounds(instruction_ref ins, int depth 
         for(const auto& e : value.get())
         {
             auto i = e.eval_interval();
-            result = result.has_value() ? merge(*result, i) : i;
+            result = result.has_value() ? merge_bounds(*result, i) : i;
         }
         return result;
     }
@@ -65,18 +123,9 @@ static std::optional<sym::interval> value_bounds(instruction_ref ins, int depth 
     auto input       = [&](std::size_t i) { return value_bounds(ins->inputs().at(i), depth + 1); };
     if(contains({"equal", "less", "greater", "not", "logical_and", "logical_or", "logical_xor"},
                 name))
-        return bool_range;
+        return bool_bounds();
     if(name == "convert")
-    {
-        if(ins->get_shape().type() == shape::bool_type)
-            return bool_range;
-        auto x = input(0);
-        if(not x.has_value() or not shape::is_integral(ins->get_shape().type()))
-            return x;
-        // A float truncates toward zero, so it stays within the floor and ceil of its range
-        return sym::interval{static_cast<int64_t>(std::floor(sym::to<double>(x->min))),
-                             static_cast<int64_t>(std::ceil(sym::to<double>(x->max)))};
-    }
+        return convert_bounds(s.type(), s.type() == shape::bool_type ? std::nullopt : input(0));
     // Ops that only move or repeat the values of their first input
     if(contains({"identity",
                  "contiguous",
@@ -93,45 +142,11 @@ static std::optional<sym::interval> value_bounds(instruction_ref ins, int depth 
                 name))
         return input(0);
     if(contains({"add", "sub", "mul", "min", "max"}, name))
-    {
-        auto x = input(0);
-        auto y = input(1);
-        if(not x.has_value() or not y.has_value())
-            return std::nullopt;
-        if(name == "add")
-            return *x + *y;
-        if(name == "sub")
-            return *x - *y;
-        if(name == "mul")
-            return *x * *y;
-        if(name == "min")
-            return min(*x, *y);
-        return max(*x, *y);
-    }
+        return binary_bounds(name, input(0), input(1));
     if(name == "where")
-    {
-        auto x = input(1);
-        auto y = input(2);
-        if(not x.has_value() or not y.has_value())
-            return std::nullopt;
-        return merge(*x, *y);
-    }
+        return binary_bounds(name, input(1), input(2));
     if(name == "reduce_sum")
-    {
-        auto x = input(0);
-        if(not x.has_value())
-            return std::nullopt;
-        const auto& in_shape = ins->inputs().front()->get_shape();
-        if(in_shape.dynamic() and not in_shape.symbolic())
-            return std::nullopt;
-        // A sum of up to n values in [lo, hi], n the most elements reduced into one output
-        auto count = [](const shape& sh) {
-            auto lens = sh.max_lens();
-            return std::accumulate(lens.begin(), lens.end(), std::size_t{1}, std::multiplies<>{});
-        };
-        auto n = count(in_shape) / std::max<std::size_t>(count(ins->get_shape()), 1);
-        return *x * sym::interval{int64_t{0}, static_cast<int64_t>(n)};
-    }
+        return reduce_sum_bounds(ins, input(0));
     return std::nullopt;
 }
 

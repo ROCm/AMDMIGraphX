@@ -37,6 +37,7 @@
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/literal.hpp>
 #include <algorithm>
+#include <functional>
 #include <iterator>
 #include <numeric>
 #include <optional>
@@ -1192,6 +1193,134 @@ struct find_flash_decoding
     }
 };
 
+// Computes the sliding-window bound of a kv-cache mask from the sequence length the kv
+// mask compares against. find_add_lit_broadcast folds the window's `seqlens_k - 512` into
+// `sum - 513` when seqlens_k is `sum - 1`, and a bound that branches off before the
+// sequence length stays outside the kv-cache attention group as a separate input.
+struct find_kv_cache_window
+{
+    static const std::unordered_set<std::string>& view_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "multibroadcast", "broadcast", "reshape", "unsqueeze", "squeeze"};
+        return names;
+    }
+
+    auto matcher() const
+    {
+        auto views_or_convert = match::opaque(match::name(
+            "multibroadcast", "broadcast", "reshape", "unsqueeze", "squeeze", "convert"));
+        auto kv_compare =
+            match::opaque(match::name("greater")(match::arg(1)(match::any().bind("total_sl")))
+                              .bind("kv_compare"));
+        auto window_compare = match::opaque(match::name("greater").bind("window_compare"));
+        auto window_cond    = match::opaque(match::skip(views_or_convert)(window_compare));
+        auto window         = match::opaque(
+            match::name("where")(match::used_once(), match::arg(0)(window_cond)).bind("window"));
+        auto kv_cond = match::opaque(match::skip(views_or_convert)(kv_compare));
+        return match::name("where")(match::arg(0)(kv_cond), match::arg(2)(window));
+    }
+
+    static std::optional<std::int64_t> get_uniform_integer(instruction_ref ins)
+    {
+        if(not ins->can_eval() or not shape::is_integral(ins->get_shape().type()))
+            return std::nullopt;
+        auto values = ins->eval().to_vector<std::int64_t>();
+        if(values.empty() or
+           std::adjacent_find(values.begin(), values.end(), std::not_equal_to<>{}) != values.end())
+            return std::nullopt;
+        return values.front();
+    }
+
+    // An integer value as root + offset with views applied; adding a uniform
+    // constant commutes with views, so their order relative to the adds is irrelevant
+    struct offset_value
+    {
+        instruction_ref root;
+        std::vector<operation> views = {};
+        std::int64_t offset          = 0;
+    };
+
+    static offset_value decompose(instruction_ref ins)
+    {
+        offset_value result{ins};
+        while(true)
+        {
+            auto root = result.root;
+            if(contains(view_ops(), root->name()))
+            {
+                result.views.push_back(root->get_operator());
+                result.root = root->inputs().front();
+                continue;
+            }
+            if(root->name() != "add")
+                return result;
+            auto lhs = root->inputs().front();
+            auto rhs = root->inputs().back();
+            if(auto c = get_uniform_integer(rhs))
+            {
+                result.offset += *c;
+                result.root = lhs;
+            }
+            else if(auto c2 = get_uniform_integer(lhs))
+            {
+                result.offset += *c2;
+                result.root = rhs;
+            }
+            else
+            {
+                return result;
+            }
+        }
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto kv_mask        = r.result;
+        auto window         = r.instructions["window"];
+        auto window_compare = r.instructions["window_compare"];
+        auto kv_compare     = r.instructions["kv_compare"];
+        auto total_sl       = r.instructions["total_sl"];
+
+        auto positions = kv_compare->inputs().front();
+        if(window_compare->inputs().back() != positions)
+            return;
+        auto bound = window_compare->inputs().front();
+        if(total_sl->get_shape().dynamic() or bound->get_shape() != total_sl->get_shape())
+            return;
+        // Already captured with the kv mask; reaches requires start before end
+        if(std::distance(m.begin(), total_sl) < std::distance(m.begin(), bound) and
+           reaches(total_sl, bound, &m))
+            return;
+        auto bound_value   = decompose(bound);
+        auto seq_len_value = decompose(total_sl);
+        if(bound_value.root != seq_len_value.root or bound_value.root->can_eval() or
+           bound_value.views != seq_len_value.views)
+            return;
+
+        auto offset = m.add_literal(literal{shape{total_sl->get_shape().type(), {1}},
+                                            {bound_value.offset - seq_len_value.offset}});
+        offset      = m.insert_instruction(
+            kv_mask,
+            make_op("multibroadcast", {{"out_lens", total_sl->get_shape().lens()}}),
+            offset);
+        auto new_bound = m.insert_instruction(kv_mask, make_op("add"), total_sl, offset);
+        auto cond =
+            m.insert_instruction(kv_mask, window_compare->get_operator(), new_bound, positions);
+        // Replay the views and convert between the compare and the window condition
+        std::vector<instruction_ref> cond_ops;
+        for(auto ins = window->inputs().front(); ins != window_compare; ins = ins->inputs().front())
+            cond_ops.push_back(ins);
+        cond =
+            std::accumulate(cond_ops.rbegin(), cond_ops.rend(), cond, [&](auto input, auto op_ins) {
+                return m.insert_instruction(kv_mask, op_ins->get_operator(), input);
+            });
+        auto new_window = m.insert_instruction(
+            kv_mask, window->get_operator(), cond, window->inputs().at(1), window->inputs().at(2));
+        m.replace_instruction(window, new_window);
+    }
+};
+
 struct find_kv_cache_attention
 {
     std::size_t* counter;
@@ -1463,6 +1592,8 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
 
     // Fuse kv-cache attention by default
+    match::find_matches(mpm.get_module(), find_kv_cache_window{});
+    mpm.run_pass(dead_code_elimination{});
     match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
     mpm.get_module().sort();
     mpm.run_pass(dead_code_elimination{});

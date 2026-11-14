@@ -3019,6 +3019,146 @@ TEST_CASE(reduce_reshape_transpose_pointwise)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// A reduce output reaches the epilogue input of a second reduce, which is in
+// the reduced shape, through a chain that merges its unit axes into one of the
+// reduced axes. The full-size inputs of the second reduce cant be rebased onto
+// those merged axes, so the two reduces are left apart instead of being
+// rebuilt with reduce axes past the rank of their inputs.
+TEST_CASE(reduce_reshape_transpose_reduce_epilogue)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 1, 256, 1, 1, 1, 1}};
+    migraphx::shape hs{migraphx::shape::float_type, {1, 1, 2560, 256, 1}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", xs);
+        auto w    = mm->add_parameter("w", xs);
+        auto h    = mm->add_parameter("h", hs);
+        auto g    = mm->add_parameter("g", hs);
+        auto norm = add_reduce(
+            p1,
+            "main:reduce_sum0:main:pointwise0",
+            {a, w},
+            {2, 3, 4, 5, 6},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rs  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                               inputs[0]);
+                auto rsb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", xs.lens()}}), rs);
+                return add_pointwise(
+                    p1, rm, "main:pointwise0", {inputs[0], rsb, inputs[1]}, [](auto* pm, auto xx) {
+                        auto m1 = pm->add_instruction(migraphx::make_op("mul"), xx[0], xx[1]);
+                        return pm->add_instruction(migraphx::make_op("mul"), m1, xx[2]);
+                    });
+            });
+        auto rsh =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 256, 1, 1}}}), norm);
+        auto tr = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 4, 2, 3}}}), rsh);
+        auto gate = add_reduce(
+            p1,
+            "main:pointwise1:main:reduce_sum1:main:pointwise2",
+            {h, g, tr},
+            {2, 4},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto mul = add_pointwise(
+                    p1, rm, "main:pointwise1", {inputs[0], inputs[1]}, single_pointwise("mul"));
+                auto rs =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+                return add_pointwise(
+                    p1, rm, "main:pointwise2", {rs, inputs[2]}, single_pointwise("mul"));
+            });
+        mm->add_return({gate});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto a    = mm->add_parameter("a", xs);
+        auto w    = mm->add_parameter("w", xs);
+        auto h    = mm->add_parameter("h", hs);
+        auto g    = mm->add_parameter("g", hs);
+        auto norm = add_reduce(
+            p2,
+            "main:reduce_sum0:main:pointwise0",
+            {a, w},
+            {2, 3, 4, 5, 6},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rs  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                               inputs[0]);
+                auto rsb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", xs.lens()}}), rs);
+                return add_pointwise(
+                    p2, rm, "main:pointwise0", {inputs[0], rsb, inputs[1]}, [](auto* pm, auto xx) {
+                        auto m1 = pm->add_instruction(migraphx::make_op("mul"), xx[0], xx[1]);
+                        return pm->add_instruction(migraphx::make_op("mul"), m1, xx[2]);
+                    });
+            });
+        auto tr = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 4, 5, 6, 2, 3}}}), norm);
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2, 3}}}), tr);
+        auto gate = add_reduce(
+            p2,
+            "main:pointwise1:main:reduce_sum1:main:pointwise2",
+            {h, g, sq},
+            {2, 4},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto mul = add_pointwise(
+                    p2, rm, "main:pointwise1", {inputs[0], inputs[1]}, single_pointwise("mul"));
+                auto rs =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+                return add_pointwise(
+                    p2, rm, "main:pointwise2", {rs, inputs[2]}, single_pointwise("mul"));
+            });
+        mm->add_return({gate});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The unsqueeze puts unit axes next to the axis the first reduce reduces, which
+// splits that axis across several common axes. The input of the first reduce
+// cant be rebased onto them with its full length, so the reduces stay as they are.
+TEST_CASE(reduce_unsqueeze_transpose_reduce_split_reduced_axis)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 1, 4, 8}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", as);
+        auto sum = add_reduce(
+            p1,
+            "main:reduce_sum0:main:pointwise0",
+            {a},
+            {3},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rs = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                              inputs[0]);
+                return add_pointwise(p1, rm, "main:pointwise0", {rs}, single_pointwise("sqrt"));
+            });
+        auto unsq = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {4, 5}}}), sum);
+        auto tr   = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 4, 5, 1, 2, 3}}}), unsq);
+        auto norm = add_reduce(
+            p1,
+            "main:reduce_sum1:main:pointwise1",
+            {tr},
+            {1, 2, 4, 5},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rs  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                               inputs[0]);
+                auto rsb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 1, 1, 4, 1}}}), rs);
+                return add_pointwise(
+                    p1, rm, "main:pointwise1", {inputs[0], rsb}, single_pointwise("div"));
+            });
+        mm->add_return({norm});
+    }
+    auto p2 = p1;
+    run_pass(p1);
+    EXPECT(p1.sort() == p2.sort());
+}
+
 // Same with a packed input: the unpack axis is a reduced axis, so it moves
 // with the reduced axes and the packed bytes take the same reshape
 TEST_CASE(unpack_reduce_reshape_transpose_pointwise)

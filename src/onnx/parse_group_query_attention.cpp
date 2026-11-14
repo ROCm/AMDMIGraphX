@@ -181,6 +181,11 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         const std::size_t sequence_length = q_lens[1];
         std::size_t q_hidden_size         = q_lens[2];
         std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);
+        // The contrib op spec shapes seqlens_k (batch_size); (batch_size, 1) is also accepted
+        if(args.at(5)->get_shape().elements() != batch_size)
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: seqlens_k must have one element per batch");
+        }
 
         std::vector<std::size_t> bsnh{
             batch_size, sequence_length, num_heads + 2 * kv_num_heads, head_size};
@@ -231,8 +236,13 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         auto kv_num_heads_factor = num_heads / kv_num_heads;
         auto max_seq_len         = k->get_shape().lens()[2];
-        auto past_sl             = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
+        // A multibroadcast aligns trailing axes, which would put a (batch_size) seqlens_k on
+        // the heads axis, so move the batch to axis 0 first
+        auto batch_slk = slk;
+        if(slk->get_shape().lens() != std::vector<std::size_t>{batch_size, 1})
+            batch_slk = info.add_instruction(make_op("reshape", {{"dims", {batch_size, 1}}}), slk);
+        auto past_sl = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), batch_slk);
 
         if(kv_num_heads_factor != 1)
         {
@@ -309,7 +319,14 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             window_mask = info.add_instruction(
                 migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
                 window_mask);
-            mul = info.add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
+            // Every row keeps its own key, so a finite fill leaves the softmax unchanged.
+            // With -inf here the fused MLIR attention returns NaN once the window starts
+            // past the first block of keys (prefill or decode beyond the window).
+            instruction_ref lowest;
+            scalar_s.visit_type(
+                [&](auto as) { lowest = info.add_literal(literal{scalar_s, {as.min()}}); });
+            lowest = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), lowest);
+            mul    = info.add_instruction(migraphx::make_op("where"), window_mask, lowest, mul);
         }
         auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);

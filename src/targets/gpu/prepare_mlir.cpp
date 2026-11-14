@@ -33,6 +33,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
 #include <algorithm>
+#include <functional>
 #include <numeric>
 #include <optional>
 #include <unordered_set>
@@ -141,6 +142,21 @@ struct find_kv_cache_mask_seq_len
         return match::name("where")(match::arg(0)(cond));
     }
 
+    // Whether the ops from the compare up to the where condition still apply
+    // once the compare produces the full mask shape
+    static bool
+    accepts_mask_shape(instruction_ref cond, instruction_ref compare, const shape& mask_shape)
+    {
+        for(auto ins = cond; ins != compare; ins = ins->inputs().front())
+        {
+            if(ins->name() == "convert")
+                continue;
+            if(ins->name() != "multibroadcast" or ins->get_shape().lens() != mask_shape.lens())
+                return false;
+        }
+        return true;
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto where_ins = r.result;
@@ -165,12 +181,16 @@ struct find_kv_cache_mask_seq_len
             if(ins->get_shape().lens() == lead_lens)
                 return;
         }
-        // Only handle the column indices as a single broadcast since rocMLIR
-        // only unwraps one broadcast to find the constant range
-        auto col_bcast = greater->inputs().front();
-        if(col_bcast->name() != "multibroadcast")
+        // The compare is rebuilt with the column indices behind a single
+        // broadcast, since rocMLIR only unwraps one broadcast to find the
+        // constant range. Simplification can also leave the compare on the
+        // unbroadcast columns with the broadcast applied to its result.
+        auto col_ins = greater->inputs().front();
+        if(col_ins->name() == "multibroadcast")
+            col_ins = col_ins->inputs().front();
+        if(greater->get_shape().lens() != mask_lens and
+           not accepts_mask_shape(where_ins->inputs().front(), greater, where_ins->get_shape()))
             return;
-        auto col_ins         = col_bcast->inputs().front();
         const auto& col_lens = col_ins->get_shape().lens();
         if(col_lens.size() > mask_lens.size())
             return;
@@ -193,6 +213,71 @@ struct find_kv_cache_mask_seq_len
         auto new_greater =
             m.insert_instruction(greater, greater->get_operator(), {new_col, new_seq_len});
         m.replace_instruction(greater, new_greater);
+    }
+};
+
+// rocMLIR folds a sliding window over the kv-cache mask into the key loop bounds, but
+// rejects the whole mask fold when the look-back exceeds the key length, and the sequence
+// length shared by both compares then fails to compile ("non-linear transform chain").
+// The kv-cache sequence length is at most the key length, so such a window masks nothing.
+struct find_kv_cache_full_window
+{
+    static const std::unordered_set<std::string>& view_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "multibroadcast", "broadcast", "reshape", "unsqueeze", "squeeze"};
+        return names;
+    }
+
+    static instruction_ref skip_views(instruction_ref ins)
+    {
+        while(contains(view_ops(), ins->name()))
+            ins = ins->inputs().front();
+        return ins;
+    }
+
+    auto matcher() const
+    {
+        auto views   = match::name(view_ops());
+        auto seq_len = match::skip(views)(match::name("@param").bind("seq_len"));
+        auto bound   = match::skip(views)(match::name("add")(
+            match::either_arg(0, 1)(seq_len, match::is_constant().bind("offset"))));
+        auto compare = match::name("greater")(match::arg(0)(bound),
+                                              match::arg(1)(match::is_constant().bind("keys")));
+        auto cond    = match::skip(views, match::name("convert"))(compare);
+        return match::name("where")(match::arg(0)(cond));
+    }
+
+    static bool is_kv_mask_compare(instruction_ref ins, instruction_ref seq_len)
+    {
+        return ins->name() == "greater" and ins->inputs().front()->can_eval() and
+               skip_views(ins->inputs().back()) == seq_len;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto where_ins = r.result;
+        auto seq_len   = r.instructions["seq_len"];
+        if(where_ins->get_shape().dynamic() or not shape::is_integral(seq_len->get_shape().type()))
+            return;
+        auto offsets = r.instructions["offset"]->eval().to_vector<std::int64_t>();
+        if(offsets.empty() or
+           std::adjacent_find(offsets.begin(), offsets.end(), std::not_equal_to<>{}) !=
+               offsets.end())
+            return;
+        auto keys = r.instructions["keys"]->eval().to_vector<std::int64_t>();
+        if(keys.empty())
+            return;
+        // Key k is masked when seq_len + offset > k, with seq_len <= key_len
+        std::int64_t key_len = where_ins->get_shape().lens().back();
+        if(*std::min_element(keys.begin(), keys.end()) < key_len + offsets.front())
+            return;
+        auto mod_range = iterator_for(m);
+        if(std::none_of(mod_range.begin(), mod_range.end(), [&](instruction_ref ins) {
+               return is_kv_mask_compare(ins, seq_len);
+           }))
+            return;
+        m.replace_instruction(where_ins, where_ins->inputs().at(2));
     }
 };
 
@@ -337,7 +422,11 @@ struct find_nonstandard_literal
 
 void prepare_mlir::apply(module& m) const
 {
-    match::find_matches(m, find_reduce{}, find_leaky_relu{}, find_kv_cache_mask_seq_len{});
+    match::find_matches(m,
+                        find_reduce{},
+                        find_leaky_relu{},
+                        find_kv_cache_full_window{},
+                        find_kv_cache_mask_seq_len{});
     // Matches the same where as find_kv_cache_mask_seq_len, so it needs its own pass
     match::find_matches(m, find_kv_cache_plain_q{});
     match::find_matches(m, find_where{}, find_nonstandard_literal{}, find_unpack_int4_reshape{});

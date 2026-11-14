@@ -43,3 +43,10 @@ TEST_CASE(group_query_attention_kv_num_heads_test)
 {
     EXPECT(test::throws([&] { read_onnx("group_query_attention_kv_num_heads_test.onnx"); }));
 }
+
+TEST_CASE(group_query_attention_seqlens_k_size_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { read_onnx("group_query_attention_seqlens_k_size_test.onnx"); },
+        "seqlens_k must have one element per batch"));
+}

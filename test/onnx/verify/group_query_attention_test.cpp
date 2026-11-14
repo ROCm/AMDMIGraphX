@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/bf16.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/verify.hpp>
@@ -171,6 +172,81 @@ TEST_CASE(group_query_attention_decode_local_test)
                                                          migraphx::verify::expected{gold_k}));
     EXPECT(migraphx::verify::verify_range_with_tolerance(pres_val_vector,
                                                          migraphx::verify::expected{gold_v}));
+}
+
+// seqlens_k in the (batch_size) shape of the contrib op spec, with as many batches as heads:
+// each row must match that row decoded alone by group_query_attention_decode_local_test,
+// whose output is checked against onnxruntime above
+TEST_CASE(group_query_attention_decode_local_batch_test)
+{
+    auto p = read_onnx("group_query_attention_decode_local_batch_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+    auto p_row = read_onnx("group_query_attention_decode_local_test.onnx");
+    p_row.compile(migraphx::make_target("ref"));
+
+    migraphx::shape qkv_shape{migraphx::shape::half_type, {2, 1, 96}};
+    migraphx::shape past_shape{migraphx::shape::half_type, {2, 2, 10, 16}};
+    migraphx::shape slk_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape key_value_shape{migraphx::shape::float_type, {1}};
+    // With the window of 4 the rows attend to keys 4-8 and 0-3
+    std::vector<int> slk_data = {8, 3};
+    auto qkv                  = migraphx::generate_literal(qkv_shape, 1);
+    auto past_k               = migraphx::generate_literal(past_shape, 2);
+    auto past_v               = migraphx::generate_literal(past_shape, 3);
+    migraphx::literal seqlens_k{slk_shape, slk_data};
+    migraphx::literal key_value{key_value_shape, {0}};
+
+    migraphx::parameter_map pp;
+    pp["qkv"]                   = qkv.get_argument();
+    pp["key"]                   = key_value.get_argument();
+    pp["value"]                 = key_value.get_argument();
+    pp["past_key_values_key"]   = past_k.get_argument();
+    pp["past_key_values_value"] = past_v.get_argument();
+    pp["seqlens_k"]             = seqlens_k.get_argument();
+    auto outputs                = p.eval(pp);
+
+    migraphx::shape row_qkv_shape{migraphx::shape::half_type, {1, 1, 96}};
+    migraphx::shape row_past_shape{migraphx::shape::half_type, {1, 2, 10, 16}};
+    migraphx::shape row_slk_shape{migraphx::shape::int32_type, {1, 1}};
+    const std::ptrdiff_t qkv_n  = row_qkv_shape.elements();
+    const std::ptrdiff_t past_n = row_past_shape.elements();
+    auto qkv_data               = qkv.to_vector<float>();
+    auto past_k_data            = past_k.to_vector<float>();
+    auto past_v_data            = past_v.to_vector<float>();
+    for(std::ptrdiff_t row = 0; row < 2; ++row)
+    {
+        migraphx::literal row_qkv{row_qkv_shape,
+                                  std::vector<float>(qkv_data.begin() + row * qkv_n,
+                                                     qkv_data.begin() + (row + 1) * qkv_n)};
+        migraphx::literal row_past_k{row_past_shape,
+                                     std::vector<float>(past_k_data.begin() + row * past_n,
+                                                        past_k_data.begin() + (row + 1) * past_n)};
+        migraphx::literal row_past_v{row_past_shape,
+                                     std::vector<float>(past_v_data.begin() + row * past_n,
+                                                        past_v_data.begin() + (row + 1) * past_n)};
+        migraphx::literal row_seqlens_k{row_slk_shape, {slk_data.at(row)}};
+
+        migraphx::parameter_map row_pp;
+        row_pp["qkv"]                   = row_qkv.get_argument();
+        row_pp["key"]                   = key_value.get_argument();
+        row_pp["value"]                 = key_value.get_argument();
+        row_pp["past_key_values_key"]   = row_past_k.get_argument();
+        row_pp["past_key_values_value"] = row_past_v.get_argument();
+        row_pp["seqlens_k"]             = row_seqlens_k.get_argument();
+        auto row_outputs                = p_row.eval(row_pp);
+
+        // output, present_key and present_value
+        for(std::size_t i = 0; i < outputs.size(); ++i)
+        {
+            auto batch_values      = outputs.at(i).to_vector<float>();
+            auto row_values        = row_outputs.at(i).to_vector<float>();
+            const std::ptrdiff_t n = row_values.size();
+            std::vector<float> batch_row(batch_values.begin() + row * n,
+                                         batch_values.begin() + (row + 1) * n);
+            EXPECT(migraphx::verify::verify_range_with_tolerance(
+                batch_row, migraphx::verify::expected{row_values}));
+        }
+    }
 }
 
 TEST_CASE(group_query_attention_prefill_local_test)

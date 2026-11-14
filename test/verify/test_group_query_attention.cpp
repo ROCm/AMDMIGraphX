@@ -224,7 +224,11 @@ static migraphx::program create_gqa_program(const size_t batch_size,
         window_mask      = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
             window_mask);
-        mul = mm->add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
+        auto lowest = mm->add_literal(
+            migraphx::literal{scalar_s, {std::numeric_limits<migraphx::half>::lowest()}});
+        lowest =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), lowest);
+        mul = mm->add_instruction(migraphx::make_op("where"), window_mask, lowest, mul);
     }
 
     auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, mask_comp);
@@ -436,6 +440,69 @@ struct test_group_query_attention_decode_local
                                   /* test_rotary=          */ false,
                                   /* test_concat=          */ false,
                                   /* local_window_size=    */ 2);
+    }
+};
+
+// The window is much shorter than the kv cache, so fused attention sees blocks of keys that
+// are entirely before the window
+struct test_group_query_attention_prefill_local_long
+    : verify_program<test_group_query_attention_prefill_local_long>
+{
+    migraphx::program create_program() const
+    {
+        return create_gqa_program(/* batch_size=           */ 1,
+                                  /* num_heads=            */ 4,
+                                  /* kv_num_heads=         */ 2,
+                                  /* sequence_length=      */ 128,
+                                  /* head_size=            */ 64,
+                                  /* past_sequence_length= */ 128,
+                                  /* max_sequence_length=  */ 192,
+                                  /* do_rotary=            */ true,
+                                  /* scale=                */ 0.125,
+                                  /* test_rotary=          */ false,
+                                  /* test_concat=          */ false,
+                                  /* local_window_size=    */ 16);
+    }
+};
+
+struct test_group_query_attention_decode_local_long
+    : verify_program<test_group_query_attention_decode_local_long>
+{
+    migraphx::program create_program() const
+    {
+        return create_gqa_program(/* batch_size=           */ 1,
+                                  /* num_heads=            */ 4,
+                                  /* kv_num_heads=         */ 2,
+                                  /* sequence_length=      */ 1,
+                                  /* head_size=            */ 64,
+                                  /* past_sequence_length= */ 180,
+                                  /* max_sequence_length=  */ 192,
+                                  /* do_rotary=            */ true,
+                                  /* scale=                */ 0.125,
+                                  /* test_rotary=          */ false,
+                                  /* test_concat=          */ false,
+                                  /* local_window_size=    */ 16);
+    }
+};
+
+// The window and kv masks share one sequence length per batch in the fused attention
+struct test_group_query_attention_decode_local_batched
+    : verify_program<test_group_query_attention_decode_local_batched>
+{
+    migraphx::program create_program() const
+    {
+        return create_gqa_program(/* batch_size=           */ 2,
+                                  /* num_heads=            */ 4,
+                                  /* kv_num_heads=         */ 2,
+                                  /* sequence_length=      */ 1,
+                                  /* head_size=            */ 64,
+                                  /* past_sequence_length= */ 180,
+                                  /* max_sequence_length=  */ 192,
+                                  /* do_rotary=            */ true,
+                                  /* scale=                */ 0.125,
+                                  /* test_rotary=          */ false,
+                                  /* test_concat=          */ false,
+                                  /* local_window_size=    */ 16);
     }
 };
 

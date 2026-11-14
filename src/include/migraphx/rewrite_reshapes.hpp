@@ -256,7 +256,17 @@ struct rewrite_reshapes
         bool supported() const
         {
             // cppcheck-suppress knownConditionTrueFalse
-            return supports(ins, cdims, axes_map);
+            if(not supports(ins, cdims, axes_map))
+                return false;
+            // apply rebases every other input onto the common dims. A chain
+            // ending at a reduce input in the reduced shape can split a reduced
+            // axis across several common axes, which a full-size input cant be
+            // rebased onto
+            auto to_common = desc.to_common_from_dst();
+            return all_of(ins->inputs(), [&](instruction_ref input) {
+                return input == input_ins or
+                       not to_common.rebase(input->get_shape().lens()).empty();
+            });
         }
 
         /// Replace ins by its rebuild reading new_x_ins in place of the chain.
@@ -457,9 +467,18 @@ struct rewrite_reshapes
             if(not cr.supported())
                 return;
 
-            auto& m            = mpm.get_module();
+            // The inputs of x are moved into the common dims as well. An axis
+            // reduced by x and split across several common axes (eg next to
+            // the unit axes of an unsqueeze) cant be rebased onto its full
+            // length in the inputs
             auto to_common_src = cr.desc.to_common_from_src();
-            auto x_inputs      = x_ins->inputs();
+            if(not all_of(x_ins->inputs(), [&](instruction_ref input) {
+                   return not to_common_src.rebase(input->get_shape().lens()).empty();
+               }))
+                return;
+
+            auto& m       = mpm.get_module();
+            auto x_inputs = x_ins->inputs();
             std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
                 return insert_transforms(m, x_ins, to_common_src, input);
             });

@@ -132,6 +132,7 @@ struct miopen_apply
         add_dyn_slice_op();
         add_dimensions_of_op();
         add_eval_expr_from_shape_op();
+        add_dynamic_range_op();
     }
 
     void copy_params() const
@@ -780,6 +781,32 @@ struct miopen_apply
             auto sync_input =
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), ins->inputs().front());
             auto host_out = mod->insert_instruction(ins, ins->get_operator(), sync_input);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
+            return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
+    // dynamic_range has no GPU kernel, so it runs on the host from its inputs copied back from
+    // the GPU. A bounded length allocates the output for its bound, outside of the operator, and
+    // the result is copied into it. An unbounded length cannot be allocated, so it is left as is.
+    void add_dynamic_range_op()
+    {
+        apply_map.emplace("dynamic_range", [=](instruction_ref ins) {
+            if(not ins->get_shape().symbolic())
+                return ins;
+            auto output = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> cpu_inputs;
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(cpu_inputs),
+                           [&](auto in) {
+                               return mod->insert_instruction(
+                                   ins, make_op("hip::copy_from_gpu"), in);
+                           });
+            cpu_inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+            auto host_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
             return mod->replace_instruction(ins, gpu_out);

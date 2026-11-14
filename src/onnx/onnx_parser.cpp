@@ -894,6 +894,12 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
         if(num_data_fields > 2) // if nbytes field is present
         {
             nbytes = parse_external_size(t.external_data().at(2).value(), "length");
+            // A length of 0 means the whole file, not a literal read of zero bytes.
+            // ONNX Runtime stores a missing length as 0 (ExternalDataInfo::length_),
+            // and the plugin EP copies that 0 into the proto. The tensor's own size
+            // is the number of bytes to read.
+            if(nbytes == 0)
+                nbytes = tensor_shape.bytes();
         }
         if(nbytes != tensor_shape.bytes())
             MIGRAPHX_THROW("PARSE_TENSOR: external data length " + std::to_string(nbytes) + " of " +

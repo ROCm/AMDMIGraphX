@@ -90,7 +90,11 @@ struct gpu_loop
             auto loc               = name.find(out_prefix);
             if(loc != std::string::npos)
             {
-                return std::stoi(name.substr(loc + out_prefix.size()));
+                // param_name writes the index from 10 on as ":00010", with a colon
+                auto index = name.substr(loc + out_prefix.size());
+                if(not index.empty() and index.front() == ':')
+                    index.erase(0, 1);
+                return std::stoi(index);
             }
 
             return -1;

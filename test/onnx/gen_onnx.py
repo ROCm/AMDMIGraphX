@@ -14815,6 +14815,45 @@ def range_bounded_limit_test():
 
 
 @onnx_test()
+def range_bounded_limit_arith_test():
+    # The limit is computed from a count of the elements of x above 0.5, at most 8, through the ops
+    # whose value ranges are inferred: max(min((count + 1) * 2 - 1, 20), 3) is at most 17, and a
+    # where with 5, a cast to float and back keep that bound
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('y', TensorProto.INT64, ['M'])
+
+    half = helper.make_tensor('half', TensorProto.FLOAT, [], [0.5])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    start = helper.make_tensor('start', TensorProto.INT64, [], [0])
+    one = helper.make_tensor('one', TensorProto.INT64, [], [1])
+    two = helper.make_tensor('two', TensorProto.INT64, [], [2])
+    three = helper.make_tensor('three', TensorProto.INT64, [], [3])
+    five = helper.make_tensor('five', TensorProto.INT64, [], [5])
+    twenty = helper.make_tensor('twenty', TensorProto.INT64, [], [20])
+
+    nodes = [
+        helper.make_node('Greater', ['x', 'half'], ['above']),
+        helper.make_node('Cast', ['above'], ['above_int'],
+                         to=TensorProto.INT64),
+        helper.make_node('ReduceSum', ['above_int', 'axes'], ['count'],
+                         keepdims=0),
+        helper.make_node('Add', ['count', 'one'], ['a']),
+        helper.make_node('Mul', ['a', 'two'], ['b']),
+        helper.make_node('Sub', ['b', 'one'], ['c']),
+        helper.make_node('Min', ['c', 'twenty'], ['d']),
+        helper.make_node('Max', ['d', 'three'], ['e']),
+        helper.make_node('Less', ['e', 'twenty'], ['cond']),
+        helper.make_node('Where', ['cond', 'e', 'five'], ['f']),
+        helper.make_node('Cast', ['f'], ['f_float'], to=TensorProto.FLOAT),
+        helper.make_node('Cast', ['f_float'], ['limit'], to=TensorProto.INT64),
+        helper.make_node('Range', ['start', 'limit', 'one'], ['y']),
+    ]
+
+    return (nodes, [x], [out],
+            [half, axes, start, one, two, three, five, twenty])
+
+
+@onnx_test()
 def range_test():
 
     start_val = np.array([10])

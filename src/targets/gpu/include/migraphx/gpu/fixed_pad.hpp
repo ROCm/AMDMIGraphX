@@ -48,9 +48,11 @@ struct hip_fixed_pad
     std::string name() const { return "gpu::fixed_pad"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
+    // The result is always written to the output buffer, so it is the only alias: an output
+    // that aliased the input too would need two output buffers when it is returned
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return {0, shapes.size() - 1};
+        return {shapes.size() - 1};
     }
 };
 

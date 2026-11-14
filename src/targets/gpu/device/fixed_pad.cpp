@@ -97,9 +97,6 @@ static bool can_use_standard_pad(const shape& output_shape, const shape& input_s
 
 argument fixed_pad(hipStream_t stream, const argument& result, const argument& arg, float value)
 {
-    if(result.get_shape() == arg.get_shape())
-        return arg;
-
     if(can_use_standard_pad(result.get_shape(), arg.get_shape()))
         return fixed_pad_standard_impl(stream, result, arg, value);
     return fixed_pad_base_impl(stream, result, arg, value);

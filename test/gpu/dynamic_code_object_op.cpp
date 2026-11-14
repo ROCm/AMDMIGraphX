@@ -31,6 +31,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/sym.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
 
@@ -116,6 +117,87 @@ TEST_CASE(dynamic_code_object_multiple_outputs)
                std::vector<float>{4.0f, 3.0f, 2.0f, 1.0f, 0.0f, 1.0f, 2.0f, 3.0f, 4.0f});
         EXPECT(negated_result ==
                std::vector<float>{-4.0f, -3.0f, -2.0f, -1.0f, 0.0f, -1.0f, -2.0f, -3.0f, -4.0f});
+    }
+}
+
+TEST_CASE(dynamic_code_object_concat_empty_input)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 1, 1}});
+    auto y   = mm->add_parameter(
+        "y", migraphx::shape{migraphx::shape::float_type, {{4, 4}, {0, 1}, {1, 1}}});
+    auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+    mm->add_return({concat});
+
+    auto target = migraphx::make_target("gpu");
+    migraphx::compile_options options;
+    options.backend_options["disable_range_based_splitting"] = true;
+    p.compile(target, options);
+    EXPECT(migraphx::any_of(migraphx::iterator_for(*p.get_main_module()),
+                            [](auto ins) { return ins->name() == "gpu::dynamic_code_object_op"; }));
+
+    std::vector<float> x_data = {1.0f, 2.0f, 3.0f, 4.0f};
+    migraphx::parameter_map params;
+    params["x"] = target.copy_to(
+        migraphx::argument{migraphx::shape{migraphx::shape::float_type, {4, 1, 1}}, x_data.data()});
+    params["y"] = target.allocate(migraphx::shape{migraphx::shape::float_type, {4, 0, 1}});
+    for(const auto& [name, s] : p.get_parameter_shapes())
+    {
+        if(params.count(name) == 0)
+            params[name] = target.allocate(s);
+    }
+
+    auto results = p.eval(params);
+    EXPECT(results.size() == 1);
+    if(results.size() == 1)
+    {
+        auto result = target.copy_from(results[0]);
+        EXPECT(result.get_shape().lens() == std::vector<std::size_t>{4, 1, 1});
+        EXPECT(result.to_vector<float>() == x_data);
+    }
+}
+
+// split_sym_dim does not specialize a concat along a symbolic axis, so it is compiled at run time
+// with the default options as well
+TEST_CASE(dynamic_code_object_concat_empty_symbolic_input)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 1, 1}});
+    std::vector<migraphx::shape::dynamic_dimension> y_dims = {
+        migraphx::shape::dynamic_dimension{lit(4)},
+        migraphx::shape::dynamic_dimension{var("M", {0, 1})},
+        migraphx::shape::dynamic_dimension{lit(1)}};
+    auto y      = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, y_dims});
+    auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+    mm->add_return({concat});
+
+    auto target = migraphx::make_target("gpu");
+    p.compile(target);
+    EXPECT(migraphx::any_of(migraphx::iterator_for(*p.get_main_module()),
+                            [](auto ins) { return ins->name() == "gpu::dynamic_code_object_op"; }));
+
+    std::vector<float> x_data = {1.0f, 2.0f, 3.0f, 4.0f};
+    migraphx::parameter_map params;
+    params["x"] = target.copy_to(
+        migraphx::argument{migraphx::shape{migraphx::shape::float_type, {4, 1, 1}}, x_data.data()});
+    params["y"] = target.allocate(migraphx::shape{migraphx::shape::float_type, {4, 0, 1}});
+    for(const auto& [name, s] : p.get_parameter_shapes())
+    {
+        if(params.count(name) == 0)
+            params[name] = target.allocate(s);
+    }
+
+    auto results = p.eval(params);
+    EXPECT(results.size() == 1);
+    if(results.size() == 1)
+    {
+        auto result = target.copy_from(results[0]);
+        EXPECT(result.get_shape().lens() == std::vector<std::size_t>{4, 1, 1});
+        EXPECT(result.to_vector<float>() == x_data);
     }
 }
 

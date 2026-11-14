@@ -118,6 +118,39 @@ TEST_CASE(eval_expr_from_shape_cross_input)
     EXPECT(values == std::vector<int64_t>{12, 5, 7});
 }
 
+TEST_CASE(eval_expr_from_compound_shape_cross_input)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    auto m = var("M", {1, 16});
+    auto n = var("N", {1, 16});
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto a = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {dd{m + lit(1)}}});
+    auto b = mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {dd{n * lit(2)}}});
+    auto expression = migraphx::sym::min(var("M") + lit(1), var("N") * lit(2));
+    mm->add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::value::array{migraphx::to_value(expression)}}}),
+        a,
+        b);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape a_shape{migraphx::shape::float_type, {5}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {6}};
+    std::vector<float> a_data(a_shape.elements());
+    std::vector<float> b_data(b_shape.elements());
+    auto result = p.eval({{"a", migraphx::argument{a_shape, a_data.data()}},
+                          {"b", migraphx::argument{b_shape, b_data.data()}}})
+                      .back();
+
+    EXPECT(result.at<int64_t>() == 5);
+}
+
 TEST_CASE(eval_expr_from_compound_shape)
 {
     using dd = migraphx::shape::dynamic_dimension;

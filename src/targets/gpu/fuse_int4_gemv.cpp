@@ -391,7 +391,8 @@ struct find_int4_gemv_op
                 if(enabled(MIGRAPHX_INT4_GEMV_TRACE{}))
                     std::cout << "[int4_gemv] folded zp unpack_int4 -> literal "
                               << folded.get_shape() << std::endl;
-                info.zp = mpm.get_module().add_literal(literal{folded.get_shape(), folded.data()});
+                info.zp = mpm.get_module().add_literal(
+                    literal::from_raw_buffer(folded.get_shape(), folded.data()));
             }
         }
 

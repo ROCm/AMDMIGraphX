@@ -35,7 +35,6 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/serialize.hpp>
-#include <migraphx/tune_axis.hpp>
 #include <algorithm>
 #include <cassert>
 #include <functional>
@@ -123,7 +122,7 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
     // The output function: each arg of the pointwise operator reads a column
     // of the group or the next other input. Without a submodule it returns
     // the one column.
-    static std::string output_function(const module* m,
+    static std::string output_function(const_module_ref m,
                                        const std::vector<optional<std::size_t>>& args)
     {
         if(m == nullptr)
@@ -140,129 +139,6 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
                        });
         return gen::generate_pointwise(*m, "gather_dot_output_impl") +
                output_returning(n, "gather_dot_output_impl(" + join_strings(call_args, ", ") + ")");
-    }
-
-    // What the kernel needs from the weights submodule
-    struct weights_plan
-    {
-        // the weight tensors that store two int4 elements per byte
-        std::vector<std::size_t> packed = {};
-        // the axis they are unpacked along
-        std::size_t unpack_axis = 0;
-        // the pointwise submodule computing an element of the matrices
-        const module* function = nullptr;
-    };
-
-    // The instruction a submodule returns
-    static instruction_ref result_of(const module& m)
-    {
-        const auto rets = m.get_returns();
-        if(rets.size() != 1)
-            MIGRAPHX_THROW("gpu::gather_dot: a submodule must return one result");
-        return rets.front();
-    }
-
-    // The weights submodule returns its parameter, which is the table, or
-    // a pointwise operator of its parameters in their order, of which some
-    // are read through an unpack_int4
-    static weights_plan read_weights(const module& m)
-    {
-        const auto names = m.get_parameter_names();
-        auto pw          = result_of(m);
-        if(pw->name() == "@param" and names.size() == 1)
-            return {};
-        if(pw->name() != "pointwise" or pw->inputs().size() != names.size())
-            MIGRAPHX_THROW("gpu::gather_dot: the weights submodule must return a pointwise "
-                           "operator of its parameters");
-        // the axis each parameter is unpacked along
-        std::vector<optional<std::size_t>> axes;
-        std::transform(names.begin(),
-                       names.end(),
-                       pw->inputs().begin(),
-                       std::back_inserter(axes),
-                       [&](const std::string& name, instruction_ref arg) -> optional<std::size_t> {
-                           auto param = m.get_parameter(name);
-                           if(arg == param)
-                               return nullopt;
-                           if(arg->name() != "unpack_int4" or arg->inputs().front() != param)
-                               MIGRAPHX_THROW("gpu::gather_dot: the weights submodule must read "
-                                              "its parameters in order");
-                           auto axis = arg->get_operator().to_value().at("axis").to<int>();
-                           return tune_axis(param->get_shape().ndim(), axis, arg->name());
-                       });
-        weights_plan result;
-        result.function = pw->module_inputs().front();
-        const auto is   = range(axes.size());
-        std::copy_if(is.begin(), is.end(), std::back_inserter(result.packed), [&](std::size_t i) {
-            return axes[i].has_value();
-        });
-        if(result.packed.empty())
-            return result;
-        result.unpack_axis = *axes[result.packed.front()];
-        if(std::any_of(result.packed.begin(), result.packed.end(), [&](std::size_t i) {
-               return *axes[i] != result.unpack_axis;
-           }))
-            MIGRAPHX_THROW("gpu::gather_dot: the weight tensors must be unpacked along one axis");
-        return result;
-    }
-
-    // What the kernel needs from the output submodule
-    struct output_plan
-    {
-        // the columns of a group
-        std::size_t group = 1;
-        // the column of the group each input of the pointwise operator
-        // reads, nothing for the next of the other inputs
-        std::vector<optional<std::size_t>> args = {};
-        // the number of other inputs
-        std::size_t others = 0;
-        // the pointwise submodule computing an element of the result
-        const module* function = nullptr;
-    };
-
-    // The output submodule returns a pointwise operator of columns of the
-    // sums, its first parameter, and of its other parameters in their order
-    static output_plan read_output(const module& m)
-    {
-        const auto names = m.get_parameter_names();
-        auto pw          = result_of(m);
-        if(pw->name() != "pointwise")
-            MIGRAPHX_THROW("gpu::gather_dot: the output submodule must return a pointwise "
-                           "operator of its parameters");
-        auto sums = m.get_parameter(names.front());
-        output_plan result;
-        result.function = pw->module_inputs().front();
-        std::vector<std::size_t> groups;
-        std::vector<instruction_ref> others;
-        std::transform(pw->inputs().begin(),
-                       pw->inputs().end(),
-                       std::back_inserter(result.args),
-                       [&](instruction_ref input) -> optional<std::size_t> {
-                           auto column = find_gather_dot_column(input);
-                           if(not column.has_value() or column->sums != sums)
-                           {
-                               others.push_back(input);
-                               return nullopt;
-                           }
-                           groups.push_back(column->group);
-                           return column->column;
-                       });
-        if(groups.empty() or
-           std::adjacent_find(groups.begin(), groups.end(), std::not_equal_to<>{}) != groups.end())
-            MIGRAPHX_THROW("gpu::gather_dot: the output submodule must read columns of the sums "
-                           "in groups of one size");
-        if(others.size() + 1 != names.size() or
-           not std::equal(others.begin(),
-                          others.end(),
-                          names.begin() + 1,
-                          [&](instruction_ref input, const std::string& name) {
-                              return input == m.get_parameter(name);
-                          }))
-            MIGRAPHX_THROW("gpu::gather_dot: the output submodule must read its other "
-                           "parameters in order");
-        result.group  = groups.front();
-        result.others = others.size();
-        return result;
     }
 
     static std::size_t product(const std::vector<std::size_t>& lens, std::size_t first)
@@ -298,8 +174,7 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = "gather_dot_kernel";
-        // the weight tensors follow the rows and the indices
-        constexpr std::size_t first_weight = 2;
+        constexpr auto first_weight = gather_dot_layout::first_weight;
         std::transform(packed.begin(),
                        packed.end(),
                        std::inserter(options.type_overrides, options.type_overrides.end()),
@@ -345,7 +220,7 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
         settings += constant("run_len", matrices.at(run_axis));
         settings += constant("run_loads", run_loads ? 1 : 0);
         settings += constant("weights", nweights);
-        settings += constant("bias", v.at("bias").to<std::size_t>());
+        settings += constant("bias", v.at("bias").to<bool>() ? 1 : 0);
         settings += constant("group", group);
         settings += constant("col_blocks", waves);
         settings += constant("k_chunk", std::min(k, chunk));
@@ -370,19 +245,17 @@ struct gather_dot_compiler : compiler<gather_dot_compiler>
     compiler_replace compile(context& ctx, instruction_ref ins, const operation&) const
     {
         // the weights submodule, then the output submodule if there is one
-        const auto& mods    = ins->module_inputs();
-        const auto inputs   = to_shapes(ins->inputs());
-        const auto weights  = read_weights(*mods.front());
-        const auto output   = mods.size() == 2 ? read_output(*mods.back()) : output_plan{};
-        const auto nweights = mods.front()->get_parameter_names().size();
-        // the rows, the indices and the output buffer
-        constexpr std::size_t fixed = 3;
-        // the input no submodule accounts for
-        const std::size_t bias = inputs.size() - fixed - nweights - output.others;
-        assert(bias <= 1);
+        const auto& mods   = ins->module_inputs();
+        const auto inputs  = to_shapes(ins->inputs());
+        const auto weights = read_gather_dot_weights(*mods.front());
+        const auto output =
+            mods.size() == 2 ? read_gather_dot_output(*mods.back()) : gather_dot_output{};
+        // the output buffer follows the inputs
+        const auto layout = get_gather_dot_layout(inputs.size() - 1, mods);
+        assert(layout.size() + 1 == inputs.size());
         value v          = value::object{};
-        v["weights"]     = nweights;
-        v["bias"]        = bias;
+        v["weights"]     = layout.weights;
+        v["bias"]        = layout.bias;
         v["matrices"]    = to_value(mods.front()->get_output_shapes().front().lens());
         v["packed"]      = to_value(weights.packed);
         v["unpack_axis"] = weights.unpack_axis;

@@ -75,7 +75,6 @@ struct gather_dot
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
-        constexpr std::size_t first = 2;
         if(mods.empty() or mods.size() > 2)
             MIGRAPHX_THROW("gather_dot: expects the weights submodule, then the output submodule "
                            "if there is one");
@@ -83,28 +82,28 @@ struct gather_dot
         const auto onames = mods.back()->get_parameter_names();
         if(names.empty() or onames.empty())
             MIGRAPHX_THROW("gather_dot: a submodule has no parameters");
-        // the output submodule takes the sums, then its other inputs
-        const std::size_t others     = mods.size() == 2 ? onames.size() - 1 : 0;
-        const std::size_t first_bias = first + names.size();
-        if(inputs.size() < first_bias + others or inputs.size() > first_bias + others + 1)
+        const auto layout = get_gather_dot_layout(inputs.size(), mods);
+        if(inputs.size() != layout.size())
             MIGRAPHX_THROW("gather_dot: expects rows, indices, weights, bias and the other inputs "
                            "of the output submodule");
-        // the input no submodule accounts for
-        const bool bias               = inputs.size() > first_bias + others;
-        const std::size_t first_other = first_bias + (bias ? 1 : 0);
         if(std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); }))
             MIGRAPHX_THROW("gather_dot: dynamic shapes are not supported");
-        const auto& a       = inputs[0];
-        const auto& indices = inputs[1];
+        const auto& a       = inputs[gather_dot_layout::rows];
+        const auto& indices = inputs[gather_dot_layout::indices];
         if(a.ndim() < 2)
             MIGRAPHX_THROW("gather_dot: the rows must have the lens {rows, k axes...}");
         if(indices.ndim() != 1 or indices.lens().front() != a.lens().front())
             MIGRAPHX_THROW("gather_dot: expects one index per row");
-        if(not matches_parameters(
-               *mods.front(), names.begin(), names.end(), inputs.begin() + first))
+        if(not matches_parameters(*mods.front(),
+                                  names.begin(),
+                                  names.end(),
+                                  inputs.begin() + gather_dot_layout::first_weight))
             MIGRAPHX_THROW(
                 "gather_dot: the weight tensors must have the lens of the parameters of the "
                 "weights submodule");
+        // the kernel is generated from the submodules, so they must be ones
+        // it can read
+        read_gather_dot_weights(*mods.front());
         const auto tables = mods.front()->get_output_shapes();
         if(tables.size() != 1)
             MIGRAPHX_THROW("gather_dot: the weights submodule must return the table");
@@ -117,8 +116,8 @@ struct gather_dot
         lens.insert(lens.end(), matrices.begin() + a.ndim(), matrices.end());
         const auto n = std::accumulate(
             matrices.begin() + a.ndim(), matrices.end(), std::size_t{1}, std::multiplies<>{});
-        if(bias and (inputs[first_bias].type() != a.type() or
-                     inputs[first_bias].elements() != matrices.front() * n))
+        if(layout.bias and (inputs[layout.bias_index()].type() != a.type() or
+                            inputs[layout.bias_index()].elements() != matrices.front() * n))
             MIGRAPHX_THROW(
                 "gather_dot: the bias must have the type of the rows and n elements per entry");
         if(mods.size() == 1)
@@ -126,9 +125,10 @@ struct gather_dot
         const auto& output = *mods.back();
         if(output.get_parameter_shapes().at(onames.front()).lens() != lens or
            not matches_parameters(
-               output, onames.begin() + 1, onames.end(), inputs.begin() + first_other))
+               output, onames.begin() + 1, onames.end(), inputs.begin() + layout.first_other()))
             MIGRAPHX_THROW("gather_dot: the output submodule must take the sums, then inputs "
                            "with the lens of its other parameters");
+        read_gather_dot_output(output);
         const auto results = output.get_output_shapes();
         if(results.size() != 1)
             MIGRAPHX_THROW("gather_dot: the output submodule must return one result");
@@ -180,6 +180,115 @@ optional<gather_dot_column> find_gather_dot_column(instruction_ref ins)
     if(not sums.has_value())
         return nullopt;
     return gather_dot_column{*sums, view, slice, starts.front(), vs.lens().back()};
+}
+
+gather_dot_layout get_gather_dot_layout(std::size_t ninputs, const std::vector<module_ref>& mods)
+{
+    assert(not mods.empty());
+    gather_dot_layout result;
+    result.weights = mods.front()->get_parameter_names().size();
+    // the output submodule takes the sums, then its other inputs
+    if(mods.size() > 1)
+    {
+        const auto nparams = mods.back()->get_parameter_names().size();
+        assert(nparams > 0);
+        result.others = nparams - 1;
+    }
+    // the input no submodule accounts for
+    result.bias = ninputs > result.size();
+    return result;
+}
+
+// The instruction a submodule returns
+static instruction_ref result_of(const module& m)
+{
+    const auto rets = m.get_returns();
+    if(rets.size() != 1)
+        MIGRAPHX_THROW("gpu::gather_dot: a submodule must return one result");
+    return rets.front();
+}
+
+gather_dot_weights read_gather_dot_weights(const module& m)
+{
+    const auto names = m.get_parameter_names();
+    auto pw          = result_of(m);
+    if(pw->name() == "@param" and names.size() == 1)
+        return {};
+    if(pw->name() != "pointwise" or pw->inputs().size() != names.size())
+        MIGRAPHX_THROW("gpu::gather_dot: the weights submodule must return a pointwise "
+                       "operator of its parameters");
+    // the axis each parameter is unpacked along
+    std::vector<optional<std::size_t>> axes;
+    std::transform(names.begin(),
+                   names.end(),
+                   pw->inputs().begin(),
+                   std::back_inserter(axes),
+                   [&](const std::string& name, instruction_ref arg) -> optional<std::size_t> {
+                       auto param = m.get_parameter(name);
+                       if(arg == param)
+                           return nullopt;
+                       if(arg->name() != "unpack_int4" or arg->inputs().front() != param)
+                           MIGRAPHX_THROW("gpu::gather_dot: the weights submodule must read "
+                                          "its parameters in order");
+                       auto axis = arg->get_operator().to_value().at("axis").to<int>();
+                       return tune_axis(param->get_shape().ndim(), axis, arg->name());
+                   });
+    gather_dot_weights result;
+    result.function = pw->module_inputs().front();
+    const auto is   = range(axes.size());
+    std::copy_if(is.begin(), is.end(), std::back_inserter(result.packed), [&](std::size_t i) {
+        return axes[i].has_value();
+    });
+    if(result.packed.empty())
+        return result;
+    result.unpack_axis = *axes[result.packed.front()];
+    if(std::any_of(result.packed.begin(), result.packed.end(), [&](std::size_t i) {
+           return *axes[i] != result.unpack_axis;
+       }))
+        MIGRAPHX_THROW("gpu::gather_dot: the weight tensors must be unpacked along one axis");
+    return result;
+}
+
+gather_dot_output read_gather_dot_output(const module& m)
+{
+    const auto names = m.get_parameter_names();
+    auto pw          = result_of(m);
+    if(pw->name() != "pointwise")
+        MIGRAPHX_THROW("gpu::gather_dot: the output submodule must return a pointwise "
+                       "operator of its parameters");
+    auto sums = m.get_parameter(names.front());
+    gather_dot_output result;
+    result.function = pw->module_inputs().front();
+    std::vector<std::size_t> groups;
+    std::vector<instruction_ref> others;
+    std::transform(pw->inputs().begin(),
+                   pw->inputs().end(),
+                   std::back_inserter(result.args),
+                   [&](instruction_ref input) -> optional<std::size_t> {
+                       auto column = find_gather_dot_column(input);
+                       if(not column.has_value() or column->sums != sums)
+                       {
+                           others.push_back(input);
+                           return nullopt;
+                       }
+                       groups.push_back(column->group);
+                       return column->column;
+                   });
+    if(groups.empty() or
+       std::adjacent_find(groups.begin(), groups.end(), std::not_equal_to<>{}) != groups.end())
+        MIGRAPHX_THROW("gpu::gather_dot: the output submodule must read columns of the sums "
+                       "in groups of one size");
+    if(others.size() + 1 != names.size() or
+       not std::equal(others.begin(),
+                      others.end(),
+                      names.begin() + 1,
+                      [&](instruction_ref input, const std::string& name) {
+                          return input == m.get_parameter(name);
+                      }))
+        MIGRAPHX_THROW("gpu::gather_dot: the output submodule must read its other "
+                       "parameters in order");
+    result.group = groups.front();
+    return result;
 }
 
 namespace {
@@ -443,15 +552,16 @@ struct find_gather_dot_bias
             return;
         if(bs.dynamic() or bs.lens() != s.lens() or bs.type() != s.type())
             return;
-        auto entries = inputs.at(2)->get_shape().lens().front();
+        const auto layout = get_gather_dot_layout(inputs.size(), dot->module_inputs());
+        auto entries      = inputs.at(gather_dot_layout::first_weight)->get_shape().lens().front();
         // any number of rows per entry, as the rows are grouped already
-        table_lifter lifter{s.lens().front(), 0.0f, inputs.at(1), entries};
+        table_lifter lifter{s.lens().front(), 0.0f, inputs.at(gather_dot_layout::indices), entries};
         auto table = lifter.lift(m, ins, bias);
         if(not table.has_value())
             return;
         // the bias follows the table
         auto args = inputs;
-        args.push_back(*table);
+        args.insert(args.begin() + layout.bias_index(), *table);
         auto biased = m.insert_instruction(ins, dot->get_operator(), args, dot->module_inputs());
         m.replace_instruction(ins, sums->get_operator(), biased);
     }

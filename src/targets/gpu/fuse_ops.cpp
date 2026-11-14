@@ -1165,7 +1165,8 @@ struct find_gather_dot_weights
             match::name("reshape_lazy", "transpose", "squeeze", "unsqueeze")(match::used_once());
         auto pointwise =
             precompile_name("pointwise")(match::used_once(), match::not_tuple()).bind("pointwise");
-        return precompile_name("gpu::gather_dot")(match::arg(2)(match::skip(view)(pointwise)));
+        return precompile_name("gpu::gather_dot")(
+            match::arg(gather_dot_layout::first_weight)(match::skip(view)(pointwise)));
     }
 
     // The packed bytes of an input that is unpacked along its last axis,
@@ -1199,13 +1200,6 @@ struct find_gather_dot_weights
         return m.insert_instruction(pos, make_op("reshape_lazy", {{"dims", lens}}), bytes);
     }
 
-    // Whether a weights submodule returns its weight tensor as the table
-    static bool returns_parameter(const module& m)
-    {
-        const auto rets = m.get_returns();
-        return rets.size() == 1 and rets.front()->name() == "@param";
-    }
-
     // A weight tensor in the common dimensions
     struct weight
     {
@@ -1233,14 +1227,17 @@ struct find_gather_dot_weights
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto& m  = mpm.get_module();
-        auto ins = r.result;
-        // only the matrices as the pass left them
-        if(ins->module_inputs().size() != 1 or not returns_parameter(*ins->module_inputs().front()))
+        auto& m          = mpm.get_module();
+        auto ins         = r.result;
+        const auto& mods = ins->module_inputs();
+        // only the matrices as the pass left them: the weight tensor is the table
+        if(mods.size() != 1 or read_gather_dot_weights(*mods.front()).function != nullptr)
             return;
-        auto rows  = ins->inputs().at(0);
-        auto table = ins->inputs().at(2);
-        auto base  = r.instructions["pointwise"];
+        // the output buffer follows the inputs
+        const auto layout = get_gather_dot_layout(ins->inputs().size() - 1, mods);
+        auto rows         = ins->inputs().at(gather_dot_layout::rows);
+        auto table        = ins->inputs().at(gather_dot_layout::first_weight);
+        auto base         = r.instructions["pointwise"];
         // the views of the pointwise operator that give the table
         const auto ops =
             get_input_ops_if(table, [&](instruction_ref view) { return view != base; }).second;
@@ -1311,7 +1308,7 @@ struct find_gather_dot_weights
             });
         wm->add_return({wm->add_instruction(make_op("pointwise"), args, base->module_inputs())});
 
-        std::vector<instruction_ref> inputs = {rows, ins->inputs().at(1)};
+        std::vector<instruction_ref> inputs = {rows, ins->inputs().at(gather_dot_layout::indices)};
         if(row_lens != rows->get_shape().lens())
             inputs.front() =
                 m.insert_instruction(ins, make_op("reshape_lazy", {{"dims", row_lens}}), rows);
@@ -1320,7 +1317,8 @@ struct find_gather_dot_weights
                        std::back_inserter(inputs),
                        [](const auto& w) { return w->input; });
         // the bias and the output buffer follow the table
-        inputs.insert(inputs.end(), ins->inputs().begin() + 3, ins->inputs().end());
+        inputs.insert(
+            inputs.end(), ins->inputs().begin() + layout.bias_index(), ins->inputs().end());
         if(sum_lens == out_lens)
         {
             m.replace_instruction(ins, ins->get_operator(), inputs, {wm});
@@ -1421,8 +1419,9 @@ struct find_gather_dot_pointwise
             });
         om->add_return({om->add_instruction(make_op("pointwise"), args, pw->module_inputs())});
         // they follow the inputs of the gather_dot, then the output buffer
-        auto inputs = dot->inputs();
-        inputs.pop_back();
+        const auto layout = get_gather_dot_layout(dot->inputs().size() - 1, dot->module_inputs());
+        std::vector<instruction_ref> inputs(dot->inputs().begin(),
+                                            dot->inputs().begin() + layout.size());
         inputs.insert(inputs.end(), others.begin(), others.end());
         inputs.push_back(pw->inputs().back());
         auto mods = dot->module_inputs();

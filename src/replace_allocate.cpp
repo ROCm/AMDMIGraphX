@@ -262,7 +262,10 @@ instruction_ref insert_output_copy(module& m,
     return m.insert_instruction(pos, make_op(model.copy()), input, output);
 }
 
-void insert_copy(module& m, const allocation_model& model, bool copy_aliased_returns)
+void insert_copy(module& m,
+                 const allocation_model& model,
+                 bool copy_aliased_returns,
+                 bool copy_constant_returns)
 {
     // Rewriting a return can change the aliases of the other returns, so visit them in order
     std::unordered_set<instruction_ref> visited;
@@ -294,10 +297,12 @@ void insert_copy(module& m, const allocation_model& model, bool copy_aliased_ret
     std::transform(returns.begin(), returns.end(), returns.begin(), [&](instruction_ref ins) {
         if(ins->get_shape().any_of_dynamic() and not ins->get_shape().dynamic())
             return ins;
-        // A parameter, a literal or a value of another module is not written to an output
-        // buffer of this module
-        if(returned.insert(ins).second and ins->name() != "@param" and ins->name() != "@literal" and
-           m.has_instruction(ins))
+        // A parameter is not written to an output buffer of this module. Nor is a literal or a
+        // value of another module, which matters when the caller binds the outputs, as a loop
+        // body; the root module returns those directly.
+        bool constant = ins->name() == "@literal" or not m.has_instruction(ins);
+        if(returned.insert(ins).second and ins->name() != "@param" and
+           not(copy_constant_returns and constant))
             return ins;
         changed = true;
         return insert_output_copy(m, model, return_ins, ins);
@@ -346,7 +351,10 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         insert_submod_allocations(ins, m, model);
     }
     if(not root_offload_copy and model.needs_out_params())
-        insert_copy(m, model, is_root or is_output_bound_module_input(root_module, &m));
+    {
+        bool output_bound = is_output_bound_module_input(root_module, &m);
+        insert_copy(m, model, is_root or output_bound, not is_root and output_bound);
+    }
     auto mod_output_names         = create_output_names(m);
     auto mod_output_debug_symbols = get_output_debug_symbols(m);
     for(auto ins : iterator_for(m))

@@ -96,11 +96,29 @@ struct select_module
 
     std::size_t num_outputs() const { return output_dyn_shapes.sub_shapes().size(); }
 
-    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
+    shape compute_shape(const std::vector<shape>& inputs,
+                        const std::vector<module_ref>& submodules) const
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
         if(any_of(empty_guard_inputs, [&](auto input) { return input >= inputs.size(); }))
             MIGRAPHX_THROW("SELECT_MODULE: empty guard input is out of range");
+        // Once lowered, the output buffers follow the inputs and each input is bound to a
+        // parameter of the compiled submodules, so a static input must keep that layout
+        for(const auto& sub : submodules)
+        {
+            auto names = get_input_parameter_names(sub);
+            if(inputs.size() <= names.size())
+                continue;
+            for(std::size_t i = 0; i < names.size(); i++)
+            {
+                auto expected = sub->get_parameter_shape(names[i]);
+                if(inputs[i].dynamic() or expected.dynamic())
+                    continue;
+                if(not compatible_input_shape(inputs[i], expected))
+                    MIGRAPHX_THROW("SELECT_MODULE: input " + std::to_string(i) +
+                                   " does not have the layout of parameter " + names[i]);
+            }
+        }
         return shape{output_dyn_shapes};
     }
 

@@ -2026,10 +2026,17 @@ struct block_frame
         for(const auto& [parameter_name, input_index] : params)
         {
             const auto& input = inputs.at(input_index);
-            auto parameter    = clone_module.add_parameter(
-                parameter_name,
-                clone_parameter_shape(
-                    input.select_input->get_shape(), subrange_symbols, frozen_symbols));
+            // A static view that another instruction computes gets the standard layout: passes
+            // after this one can still change the layout of that instruction, and lowering
+            // copies it into this layout. A module parameter, or an input whose strides depend
+            // on the symbols, keeps its strides.
+            const auto& input_shape = input.select_input->get_shape();
+            auto parameter_shape =
+                clone_parameter_shape(input_shape, subrange_symbols, frozen_symbols);
+            if(input.select_input->name() != "@param" and not input_shape.dynamic() and
+               not input_shape.standard())
+                parameter_shape = shape{parameter_shape.type(), parameter_shape.lens()};
+            auto parameter = clone_module.add_parameter(parameter_name, parameter_shape);
             values.set(input.clone_value, parameter);
         }
         for(auto input_index : literals)

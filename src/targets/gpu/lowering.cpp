@@ -43,6 +43,7 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/select_module.hpp>
 
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -712,6 +713,26 @@ struct miopen_apply
                            });
 
             std::vector<instruction_ref> inputs = ins->inputs();
+            // Each input is bound to a parameter of the submodules, so an input in another layout
+            // is copied into the layout of that parameter
+            auto sm = any_cast<op::select_module>(ins->get_operator());
+            for(const auto& sub : ins->module_inputs())
+            {
+                auto names = sm.get_input_parameter_names(sub);
+                for(std::size_t i = 0; i < names.size() and i < inputs.size(); i++)
+                {
+                    auto expected      = sub->get_parameter_shape(names[i]);
+                    const auto& actual = inputs[i]->get_shape();
+                    if(expected.dynamic() or actual.dynamic() or
+                       op::select_module::compatible_input_shape(actual, expected) or
+                       not expected.standard() or not shape::same_lens(actual, expected))
+                        continue;
+                    inputs[i] = mod->insert_instruction(ins,
+                                                        make_op("gpu::contiguous"),
+                                                        inputs[i],
+                                                        insert_allocation(ins, expected));
+                }
+            }
             inputs.insert(inputs.end(), outputs.begin(), outputs.end());
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });

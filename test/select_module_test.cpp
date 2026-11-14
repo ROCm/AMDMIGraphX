@@ -104,6 +104,35 @@ TEST_CASE(select_module_output_parameter_reshapes_larger_buffer)
     EXPECT(results.front().to_vector<float>() == std::vector<float>{-1, -2, -3, -4});
 }
 
+// Once lowered, each input is bound to a parameter of the compiled submodules, so a static input
+// whose layout differs from the parameter is rejected rather than read in the wrong order
+TEST_CASE(select_module_lowered_input_layout_mismatch_error)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto* submod = p.create_module("sub");
+    auto data    = submod->add_parameter("data", s);
+    auto output  = submod->add_parameter("sub:#output_0", s);
+    submod->add_return({submod->add_instruction(copy_into_op{}, data, output)});
+
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 2}});
+    auto transposed =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+    auto out = mm->add_parameter("output", s);
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            mm->add_instruction(
+                migraphx::make_op(
+                    "select_module",
+                    {{"output_dyn_shapes",
+                      migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}})}}),
+                {transposed, out},
+                {submod});
+        },
+        "does not have the layout of parameter"));
+}
+
 TEST_CASE(select_module_output_parameter_buffer_too_small_error)
 {
     migraphx::program p;

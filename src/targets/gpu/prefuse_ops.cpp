@@ -341,12 +341,11 @@ enum class conv_matrix_instruction
 conv_matrix_instruction get_conv_matrix_instruction(const std::string& gfx_name, shape::type_t type)
 {
     if(starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12"))
-        return type == shape::half_type ? conv_matrix_instruction::wmma
+        return contains({shape::half_type, shape::bf16_type}, type) ? conv_matrix_instruction::wmma
                                         : conv_matrix_instruction::none;
-    if(contains({"gfx908", "gfx90a"}, gfx_name) or starts_with(gfx_name, "gfx94") or
-       starts_with(gfx_name, "gfx95"))
+    if(starts_with(gfx_name, "gfx9"))
         return conv_matrix_instruction::mfma;
-    return conv_matrix_instruction::none;
+    return conv_matrix_instruction::wmma;
 }
 
 struct direct_conv_traits

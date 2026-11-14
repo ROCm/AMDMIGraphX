@@ -15,7 +15,7 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
-* Changed ONNX `Slice` parsing of a symbolic input with a start or end only known at run time to emit a `dyn_slice` whose bound is a symbol over the axis length, instead of failing to parse (#5520).
+* Changed ONNX `Slice` parsing of a symbolic input with a start or end only known at run time to emit a `dyn_slice`, instead of failing to parse. A bound computed from the input shape, such as the clip of TensorFlow `pad_or_clip`, becomes an expression of the shape (for example `min(N, 100)`); other bounds become a symbol over the axis length (#5520).
 * Changed the ONNX `NonMaxSuppression` parser to trim its zero-padded indices output down to the number of selected boxes with a `dyn_slice`, so a parsed model now returns the ONNX specification's `[num_selected_indices, 3]` output instead of a fixed padded size. This removes the `MIGRAPHX_USE_DYNAMIC_NMS` environment variable that previously gated the trim (#5150).
 * Changed `fixed_pad` to accept a configurable padding value (#5123).
 * Changed lowered `select_module` instructions to use one caller-provided output buffer per result (#5123).

@@ -27,12 +27,208 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/convert.hpp>
+#include <algorithm>
+#include <array>
 #include <numeric>
 #include <optional>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+// Evaluates one element of an integer tensor from literals and symbolic values, as for the slice
+// bounds TF's pad_or_clip computes from the input shape, when the tensor as a whole has no
+// symbolic value. A comparison of values that are not fixed takes the outcome in `decisions`, or
+// is recorded in `open` and stops the evaluation.
+struct bound_evaluator
+{
+    std::unordered_map<instruction_ref, bool> decisions = {};
+    std::vector<instruction_ref> open                   = {};
+
+    std::optional<sym::expr> operator()(instruction_ref ins, std::size_t i, int depth = 0)
+    {
+        const auto& s = ins->get_shape();
+        if(depth > 64 or s.dynamic() or s.elements() == 0)
+            return std::nullopt;
+        if(s.elements() == 1)
+            i = 0;
+        else if(i >= s.elements())
+            return std::nullopt;
+        const auto value = ins->sym_eval();
+        if(not value.empty())
+        {
+            const auto values = value.get().to_vector();
+            if(i < values.size())
+                return values[i];
+        }
+        auto input = [&](std::size_t k, std::size_t j) -> std::optional<sym::expr> {
+            auto x = ins->inputs().at(k);
+            auto n = x->get_shape().elements();
+            if(n != 1 and n != s.elements())
+                return std::nullopt;
+            return (*this)(x, j, depth + 1);
+        };
+        const auto& name = ins->name();
+        if(contains({"multibroadcast", "unsqueeze", "squeeze", "reshape", "contiguous"}, name))
+            return input(0, i);
+        if(name == "convert")
+        {
+            auto x = input(0, i);
+            if(not x.has_value() or
+               any_cast<op::convert>(ins->get_operator()).target_type != shape::bool_type)
+                return x;
+            auto v = sym::fixed_value(*x);
+            if(not v.has_value())
+                return std::nullopt;
+            return sym::lit(sym::to<double>(*v) != 0 ? 1 : 0);
+        }
+        if(name == "not")
+        {
+            auto x = input(0, i);
+            auto v = x.has_value() ? sym::fixed_value(*x) : std::nullopt;
+            if(not v.has_value())
+                return std::nullopt;
+            return sym::lit(sym::to<double>(*v) == 0 ? 1 : 0);
+        }
+        if(name == "gather" and ins->inputs().front()->get_shape().ndim() == 1)
+        {
+            auto index = (*this)(ins->inputs().at(1), i, depth + 1);
+            auto value = index.has_value() ? sym::fixed_value(*index) : std::nullopt;
+            if(not value.has_value())
+                return std::nullopt;
+            auto data = ins->inputs().front();
+            auto j    = sym::to<int64_t>(*value);
+            if(j < 0)
+                j += data->get_shape().elements();
+            return (*this)(data, j, depth + 1);
+        }
+        if(name == "slice" and ins->inputs().size() == 1 and
+           ins->inputs().front()->get_shape().ndim() == 1)
+        {
+            auto data  = ins->inputs().front();
+            auto op    = any_cast<op::slice>(ins->get_operator());
+            auto start = op.starts.empty() ? 0 : op.starts.front();
+            if(start < 0)
+                start += data->get_shape().elements();
+            return (*this)(data, i + start, depth + 1);
+        }
+        if(name == "concat" and s.ndim() == 1)
+        {
+            for(auto x : ins->inputs())
+            {
+                auto n = x->get_shape().elements();
+                if(i < n)
+                    return (*this)(x, i, depth + 1);
+                i -= n;
+            }
+            return std::nullopt;
+        }
+        if(contains({"add", "sub", "mul"}, name))
+        {
+            auto a = input(0, i);
+            auto b = input(1, i);
+            if(not a.has_value() or not b.has_value())
+                return std::nullopt;
+            if(name == "add")
+                return *a + *b;
+            if(name == "sub")
+                return *a - *b;
+            return *a * *b;
+        }
+        if(contains({"greater", "less", "equal"}, name))
+        {
+            auto a = input(0, i);
+            auto b = input(1, i);
+            if(not a.has_value() or not b.has_value())
+                return std::nullopt;
+            auto va = sym::fixed_value(*a);
+            auto vb = sym::fixed_value(*b);
+            if(va.has_value() and vb.has_value())
+                return sym::lit(compare(name, sym::to<double>(*va), sym::to<double>(*vb)) ? 1 : 0);
+            if(s.elements() != 1)
+                return std::nullopt;
+            auto decision = decisions.find(ins);
+            if(decision != decisions.end())
+                return sym::lit(decision->second ? 1 : 0);
+            if(not contains(open, ins))
+                open.push_back(ins);
+            return std::nullopt;
+        }
+        return std::nullopt;
+    }
+
+    static bool compare(const std::string& name, double a, double b)
+    {
+        if(name == "greater")
+            return a > b;
+        if(name == "less")
+            return a < b;
+        return a == b;
+    }
+};
+
+// The extent dyn_slice gives for an end on an axis of length len
+static int64_t clipped_end(int64_t end, int64_t len)
+{
+    if(end < 0)
+        end += len;
+    return std::clamp<int64_t>(end, 0, len);
+}
+
+// An end that depends on one comparison of the axis length, such as `n > 100 ? 100 : -1` for a
+// clip to 100, resolves to an expression of the length when one candidate gives the same extent as
+// both cases for every length the axis can have
+static std::optional<sym::expr>
+resolve_conditional_end(instruction_ref ends, std::size_t i, const shape::dynamic_dimension& dim)
+{
+    bound_evaluator probe;
+    if(auto end = probe(ends, i))
+        return end;
+    if(probe.open.size() != 1 or not dim.is_symbolic() or dim.sym_expr.name() != "variable")
+        return std::nullopt;
+    auto condition   = probe.open.front();
+    const auto range = dim.get_interval();
+    if(range.max - range.min > (1u << 16))
+        return std::nullopt;
+
+    std::array<sym::expr, 2> branches;
+    for(bool outcome : {false, true})
+    {
+        bound_evaluator evaluator{{{condition, outcome}}};
+        auto end = evaluator(ends, i);
+        if(not end.has_value() or not evaluator.open.empty())
+            return std::nullopt;
+        branches[outcome] = *end;
+    }
+    bound_evaluator operands;
+    auto lhs = operands(condition->inputs().at(0), 0);
+    auto rhs = operands(condition->inputs().at(1), 0);
+    if(not lhs.has_value() or not rhs.has_value())
+        return std::nullopt;
+
+    const auto& len                   = dim.sym_expr;
+    std::vector<sym::expr> candidates = {
+        sym::min(len, branches[0]), sym::min(len, branches[1]), branches[0], branches[1]};
+    auto matches = [&](const sym::expr& candidate) {
+        for(auto n = static_cast<int64_t>(range.min); n <= static_cast<int64_t>(range.max); ++n)
+        {
+            std::unordered_map<sym::expr, sym::scalar> vars = {{len, sym::scalar{n}}};
+            auto outcome  = bound_evaluator::compare(condition->name(),
+                                                     sym::to<double>(lhs->eval(vars)),
+                                                     sym::to<double>(rhs->eval(vars)));
+            auto expected = clipped_end(sym::to<int64_t>(branches[outcome].eval(vars)), n);
+            if(clipped_end(sym::to<int64_t>(candidate.eval(vars)), n) != expected)
+                return false;
+        }
+        return true;
+    };
+    auto found = std::find_if(candidates.begin(), candidates.end(), matches);
+    if(found == candidates.end())
+        return std::nullopt;
+    return *found;
+}
 
 struct parse_slice : op_parser<parse_slice>
 {
@@ -108,26 +304,37 @@ struct parse_slice : op_parser<parse_slice>
                args[1]->get_shape().elements() == axes->size() and
                args[2]->get_shape().elements() == axes->size())
             {
-                const auto max_lens = args[0]->get_shape().max_lens();
-                auto bounds         = [&](const sym_argument& known, const std::string& suffix) {
+                const auto& dims = args[0]->get_shape().dyn_dims();
+                // Each bound is worked out per axis where it can be; the others get a symbol
+                // bounded by the axis length
+                auto bounds = [&](const sym_argument& known,
+                                  instruction_ref arg,
+                                  const std::string& suffix,
+                                  bool is_end) {
                     if(not known.empty())
                         return known.get().to_vector();
                     std::vector<sym::expr> result;
-                    std::transform(
-                        axes->begin(), axes->end(), std::back_inserter(result), [&](auto axis) {
-                            auto len = max_lens.at(axis < 0 ? axis + max_lens.size() : axis);
-                            return sym::var(parser.symbol_names.allocate(info.name + suffix),
-                                            {0, static_cast<int64_t>(len)});
-                        });
+                    for(std::size_t i = 0; i < axes->size(); ++i)
+                    {
+                        auto axis       = axes->at(i);
+                        const auto& dim = dims.at(axis < 0 ? axis + dims.size() : axis);
+                        auto bound      = is_end ? resolve_conditional_end(arg, i, dim)
+                                                 : bound_evaluator{}(arg, i);
+                        if(not bound.has_value())
+                            bound = sym::var(parser.symbol_names.allocate(info.name + suffix),
+                                             {0, static_cast<int64_t>(dim.get_interval().max)});
+                        result.push_back(*bound);
+                    }
                     return result;
                 };
-                return info.add_instruction(make_op("dyn_slice",
-                                                    {{"axes", *axes},
-                                                     {"starts", to_value(bounds(starts, "_start"))},
-                                                     {"ends", to_value(bounds(ends, "_end"))}}),
-                                            args[0],
-                                            args[1],
-                                            args[2]);
+                return info.add_instruction(
+                    make_op("dyn_slice",
+                            {{"axes", *axes},
+                             {"starts", to_value(bounds(starts, args[1], "_start", false))},
+                             {"ends", to_value(bounds(ends, args[2], "_end", true))}}),
+                    args[0],
+                    args[1],
+                    args[2]);
             }
             if(not starts.empty() and not ends.empty() and axes.has_value() and
                steps.has_value() and starts.get_shape().elements() == axes->size() and

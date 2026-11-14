@@ -18147,6 +18147,52 @@ def slice_runtime_end_symbolic_test():
 
 
 @onnx_test()
+def slice_pad_or_clip_symbolic_test():
+    # TF pad_or_clip: the size of axis 0 is 100 when the length N is over 100 and -1 (to the end)
+    # otherwise, and the size of axis 1 is -1; a size of -1 becomes INT_MAX before the end
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 91])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 91])
+
+    zero = helper.make_tensor('zero', TensorProto.INT32, [], [0])
+    hundred = helper.make_tensor('hundred', TensorProto.INT32, [], [100])
+    zerof = helper.make_tensor('zerof', TensorProto.FLOAT, [], [0.0])
+    minus1 = helper.make_tensor('minus1', TensorProto.INT32, [], [-1])
+    axes0 = helper.make_tensor('axes0', TensorProto.INT64, [1], [0])
+    minus1v = helper.make_tensor('minus1v', TensorProto.INT32, [1], [-1])
+    minus1v2 = helper.make_tensor('minus1v2', TensorProto.INT32, [2], [-1, -1])
+    intmax = helper.make_tensor('intmax', TensorProto.INT32, [2],
+                                [2147483647, 2147483647])
+    begin = helper.make_tensor('begin', TensorProto.INT32, [2], [0, 0])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['shape64']),
+        helper.make_node('Cast', ['shape64'], ['shape'], to=TensorProto.INT32),
+        helper.make_node('Gather', ['shape', 'zero'], ['n'], axis=0),
+        helper.make_node('Sub', ['n', 'hundred'], ['over']),
+        helper.make_node('Cast', ['over'], ['overf'], to=TensorProto.FLOAT),
+        helper.make_node('Greater', ['overf', 'zerof'], ['clip']),
+        helper.make_node('Cast', ['clip'], ['clipi'], to=TensorProto.INT32),
+        helper.make_node('Mul', ['clipi', 'hundred'], ['a']),
+        helper.make_node('Not', ['clip'], ['keep']),
+        helper.make_node('Cast', ['keep'], ['keepi'], to=TensorProto.INT32),
+        helper.make_node('Mul', ['minus1', 'keepi'], ['b']),
+        helper.make_node('Add', ['a', 'b'], ['size0']),
+        helper.make_node('Unsqueeze', ['size0', 'axes0'], ['size0v']),
+        helper.make_node('Concat', ['size0v', 'minus1v'], ['size'], axis=0),
+        helper.make_node('Equal', ['minus1v2', 'size'], ['full']),
+        helper.make_node('Cast', ['full'], ['fulli'], to=TensorProto.INT32),
+        helper.make_node('Mul', ['intmax', 'fulli'], ['extra']),
+        helper.make_node('Add', ['size', 'extra'], ['size2']),
+        helper.make_node('Add', ['begin', 'size2'], ['end']),
+        helper.make_node('Slice', ['x', 'begin', 'end'], ['out']),
+    ]
+
+    return (nodes, [x], [out], [
+        zero, hundred, zerof, minus1, axes0, minus1v, minus1v2, intmax, begin
+    ])
+
+
+@onnx_test()
 def slice_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])

@@ -24,6 +24,7 @@
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device_description.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
@@ -334,13 +335,14 @@ TEST_CASE(direct_conv_halo_fits)
     EXPECT(m1 == m2);
 }
 
-// Runs prefuse_ops with its default heuristic and reports whether the convolution of x and
-// w (with `attrs`) became a direct conv
-static bool offloads_direct_conv(const migraphx::shape& xs,
+// Runs prefuse_ops with its default heuristic for `device` and reports whether the
+// convolution of x and w (with `attrs`) became a direct conv
+static bool offloads_direct_conv(const migraphx::gpu::device_description& device,
+                                 const migraphx::shape& xs,
                                  const migraphx::shape& ws,
                                  const migraphx::value& attrs)
 {
-    migraphx::gpu::context ctx;
+    migraphx::gpu::context ctx{device};
     migraphx::module m;
     auto x = m.add_parameter("x", xs);
     auto w = m.add_parameter("w", ws);
@@ -356,131 +358,157 @@ static migraphx::shape nhwc(migraphx::shape::type_t t, const std::vector<std::si
     return migraphx::shape::from_permutation(t, lens, {0, 2, 3, 1});
 }
 
-// Few output channels over a large output: fp32 5x5 filters, fp32 channels-last 3x3 and
-// strided filters, and fp16 filters of at least 25 taps in either layout, dilated or with
-// up to 6 output channels for 7x7
-TEST_CASE(direct_conv_heuristic_few_outputs)
+// 32 wave32 workgroup processors, which are 64 compute units: fp32 has no matrix
+// instructions and fp16 has WMMA
+static migraphx::gpu::device_description gfx1201() { return {"gfx1201", 32}; }
+
+// 304 compute units with MFMA for fp32 and fp16
+static migraphx::gpu::device_description gfx942() { return {"gfx942", 304}; }
+
+// Without matrix instructions: fp32 5x5 filters, fp32 channels-last 3x3 filters and strided
+// 4x4 filters with up to 16 output channels. With WMMA: fp16 filters of at least 25 taps in
+// either layout, dilated or with up to 6 output channels for 7x7
+TEST_CASE(direct_conv_heuristic_wave32_few_outputs)
 {
-    migraphx::gpu::context ctx;
-    if(not migraphx::starts_with(ctx.get_current_device().get_gfx_name(), "gfx12"))
-        test::skip("The direct conv heuristic only runs on gfx12");
     auto f32 = migraphx::shape::float_type;
-    EXPECT(
-        offloads_direct_conv({f32, {1, 8, 256, 256}}, {f32, {3, 8, 5, 5}}, {{"padding", {2, 2}}}));
     EXPECT(offloads_direct_conv(
-        nhwc(f32, {1, 48, 256, 256}), nhwc(f32, {12, 48, 3, 3}), {{"padding", {1, 1}}}));
-    EXPECT(offloads_direct_conv(nhwc(f32, {1, 24, 512, 512}),
+        gfx1201(), {f32, {1, 8, 256, 256}}, {f32, {3, 8, 5, 5}}, {{"padding", {2, 2}}}));
+    EXPECT(offloads_direct_conv(
+        gfx1201(), nhwc(f32, {1, 48, 256, 256}), nhwc(f32, {12, 48, 3, 3}), {{"padding", {1, 1}}}));
+    EXPECT(offloads_direct_conv(gfx1201(),
+                                nhwc(f32, {1, 24, 512, 512}),
                                 nhwc(f32, {8, 24, 4, 4}),
                                 {{"padding", {1, 1}}, {"stride", {2, 2}}}));
     auto f16 = migraphx::shape::half_type;
     EXPECT(offloads_direct_conv(
-        {f16, {1, 48, 512, 512}}, {f16, {3, 48, 5, 5}}, {{"padding", {2, 2}}}));
+        gfx1201(), {f16, {1, 48, 512, 512}}, {f16, {3, 48, 5, 5}}, {{"padding", {2, 2}}}));
     EXPECT(offloads_direct_conv(
-        nhwc(f16, {1, 48, 512, 512}), nhwc(f16, {3, 48, 5, 5}), {{"padding", {2, 2}}}));
-    EXPECT(offloads_direct_conv({f16, {1, 48, 512, 512}},
+        gfx1201(), nhwc(f16, {1, 48, 512, 512}), nhwc(f16, {3, 48, 5, 5}), {{"padding", {2, 2}}}));
+    EXPECT(offloads_direct_conv(gfx1201(),
+                                {f16, {1, 48, 512, 512}},
                                 {f16, {3, 48, 5, 5}},
                                 {{"padding", {4, 4}}, {"dilation", {2, 2}}}));
     EXPECT(offloads_direct_conv(
-        nhwc(f16, {1, 32, 512, 512}), nhwc(f16, {6, 32, 7, 7}), {{"padding", {3, 3}}}));
+        gfx1201(), nhwc(f16, {1, 32, 512, 512}), nhwc(f16, {6, 32, 7, 7}), {{"padding", {3, 3}}}));
 }
 
 // The GEMM-based kernels keep many output channels, small outputs, convs with little work
-// per output, channels-first 3x3 filters and strides, 1x1 filters, 1-D convolutions, and
-// fp16 filters under 25 taps, with a stride, or with 8 output channels. The gfx94x
-// heuristic leaves all of these too.
+// per output, channels-first 3x3 filters and strides, channels-last 3x3 strides, 1x1
+// filters, 1-D convolutions, and fp16 filters under 25 taps, with a stride, or with 8
+// output channels. MFMA devices leave all of these too.
 TEST_CASE(direct_conv_heuristic_default_lowering)
 {
+    auto offloads =
+        [](const migraphx::shape& xs, const migraphx::shape& ws, const migraphx::value& attrs) {
+            return offloads_direct_conv(gfx1201(), xs, ws, attrs) or
+                   offloads_direct_conv(gfx942(), xs, ws, attrs);
+        };
     auto f32 = migraphx::shape::float_type;
-    EXPECT(not offloads_direct_conv(
+    EXPECT(not offloads(
         nhwc(f32, {1, 48, 256, 256}), nhwc(f32, {32, 48, 3, 3}), {{"padding", {1, 1}}}));
-    EXPECT(not offloads_direct_conv(
+    EXPECT(not offloads(
         nhwc(f32, {1, 96, 128, 128}), nhwc(f32, {3, 96, 3, 3}), {{"padding", {1, 1}}}));
-    EXPECT(not offloads_direct_conv(
+    EXPECT(not offloads(
         nhwc(f32, {1, 16, 512, 512}), nhwc(f32, {1, 16, 1, 1}), {{"padding", {0, 0}}}));
-    EXPECT(not offloads_direct_conv(
-        {f32, {1, 48, 256, 256}}, {f32, {3, 48, 3, 3}}, {{"padding", {1, 1}}}));
-    EXPECT(not offloads_direct_conv(
+    EXPECT(not offloads({f32, {1, 48, 256, 256}}, {f32, {3, 48, 3, 3}}, {{"padding", {1, 1}}}));
+    EXPECT(not offloads(
         {f32, {1, 48, 512, 512}}, {f32, {3, 48, 5, 5}}, {{"padding", {2, 2}}, {"stride", {2, 2}}}));
-    EXPECT(not offloads_direct_conv(
+    EXPECT(not offloads(nhwc(f32, {1, 64, 640, 640}),
+                        nhwc(f32, {3, 64, 3, 3}),
+                        {{"padding", {1, 1}}, {"stride", {2, 2}}}));
+    EXPECT(not offloads(
         nhwc(f32, {1, 64, 512, 512}), nhwc(f32, {3, 64, 1, 1}), {{"padding", {0, 0}}}));
-    EXPECT(not offloads_direct_conv({f32, {1, 64, 65536}},
-                                    {f32, {3, 64, 5}},
-                                    {{"padding", {2}}, {"stride", {1}}, {"dilation", {1}}}));
+    EXPECT(not offloads({f32, {1, 64, 65536}},
+                        {f32, {3, 64, 5}},
+                        {{"padding", {2}}, {"stride", {1}}, {"dilation", {1}}}));
     auto f16 = migraphx::shape::half_type;
-    EXPECT(not offloads_direct_conv(
+    EXPECT(not offloads(
         nhwc(f16, {1, 48, 256, 256}), nhwc(f16, {3, 48, 3, 3}), {{"padding", {1, 1}}}));
-    EXPECT(not offloads_direct_conv(
+    EXPECT(not offloads(
         {f16, {1, 48, 512, 512}}, {f16, {3, 48, 5, 5}}, {{"padding", {2, 2}}, {"stride", {2, 2}}}));
-    EXPECT(not offloads_direct_conv(
+    EXPECT(not offloads(
         nhwc(f16, {1, 48, 512, 512}), nhwc(f16, {8, 48, 5, 5}), {{"padding", {2, 2}}}));
-    EXPECT(not offloads_direct_conv(
+    EXPECT(not offloads(
         nhwc(f16, {1, 32, 512, 512}), nhwc(f16, {8, 32, 7, 7}), {{"padding", {3, 3}}}));
-    EXPECT(not offloads_direct_conv(
-        {f16, {1, 48, 128, 128}}, {f16, {3, 48, 5, 5}}, {{"padding", {2, 2}}}));
+    EXPECT(not offloads({f16, {1, 48, 128, 128}}, {f16, {3, 48, 5, 5}}, {{"padding", {2, 2}}}));
 }
 
-static bool is_gfx94()
+// With MFMA: fp32 with up to 3 output channels, or 6 for 7x7 filters; channels-first fp32
+// dilated filters; channels-last fp16 with up to 3 output channels over few input channels;
+// channels-first fp16 large or dilated filters
+TEST_CASE(direct_conv_heuristic_mfma_few_outputs)
 {
-    migraphx::gpu::context ctx;
-    return migraphx::starts_with(ctx.get_current_device().get_gfx_name(), "gfx94");
-}
-
-// fp32 with up to 3 output channels from 128K outputs, or from 64K with filters of at least
-// 25 taps; channels-first fp32 dilated filters; channels-last fp16 with up to 3 output
-// channels over few input channels from 256K outputs; channels-first fp16 large or dilated
-// filters
-TEST_CASE(direct_conv_heuristic_gfx94_few_outputs)
-{
-    if(not is_gfx94())
-        test::skip("The gfx94x direct conv heuristic only runs on gfx94x");
     auto f32 = migraphx::shape::float_type;
     EXPECT(offloads_direct_conv(
-        nhwc(f32, {1, 64, 640, 640}), nhwc(f32, {3, 64, 3, 3}), {{"padding", {1, 1}}}));
+        gfx942(), nhwc(f32, {1, 64, 640, 640}), nhwc(f32, {3, 64, 3, 3}), {{"padding", {1, 1}}}));
     EXPECT(offloads_direct_conv(
-        nhwc(f32, {1, 64, 256, 256}), nhwc(f32, {3, 64, 5, 5}), {{"padding", {2, 2}}}));
-    EXPECT(offloads_direct_conv({f32, {1, 64, 256, 256}},
+        gfx942(), nhwc(f32, {1, 64, 256, 256}), nhwc(f32, {3, 64, 5, 5}), {{"padding", {2, 2}}}));
+    EXPECT(offloads_direct_conv(
+        gfx942(), nhwc(f32, {1, 64, 640, 640}), nhwc(f32, {6, 64, 7, 7}), {{"padding", {3, 3}}}));
+    EXPECT(offloads_direct_conv(gfx942(),
+                                {f32, {1, 64, 256, 256}},
                                 {f32, {8, 64, 3, 3}},
                                 {{"padding", {2, 2}}, {"dilation", {2, 2}}}));
     auto f16 = migraphx::shape::half_type;
     EXPECT(offloads_direct_conv(
-        nhwc(f16, {1, 16, 640, 640}), nhwc(f16, {1, 16, 3, 3}), {{"padding", {1, 1}}}));
+        gfx942(), nhwc(f16, {1, 16, 640, 640}), nhwc(f16, {1, 16, 3, 3}), {{"padding", {1, 1}}}));
     EXPECT(offloads_direct_conv(
-        nhwc(f16, {1, 48, 512, 512}), nhwc(f16, {3, 48, 5, 5}), {{"padding", {2, 2}}}));
+        gfx942(), nhwc(f16, {1, 64, 640, 640}), nhwc(f16, {1, 64, 7, 7}), {{"padding", {3, 3}}}));
     EXPECT(offloads_direct_conv(
-        {f16, {1, 64, 640, 640}}, {f16, {8, 64, 7, 7}}, {{"padding", {3, 3}}}));
-    EXPECT(offloads_direct_conv({f16, {1, 16, 384, 384}},
+        gfx942(), {f16, {1, 64, 640, 640}}, {f16, {8, 64, 7, 7}}, {{"padding", {3, 3}}}));
+    EXPECT(offloads_direct_conv(gfx942(),
+                                {f16, {1, 16, 384, 384}},
                                 {f16, {3, 16, 3, 3}},
                                 {{"padding", {2, 2}}, {"dilation", {2, 2}}}));
 }
 
-// MLIR keeps fp32 with 6 or more output channels, channels-last fp32 dilated filters,
-// strides, channels-last fp16 below 256K outputs or with large filters over many input
-// channels, and channels-first fp16 3x3 filters
-TEST_CASE(direct_conv_heuristic_gfx94_default_lowering)
+// With MFMA, MLIR keeps fp32 with 6 output channels under 49 taps, channels-last fp32
+// dilated filters, strides, channels-last fp16 over few output positions or with large
+// filters over many input channels, and channels-first fp16 3x3 filters
+TEST_CASE(direct_conv_heuristic_mfma_default_lowering)
 {
-    if(not is_gfx94())
-        test::skip("The gfx94x direct conv heuristic only runs on gfx94x");
     auto f32 = migraphx::shape::float_type;
     EXPECT(not offloads_direct_conv(
-        nhwc(f32, {1, 64, 640, 640}), nhwc(f32, {6, 64, 7, 7}), {{"padding", {3, 3}}}));
+        gfx942(), nhwc(f32, {1, 64, 640, 640}), nhwc(f32, {6, 64, 5, 5}), {{"padding", {2, 2}}}));
     EXPECT(not offloads_direct_conv(
-        {f32, {1, 3, 128, 128}}, {f32, {64, 3, 3, 3}}, {{"padding", {1, 1}}}));
-    EXPECT(not offloads_direct_conv(nhwc(f32, {1, 64, 640, 640}),
+        gfx942(), {f32, {1, 3, 128, 128}}, {f32, {64, 3, 3, 3}}, {{"padding", {1, 1}}}));
+    EXPECT(not offloads_direct_conv(gfx942(),
+                                    nhwc(f32, {1, 64, 640, 640}),
                                     nhwc(f32, {3, 64, 3, 3}),
                                     {{"padding", {2, 2}}, {"dilation", {2, 2}}}));
-    EXPECT(not offloads_direct_conv(nhwc(f32, {1, 64, 768, 768}),
+    EXPECT(not offloads_direct_conv(gfx942(),
+                                    nhwc(f32, {1, 64, 768, 768}),
                                     nhwc(f32, {1, 64, 3, 3}),
                                     {{"padding", {1, 1}}, {"stride", {2, 2}}}));
     auto f16 = migraphx::shape::half_type;
     EXPECT(not offloads_direct_conv(
-        nhwc(f16, {1, 16, 384, 384}), nhwc(f16, {3, 16, 7, 7}), {{"padding", {3, 3}}}));
+        gfx942(), nhwc(f16, {1, 16, 384, 384}), nhwc(f16, {3, 16, 7, 7}), {{"padding", {3, 3}}}));
     EXPECT(not offloads_direct_conv(
-        nhwc(f16, {1, 64, 640, 640}), nhwc(f16, {3, 64, 5, 5}), {{"padding", {2, 2}}}));
+        gfx942(), nhwc(f16, {1, 64, 640, 640}), nhwc(f16, {3, 64, 5, 5}), {{"padding", {2, 2}}}));
     EXPECT(not offloads_direct_conv(
-        {f16, {1, 64, 640, 640}}, {f16, {3, 64, 3, 3}}, {{"padding", {1, 1}}}));
-    EXPECT(not offloads_direct_conv({f16, {1, 16, 1280, 1280}},
+        gfx942(), nhwc(f16, {1, 48, 512, 512}), nhwc(f16, {3, 48, 5, 5}), {{"padding", {2, 2}}}));
+    EXPECT(not offloads_direct_conv(
+        gfx942(), {f16, {1, 64, 640, 640}}, {f16, {3, 64, 3, 3}}, {{"padding", {1, 1}}}));
+    EXPECT(not offloads_direct_conv(gfx942(),
+                                    {f16, {1, 16, 1280, 1280}},
                                     {f16, {1, 16, 5, 5}},
                                     {{"padding", {2, 2}}, {"stride", {2, 2}}}));
+}
+
+// The output positions a convolution needs grow with the compute units it has to fill
+TEST_CASE(direct_conv_heuristic_compute_units)
+{
+    auto f32 = migraphx::shape::float_type;
+    auto x32 = nhwc(f32, {1, 64, 224, 224});
+    auto w32 = nhwc(f32, {3, 64, 7, 7});
+    EXPECT(not offloads_direct_conv(gfx1201(), x32, w32, {{"padding", {3, 3}}}));
+    EXPECT(offloads_direct_conv({"gfx1201", 20}, x32, w32, {{"padding", {3, 3}}}));
+
+    auto f16 = migraphx::shape::half_type;
+    auto x16 = nhwc(f16, {1, 16, 480, 480});
+    auto w16 = nhwc(f16, {1, 16, 3, 3});
+    EXPECT(not offloads_direct_conv(gfx942(), x16, w16, {{"padding", {1, 1}}}));
+    EXPECT(offloads_direct_conv({"gfx942", 256}, x16, w16, {{"padding", {1, 1}}}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

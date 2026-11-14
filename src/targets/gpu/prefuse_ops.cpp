@@ -329,103 +329,147 @@ MIGRAPHX_PRED_MATCHER(conv_direct, instruction_ref ins)
     return v.at("group").to<std::size_t>() == 1 and v.at("padding_mode").to<int>() == 0;
 }
 
-// Heuristic for when the direct kernel beats the default lowering on gfx12 (MLIR; winograd
-// keeps the convolutions it takes). Derived from tools/bench_conv.py --direct compare on gfx1201
-// over convs from real models plus strided, dilated and 1-D variants, with kernel times
-// checked through the full pipeline:
-//   - The direct kernel multiplies with FMAs (fp16 with dot2, two input channels per
-//     instruction), so it only wins where the GEMM-based kernels waste their tiles on few
-//     output channels. fp32 has no matrix instructions here, so up to 16 output channels win
-//     (channels-last 48->3 5x5 3.0x, 48->12 3x3 1.8x, 64->3 7x7 2.3x, 64->4 3x3 dilation 4
-//     2.8x, 24->8 4x4 stride 2 1.7x). fp16 GEMMs run on WMMA, so only filters of at least 25
-//     taps with at most 4 output channels win, or 6 with 49 taps (in the full pipeline 64->3
-//     7x7 1.5-2.5x, 48->3 5x5 1.4-1.8x, 48->3 5x5 dilation 2 1.2-1.5x, 32->6 7x7 1.2-2.1x);
-//     8 output channels are mixed (48->8 5x5 1.0-1.5x), and 3x3 filters (48->3 0.35-0.96x)
-//     and strides (48->3 5x5 stride 2 0.8-0.95x) lose.
-//   - fp32 outputs need at least 64 multiply-adds, or the conv is bound by memory and the
-//     kernels tie (16->1 1x1 0.9x). 1x1 convs only won when MLIR read a cold input
-//     (64->3 at 512x512 1.6x, 0.87x after a producer kernel), so they stay with MLIR.
-//   - The kernel does not split the input channels across blocks, so it needs many output
-//     positions to fill the GPU (96->3 at 128x128 0.8x, 512->3 at 16x16 0.1x, fp16 48->3
-//     5x5 at 128x128 0.8-0.95x).
+// What the GEMM-based kernels multiply a float or half convolution with
+enum class conv_matrix_instruction
+{
+    none,
+    wmma,
+    mfma
+};
+
+// WMMA has no float variant
+conv_matrix_instruction get_conv_matrix_instruction(const std::string& gfx_name, shape::type_t type)
+{
+    if(starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12"))
+        return type == shape::half_type ? conv_matrix_instruction::wmma
+                                        : conv_matrix_instruction::none;
+    if(contains({"gfx908", "gfx90a"}, gfx_name) or starts_with(gfx_name, "gfx94") or
+       starts_with(gfx_name, "gfx95"))
+        return conv_matrix_instruction::mfma;
+    return conv_matrix_instruction::none;
+}
+
+struct direct_conv_traits
+{
+    std::size_t out_channels = 0;
+    std::size_t in_channels  = 0;
+    std::size_t taps         = 0;
+    // Output positions per compute unit
+    std::size_t positions_per_cu = 0;
+    bool nhwc                    = false;
+    bool half                    = false;
+    bool unit_stride             = false;
+    bool dilated                 = false;
+};
+
+// Without matrix instructions (fp32 on gfx11 and gfx12) the GEMM-based kernels multiply with
+// FMAs like the direct kernel, so it wins up to 16 output channels (gfx1201 channels-last
+// 48->3 5x5 3.0x, 48->12 3x3 1.8x, 64->3 7x7 2.3x, 64->16 3x3 1.5x; gfx1151 64->16 3x3 1.6x):
+//   - Outputs need at least 64 multiply-adds, or the conv is bound by memory and the kernels
+//     tie (16->1 1x1 0.9x).
+//   - Channels-last strides win from 4x4 filters (24->8 4x4 stride 2 1.7x, 48->3 5x5 stride 2
+//     1.07x), while 3x3 strides lose (64->3 0.48x alone).
 //   - Channels-first 3x3 and 4x4 filters and strides lose to the winograd kernel and MLIR's
 //     channels-first path (48->3 3x3 0.5x, 16->4 3x3 stride 2 0.4x), while large filters
 //     still win there (64->3 7x7 2.4x).
-//   - 1-D convolutions are mixed (64->3 5-tap 1.1x, 48->8 3-tap 0.6-0.9x).
-bool direct_conv_profitable_gfx12(instruction_ref ins, const value& v)
+bool direct_conv_beats_fma(const direct_conv_traits& p)
 {
-    const auto& x_shape = ins->inputs().front()->get_shape();
-    if(x_shape.ndim() != 4)
+    if(p.positions_per_cu < 1000 or p.out_channels > 16 or p.in_channels * p.taps < 64)
         return false;
-    const auto& w_shape     = ins->inputs().back()->get_shape();
-    const auto out_channels = w_shape.lens()[0];
-    const auto taps         = filter_taps(w_shape);
-    const auto positions    = ins->get_shape().elements() / out_channels;
-    if(taps == 1 or positions < 64 * 1024)
-        return false;
-    const bool half = x_shape.type() == shape::half_type;
-    const bool nhwc = x_shape.strides()[1] == 1;
-    const bool unit_stride =
-        all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; });
-    if(half)
-        return unit_stride and taps >= 25 and out_channels <= (taps >= 49 ? 6 : 4);
-    if(out_channels > 16 or w_shape.lens()[1] * taps < 64)
-        return false;
-    return nhwc or (unit_stride and taps >= 25);
+    if(p.nhwc)
+        return p.unit_stride or p.taps >= 16;
+    return p.unit_stride and p.taps >= 25;
 }
 
-// Heuristic for when the direct kernel beats the default lowering on gfx94x (MI300): MLIR,
-// or MIOpen for channels-first dilated filters. Derived on gfx942 from tools/bench_conv.py
-// --direct compare over the same convs in both layouts plus a grid of 16 and 64 input
-// channels to 1-8 outputs at 256x256 to 1280x1280, then cut back to where the kernel still
-// wins with the conv between a 1x1 conv producer and a bias + relu epilogue.
-// Isolated convs can overstate the direct kernel (fp32 64->6 3x3 1.1x alone, 0.87x in the
-// pipeline; fp16 16->1 3x3 2.2x alone, 1.08x). Speedups below are kernel times in that
-// pipeline unless marked alone:
-//   - Only a few output channels win over the GEMM tiles: up to 3 in fp32 (channels-last
-//     16->1 7x7 1.4x, 256->3 3x3 1.3x, 64->3 3x3 1.07x), while 6 are mixed (64->6 7x7 1.3x,
-//     5x5 0.98x, 3x3 0.87x). Channels-last fp16 also needs few input channels or a large
-//     filter over few input channels (16->1 3x3 1.08x, 48->3 5x5 1.06x, 64->1 7x7 1.6x;
-//     64->3 5x5 0.86x alone).
-//   - The kernel does not split input channels across blocks, so it needs at least 128K
-//     output positions, or 64K for fp32 filters of at least 25 taps or channels-first
-//     dilation (64->3 5x5 at 256x256 1.08x, 64->8 3x3 dilation 2 at 256x256 1.7x).
-//     Channels-last fp16 needs 256K (16->3 7x7 at 384x384 0.91x).
+// Against WMMA only filters of at least 25 taps with at most 4 output channels win, or 6
+// with 49 taps (gfx1201 64->3 7x7 1.8x, 48->3 5x5 1.7x, 64->6 7x7 1.1x, 48->3 5x5 dilation 2
+// 1.2-1.5x; gfx1151 64->3 7x7 1.7x, 64->6 7x7 1.4x). 8 output channels are mixed (48->8 5x5
+// 1.0-1.5x), and 3x3 filters (64->3 0.7x) and strides (48->3 5x5 stride 2 0.6x) lose.
+bool direct_conv_beats_wmma(const direct_conv_traits& p)
+{
+    return p.positions_per_cu >= 1000 and p.unit_stride and p.taps >= 25 and
+           p.out_channels <= (p.taps >= 49 ? 6 : 4);
+}
+
+// MFMA leaves fewer wins, and needs fewer output positions per compute unit where the win
+// is large:
+//   - fp32 wins up to 3 output channels (gfx942 channels-last 16->1 7x7 1.4x, 256->3 3x3
+//     1.3x, 64->3 5x5 1.3x; gfx950 64->3 3x3 1.2x). Filters of at least 25 taps tie or win
+//     from 200 positions per compute unit (64->3 5x5 at 256x256 0.95-1.1x, 16->1 7x7
+//     1.2-1.5x), others from 400.
+//   - fp32 filters of 49 taps win up to 6 output channels from 800 positions per compute
+//     unit (64->6 7x7 at 640x640 1.2x on both, 16->6 at 512x512 1.2x, at 384x384 0.95x),
+//     while smaller filters lose there (64->6 5x5 0.98x, 3x3 0.87x).
+//   - Channels-last fp16 needs 800 positions per compute unit (16->3 7x7 at 384x384 0.91x)
+//     and few input channels, or a large filter over few input channels (16->1 3x3 1.2x,
+//     64->1 7x7 1.5-1.6x on both; 48->3 5x5 0.87x on gfx950, 64->3 5x5 0.8-0.9x).
 //   - Channels-first large filters are slow in MLIR, and channels-first dilated filters go to
-//     MIOpen with the epilogue in a separate kernel, so there the direct kernel wins with up
-//     to 8 output channels (fp16 64->1 7x7 4.7x, 64->8 7x7 1.7x, 16->3 3x3 dilation 2 2.3x;
-//     fp32 64->8 3x3 dilation 2 1.7x). Channels-first fp16 3x3 filters lose (64->3 0.56x
-//     alone) and channels-last fp32 dilation is mixed (64->3 3x3 0.92x, 128->3 1.1x).
-//   - Strides lose or only tie in the pipeline (fp16 channels-first 16->8 5x5 stride 2 0.93x
-//     for the whole pipeline), and 1-D convolutions are mixed or lose alone, so both stay
-//     with the default lowering.
-bool direct_conv_profitable_gfx94(instruction_ref ins, const value& v)
+//     MIOpen with the epilogue in a separate kernel, so there the kernel wins with up to 8
+//     output channels (fp16 64->1 7x7 4.7x, 64->8 7x7 1.7x, 16->3 3x3 dilation 2 2.3x; fp32
+//     64->8 3x3 dilation 2 1.7x). Channels-first fp16 3x3 filters lose (64->3 0.56x alone)
+//     and channels-last fp32 dilation is mixed (64->3 3x3 0.92x, 64->8 0.8x).
+//   - Strides lose (fp32 48->3 5x5 stride 2 0.6-0.8x).
+bool direct_conv_beats_mfma(const direct_conv_traits& p)
+{
+    if(not p.unit_stride or p.out_channels > 8 or p.positions_per_cu < 200)
+        return false;
+    if(p.half)
+    {
+        if(not p.nhwc)
+            return p.positions_per_cu >= 400 and (p.taps >= 25 or p.dilated);
+        return p.positions_per_cu >= 800 and p.out_channels <= 3 and
+               (p.in_channels <= 16 or (p.taps >= 25 and p.out_channels * p.in_channels <= 64));
+    }
+    if(p.dilated)
+        return not p.nhwc;
+    if(p.positions_per_cu >= 800 and p.taps >= 49 and p.out_channels <= 6)
+        return true;
+    return p.out_channels <= 3 and (p.positions_per_cu >= 400 or p.taps >= 25);
+}
+
+// Heuristic for when the direct kernel beats the default lowering: MLIR, the winograd kernel
+// for the convolutions it takes, or MIOpen for channels-first dilated filters. The direct
+// kernel multiplies with FMAs (fp16 with dot2, two input channels per instruction), so it
+// only wins where the GEMM-based kernels waste their tiles on few output channels, and how
+// few depends on the matrix instructions they have for the type. It does not split the
+// input channels across blocks, so it also needs enough output positions to fill the
+// compute units: alone its speedup levels off around 500 to 1000 positions per compute unit
+// on gfx1201, gfx950 and gfx942.
+// Derived from tools/bench_conv.py --direct compare on gfx1201 and gfx942 and checked for
+// channels-last on gfx1151 and gfx950, which each follow the device with the same matrix
+// instructions; the 160KB of shared memory on gfx950 changes nothing. Speedups are kernel
+// times with the conv between a conv producer and a bias + relu epilogue unless marked
+// alone, which can overstate the kernel (gfx942 fp16 16->1 3x3 2.2x alone, 1.2x in the
+// pipeline).
+// 1x1 and 1-D convolutions are mixed or lose, so they stay with the default lowering.
+bool direct_conv_profitable(instruction_ref ins,
+                            const value& v,
+                            const std::string& gfx_name,
+                            std::size_t compute_units)
 {
     const auto& x_shape = ins->inputs().front()->get_shape();
     if(x_shape.ndim() != 4)
         return false;
-    const auto& w_shape     = ins->inputs().back()->get_shape();
-    const auto out_channels = w_shape.lens()[0];
-    const auto in_channels  = w_shape.lens()[1];
-    const auto taps         = filter_taps(w_shape);
-    const auto positions    = ins->get_shape().elements() / out_channels;
-    const bool unit_stride =
-        all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; });
-    if(taps == 1 or not unit_stride or out_channels > 8 or positions < 64 * 1024)
+    const auto& w_shape = ins->inputs().back()->get_shape();
+    const auto is_one   = [](const value& x) { return x.to<std::size_t>() == 1; };
+    direct_conv_traits p;
+    p.out_channels     = w_shape.lens()[0];
+    p.in_channels      = w_shape.lens()[1];
+    p.taps             = filter_taps(w_shape);
+    p.positions_per_cu = ins->get_shape().elements() / p.out_channels / compute_units;
+    p.nhwc             = x_shape.strides()[1] == 1;
+    p.half             = x_shape.type() == shape::half_type;
+    p.unit_stride      = all_of(v.at("stride"), is_one);
+    p.dilated          = not all_of(v.at("dilation"), is_one);
+    if(p.taps == 1)
         return false;
-    const bool nhwc = x_shape.strides()[1] == 1;
-    const bool dilated =
-        not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; });
-    if(x_shape.type() == shape::half_type)
+    switch(get_conv_matrix_instruction(gfx_name, x_shape.type()))
     {
-        if(not nhwc)
-            return positions >= 128 * 1024 and (taps >= 25 or dilated);
-        return positions >= 256 * 1024 and out_channels <= 3 and
-               (in_channels <= 16 or (taps >= 25 and out_channels * in_channels <= 144));
+    case conv_matrix_instruction::none: return direct_conv_beats_fma(p);
+    case conv_matrix_instruction::wmma: return direct_conv_beats_wmma(p);
+    case conv_matrix_instruction::mfma: return direct_conv_beats_mfma(p);
     }
-    if(dilated)
-        return not nhwc;
-    return out_channels <= 3 and (positions >= 128 * 1024 or taps >= 25);
+    return false;
 }
 
 struct find_direct_convolution
@@ -434,15 +478,11 @@ struct find_direct_convolution
     std::size_t max_lds_bytes = 0;
     // Offload every supported convolution, skipping the profitability heuristic
     bool force = false;
-    // Use the heuristic measured on gfx94x instead of the gfx12 one
-    bool gfx94 = false;
+    std::string gfx_name;
+    // Compute units the kernel has to fill, at least 1
+    std::size_t compute_units = 1;
 
     auto matcher() const { return conv_direct(); }
-
-    bool profitable(instruction_ref ins, const value& v) const
-    {
-        return gfx94 ? direct_conv_profitable_gfx94(ins, v) : direct_conv_profitable_gfx12(ins, v);
-    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -457,7 +497,7 @@ struct find_direct_convolution
            max_lds_bytes)
             return;
         auto v = ins->get_operator().to_value();
-        if(not force and not profitable(ins, v))
+        if(not force and not direct_conv_profitable(ins, v, gfx_name, compute_units))
             return;
         m.replace_instruction(ins,
                               direct_conv{v.at("padding").to_vector<std::size_t>(),
@@ -1041,11 +1081,14 @@ struct find_winograd_f23
 void find_direct_convolutions(module_pass_manager& mpm, const context& ctx, bool force)
 {
     const auto& device = ctx.get_current_device();
+    // Wave32 devices report workgroup processors, which are two compute units each
+    const auto compute_units = device.get_cu_count() * 64 / device.get_wavefront_size();
     match::find_matches(
         mpm.get_module(),
         find_direct_convolution{.max_lds_bytes = device.get_max_shared_memory_per_block(),
                                 .force         = force,
-                                .gfx94         = starts_with(device.get_gfx_name(), "gfx94")});
+                                .gfx_name      = device.get_gfx_name(),
+                                .compute_units = std::max<std::size_t>(compute_units, 1)});
 }
 
 void inline_group_sub_module(module_pass_manager& mpm)

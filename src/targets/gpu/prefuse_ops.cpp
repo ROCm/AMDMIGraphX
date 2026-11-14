@@ -1082,14 +1082,13 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
             mpm.get_module(),
             find_channelwise_convolution{
                 .max_lds_bytes = ctx->get_current_device().get_max_shared_memory_per_block()});
-    // The direct kernel's heuristics are measured on gfx12 and gfx94x; gfx11 runs it only when
-    // forced on. A forced kernel takes every convolution it supports ahead of winograd,
-    // otherwise winograd keeps the 3x3 convolutions its heuristic picks, which the direct
-    // kernel only ties.
-    const bool direct_conv_enabled =
-        not disable_direct_conv and
-        (starts_with(device_name, "gfx12") or starts_with(device_name, "gfx94") or
-         (enable_direct_conv and is_navi));
+    // The direct kernel's heuristics are measured on gfx12 and gfx94x; other devices run it
+    // only when forced on. A forced kernel takes every convolution it supports ahead of
+    // winograd, otherwise winograd keeps the 3x3 convolutions its heuristic picks, which the
+    // direct kernel only ties.
+    const bool direct_conv_enabled = ctx != nullptr and not disable_direct_conv and
+                                     (enable_direct_conv or starts_with(device_name, "gfx12") or
+                                      starts_with(device_name, "gfx94"));
     if(direct_conv_enabled and enable_direct_conv)
         find_direct_convolutions(mpm, *ctx, true);
     if(supports_winograd)

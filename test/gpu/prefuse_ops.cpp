@@ -197,19 +197,10 @@ TEST_CASE(channelwise_conv_halo_too_large)
     EXPECT(m1 == m2);
 }
 
-static bool runs_direct_conv(const migraphx::gpu::context& ctx)
-{
-    const auto gfx = ctx.get_current_device().get_gfx_name();
-    return migraphx::starts_with(gfx, "gfx11") or migraphx::starts_with(gfx, "gfx12") or
-           migraphx::starts_with(gfx, "gfx94");
-}
-
 // enable_direct_conv offloads every dense convolution the kernel supports
 TEST_CASE(direct_conv_enabled)
 {
     migraphx::gpu::context ctx;
-    if(not runs_direct_conv(ctx))
-        test::skip("The direct conv kernel only runs on gfx11, gfx12 and gfx94x");
     migraphx::shape xs{migraphx::shape::float_type, {1, 8, 32, 32}};
     migraphx::shape ws{migraphx::shape::float_type, {16, 8, 5, 5}};
     migraphx::value attrs = {{"padding", {2, 2, 2, 2}}, {"stride", {2, 2}}, {"dilation", {1, 1}}};
@@ -293,7 +284,7 @@ TEST_CASE(direct_conv_tall_filter)
 }
 
 // Dilation 48 on a 3x3 filter needs (7 + 97) * (63 + 97) floats of halo for one input
-// channel of the fallback 8x64 tile, more than the 64KB a gfx11, gfx12 or gfx94x block may use
+// channel of the fallback 8x64 tile, more than the 64KB of shared memory a block may use
 TEST_CASE(direct_conv_halo_too_large)
 {
     migraphx::gpu::context ctx;
@@ -317,8 +308,8 @@ TEST_CASE(direct_conv_halo_too_large)
 TEST_CASE(direct_conv_halo_fits)
 {
     migraphx::gpu::context ctx;
-    if(not runs_direct_conv(ctx))
-        test::skip("The direct conv kernel only runs on gfx11, gfx12 and gfx94x");
+    if(ctx.get_current_device().get_max_shared_memory_per_block() < 64 * 1024)
+        test::skip("The halo needs 64KB of shared memory per block");
     migraphx::shape xs{migraphx::shape::float_type, {1, 4, 257, 257}};
     migraphx::shape ws{migraphx::shape::float_type, {8, 4, 3, 3}};
     migraphx::value attrs = {{"padding", {0, 0, 0, 0}}, {"stride", {1, 1}}, {"dilation", {47, 47}}};

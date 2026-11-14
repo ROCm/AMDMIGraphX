@@ -156,8 +156,8 @@ struct backend_options
     bool hiprtc_disable_processes = false;
     // Fuse the concat_past_present kv-cache append into its producer kernel.
     bool eliminate_concat_past_present = true;
-    // Use the direct convolution kernel for every convolution it supports on gfx11, gfx12 and
-    // gfx94x, bypassing its profitability heuristic.
+    // Use the direct convolution kernel for every convolution it supports on any device,
+    // bypassing its profitability heuristic.
     bool enable_direct_conv = false;
     // Never use the direct convolution kernel.
     bool disable_direct_conv = false;

@@ -30,12 +30,21 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+// A convert to bool maps every nonzero value to 1 and a convert from a floating point type to an
+// integer type truncates, so a round trip through either one changes the values, not just their
+// precision
+static bool keeps_values(shape::type_t from, shape::type_t to)
+{
+    if(to == shape::bool_type)
+        return from == shape::bool_type;
+    return not shape::is_integral(to) or shape::is_integral(from);
+}
+
 /**
  * Matches with some sequence of sequential convert instructions.
- * If input to the sequence of converts has the same shape as the last convert,
- * replace last convert with the input.
- * If input to the sequence is not the same shape as the last convert,
- * replace last convert with convert from the input to the last shape.
+ * Unless an intermediate convert changes the values of the input (see keeps_values), the sequence
+ * is replaced: by the input when it has the same shape as the last convert, otherwise by a
+ * convert from the input to the last shape.
  */
 struct find_nested_convert : match::supports_dynamic_shapes
 {
@@ -43,13 +52,20 @@ struct find_nested_convert : match::supports_dynamic_shapes
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto matched_ins  = mr.result;
-        auto prev_convert = matched_ins->inputs().front();
-        auto input        = prev_convert->inputs().front();
+        auto matched_ins                           = mr.result;
+        auto prev_convert                          = matched_ins->inputs().front();
+        auto input                                 = prev_convert->inputs().front();
+        std::vector<instruction_ref> intermediates = {prev_convert};
         while(input->name() == "convert")
         {
+            intermediates.push_back(input);
             input = input->inputs().front();
         }
+        auto input_type = input->get_shape().type();
+        if(not std::all_of(intermediates.begin(), intermediates.end(), [&](instruction_ref c) {
+               return keeps_values(input_type, c->get_shape().type());
+           }))
+            return;
         if(matched_ins->get_shape() == input->get_shape())
         {
             m.replace_instruction(matched_ins, input);

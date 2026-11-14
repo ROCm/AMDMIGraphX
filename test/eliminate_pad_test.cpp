@@ -95,9 +95,10 @@ TEST_CASE(eliminate_pad)
 
     EXPECT(op0["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1, 1, 1});
     EXPECT(om1["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1, 1, 1});
-    EXPECT(om2["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1, 1, 1});
+    EXPECT(om2["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{0, 0, 0, 0});
+    EXPECT(l2->inputs().front() == padded_img);
 
-    EXPECT(std::none_of(
+    EXPECT(std::any_of(
         m.begin(), m.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 
@@ -127,6 +128,26 @@ TEST_CASE(eliminate_pad_im2col_asymmetric)
     run_pass(m);
     EXPECT(std::none_of(
         m.begin(), m.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
+}
+
+TEST_CASE(eliminate_pad_zero_max_negative)
+{
+    migraphx::module m;
+    migraphx::shape shape{migraphx::shape::float_type, {1, 1, 2, 2}};
+    std::vector<float> input{-1.0f, -2.0f, -3.0f, -4.0f};
+    auto image = m.add_literal(migraphx::literal{shape, input});
+    auto padded =
+        m.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 1, 1}}}), image);
+    auto output = m.add_instruction(
+        migraphx::make_op(
+            "pooling",
+            {{"mode", migraphx::op::pooling_mode::max}, {"lengths", {2, 2}}, {"stride", {1, 1}}}),
+        padded);
+    m.add_return({output});
+    run_pass(m);
+    std::vector<float> results;
+    output->eval().visit([&](auto values) { results.assign(values.begin(), values.end()); });
+    EXPECT(results == std::vector<float>{-1.0f, 0.0f, 0.0f, 0.0f});
 }
 
 TEST_CASE(eliminate_pad_nonzero_pad)

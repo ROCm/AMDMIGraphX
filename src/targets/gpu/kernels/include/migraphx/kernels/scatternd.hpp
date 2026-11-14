@@ -49,7 +49,20 @@ __device__ void scatternd(const T& indices_t, const U& updates_t, const V& outpu
 
         auto index_start = indices_t.begin_at(indices_idx);
         auto out_idx     = output_shape.multi(0);
-        copy(index_start, index_start + k, out_idx.begin());
+        // A negative index counts back from the end of its dimension. A kernel cannot raise an
+        // error, so an update whose index is still out of bounds is skipped.
+        bool in_bounds = true;
+        for(index_int j = 0; j < k; j++)
+        {
+            int64_t coord = index_start[j];
+            auto dim      = static_cast<int64_t>(output_shape.lens[j]);
+            if(coord < 0)
+                coord += dim;
+            in_bounds  = in_bounds and coord >= 0 and coord < dim;
+            out_idx[j] = static_cast<index_int>(coord);
+        }
+        if(not in_bounds)
+            return;
         copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
 
         f(output_t[out_idx], updates_t[i]);

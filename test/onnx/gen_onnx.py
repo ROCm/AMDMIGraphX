@@ -17355,6 +17355,23 @@ def scatternd_nonpacked_indices_test():
 
 
 @onnx_test()
+def scatternd_negative_indices_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, 8, 4])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                            [1, 3, 2])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [1, 3, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 8, 4])
+
+    node = onnx.helper.make_node('ScatterND',
+                                 inputs=['data', 'indices', 'updates'],
+                                 outputs=['output'])
+
+    return ([node], [data, indices, updates], [output])
+
+
+@onnx_test()
 def selu_test():
     x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [2, 3])
     y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [2, 3])

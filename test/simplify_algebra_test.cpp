@@ -2695,6 +2695,7 @@ TEST_CASE(simplify_split_dependent_group_members)
         std::iota(data.begin(), data.end(), 0.0f);
         auto x = m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {16}}, data});
         std::vector<migraphx::instruction_ref> s;
+        s.reserve(4);
         for(int64_t i = 0; i < 4; i++)
             s.push_back(m1.add_instruction(
                 migraphx::make_op("slice",

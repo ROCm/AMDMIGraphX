@@ -104,7 +104,7 @@ struct select_module
             MIGRAPHX_THROW("SELECT_MODULE: empty guard input is out of range");
         // Once lowered, the output buffers follow the inputs and each input is bound to a
         // parameter of the compiled submodules, so a static input must keep that layout
-        for(const auto& sub : submodules)
+        for(const_module_ref sub : submodules)
         {
             auto names = get_input_parameter_names(sub);
             if(inputs.size() <= names.size())

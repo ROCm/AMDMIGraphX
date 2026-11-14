@@ -716,7 +716,7 @@ struct miopen_apply
             // Each input is bound to a parameter of the submodules, so an input in another layout
             // is copied into the layout of that parameter
             auto sm = any_cast<op::select_module>(ins->get_operator());
-            for(const auto& sub : ins->module_inputs())
+            for(const_module_ref sub : ins->module_inputs())
             {
                 auto names = sm.get_input_parameter_names(sub);
                 for(std::size_t i = 0; i < names.size() and i < inputs.size(); i++)

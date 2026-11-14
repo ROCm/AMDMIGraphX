@@ -237,14 +237,16 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
 
     MLSSbinary* binaries  = nullptr;
     MLSSsize num_binaries = 0;
-    if(mlssGetBinaries(mlss_ctx, &binaries, &num_binaries) != MLSS_SUCCESS or num_binaries == 0)
+    const auto binary_query = mlssMakeBinaryQuery(MLSS_BINARY_KIND_ANY, MLSS_BACKEND_ANY, false);
+    if(mlssGetBinaries(mlss_ctx, binary_query, &binaries, &num_binaries) != MLSS_SUCCESS or
+       num_binaries == 0)
         return info;
 
     // Find first non-relocatable binary whose entry point is named "main"
     const MLSSbinary* bin = nullptr;
     for(MLSSsize i = 0; i < num_binaries; ++i)
     {
-        if(not binaries[i].m_isRelocatable and binaries[i].m_pKernelName != nullptr and
+        if(binaries[i].m_attr.m_isNonRelocatable and binaries[i].m_pKernelName != nullptr and
            std::string(binaries[i].m_pKernelName) == "main")
         {
             bin = &binaries[i];

@@ -57,12 +57,28 @@ struct gpu_loop
         copy_to_gpu(ctx, arg_src, dst);
     }
 
-    void append(const std::vector<argument>&,
-                const std::vector<argument>&,
-                const std::vector<int64_t>&,
-                int64_t,
-                int64_t) const
+    // The body writes each scan output to its slot through an output parameter, unless it
+    // returns another buffer, such as gpu::fixed_pad returning its input when there is nothing
+    // to pad. Copy such a result into the slot.
+    void append(context& ctx,
+                const std::vector<argument>& iter_state,
+                const std::vector<argument>& concatenated_outputs,
+                const std::vector<int64_t>& scan_output_dirs,
+                int64_t curr_iter,
+                int64_t num_iters) const
     {
+        assert(iter_state.size() == concatenated_outputs.size());
+        for(std::size_t i = 0; i < iter_state.size(); ++i)
+        {
+            const auto& iter_stat = iter_state.at(i);
+            auto dir              = scan_output_dirs.empty() ? 0 : scan_output_dirs[i];
+            auto idx              = (1 - dir) * curr_iter + dir * (num_iters - 1 - curr_iter);
+            auto size             = iter_stat.get_shape().bytes();
+            auto* slot            = concatenated_outputs.at(i).data() + idx * size;
+            if(iter_stat.data() == slot)
+                continue;
+            gpu_copy(ctx, iter_stat, argument{iter_stat.get_shape(), slot});
+        }
     }
 
     void set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, int iter) const

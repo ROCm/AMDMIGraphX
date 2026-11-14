@@ -45,24 +45,32 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-std::vector<instruction_ref> get_alloc_aliases(const module& mod)
+// A loop binds one output buffer to each value its body returns. A return that can alias several
+// inputs, such as gpu::fixed_pad, which returns its input when there is nothing to pad, writes to
+// its last one otherwise, so in a loop body only that one is the output buffer. The loop copies
+// the result into it when the body returns another buffer.
+std::vector<instruction_ref> get_alloc_aliases(const module& mod, bool one_buffer_per_return)
 {
     auto returns = mod.get_returns();
     // Collect all allocation aliases from each return value
     std::vector<instruction_ref> alloc_aliases;
     // Use a join but perhaps a tuple output parameter might be better?
-    std::transform(returns.begin(),
-                   returns.end(),
-                   join_back_inserter(alloc_aliases),
-                   [](const auto& i) { return resolve_output_aliases(i); });
+    std::transform(
+        returns.begin(), returns.end(), join_back_inserter(alloc_aliases), [&](const auto& i) {
+            auto aliases = instruction::get_output_alias(i, true);
+            if(one_buffer_per_return and aliases.size() > 1)
+                return resolve_output_aliases(aliases.back());
+            return resolve_output_aliases(i);
+        });
     return alloc_aliases;
 }
 
 // Create output parameter names
-std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
+std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod,
+                                                                     bool one_buffer_per_return)
 {
     std::unordered_map<instruction_ref, std::string> mod_output_names;
-    auto alloc_aliases = get_alloc_aliases(mod);
+    auto alloc_aliases = get_alloc_aliases(mod, one_buffer_per_return);
 
     std::size_t index = 0;
     if(mod.name().empty())
@@ -94,14 +102,14 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
 
 // Get debug symbols for output parameters from the `return` instruction
 std::unordered_map<instruction_ref, std::set<std::string>>
-get_output_debug_symbols(const module& mod)
+get_output_debug_symbols(const module& mod, bool one_buffer_per_return)
 {
     std::unordered_map<instruction_ref, std::set<std::string>> mod_output_debug_symbols;
     auto last_ins = std::prev(mod.end());
     if(mod.has_debug_symbols() and last_ins->name() == "@return" and
        not last_ins->get_debug_symbols().empty())
     {
-        auto alloc_aliases = get_alloc_aliases(mod);
+        auto alloc_aliases = get_alloc_aliases(mod, one_buffer_per_return);
 
         std::size_t index          = 0;
         const auto& output_symbols = last_ins->get_debug_symbols();
@@ -233,6 +241,17 @@ bool is_select_module_input(module_ref root, module_ref submodule)
     });
 }
 
+bool is_loop_body(module_ref root, module_ref submodule)
+{
+    auto modules = root->get_sub_modules();
+    modules.push_back(root);
+    return any_of(modules, [&](module_ref mod) {
+        return any_of(iterator_for(*mod), [&](instruction_ref ins) {
+            return ins->name() == "gpu::loop" and contains(ins->module_inputs(), submodule);
+        });
+    });
+}
+
 instruction_ref insert_output_copy(module& m,
                                    const allocation_model& model,
                                    instruction_ref pos,
@@ -340,8 +359,9 @@ void replace_allocate::apply(module_pass_manager& mpm) const
     }
     if(not root_offload_copy and model.needs_out_params())
         insert_copy(m, model, is_root or is_select_module_input(root_module, &m));
-    auto mod_output_names         = create_output_names(m);
-    auto mod_output_debug_symbols = get_output_debug_symbols(m);
+    bool loop_body                = not is_root and is_loop_body(root_module, &m);
+    auto mod_output_names         = create_output_names(m, loop_body);
+    auto mod_output_debug_symbols = get_output_debug_symbols(m, loop_body);
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "allocate")

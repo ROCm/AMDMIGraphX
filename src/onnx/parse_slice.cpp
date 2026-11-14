@@ -28,6 +28,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/convert.hpp>
+#include <migraphx/float_equal.hpp>
 #include <algorithm>
 #include <array>
 #include <numeric>
@@ -63,100 +64,7 @@ struct bound_evaluator
             if(i < values.size())
                 return values[i];
         }
-        auto input = [&](std::size_t k, std::size_t j) -> std::optional<sym::expr> {
-            auto x = ins->inputs().at(k);
-            auto n = x->get_shape().elements();
-            if(n != 1 and n != s.elements())
-                return std::nullopt;
-            return (*this)(x, j, depth + 1);
-        };
-        const auto& name = ins->name();
-        if(contains({"multibroadcast", "unsqueeze", "squeeze", "reshape", "contiguous"}, name))
-            return input(0, i);
-        if(name == "convert")
-        {
-            auto x = input(0, i);
-            if(not x.has_value() or
-               any_cast<op::convert>(ins->get_operator()).target_type != shape::bool_type)
-                return x;
-            auto v = sym::fixed_value(*x);
-            if(not v.has_value())
-                return std::nullopt;
-            return sym::lit(sym::to<double>(*v) != 0 ? 1 : 0);
-        }
-        if(name == "not")
-        {
-            auto x = input(0, i);
-            auto v = x.has_value() ? sym::fixed_value(*x) : std::nullopt;
-            if(not v.has_value())
-                return std::nullopt;
-            return sym::lit(sym::to<double>(*v) == 0 ? 1 : 0);
-        }
-        if(name == "gather" and ins->inputs().front()->get_shape().ndim() == 1)
-        {
-            auto index = (*this)(ins->inputs().at(1), i, depth + 1);
-            auto value = index.has_value() ? sym::fixed_value(*index) : std::nullopt;
-            if(not value.has_value())
-                return std::nullopt;
-            auto data = ins->inputs().front();
-            auto j    = sym::to<int64_t>(*value);
-            if(j < 0)
-                j += data->get_shape().elements();
-            return (*this)(data, j, depth + 1);
-        }
-        if(name == "slice" and ins->inputs().size() == 1 and
-           ins->inputs().front()->get_shape().ndim() == 1)
-        {
-            auto data  = ins->inputs().front();
-            auto op    = any_cast<op::slice>(ins->get_operator());
-            auto start = op.starts.empty() ? 0 : op.starts.front();
-            if(start < 0)
-                start += data->get_shape().elements();
-            return (*this)(data, i + start, depth + 1);
-        }
-        if(name == "concat" and s.ndim() == 1)
-        {
-            for(auto x : ins->inputs())
-            {
-                auto n = x->get_shape().elements();
-                if(i < n)
-                    return (*this)(x, i, depth + 1);
-                i -= n;
-            }
-            return std::nullopt;
-        }
-        if(contains({"add", "sub", "mul"}, name))
-        {
-            auto a = input(0, i);
-            auto b = input(1, i);
-            if(not a.has_value() or not b.has_value())
-                return std::nullopt;
-            if(name == "add")
-                return *a + *b;
-            if(name == "sub")
-                return *a - *b;
-            return *a * *b;
-        }
-        if(contains({"greater", "less", "equal"}, name))
-        {
-            auto a = input(0, i);
-            auto b = input(1, i);
-            if(not a.has_value() or not b.has_value())
-                return std::nullopt;
-            auto va = sym::fixed_value(*a);
-            auto vb = sym::fixed_value(*b);
-            if(va.has_value() and vb.has_value())
-                return sym::lit(compare(name, sym::to<double>(*va), sym::to<double>(*vb)) ? 1 : 0);
-            if(s.elements() != 1)
-                return std::nullopt;
-            auto decision = decisions.find(ins);
-            if(decision != decisions.end())
-                return sym::lit(decision->second ? 1 : 0);
-            if(not contains(open, ins))
-                open.push_back(ins);
-            return std::nullopt;
-        }
-        return std::nullopt;
+        return evaluate_op(ins, i, depth + 1);
     }
 
     static bool compare(const std::string& name, double a, double b)
@@ -165,7 +73,126 @@ struct bound_evaluator
             return a > b;
         if(name == "less")
             return a < b;
-        return a == b;
+        return float_equal(a, b);
+    }
+
+    private:
+    // Element i of input k of ins, which has one element or as many as ins
+    std::optional<sym::expr> input(instruction_ref ins, std::size_t k, std::size_t i, int depth)
+    {
+        auto x = ins->inputs().at(k);
+        auto n = x->get_shape().elements();
+        if(n != 1 and n != ins->get_shape().elements())
+            return std::nullopt;
+        return (*this)(x, i, depth);
+    }
+
+    std::optional<sym::expr> evaluate_op(instruction_ref ins, std::size_t i, int depth)
+    {
+        const auto& name = ins->name();
+        if(contains({"multibroadcast", "unsqueeze", "squeeze", "reshape", "contiguous"}, name))
+            return input(ins, 0, i, depth);
+        if(contains({"convert", "not"}, name))
+            return evaluate_logical(ins, input(ins, 0, i, depth));
+        if(name == "gather" and ins->inputs().front()->get_shape().ndim() == 1)
+            return evaluate_gather(ins, i, depth);
+        if(name == "slice" and ins->inputs().size() == 1 and
+           ins->inputs().front()->get_shape().ndim() == 1)
+            return evaluate_slice(ins, i, depth);
+        if(name == "concat" and ins->get_shape().ndim() == 1)
+            return evaluate_concat(ins, i, depth);
+        if(contains({"add", "sub", "mul", "greater", "less", "equal"}, name))
+        {
+            auto a = input(ins, 0, i, depth);
+            auto b = input(ins, 1, i, depth);
+            if(not a.has_value() or not b.has_value())
+                return std::nullopt;
+            if(contains({"add", "sub", "mul"}, name))
+                return evaluate_arithmetic(name, *a, *b);
+            return evaluate_comparison(ins, *a, *b);
+        }
+        return std::nullopt;
+    }
+
+    // A convert to bool, or a not, of a fixed value; a convert to another type keeps the value
+    static std::optional<sym::expr> evaluate_logical(instruction_ref ins,
+                                                     const std::optional<sym::expr>& x)
+    {
+        bool is_not = ins->name() == "not";
+        if(not is_not and
+           (not x.has_value() or
+            any_cast<op::convert>(ins->get_operator()).target_type != shape::bool_type))
+            return x;
+        auto v = x.has_value() ? sym::fixed_value(*x) : std::nullopt;
+        if(not v.has_value())
+            return std::nullopt;
+        bool nonzero = not float_equal(sym::to<double>(*v), 0.0);
+        return sym::lit(nonzero != is_not ? 1 : 0);
+    }
+
+    std::optional<sym::expr> evaluate_gather(instruction_ref ins, std::size_t i, int depth)
+    {
+        auto index       = (*this)(ins->inputs().at(1), i, depth);
+        auto index_value = index.has_value() ? sym::fixed_value(*index) : std::nullopt;
+        if(not index_value.has_value())
+            return std::nullopt;
+        auto data = ins->inputs().front();
+        auto j    = sym::to<int64_t>(*index_value);
+        if(j < 0)
+            j += data->get_shape().elements();
+        return (*this)(data, j, depth);
+    }
+
+    std::optional<sym::expr> evaluate_slice(instruction_ref ins, std::size_t i, int depth)
+    {
+        auto data  = ins->inputs().front();
+        auto op    = any_cast<op::slice>(ins->get_operator());
+        auto start = op.starts.empty() ? 0 : op.starts.front();
+        if(start < 0)
+            start += data->get_shape().elements();
+        return (*this)(data, i + start, depth);
+    }
+
+    std::optional<sym::expr> evaluate_concat(instruction_ref ins, std::size_t i, int depth)
+    {
+        for(auto x : ins->inputs())
+        {
+            auto n = x->get_shape().elements();
+            if(i < n)
+                return (*this)(x, i, depth);
+            i -= n;
+        }
+        return std::nullopt;
+    }
+
+    static sym::expr
+    evaluate_arithmetic(const std::string& name, const sym::expr& a, const sym::expr& b)
+    {
+        if(name == "add")
+            return a + b;
+        if(name == "sub")
+            return a - b;
+        return a * b;
+    }
+
+    std::optional<sym::expr>
+    evaluate_comparison(instruction_ref ins, const sym::expr& a, const sym::expr& b)
+    {
+        auto va = sym::fixed_value(a);
+        auto vb = sym::fixed_value(b);
+        if(va.has_value() and vb.has_value())
+        {
+            bool result = compare(ins->name(), sym::to<double>(*va), sym::to<double>(*vb));
+            return sym::lit(result ? 1 : 0);
+        }
+        if(ins->get_shape().elements() != 1)
+            return std::nullopt;
+        auto decision = decisions.find(ins);
+        if(decision != decisions.end())
+            return sym::lit(decision->second ? 1 : 0);
+        if(not contains(open, ins))
+            open.push_back(ins);
+        return std::nullopt;
     }
 };
 
@@ -188,9 +215,9 @@ resolve_conditional_end(instruction_ref ends, std::size_t i, const shape::dynami
         return end;
     if(probe.open.size() != 1 or not dim.is_symbolic() or dim.sym_expr.name() != "variable")
         return std::nullopt;
-    auto condition   = probe.open.front();
-    const auto range = dim.get_interval();
-    if(range.max - range.min > (1u << 16))
+    auto condition    = probe.open.front();
+    const auto bounds = dim.get_interval();
+    if(bounds.max - bounds.min > (1u << 16))
         return std::nullopt;
 
     std::array<sym::expr, 2> branches;
@@ -200,7 +227,7 @@ resolve_conditional_end(instruction_ref ends, std::size_t i, const shape::dynami
         auto end = evaluator(ends, i);
         if(not end.has_value() or not evaluator.open.empty())
             return std::nullopt;
-        branches[outcome] = *end;
+        branches[outcome ? 1 : 0] = *end;
     }
     bound_evaluator operands;
     auto lhs = operands(condition->inputs().at(0), 0);
@@ -212,13 +239,15 @@ resolve_conditional_end(instruction_ref ends, std::size_t i, const shape::dynami
     std::vector<sym::expr> candidates = {
         sym::min(len, branches[0]), sym::min(len, branches[1]), branches[0], branches[1]};
     auto matches = [&](const sym::expr& candidate) {
-        for(auto n = static_cast<int64_t>(range.min); n <= static_cast<int64_t>(range.max); ++n)
+        const int64_t lo = bounds.min;
+        const int64_t hi = bounds.max;
+        for(auto n = lo; n <= hi; ++n)
         {
             std::unordered_map<sym::expr, sym::scalar> vars = {{len, sym::scalar{n}}};
             auto outcome  = bound_evaluator::compare(condition->name(),
                                                      sym::to<double>(lhs->eval(vars)),
                                                      sym::to<double>(rhs->eval(vars)));
-            auto expected = clipped_end(sym::to<int64_t>(branches[outcome].eval(vars)), n);
+            auto expected = clipped_end(sym::to<int64_t>(branches[outcome ? 1 : 0].eval(vars)), n);
             if(clipped_end(sym::to<int64_t>(candidate.eval(vars)), n) != expected)
                 return false;
         }

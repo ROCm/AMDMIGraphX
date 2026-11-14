@@ -342,7 +342,7 @@ conv_matrix_instruction get_conv_matrix_instruction(const std::string& gfx_name,
 {
     if(starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12"))
         return contains({shape::half_type, shape::bf16_type}, type) ? conv_matrix_instruction::wmma
-                                        : conv_matrix_instruction::none;
+                                                                    : conv_matrix_instruction::none;
     if(starts_with(gfx_name, "gfx9"))
         return conv_matrix_instruction::mfma;
     return conv_matrix_instruction::wmma;

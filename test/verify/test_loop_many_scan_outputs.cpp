@@ -59,6 +59,7 @@ struct test_loop_many_scan_outputs : verify_program<test_loop_many_scan_outputs>
         auto rl = mm->add_instruction(
             migraphx::make_op("loop", {{"max_iterations", 4}}), {in_iter, in_cond, in_val}, {body});
         std::vector<migraphx::instruction_ref> outputs;
+        outputs.reserve(n + 1);
         for(std::size_t i = 0; i < n + 1; ++i)
             outputs.push_back(
                 mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", i}}), rl));

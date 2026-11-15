@@ -31,6 +31,7 @@
 #include <cmath>
 #include <numeric>
 #include <optional>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -47,17 +48,50 @@ static sym::interval merge_bounds(const sym::interval& a, const sym::interval& b
     return sym::interval{sym::scalar_min(a.min, b.min), sym::scalar_max(a.max, b.max)};
 }
 
-// The range of a convert to type `t` of values in the range `x`
-static std::optional<sym::interval> convert_bounds(shape::type_t t,
-                                                   const std::optional<sym::interval>& x)
+// Whether every value in `bounds` is held by type `t` without wrapping or rounding: within its
+// range for an integer type, and within the exact integers for float and double
+static bool fits_type(shape::type_t t, const sym::interval& bounds)
+{
+    const double lo = sym::to<double>(bounds.min);
+    const double hi = sym::to<double>(bounds.max);
+    if(not std::isfinite(lo) or not std::isfinite(hi))
+        return false;
+    double lowest  = 0;
+    double highest = 0;
+    if(t == shape::float_type or t == shape::double_type)
+    {
+        highest = std::ldexp(1.0, t == shape::float_type ? 24 : 53);
+        lowest  = -highest;
+    }
+    else if(shape::is_integral(t))
+    {
+        shape{t}.visit_type([&](auto as) {
+            lowest  = static_cast<double>(as.min());
+            highest = static_cast<double>(as.max());
+        });
+    }
+    else
+    {
+        return false;
+    }
+    return lowest <= lo and hi <= highest;
+}
+
+// The range of a convert to type `t` of values in the range `x`, of type `from`
+static std::optional<sym::interval>
+convert_bounds(shape::type_t from, shape::type_t t, const std::optional<sym::interval>& x)
 {
     if(t == shape::bool_type)
         return bool_bounds();
-    if(not x.has_value() or not shape::is_integral(t))
+    if(not x.has_value() or not shape::is_integral(t) or shape::is_integral(from))
         return x;
     // A float truncates toward zero, so it stays within the floor and ceil of its range
-    return sym::interval{static_cast<int64_t>(std::floor(sym::to<double>(x->min))),
-                         static_cast<int64_t>(std::ceil(sym::to<double>(x->max)))};
+    const sym::interval truncated{std::floor(sym::to<double>(x->min)),
+                                  std::ceil(sym::to<double>(x->max))};
+    if(not fits_type(t, truncated))
+        return std::nullopt;
+    return sym::interval{static_cast<int64_t>(sym::to<double>(truncated.min)),
+                         static_cast<int64_t>(sym::to<double>(truncated.max))};
 }
 
 // The range of a binary op, or of a where choosing between `x` and `y`
@@ -100,54 +134,92 @@ static std::optional<sym::interval> reduce_sum_bounds(instruction_ref ins,
 
 // The range of values an instruction can hold, inferred from the ranges of its inputs, or nullopt
 // when it cannot be bounded. It bounds a value only known at run time, such as a count of selected
-// elements, so the length that depends on it can be a bounded symbol.
-static std::optional<sym::interval> value_bounds(instruction_ref ins, int depth = 0)
+// elements, so the length that depends on it can be a bounded symbol. Each instruction is
+// evaluated once.
+struct value_bounds
 {
-    const auto& s = ins->get_shape();
-    if((s.dynamic() and not s.symbolic()) or s.type() == shape::tuple_type)
-        return std::nullopt;
-    const auto value = ins->sym_eval();
-    if(not value.empty())
+    std::unordered_map<instruction_ref, std::optional<sym::interval>> cache = {};
+
+    std::optional<sym::interval> operator()(instruction_ref ins, int depth = 0)
     {
-        std::optional<sym::interval> result;
-        for(const auto& e : value.get())
-        {
-            auto i = e.eval_interval();
-            result = result.has_value() ? merge_bounds(*result, i) : i;
-        }
+        auto it = cache.find(ins);
+        if(it != cache.end())
+            return it->second;
+        auto result = compute(ins, depth);
+        // A value its type cannot hold would wrap or round at run time
+        if(result.has_value() and not fits_type(ins->get_shape().type(), *result))
+            result = std::nullopt;
+        cache.emplace(ins, result);
         return result;
     }
-    if(depth > 64 or ins->inputs().empty())
+
+    private:
+    std::optional<sym::interval> compute(instruction_ref ins, int depth)
+    {
+        const auto& s = ins->get_shape();
+        if((s.dynamic() and not s.symbolic()) or s.type() == shape::tuple_type)
+            return std::nullopt;
+        const auto value = ins->sym_eval();
+        if(not value.empty())
+        {
+            std::optional<sym::interval> result;
+            for(const auto& e : value.get())
+            {
+                auto i = e.eval_interval();
+                result = result.has_value() ? merge_bounds(*result, i) : i;
+            }
+            return result;
+        }
+        if(depth > 64 or ins->inputs().empty())
+            return std::nullopt;
+        const auto& name = ins->name();
+        auto input       = [&](std::size_t i) { return (*this)(ins->inputs().at(i), depth + 1); };
+        if(contains({"equal", "less", "greater", "not", "logical_and", "logical_or", "logical_xor"},
+                    name))
+            return bool_bounds();
+        if(name == "convert")
+            return convert_bounds(ins->inputs().front()->get_shape().type(),
+                                  s.type(),
+                                  s.type() == shape::bool_type ? std::nullopt : input(0));
+        // Ops that only move or repeat the values of their first input
+        if(contains({"identity",
+                     "contiguous",
+                     "squeeze",
+                     "unsqueeze",
+                     "reshape",
+                     "reshape_lazy",
+                     "flatten",
+                     "transpose",
+                     "slice",
+                     "broadcast",
+                     "multibroadcast",
+                     "gather"},
+                    name))
+            return input(0);
+        if(contains({"add", "sub", "mul", "min", "max"}, name))
+            return binary_bounds(name, input(0), input(1));
+        if(name == "where")
+            return binary_bounds(name, input(1), input(2));
+        if(name == "reduce_sum")
+            return reduce_sum_bounds(ins, input(0));
         return std::nullopt;
-    const auto& name = ins->name();
-    auto input       = [&](std::size_t i) { return value_bounds(ins->inputs().at(i), depth + 1); };
-    if(contains({"equal", "less", "greater", "not", "logical_and", "logical_or", "logical_xor"},
-                name))
-        return bool_bounds();
-    if(name == "convert")
-        return convert_bounds(s.type(), s.type() == shape::bool_type ? std::nullopt : input(0));
-    // Ops that only move or repeat the values of their first input
-    if(contains({"identity",
-                 "contiguous",
-                 "squeeze",
-                 "unsqueeze",
-                 "reshape",
-                 "reshape_lazy",
-                 "flatten",
-                 "transpose",
-                 "slice",
-                 "broadcast",
-                 "multibroadcast",
-                 "gather"},
-                name))
-        return input(0);
-    if(contains({"add", "sub", "mul", "min", "max"}, name))
-        return binary_bounds(name, input(0), input(1));
-    if(name == "where")
-        return binary_bounds(name, input(1), input(2));
-    if(name == "reduce_sum")
-        return reduce_sum_bounds(ins, input(0));
-    return std::nullopt;
+    }
+};
+
+// The length of a range from a whole-number `start` up to a limit in `limit_range`, with a delta
+// of 1, or nullopt when it is not bounded by an int
+static std::optional<int64_t> bounded_length(const sym::scalar& start,
+                                             const std::optional<sym::interval>& limit_range)
+{
+    const double start_d = sym::to<double>(start);
+    const double whole   = std::trunc(start_d);
+    if(not limit_range.has_value() or not std::isfinite(start_d) or whole < start_d or
+       start_d < whole)
+        return std::nullopt;
+    const double length = std::ceil(sym::to<double>(limit_range->max) - start_d);
+    if(not(length < std::numeric_limits<int>::max()))
+        return std::nullopt;
+    return std::max<int64_t>(static_cast<int64_t>(length), 0);
 }
 
 struct parse_range : op_parser<parse_range>
@@ -198,19 +270,17 @@ struct parse_range : op_parser<parse_range>
             };
             const auto start_value = first_fixed(start);
             const auto delta_value = first_fixed(delta);
-            const auto limit_range = value_bounds(args[1]);
-            if(limit.empty() and start_value.has_value() and delta_value.has_value() and
-               sym::to<int64_t>(*delta_value) == 1 and limit_range.has_value() and
-               std::holds_alternative<int64_t>(limit_range->max) and
-               std::get<int64_t>(limit_range->max) < std::numeric_limits<int>::max())
+            const auto max_length  = start_value.has_value()
+                                         ? bounded_length(*start_value, value_bounds{}(args[1]))
+                                         : std::nullopt;
+            if(limit.empty() and max_length.has_value() and delta_value.has_value() and
+               sym::to<int64_t>(*delta_value) == 1)
             {
-                const auto max_length = std::max<int64_t>(
-                    sym::to<int64_t>(limit_range->max) - sym::to<int64_t>(*start_value), 0);
                 const shape::dynamic_dimension output_dim{
-                    sym::var(parser.symbol_names.allocate(info.name), {0, max_length})};
+                    sym::var(parser.symbol_names.allocate(info.name), {0, *max_length})};
                 return info.add_instruction(
                     make_op("dynamic_range",
-                            {{"max_output", max_length}, {"output_dim", to_value(output_dim)}}),
+                            {{"max_output", *max_length}, {"output_dim", to_value(output_dim)}}),
                     args);
             }
             return info.add_instruction(make_op("dynamic_range"), args);

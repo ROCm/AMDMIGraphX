@@ -32,7 +32,7 @@ Number of chiplets (XCCs) to assume for cross-compilation. Only used when ``--gp
 
 .. option::  --gpu-arch-params [std::string]
 
-Device properties to assume for cross-compilation, as a JSON object (e.g. ``"{arch:gfx942, num_cu:120, num_chiplets:1, max_threads_per_cu:2048, max_threads_per_block:1024}"``). Overrides ``--gpu-arch``, ``--gpu-num-cus`` and ``--gpu-num-chiplets`` for any keys present. Specifying ``arch`` here is sufficient to enable cross-compilation without ``--gpu-arch``.
+Device properties to assume for cross-compilation, as a JSON object (e.g. ``"{arch:gfx942, num_cu:120, num_chiplets:1, max_threads_per_cu:2048, max_threads_per_block:1024, max_shared_memory_per_block:65536}"``). Overrides ``--gpu-arch``, ``--gpu-num-cus`` and ``--gpu-num-chiplets`` for any keys present. Specifying ``arch`` here is sufficient to enable cross-compilation without ``--gpu-arch``.
 
 .. option::  --backend-options [std::string]
 

@@ -6532,7 +6532,7 @@ TEST_CASE(slice_reshaped_concat_segment_run)
         auto reshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {5, 2}}}), concat);
         auto transpose =
             m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape);
-        // The first slice spans the segments of a and b, the second is c
+        // The first slice reads the segments of a and b, the second reads c
         auto sab = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), transpose);
         auto sc = m1.add_instruction(
@@ -6624,8 +6624,8 @@ TEST_CASE(slice_reshaped_concat_segment_run_shared)
     }
     run_pass(m1);
 
-    // The reshape still needs the full concat, so a concat of a and b would be
-    // an extra copy. The single segment of c is still read directly.
+    // The reshape is also returned, so the full concat stays and a concat of
+    // a and b would be an extra copy. The single segment of c is read directly.
     migraphx::module m2;
     {
         auto a       = m2.add_parameter("a", {migraphx::shape::float_type, {6}});

@@ -1010,10 +1010,10 @@ std::vector<std::size_t> concat_offsets(const std::vector<instruction_ref>& inpu
 }
 
 // Forward a slice that reads whole segments of a concat through the view ops
-// in between: one segment reads its input directly, a run of segments reads a
-// concat of just those inputs when that removes the full concat. This shows up
-// when a model repacks tensors (such as qkv) that an op decomposition then
-// re-slices.
+// in between. A slice of one segment reads that input directly. A slice of a
+// run of segments reads a concat of just those inputs, but only when that
+// leaves the full concat unused. This shows up when a model repacks tensors
+// (such as qkv) that an op decomposition then re-slices.
 struct find_slice_reshaped_concat
 {
     static const auto& view_ops()
@@ -1031,8 +1031,8 @@ struct find_slice_reshaped_concat
                                         match::name("concat").bind("concat"))));
     }
 
-    // The concat inputs [first, last) that a slice reads, with the view ops
-    // that remain to be applied to them
+    // The concat inputs [first, last) that a slice reads, and the shape
+    // transform from those inputs to the slice output
     struct segment_run
     {
         std::ptrdiff_t first = 0;
@@ -1044,10 +1044,11 @@ struct find_slice_reshaped_concat
 
     static std::optional<segment_run> find_run(instruction_ref concat_ins, instruction_ref ins)
     {
+        assert(not concat_ins->get_shape().dynamic());
         if(ins->name() != "slice" or ins->inputs().size() != 1)
             return std::nullopt;
-        auto [source, ops] = get_input_ops_if(ins->inputs().front(), [&](instruction_ref x) {
-            return x != concat_ins and contains(view_ops(), x->name());
+        auto [source, ops] = get_input_ops_if(ins->inputs().front(), [](instruction_ref x) {
+            return contains(view_ops(), x->name());
         });
         if(source != concat_ins)
             return std::nullopt;
@@ -1082,6 +1083,7 @@ struct find_slice_reshaped_concat
         auto last = std::find(std::next(first), prefix.end(), hi);
         if(last == prefix.end())
             return std::nullopt;
+
         if(desc.lens() != ins->get_shape().lens())
             return std::nullopt;
         return segment_run{std::distance(prefix.begin(), first),
@@ -1089,47 +1091,25 @@ struct find_slice_reshaped_concat
                            std::move(desc)};
     }
 
-    // The instructions that read the concat, looking through the view ops
-    static std::vector<instruction_ref> find_readers(instruction_ref concat_ins)
+    // A run is forwarded as a new concat of its inputs, which is an extra copy
+    // unless the full concat becomes unused. So every reader of ins, looking
+    // through the view ops, must be a slice this matcher can forward, and
+    // readers of several segments must all read the same run.
+    static bool
+    can_forward_run(instruction_ref concat_ins, const segment_run& run, instruction_ref ins)
     {
-        std::vector<instruction_ref> result;
-        fix([&](auto self, instruction_ref ins) {
-            for(auto output : ins->outputs())
-            {
-                // A view without outputs can be the result of the module
-                if(contains(view_ops(), output->name()) and not output->outputs().empty())
-                    self(output);
-                else
-                    result.push_back(output);
-            }
-        })(concat_ins);
-        return result;
-    }
-
-    // A run of segments is forwarded as a new concat of those segments, which
-    // is an extra kernel unless it takes the place of the full concat. So every
-    // reader has to be forwarded, and only one run can be read; the other
-    // readers each read a single segment directly.
-    static bool can_forward_run(instruction_ref concat_ins)
-    {
-        auto readers = find_readers(concat_ins);
-        std::vector<std::optional<segment_run>> found;
-        std::transform(readers.begin(),
-                       readers.end(),
-                       std::back_inserter(found),
-                       [&](instruction_ref reader) { return find_run(concat_ins, reader); });
-        if(not std::all_of(found.begin(), found.end(), [](const auto& r) { return r.has_value(); }))
-            return false;
-        std::vector<std::pair<std::ptrdiff_t, std::ptrdiff_t>> runs;
-        transform_if(
-            found.begin(),
-            found.end(),
-            std::back_inserter(runs),
-            [](const auto& r) { return r->size() > 1; },
-            [](const auto& r) { return std::make_pair(r->first, r->last); });
-        // Readers of the same run share one concat after common subexpression
-        // elimination
-        return std::adjacent_find(runs.begin(), runs.end(), std::not_equal_to<>{}) == runs.end();
+        const auto& outputs = ins->outputs();
+        return std::all_of(outputs.begin(), outputs.end(), [&](instruction_ref output) {
+            // A view without outputs can be the result of the module
+            if(contains(view_ops(), output->name()) and not output->outputs().empty())
+                return can_forward_run(concat_ins, run, output);
+            auto r = find_run(concat_ins, output);
+            if(not r.has_value())
+                return false;
+            // Readers of the same run share one concat after common
+            // subexpression elimination
+            return r->size() == 1 or std::tie(r->first, r->last) == std::tie(run.first, run.last);
+        });
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -1145,7 +1125,7 @@ struct find_slice_reshaped_concat
         auto seg           = inputs[run->first];
         if(run->size() > 1)
         {
-            if(not can_forward_run(concat_ins))
+            if(not can_forward_run(concat_ins, *run, concat_ins))
                 return;
             seg = m.insert_instruction(slice_ins,
                                        concat_ins->get_operator(),

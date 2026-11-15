@@ -799,7 +799,8 @@ struct miopen_apply
         auto v = ins->normalized_operator().to_value();
         auto k = v.at("k").to<std::size_t>();
         auto n = input.lens().at(v.at("axis").to<std::size_t>());
-        if(bit_ceil(std::uint64_t{k}) > 8192)
+        // The kernel selects as many elements as the output has, at most n
+        if(bit_ceil(std::uint64_t{std::min(k, n)}) > 8192)
             return false;
         auto block_size = compute_topk_block_size(get_context(), k, n / 4);
         return (n + block_size - 1) / block_size < 256;

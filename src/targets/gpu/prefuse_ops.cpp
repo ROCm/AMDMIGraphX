@@ -29,6 +29,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
@@ -426,6 +427,33 @@ bool direct_conv_beats_mfma(const direct_conv_traits& p)
     return p.out_channels <= 3 and (p.positions_per_cu >= 400 or p.taps >= 25);
 }
 
+// View ops applied to the output of ins along its chain of single-use pointwise ops
+std::vector<operation> output_view_ops(instruction_ref ins)
+{
+    std::vector<operation> ops;
+    while(ins->outputs().size() == 1)
+    {
+        ins = ins->outputs().front();
+        if(contains({"reshape", "transpose", "squeeze", "unsqueeze", "flatten"}, ins->name()))
+            ops.push_back(ins->get_operator());
+        else if(not ins->get_operator().attributes().contains("pointwise"))
+            break;
+    }
+    return ops;
+}
+
+// A pixel shuffle after the convolution merges channel and spatial axes. MLIR fuses it with
+// the epilogue, while the direct kernel leaves a pointwise kernel that reads its output
+// across channels (gfx1201 fp32 48->12 3x3 at 512x512 with the epilogue 0.68x).
+bool output_collapses(instruction_ref ins)
+{
+    auto ops = output_view_ops(ins);
+    if(ops.empty())
+        return false;
+    auto desc = shape_transform_descriptor::create(ins->get_shape().lens(), ops);
+    return not desc.empty() and desc.is_collapsing();
+}
+
 // Heuristic for when the direct kernel beats the default lowering: MLIR, the winograd kernel
 // for the convolutions it takes, or MIOpen for channels-first dilated filters. The direct
 // kernel multiplies with FMAs (fp16 with dot2, two input channels per instruction), so it
@@ -461,6 +489,8 @@ bool direct_conv_profitable(instruction_ref ins,
     p.unit_stride      = all_of(v.at("stride"), is_one);
     p.dilated          = not all_of(v.at("dilation"), is_one);
     if(p.taps == 1)
+        return false;
+    if(output_collapses(ins))
         return false;
     switch(get_conv_matrix_instruction(gfx_name, x_shape.type()))
     {

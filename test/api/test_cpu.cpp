@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -267,6 +267,39 @@ TEST_CASE(set_external_data_path)
     auto outputs = p.eval(pp);
     CHECK(shapes_before.size() == outputs.size());
     CHECK(shapes_before.front() == outputs.front().get_shape());
+}
+
+TEST_CASE(set_external_initializer)
+{
+    // conv.weight on disk holds 1s; using 2s shows the in-memory data takes precedence
+    std::vector<float> weight_data(1210, 2);
+    migraphx::onnx_options options;
+    options.set_external_initializer(
+        "conv.weight", weight_data.data(), weight_data.size() * sizeof(float));
+    auto onnx_buffer = migraphx::read_string("external_data_test.onnx");
+    auto p           = migraphx::parse_onnx_buffer(onnx_buffer, options);
+    p.compile(migraphx::target("ref"));
+
+    auto param_shapes = p.get_parameter_shapes();
+    std::vector<float> input(1 * 1 * 224 * 224, 1);
+    migraphx::program_parameters pp;
+    pp.add("input", migraphx::argument(param_shapes["input"], input.data()));
+    auto outputs = p.eval(pp);
+    CHECK(outputs.size() == 1);
+
+    // Each output is the sum of an 11x11 window of 1s times 2, plus the bias of 1 from the model
+    std::vector<float> expected(1 * 10 * 214 * 214, 11 * 11 * 2 + 1);
+    CHECK(outputs[0] == migraphx::argument(outputs[0].get_shape(), expected.data()));
+}
+
+TEST_CASE(set_external_initializer_size_mismatch)
+{
+    std::vector<float> weight_data(1209, 2);
+    migraphx::onnx_options options;
+    options.set_external_initializer(
+        "conv.weight", weight_data.data(), weight_data.size() * sizeof(float));
+    auto onnx_buffer = migraphx::read_string("external_data_test.onnx");
+    EXPECT(test::throws([&] { migraphx::parse_onnx_buffer(onnx_buffer, options); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -50,6 +50,7 @@ struct onnx_parser
     std::string filename;
     fs::path path;
     std::string external_data_path;
+    std::unordered_map<std::string, std::pair<const void*, std::size_t>> external_initializers;
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     struct node_info
     {

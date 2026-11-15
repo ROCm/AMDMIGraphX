@@ -32,7 +32,7 @@ TEST_CASE(range_float_min_test)
     const migraphx::shape x_shape{migraphx::shape::float_type, sym_dims({n})};
 
     migraphx::program p;
-    auto* mm  = p.get_main_module();
+    auto* mm = p.get_main_module();
     mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
     mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {1}});
     auto limit =

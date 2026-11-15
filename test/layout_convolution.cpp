@@ -133,7 +133,7 @@ TEST_CASE(auto_conv_symbolic_input_reshape)
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             w);
-        auto out = m1.add_instruction(migraphx::make_op(
+        auto out     = m1.add_instruction(migraphx::make_op(
             "allocate",
             {{"shape", migraphx::to_value(migraphx::shape{migraphx::shape::int64_type, {8}})}}));
         auto reshape = m1.add_instruction(migraphx::make_op("reshape"), y, out);

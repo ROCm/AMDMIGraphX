@@ -67,13 +67,19 @@ struct bound_evaluator
         return evaluate_op(ins, i, depth + 1);
     }
 
-    static bool compare(const std::string& name, double a, double b)
+    // Integers are compared as integers, so large values keep their order
+    static bool compare(const std::string& name, const sym::scalar& a, const sym::scalar& b)
     {
+        auto less = [](const sym::scalar& x, const sym::scalar& y) {
+            if(std::holds_alternative<int64_t>(x) and std::holds_alternative<int64_t>(y))
+                return std::get<int64_t>(x) < std::get<int64_t>(y);
+            return sym::to<double>(x) < sym::to<double>(y);
+        };
         if(name == "greater")
-            return a > b;
+            return less(b, a);
         if(name == "less")
-            return a < b;
-        return float_equal(a, b);
+            return less(a, b);
+        return not less(a, b) and not less(b, a);
     }
 
     private:
@@ -114,20 +120,72 @@ struct bound_evaluator
         return std::nullopt;
     }
 
-    // A convert to bool, or a not, of a fixed value; a convert to another type keeps the value
+    // Whether type `t` holds every value in `bounds` exactly: within its range for an integer
+    // type, and within the exact integers for float and double
+    static bool fits_type(shape::type_t t, const sym::interval& bounds)
+    {
+        const double lo = sym::to<double>(bounds.min);
+        const double hi = sym::to<double>(bounds.max);
+        double lowest   = 0;
+        double highest  = 0;
+        if(t == shape::float_type or t == shape::double_type)
+        {
+            highest = std::ldexp(1.0, t == shape::float_type ? 24 : 53);
+            lowest  = -highest;
+        }
+        else if(shape::is_integral(t))
+        {
+            shape{t}.visit_type([&](auto as) {
+                lowest  = static_cast<double>(as.min());
+                highest = static_cast<double>(as.max());
+            });
+        }
+        else
+        {
+            return false;
+        }
+        return std::isfinite(lo) and std::isfinite(hi) and lowest <= lo and hi <= highest;
+    }
+
+    // A convert keeps the value when the target holds it exactly. From a floating-point type that
+    // needs a fixed whole number, since the value is truncated at run time.
+    static std::optional<sym::expr> convert_value(shape::type_t from, shape::type_t to, sym::expr x)
+    {
+        if(not shape::is_integral(from))
+        {
+            const auto v = sym::fixed_value(x);
+            if(not v.has_value())
+                return std::nullopt;
+            const double d = sym::to<double>(*v);
+            const double t = std::trunc(d);
+            if(not std::isfinite(d) or t < d or d < t or std::abs(d) > 0x1p53)
+                return std::nullopt;
+            x = sym::lit(static_cast<int64_t>(d));
+        }
+        if(not fits_type(to, x.eval_interval()))
+            return std::nullopt;
+        return x;
+    }
+
+    // A convert to bool, or a not, of a fixed value is 0 or 1; a convert to another type keeps the
+    // value that type holds
     static std::optional<sym::expr> evaluate_logical(instruction_ref ins,
                                                      const std::optional<sym::expr>& x)
     {
+        if(not x.has_value())
+            return std::nullopt;
         bool is_not = ins->name() == "not";
-        if(not is_not and
-           (not x.has_value() or
-            any_cast<op::convert>(ins->get_operator()).target_type != shape::bool_type))
-            return x;
-        auto v = x.has_value() ? sym::fixed_value(*x) : std::nullopt;
+        if(not is_not)
+        {
+            auto to = any_cast<op::convert>(ins->get_operator()).target_type;
+            if(to != shape::bool_type)
+                return convert_value(ins->inputs().front()->get_shape().type(), to, *x);
+        }
+        auto v = sym::fixed_value(*x);
         if(not v.has_value())
             return std::nullopt;
         bool nonzero = not float_equal(sym::to<double>(*v), 0.0);
-        return sym::lit(nonzero != is_not ? 1 : 0);
+        return sym::lit(nonzero == is_not ? 0 : 1);
     }
 
     std::optional<sym::expr> evaluate_gather(instruction_ref ins, std::size_t i, int depth)
@@ -181,10 +239,7 @@ struct bound_evaluator
         auto va = sym::fixed_value(a);
         auto vb = sym::fixed_value(b);
         if(va.has_value() and vb.has_value())
-        {
-            bool result = compare(ins->name(), sym::to<double>(*va), sym::to<double>(*vb));
-            return sym::lit(result ? 1 : 0);
-        }
+            return sym::lit(compare(ins->name(), *va, *vb) ? 1 : 0);
         if(ins->get_shape().elements() != 1)
             return std::nullopt;
         auto decision = decisions.find(ins);
@@ -204,8 +259,20 @@ static int64_t clipped_end(int64_t end, int64_t len)
     return std::clamp<int64_t>(end, 0, len);
 }
 
+// Whether `len` is the only symbol in each expression
+static bool depends_only_on(const sym::expr& len, const std::vector<sym::expr>& exprs)
+{
+    const auto allowed = sym::find_variables(len);
+    return std::all_of(exprs.begin(), exprs.end(), [&](const sym::expr& e) {
+        auto vars = sym::find_variables(e);
+        return std::all_of(
+            vars.begin(), vars.end(), [&](const auto& v) { return contains(allowed, v); });
+    });
+}
+
 // An end that depends on one comparison of the axis length, such as `n > 100 ? 100 : -1` for a
-// clip to 100, resolves to an expression of the length when one candidate gives the same extent as
+// clip to 100 computed with arithmetic as tf2onnx exports TF's pad_or_clip (a `where` is not
+// evaluated), resolves to an expression of the length when one candidate gives the same extent as
 // both cases for every length the axis can have
 static std::optional<sym::expr>
 resolve_conditional_end(instruction_ref ends, std::size_t i, const shape::dynamic_dimension& dim)
@@ -234,8 +301,11 @@ resolve_conditional_end(instruction_ref ends, std::size_t i, const shape::dynami
     auto rhs = operands(condition->inputs().at(1), 0);
     if(not lhs.has_value() or not rhs.has_value())
         return std::nullopt;
+    // Only the axis length may vary, so checking each of its values covers every case
+    const auto& len = dim.sym_expr;
+    if(not depends_only_on(len, {*lhs, *rhs, branches[0], branches[1]}))
+        return std::nullopt;
 
-    const auto& len                   = dim.sym_expr;
     std::vector<sym::expr> candidates = {
         sym::min(len, branches[0]), sym::min(len, branches[1]), branches[0], branches[1]};
     auto matches = [&](const sym::expr& candidate) {
@@ -244,9 +314,8 @@ resolve_conditional_end(instruction_ref ends, std::size_t i, const shape::dynami
         for(auto n = lo; n <= hi; ++n)
         {
             std::unordered_map<sym::expr, sym::scalar> vars = {{len, sym::scalar{n}}};
-            auto outcome  = bound_evaluator::compare(condition->name(),
-                                                     sym::to<double>(lhs->eval(vars)),
-                                                     sym::to<double>(rhs->eval(vars)));
+            auto outcome =
+                bound_evaluator::compare(condition->name(), lhs->eval(vars), rhs->eval(vars));
             auto expected = clipped_end(sym::to<int64_t>(branches[outcome ? 1 : 0].eval(vars)), n);
             if(clipped_end(sym::to<int64_t>(candidate.eval(vars)), n) != expected)
                 return false;

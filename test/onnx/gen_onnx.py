@@ -18123,6 +18123,105 @@ def skip_layer_normalization_invalid_input_test():
     return ([node], [x, skip, gamma], [y])
 
 
+def slice_select_end_graph(cond_nodes, true_end, false_end, inputs=None):
+    # x has a symbolic length N; the end of axis 0 is cond ? true_end : false_end computed with
+    # arithmetic, as tf2onnx exports a select, where cond_nodes compute the bool `cond`
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 4])
+
+    zero = helper.make_tensor('zero', TensorProto.INT64, [], [0])
+    zerov = helper.make_tensor('zerov', TensorProto.INT64, [1], [0])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    t = helper.make_tensor('t', TensorProto.INT64, [], [true_end])
+    f = helper.make_tensor('f', TensorProto.INT64, [], [false_end])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['shape']),
+        helper.make_node('Gather', ['shape', 'zero'], ['n'], axis=0),
+    ] + cond_nodes + [
+        helper.make_node('Cast', ['cond'], ['condi'], to=TensorProto.INT64),
+        helper.make_node('Not', ['cond'], ['ncond']),
+        helper.make_node('Cast', ['ncond'], ['ncondi'], to=TensorProto.INT64),
+        helper.make_node('Mul', ['condi', 't'], ['a']),
+        helper.make_node('Mul', ['ncondi', 'f'], ['b']),
+        helper.make_node('Add', ['a', 'b'], ['end']),
+        helper.make_node('Unsqueeze', ['end', 'axes'], ['endv']),
+        helper.make_node('Slice', ['x', 'zerov', 'endv', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x] + (inputs or []), [out], [zero, zerov, axes, t, f])
+
+
+@onnx_test()
+def slice_select_less_symbolic_test():
+    # The end is to the end of the axis while N < 50, and 50 otherwise: min(N, 50)
+    fifty = helper.make_tensor('fifty', TensorProto.INT64, [], [50])
+    graph = slice_select_end_graph(
+        [helper.make_node('Less', ['n', 'fifty'], ['cond'])], 2147483647, 50)
+    return (graph[0], graph[1], graph[2], graph[3] + [fifty])
+
+
+@onnx_test()
+def slice_select_other_symbol_test():
+    # The condition compares the length of another input, so it is not a function of N
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['K'])
+    hundred = helper.make_tensor('hundred', TensorProto.INT64, [], [100])
+    graph = slice_select_end_graph([
+        helper.make_node('Shape', ['y'], ['yshape']),
+        helper.make_node('Gather', ['yshape', 'zero'], ['k'], axis=0),
+        helper.make_node('Greater', ['k', 'hundred'], ['cond']),
+    ],
+                                   100,
+                                   2147483647,
+                                   inputs=[y])
+    return (graph[0], graph[1], graph[2], graph[3] + [hundred])
+
+
+@onnx_test()
+def slice_float_end_symbolic_test():
+    # The end is half the length, computed in float and truncated back to int64
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 4])
+
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    half = helper.make_tensor('half', TensorProto.FLOAT, [1], [0.5])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['shape']),
+        helper.make_node('Gather', ['shape', 'zero'], ['n'], axis=0),
+        helper.make_node('Cast', ['n'], ['nf'], to=TensorProto.FLOAT),
+        helper.make_node('Mul', ['nf', 'half'], ['endf']),
+        helper.make_node('Cast', ['endf'], ['end'], to=TensorProto.INT64),
+        helper.make_node('Slice', ['x', 'zero', 'end', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x], [out], [zero, axes, half])
+
+
+@onnx_test()
+def slice_runtime_start_symbolic_test():
+    # x has a symbolic length and the start is a count computed from y, only known at run time
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 4])
+
+    half = helper.make_tensor('half', TensorProto.FLOAT, [], [0.5])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    big = helper.make_tensor('big', TensorProto.INT64, [1], [2147483647])
+
+    nodes = [
+        helper.make_node('Greater', ['y', 'half'], ['above']),
+        helper.make_node('Cast', ['above'], ['above_int'],
+                         to=TensorProto.INT64),
+        helper.make_node('ReduceSum', ['above_int', 'axes'], ['count'],
+                         keepdims=1),
+        helper.make_node('Slice', ['x', 'count', 'big', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x, y], [out], [half, axes, big])
+
+
 @onnx_test()
 def slice_runtime_end_symbolic_test():
     # x has a symbolic length and the end is a count computed from y, only known at run time

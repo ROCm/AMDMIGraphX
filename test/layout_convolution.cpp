@@ -114,6 +114,36 @@ TEST_CASE(auto_conv_symbolic_reshape)
                m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "reshape"; }) == 1);
 }
 
+TEST_CASE(auto_conv_symbolic_input_reshape)
+{
+    // A reshape of a symbolic input into a static allocation has a static shape, but its input
+    // still has no lens for the score
+    auto n = migraphx::sym::var("n", {1, 8});
+    migraphx::shape y_shape{migraphx::shape::int64_type,
+                            {migraphx::shape::dynamic_dimension{n},
+                             migraphx::shape::dynamic_dimension{migraphx::sym::lit(1)}}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto y = m1.add_parameter("y", y_shape);
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            w);
+        auto out = m1.add_instruction(migraphx::make_op(
+            "allocate",
+            {{"shape", migraphx::to_value(migraphx::shape{migraphx::shape::int64_type, {8}})}}));
+        auto reshape = m1.add_instruction(migraphx::make_op("reshape"), y, out);
+        m1.add_return({conv, reshape});
+    }
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+    EXPECT(std::count_if(
+               m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "reshape"; }) == 1);
+}
+
 TEST_CASE(auto_conv_nhwc)
 {
     auto transpose = migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}});

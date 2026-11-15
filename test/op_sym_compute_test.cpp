@@ -184,6 +184,32 @@ TEST_CASE(op_sym_convert_float_whole_numbers)
                    .has_value());
 }
 
+TEST_CASE(op_sym_convert_float_inexact_literals)
+{
+    const auto s = var("S", {1, 16});
+    auto to_type = [&](shape::type_t from, shape::type_t to, const migraphx::sym::expr& e) {
+        return symbolic_compute(migraphx::make_op("convert", {{"target_type", to}}),
+                                shape{to, {1}},
+                                {shape{from, {1}}},
+                                {symbolic_tensor_value{e}});
+    };
+    // A whole number that no integer holds, or no number at all
+    EXPECT(not to_type(shape::double_type, shape::int64_type, lit(1e30)).has_value());
+    EXPECT(not to_type(shape::double_type,
+                       shape::int64_type,
+                       lit(std::numeric_limits<double>::infinity()))
+                   .has_value());
+    // 0.1 is not 0.1f, so only whole literals are kept in float
+    EXPECT(not to_type(shape::double_type, shape::float_type, migraphx::sym::min(lit(0.1), s))
+                   .has_value());
+    EXPECT(to_type(shape::double_type, shape::float_type, migraphx::sym::min(lit(5.0), s)) ==
+           symbolic_tensor_value{migraphx::sym::min(lit(5), s)});
+    // To double: exact up to 2^53
+    EXPECT(to_type(shape::int64_type, shape::double_type, s) == symbolic_tensor_value{s});
+    EXPECT(not to_type(shape::int64_type, shape::double_type, var("T", {0, int64_t{1} << 60}))
+                   .has_value());
+}
+
 TEST_CASE(op_sym_gather)
 {
     const auto s = var("S", {1, 16});

@@ -77,29 +77,37 @@ struct convert : unary<convert>
                output_shape.type() == target_type and is_supported(target_type);
     }
 
+    // A floating-point literal is replaced by an integer only when it is a whole number that an
+    // integer and a double both hold exactly
+    static bool is_exact_integer(double d)
+    {
+        const auto t = std::trunc(d);
+        return std::isfinite(d) and not(t < d) and not(d < t) and std::abs(d) <= 0x1p53;
+    }
+
     // A floating-point value converted to an integer keeps its expression only when it is a
     // whole number: its literals, the only part that can hold a fraction, have to be whole
     static sym::expr to_integer(const sym::expr& x)
     {
         std::unordered_map<sym::expr, sym::expr> whole;
-        bool fraction = false;
+        bool inexact = false;
         fix([&](auto self, const sym::expr& e) -> void {
             if(e.name() == "literal")
             {
-                const auto value = sym::fixed_value(e);
-                if(not value.has_value() or std::holds_alternative<int64_t>(*value))
+                const auto value = *sym::fixed_value(e);
+                if(std::holds_alternative<int64_t>(value))
                     return;
-                const auto d = sym::to<double>(*value);
-                if(std::trunc(d) != d)
-                    fraction = true;
-                else
+                const auto d = sym::to<double>(value);
+                if(is_exact_integer(d))
                     whole.emplace(e, sym::lit(static_cast<int64_t>(d)));
+                else
+                    inexact = true;
                 return;
             }
             for(const auto& child : e.children())
                 self(child);
         })(x);
-        if(fraction)
+        if(inexact)
             return {};
         return whole.empty() ? x : x.subs(whole);
     }
@@ -107,14 +115,17 @@ struct convert : unary<convert>
     auto apply() const
     {
         return [target = target_type](const sym::expr& x) {
-            // Integers up to 2^24 (2^53 for double) are exact as floating point
-            if(target == shape::float_type)
-                return sym::fits_range(x, -(int64_t{1} << 24), int64_t{1} << 24) ? x : sym::expr{};
-            if(target == shape::double_type)
-                return sym::fits_range(x, -(int64_t{1} << 53), int64_t{1} << 53) ? x : sym::expr{};
-            const auto whole = to_integer(x);
+            // Integers up to 2^24 (2^53 for double) are exact as floating point. The literals have
+            // to be whole too, since a fraction of a double can change when rounded to float.
+            auto whole = to_integer(x);
             if(whole.empty())
                 return whole;
+            if(target == shape::float_type)
+                return sym::fits_range(whole, -(int64_t{1} << 24), int64_t{1} << 24) ? whole
+                                                                                     : sym::expr{};
+            if(target == shape::double_type)
+                return sym::fits_range(whole, -(int64_t{1} << 53), int64_t{1} << 53) ? whole
+                                                                                     : sym::expr{};
             if(target == shape::int64_type)
                 return whole;
             if(target == shape::int32_type)

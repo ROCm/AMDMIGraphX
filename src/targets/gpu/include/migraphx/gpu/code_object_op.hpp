@@ -90,6 +90,8 @@ struct code_object_op
     shape compute_shape(std::vector<shape> inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    // The kernarg buffer compute() would launch with for args
+    std::vector<char> pack_kernargs(const std::vector<argument>& args) const;
     void finalize(context&, const shape&, const std::vector<shape>&);
     std::int64_t get_output_arg(std::size_t n) const
     {

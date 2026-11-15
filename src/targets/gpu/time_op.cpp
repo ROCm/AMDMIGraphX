@@ -22,6 +22,9 @@
  * THE SOFTWARE.
  */
 #include <migraphx/program.hpp>
+#include <migraphx/builtin.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/context.hpp>
@@ -29,11 +32,13 @@
 #include <migraphx/time.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/manage_ptr.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <thread>
 #include <tuple>
@@ -229,14 +234,172 @@ static parameter_map make_benchmark_arguments(std::vector<migraphx::context>& ct
     return make_parameter_map(mm, args);
 }
 
+using hip_graph_ptr      = MIGRAPHX_MANAGE_PTR(hipGraph_t, hipGraphDestroy);
+using hip_graph_exec_ptr = MIGRAPHX_MANAGE_PTR(hipGraphExec_t, hipGraphExecDestroy);
+using add_graph_node =
+    std::function<hipGraphNode_t(hipGraph_t, const std::vector<hipGraphNode_t>&)>;
+
+static void check_graph(hipError_t status, const std::string& what)
+{
+    if(status != hipSuccess)
+        MIGRAPHX_THROW(what + " failed: " + hip_error(status));
+}
+
+// Whether every instruction of p can be added to a benchmark graph
+static bool graph_eligible(const program& p)
+{
+    const auto* mm = p.get_main_module();
+    return std::all_of(mm->begin(), mm->end(), [](const instruction& ins) {
+        if(contains({"@param", "@literal", "@return", "load"}, ins.name()))
+            return true;
+        if(ins.name() == "gpu::code_object")
+        {
+            // A graph node only launches whole workgroups
+            const auto& op = any_cast<code_object_op>(ins.get_operator());
+            return op.local > 0 and op.global % op.local == 0;
+        }
+        // gpu_fill only memsets a packed buffer that is not a tuple
+        if(ins.name() == "hip::fill")
+            return ins.get_shape().sub_shapes().empty() and ins.get_shape().packed();
+        return false;
+    });
+}
+
+static hipGraphNode_t add_fill_node(hipGraph_t graph,
+                                    const std::vector<hipGraphNode_t>& deps,
+                                    const argument& dst,
+                                    int value)
+{
+    // Only these fills are memsets in gpu_fill
+    if(not dst.get_sub_objects().empty() or not dst.get_shape().packed())
+        MIGRAPHX_THROW("Cannot add a fill of " + to_string(dst.get_shape()) + " to a graph");
+    hipMemsetParams params{};
+    params.dst          = dst.data();
+    params.elementSize  = 1;
+    params.width        = dst.get_shape().bytes();
+    params.height       = 1;
+    params.pitch        = params.width;
+    params.value        = static_cast<unsigned int>(value);
+    hipGraphNode_t node = nullptr;
+    check_graph(hipGraphAddMemsetNode(&node, graph, deps.data(), deps.size(), &params),
+                "hipGraphAddMemsetNode");
+    return node;
+}
+
+struct benchmark_graph
+{
+    // Owned here, so the nodes do not rely on HIP copying their kernargs
+    std::vector<std::unique_ptr<graph_kernargs>> kernargs;
+    // A literal's argument is a copy that nothing else keeps alive
+    std::vector<argument> literals;
+    // Declared last so it is destroyed before the buffers its nodes read
+    hip_graph_exec_ptr exec;
+};
+
+// The graph nodes of one eval of p, or none if p does more than launch kernels and fill. The
+// buffers the nodes read are added to graph.
+static std::vector<add_graph_node>
+make_graph_nodes(const program& p, const parameter_map& param_map, benchmark_graph& graph)
+{
+    const auto* mm = p.get_main_module();
+    // Arguments are resolved once, so every replay reuses the same buffers as an eval would
+    std::unordered_map<instruction_ref, argument> results;
+    std::vector<add_graph_node> nodes;
+    for(auto ins : iterator_for(*mm))
+    {
+        if(ins->name() == "@return")
+            continue;
+        std::vector<argument> args;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(args),
+                       [&](instruction_ref input) { return results.at(input); });
+        if(ins->name() == "@param")
+            results[ins] = param_map.at(any_cast<builtin::param>(ins->get_operator()).parameter);
+        else if(ins->name() == "@literal")
+        {
+            results[ins] = ins->get_literal().get_argument();
+            graph.literals.push_back(results[ins]);
+        }
+        else if(ins->name() == "load")
+            results[ins] = ins->get_operator().compute(ins->get_shape(), args);
+        else if(ins->name() == "gpu::code_object")
+        {
+            const auto& op = any_cast<code_object_op>(ins->get_operator());
+            results[ins]   = args.at(op.get_output_arg(args.size()));
+            // The bundle copies of this launch share one buffer, as their arguments are the same
+            graph.kernargs.push_back(std::make_unique<graph_kernargs>(op.pack_kernargs(args)));
+            nodes.emplace_back([&op, &ka = *graph.kernargs.back()](
+                                   hipGraph_t graph, const std::vector<hipGraphNode_t>& deps) {
+                return op.k.add_to_graph(graph, deps, op.global, op.local, ka);
+            });
+        }
+        else if(ins->name() == "hip::fill")
+        {
+            results[ins] = args.front();
+            nodes.emplace_back(
+                [value = any_cast<hip_fill>(ins->get_operator()).value,
+                 dst   = args.front()](hipGraph_t graph, const std::vector<hipGraphNode_t>& deps) {
+                    return add_fill_node(graph, deps, dst, value);
+                });
+        }
+        else
+            return {};
+    }
+    return nodes;
+}
+
+// Builds bundle evals of p as one graph node by node; exec is null if p cannot be a graph. Stream
+// capture would record the same graph, but HIP fails other threads' synchronous calls meanwhile.
+static benchmark_graph
+make_benchmark_graph(const program& p, const parameter_map& param_map, int bundle)
+{
+    benchmark_graph result;
+    auto nodes = make_graph_nodes(p, param_map, result);
+    if(nodes.empty())
+        return result;
+    hipGraph_t raw_graph = nullptr;
+    check_graph(hipGraphCreate(&raw_graph, 0), "hipGraphCreate");
+    hip_graph_ptr graph{raw_graph};
+    std::vector<hipGraphNode_t> deps;
+    for(auto i : range(bundle))
+    {
+        (void)i;
+        // Each node depends on the previous one, so they run in stream order like the evals
+        for(const auto& add : nodes)
+            deps = {add(graph.get(), deps)};
+    }
+    hipGraphExec_t raw_exec = nullptr;
+    check_graph(hipGraphInstantiate(&raw_exec, graph.get(), nullptr, nullptr, 0),
+                "hipGraphInstantiate");
+    result.exec = hip_graph_exec_ptr{raw_exec};
+    return result;
+}
+
 static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
                              const program& p,
                              const parameter_map& param_map,
                              int bundle,
                              int nruns,
+                             bool use_graph,
                              bool warmup = true)
 {
+    // time_loop's check sees the first bundle value_of cached in this process, not this one
+    if(bundle <= 0)
+        MIGRAPHX_THROW("Timing bundle must be greater than zero");
     auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());
+    // Evals leave the GPU idle between few-microsecond kernels and time the host, so replay a
+    // graph. use_graph means p is eligible, so a failure to build it is an error, not a fallback.
+    auto graph = use_graph ? make_benchmark_graph(p, param_map, bundle) : benchmark_graph{};
+    if(graph.exec != nullptr)
+    {
+        auto* stream = gctx.get_stream().get();
+        // One launch already runs bundle evals; time_loop finishes the stream before returning
+        auto t = time_loop(gctx, 1, nruns, [&] {
+            check_graph(hipGraphLaunch(graph.exec.get(), stream), "hipGraphLaunch");
+        });
+        return t / bundle;
+    }
     return time_loop(gctx, bundle, nruns, [&] { p.eval_with_context(ctx_vec, param_map); }, warmup);
 }
 
@@ -248,17 +411,29 @@ simple_benchmark::run(const context& ictx, const std::vector<benchmark_candidate
     std::vector<migraphx::context> ctx_vec = {ictx};
     // The candidates are alternatives for the same computation, so they can share inputs
     std::unordered_map<std::string, argument> arg_cache;
+    std::vector<program> programs;
+    programs.reserve(candidates.size());
+    std::transform(candidates.begin(),
+                   candidates.end(),
+                   std::back_inserter(programs),
+                   [&](const benchmark_candidate& candidate) {
+                       return make_finalized_program(ctx_vec, candidate);
+                   });
+    // Host timing adds launch gaps, so mixing it with graph timing would penalize some candidates
+    const bool use_graph = std::all_of(programs.begin(), programs.end(), &graph_eligible);
     std::vector<double> times;
     times.reserve(candidates.size());
     std::transform(candidates.begin(),
                    candidates.end(),
+                   programs.begin(),
                    std::back_inserter(times),
-                   [&](const benchmark_candidate& candidate) {
+                   [&](const benchmark_candidate& candidate, const program& p) {
                        auto trace = candidate.trace();
                        trace("Benchmarking solution: ", candidate.solution());
-                       auto p         = make_finalized_program(ctx_vec, candidate);
+                       if(use_graph)
+                           trace("Timing as a HIP graph");
                        auto param_map = make_benchmark_arguments(ctx_vec, candidate, p, arg_cache);
-                       auto t         = time_benchmark(ctx_vec, p, param_map, bundle, nruns);
+                       auto t = time_benchmark(ctx_vec, p, param_map, bundle, nruns, use_graph);
                        trace(t, "ms");
                        return t;
                    });
@@ -274,6 +449,14 @@ static int compute_nruns(std::size_t budget_ms, double t, int bundle, std::size_
 {
     double n = budget_ms / (std::max(t, benchmark_min_time_ms) * bundle);
     return std::clamp(n, 1.0, static_cast<double>(max_runs));
+}
+
+// Evals per coarse run: as many as fit max_runs runs in the budget, up to max_bundle
+static int
+compute_coarse_bundle(std::size_t budget_ms, double t, std::size_t max_runs, std::size_t max_bundle)
+{
+    double n = budget_ms / (std::max(t, benchmark_min_time_ms) * max_runs);
+    return std::clamp(n, 1.0, static_cast<double>(std::max<std::size_t>(max_bundle, 1)));
 }
 
 // Call f, tracing and mapping a failure to nullopt
@@ -323,33 +506,44 @@ adaptive_topk_benchmark::run(const context& ictx,
                        return try_benchmark(
                            trace, [&] { return make_finalized_program(ctx_vec, candidate); });
                    });
+    // Host timing adds launch gaps, so mixing it with graph timing would penalize some candidates
+    const bool use_graph =
+        std::all_of(programs.begin(), programs.end(), [](const optional<program>& p) {
+            return not p.has_value() or graph_eligible(*p);
+        });
 
-    // Coarse pass: warmup + single-run estimate, then a bundle-of-1 measurement of up to
-    // coarse_max_runs runs within coarse_ms. The measurement is skipped when it would be a single
-    // run too, so with the default coarse_max_runs every candidate is ranked by its estimate.
+    // Coarse pass: warmup + single-run estimate, then a measurement of up to coarse_max_runs runs
+    // of up to coarse_bundle evals within coarse_ms. The measurement is skipped when it would be a
+    // single run too, so with the default coarse_max_runs every candidate is ranked by its
+    // estimate.
     std::vector<double> coarse(candidates.size(), invalid);
-    std::transform(candidates.begin(),
-                   candidates.end(),
-                   programs.begin(),
-                   coarse.begin(),
-                   [&](const benchmark_candidate& candidate, const optional<program>& p) {
-                       if(not p.has_value())
-                           return invalid;
-                       auto trace = candidate.trace();
-                       trace("Benchmarking solution: ", candidate.solution());
-                       auto t = try_benchmark(trace, [&] {
-                           auto param_map =
-                               make_benchmark_arguments(ctx_vec, candidate, *p, arg_cache);
-                           auto estimate = time_benchmark(ctx_vec, *p, param_map, 1, 1);
-                           auto nruns    = compute_nruns(coarse_ms, estimate, 1, coarse_max_runs);
-                           if(nruns == 1)
-                               return estimate;
-                           return time_benchmark(ctx_vec, *p, param_map, 1, nruns, false);
-                       });
-                       if(t.has_value())
-                           trace("Coarse time: ", *t, "ms");
-                       return t.value_or(invalid);
-                   });
+    std::transform(
+        candidates.begin(),
+        candidates.end(),
+        programs.begin(),
+        coarse.begin(),
+        [&](const benchmark_candidate& candidate, const optional<program>& p) {
+            if(not p.has_value())
+                return invalid;
+            auto trace = candidate.trace();
+            trace("Benchmarking solution: ", candidate.solution());
+            if(use_graph)
+                trace("Timing as a HIP graph");
+            auto t = try_benchmark(trace, [&] {
+                auto param_map = make_benchmark_arguments(ctx_vec, candidate, *p, arg_cache);
+                auto estimate  = time_benchmark(ctx_vec, *p, param_map, 1, 1, use_graph);
+                // Bundle short kernels, so a launch gap is not most of their time
+                auto cbundle =
+                    compute_coarse_bundle(coarse_ms, estimate, coarse_max_runs, coarse_bundle);
+                auto nruns = compute_nruns(coarse_ms, estimate, cbundle, coarse_max_runs);
+                if(nruns == 1)
+                    return estimate;
+                return time_benchmark(ctx_vec, *p, param_map, cbundle, nruns, use_graph, false);
+            });
+            if(t.has_value())
+                trace("Coarse time: ", *t, "ms");
+            return t.value_or(invalid);
+        });
 
     // Select the candidates that measured successfully, keep the top_k fastest
     std::vector<std::size_t> indices(candidates.size());
@@ -401,7 +595,7 @@ adaptive_topk_benchmark::run(const context& ictx,
         auto t = try_benchmark(trace, [&] {
             auto param_map = make_benchmark_arguments(ctx_vec, candidate, p, arg_cache);
             auto nruns     = compute_nruns(precise_ms, coarse[i], bundle, max_runs);
-            return time_benchmark(ctx_vec, p, param_map, bundle, nruns, false);
+            return time_benchmark(ctx_vec, p, param_map, bundle, nruns, use_graph, false);
         });
         if(t.has_value())
             trace("Precise time: ", *t, "ms");

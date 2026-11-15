@@ -72,16 +72,17 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
         f(args);
 }
 
-argument
-code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+// Call f with the kernarg buffer and its size for a launch of op with args
+template <class F>
+static void visit_kernargs(const code_object_op& op, const std::vector<argument>& args, F f)
 {
-    if(not packed_kernargs.empty())
+    if(not op.packed_kernargs.empty())
     {
         // Fast path: copy pre-packed buffer, patch pointer slots, launch.
         // Back the buffer with a monotonic_buffer_resource so it lives on the
         // stack when the payload fits, and falls back to heap allocation only
         // when it doesn't.
-        auto sz = packed_kernargs.size();
+        auto sz = op.packed_kernargs.size();
 #if MIGRAPHX_HAS_PMR
         alignas(8) std::array<char, 512> storage;
         std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
@@ -89,17 +90,16 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
 #else
         pmr::vector<char> buf(sz);
 #endif
-        std::copy(packed_kernargs.begin(), packed_kernargs.end(), buf.begin());
+        std::copy(op.packed_kernargs.begin(), op.packed_kernargs.end(), buf.begin());
 
-        for(const auto& [arg_idx, byte_offset] : runtime_arg_offsets)
+        for(const auto& [arg_idx, byte_offset] : op.runtime_arg_offsets)
         {
             auto ptr           = reinterpret_cast<uint64_t>(args[arg_idx].data());
             const auto* p_byte = reinterpret_cast<const char*>(&ptr);
             std::copy(p_byte, p_byte + sizeof(uint64_t), buf.begin() + byte_offset);
         }
 
-        auto [start, stop] = ctx.get_perf_events();
-        k.launch(ctx.get_stream().get(), global, local, buf.data(), sz, start, stop);
+        f(buf.data(), sz);
     }
     else
     {
@@ -117,10 +117,29 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
                            std::back_inserter(kargs),
                            [](const argument& a) { return a.data(); });
         });
-        auto [start, stop] = ctx.get_perf_events();
-        k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+        f(static_cast<void*>(kargs.data()), kargs.size() * sizeof(void*));
     }
+}
+
+argument
+code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+{
+    auto events = ctx.get_perf_events();
+    visit_kernargs(*this, args, [&](void* kernargs, std::size_t size) {
+        k.launch(
+            ctx.get_stream().get(), global, local, kernargs, size, events.first, events.second);
+    });
     return args[get_output_arg(args.size())];
+}
+
+std::vector<char> code_object_op::pack_kernargs(const std::vector<argument>& args) const
+{
+    std::vector<char> result;
+    visit_kernargs(*this, args, [&](void* kernargs, std::size_t size) {
+        auto* first = static_cast<char*>(kernargs);
+        result.assign(first, first + size);
+    });
+    return result;
 }
 void code_object_op::finalize(context& ctx, const shape&, const std::vector<shape>&)
 {

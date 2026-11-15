@@ -22,12 +22,15 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/time_op.hpp>
+#include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/reflect.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/stringutils.hpp>
 #include <test.hpp>
 #include <algorithm>
@@ -363,6 +366,182 @@ TEST_CASE(simple_benchmark_regenerates_a_shared_argument_whose_shape_differs)
     // large reuses x, but not the scratch, whose key matches and whose shape does not
     EXPECT(large.generated->size() == 1);
     EXPECT(large.generated->front().second == migraphx::shape{migraphx::shape::int8_type, {32}});
+}
+
+static const char* const busy_kernel_src = R"__migraphx__(
+#include <migraphx/kernels/index.hpp>
+#include <args.hpp>
+
+using namespace migraphx;
+
+extern "C" {
+__global__ void kernel(void* x, void* y)
+{
+    make_tensors()(x, y)([](auto xt, auto yt) __device__ {
+        auto idx = make_index();
+        for(index_int i = idx.global; i < xt.get_shape().elements(); i += idx.nglobal())
+        {
+            auto v = xt[i];
+            for(int j = 0; j < ITERATIONS; j++)
+                v = v * 0.999f + 0.001f;
+            yt[i] = v;
+        }
+    });
+}
+}
+
+int main() {}
+)__migraphx__";
+
+static migraphx::shape busy_shape() { return {migraphx::shape::float_type, {64 * 256}}; }
+
+// A kernel whose time grows with iterations
+static migraphx::operation compile_busy_kernel(int iterations,
+                                               std::size_t global = busy_shape().elements())
+{
+    migraphx::gpu::hip_compile_options options;
+    options.global = global;
+    options.local  = 256;
+    options.inputs = {busy_shape(), busy_shape()};
+    options.output = busy_shape();
+    options.emplace_param("-DITERATIONS=" + std::to_string(iterations));
+    migraphx::gpu::context ctx;
+    return migraphx::gpu::compile_hip_code_object(ctx, busy_kernel_src, options);
+}
+
+static const migraphx::operation& fast_kernel()
+{
+    static const auto op = compile_busy_kernel(1);
+    return op;
+}
+
+static const migraphx::operation& slow_kernel()
+{
+    static const auto op = compile_busy_kernel(20000);
+    return op;
+}
+
+// A fast kernel with a partial last workgroup, which a graph node cannot launch
+static const migraphx::operation& partial_workgroup_kernel()
+{
+    static const auto op = compile_busy_kernel(1, busy_shape().elements() - 128);
+    return op;
+}
+
+// Benchmark candidate that launches a real kernel on a load of its scratch, optionally zeroed first
+struct kernel_candidate
+{
+    migraphx::operation code_object;
+    int id    = 0;
+    bool fill = false;
+    // Trace output, to observe whether the candidate was timed as a graph
+    std::shared_ptr<std::stringstream> log = std::make_shared<std::stringstream>();
+
+    std::vector<std::pair<std::string, migraphx::shape>>
+    generate_argument_keys(const migraphx::program& p) const
+    {
+        const auto* mm = p.get_main_module();
+        auto names     = mm->get_parameter_names();
+        std::vector<std::pair<std::string, migraphx::shape>> keys;
+        std::transform(names.begin(), names.end(), std::back_inserter(keys), [&](const auto& name) {
+            return std::make_pair(name, mm->get_parameter_shape(name));
+        });
+        return keys;
+    }
+
+    migraphx::argument generate_argument(migraphx::gpu::context& ctx,
+                                         const std::string& key,
+                                         const migraphx::shape& s) const
+    {
+        return migraphx::gpu::gpu_generate_random(ctx, s, std::hash<std::string>{}(key));
+    }
+
+    migraphx::program make_program() const
+    {
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto x       = mm->add_parameter("x", busy_shape());
+        auto scratch = mm->add_parameter(
+            "scratch", migraphx::shape{migraphx::shape::int8_type, {busy_shape().bytes()}});
+        auto y = mm->add_instruction(
+            migraphx::make_op("load", {{"shape", migraphx::to_value(busy_shape())}, {"offset", 0}}),
+            scratch);
+        if(fill)
+            y = mm->add_instruction(migraphx::make_op("hip::fill", {{"value", 0}}), y);
+        mm->add_return({mm->add_instruction(code_object, x, y)});
+        return p;
+    }
+
+    migraphx::tracer trace() const { return {*log}; }
+
+    migraphx::value solution() const { return id; }
+
+    void before_run(const migraphx::program&) const {}
+};
+
+static bool timed_as_graph(const kernel_candidate& c)
+{
+    return c.log->str().find("Timing as a HIP graph") != std::string::npos;
+}
+
+TEST_CASE(simple_benchmark_times_kernel_candidates_as_a_graph)
+{
+    migraphx::gpu::context ctx{};
+    kernel_candidate slow{slow_kernel(), 0};
+    kernel_candidate fast{fast_kernel(), 1};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {slow, fast};
+    const auto& winner =
+        migraphx::gpu::simple_benchmark{/* bundle */ 4, /* nruns */ 4}.run(ctx, candidates);
+    EXPECT(winner.solution().to<int>() == 1);
+    EXPECT(timed_as_graph(slow));
+    EXPECT(timed_as_graph(fast));
+}
+
+TEST_CASE(adaptive_benchmark_times_fill_and_load_candidates_as_a_graph)
+{
+    migraphx::gpu::context ctx{};
+    kernel_candidate slow{slow_kernel(), 0, true};
+    kernel_candidate fast{fast_kernel(), 1, true};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {slow, fast};
+    const auto& winner = small_adaptive_benchmark(2).run(ctx, candidates);
+    EXPECT(winner.solution().to<int>() == 1);
+    EXPECT(timed_as_graph(slow));
+    EXPECT(timed_as_graph(fast));
+}
+
+TEST_CASE(adaptive_benchmark_host_times_every_candidate_when_one_is_not_a_kernel)
+{
+    migraphx::gpu::context ctx{};
+    kernel_candidate slow{slow_kernel(), 0};
+    kernel_candidate fast{fast_kernel(), 1};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {
+        slow, fast, test_candidate{5000, 2}};
+    const auto& winner = small_adaptive_benchmark(3).run(ctx, candidates);
+    EXPECT(winner.solution().to<int>() == 1);
+    EXPECT(not timed_as_graph(slow));
+    EXPECT(not timed_as_graph(fast));
+}
+
+TEST_CASE(adaptive_benchmark_host_times_every_candidate_when_one_has_a_partial_workgroup)
+{
+    migraphx::gpu::context ctx{};
+    kernel_candidate slow{slow_kernel(), 0};
+    kernel_candidate fast{partial_workgroup_kernel(), 1};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {slow, fast};
+    const auto& winner = small_adaptive_benchmark(2).run(ctx, candidates);
+    EXPECT(winner.solution().to<int>() == 1);
+    EXPECT(not timed_as_graph(slow));
+    EXPECT(not timed_as_graph(fast));
+}
+
+TEST_CASE(simple_benchmark_rejects_a_bundle_below_one_for_kernel_candidates)
+{
+    migraphx::gpu::context ctx{};
+    std::vector<migraphx::gpu::benchmark_candidate> candidates = {
+        kernel_candidate{fast_kernel(), 0}};
+    EXPECT(test::throws([&] {
+        migraphx::gpu::simple_benchmark{/* bundle */ 0, /* nruns */ 2}.run(ctx, candidates);
+    }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

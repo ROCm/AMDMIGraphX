@@ -18246,6 +18246,40 @@ def slice_runtime_end_symbolic_test():
 
 
 @onnx_test()
+def slice_partial_bounds_symbolic_test():
+    # The bounds are elements of a tensor whose last element is a count only known at run time, so
+    # the tensor has no symbolic value as a whole: the start gathers element -3 (3) and the end
+    # slices element -2 (7), both through a cast from float
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 4])
+
+    half = helper.make_tensor('half', TensorProto.FLOAT, [], [0.5])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    known = helper.make_tensor('known', TensorProto.FLOAT, [2], [3.0, 7.0])
+    first = helper.make_tensor('first', TensorProto.INT64, [1], [-3])
+    second = helper.make_tensor('second', TensorProto.INT64, [1], [-2])
+    last = helper.make_tensor('last', TensorProto.INT64, [1], [-1])
+
+    nodes = [
+        helper.make_node('Greater', ['y', 'half'], ['above']),
+        helper.make_node('Cast', ['above'], ['above_int'],
+                         to=TensorProto.INT64),
+        helper.make_node('ReduceSum', ['above_int', 'axes'], ['count'],
+                         keepdims=1),
+        helper.make_node('Cast', ['count'], ['countf'], to=TensorProto.FLOAT),
+        helper.make_node('Concat', ['known', 'countf'], ['valuesf'], axis=0),
+        helper.make_node('Cast', ['valuesf'], ['values'],
+                         to=TensorProto.INT64),
+        helper.make_node('Gather', ['values', 'first'], ['start'], axis=0),
+        helper.make_node('Slice', ['values', 'second', 'last'], ['end']),
+        helper.make_node('Slice', ['x', 'start', 'end', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x, y], [out], [half, axes, known, first, second, last])
+
+
+@onnx_test()
 def slice_pad_or_clip_symbolic_test():
     # TF pad_or_clip: the size of axis 0 is 100 when the length N is over 100 and -1 (to the end)
     # otherwise, and the size of axis 1 is -1; a size of -1 becomes INT_MAX before the end

@@ -32,5 +32,5 @@ TEST_CASE(pad_symbolic_pads_negative_error)
     options.use_symbolic_shapes     = true;
     EXPECT(test::throws<migraphx::exception>(
         [&] { read_onnx("pad_symbolic_pads_negative_error.onnx", options); },
-        "PARSE_PAD: non-constant `pads` cannot be negative"));
+        "PARSE_PAD: non-constant `pads` must be nonnegative"));
 }

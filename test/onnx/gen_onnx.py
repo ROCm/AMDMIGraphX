@@ -13129,6 +13129,41 @@ def pad_symbolic_pads_negative_error():
 
 
 @onnx_test()
+def pad_symbolic_pads_sign_error():
+    return pad_symbolic_pads_rows_graph([
+        helper.make_node('Concat', ['zero', 'zero', 'row_pad', 'zero'],
+                         ['pads'],
+                         axis=0)
+    ])
+
+
+@onnx_test()
+def pad_symbolic_pads_begin_value_test():
+    # Pads the N columns of x with one 5 at the start and 8 - N 5s at the end, so the end pad is 0
+    # when N is 8
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 'N'])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 9])
+
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+    one = helper.make_tensor('one', TensorProto.INT64, [1], [1])
+    two = helper.make_tensor('two', TensorProto.INT64, [1], [2])
+    eight = helper.make_tensor('eight', TensorProto.INT64, [1], [8])
+    value = helper.make_tensor('value', TensorProto.FLOAT, [], [5.0])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['x_shape']),
+        helper.make_node('Slice', ['x_shape', 'one', 'two'], ['cols']),
+        helper.make_node('Sub', ['eight', 'cols'], ['end_pad']),
+        helper.make_node('Concat', ['zero', 'one', 'zero', 'end_pad'],
+                         ['pads'],
+                         axis=0),
+        helper.make_node('Pad', ['x', 'pads', 'value'], ['y']),
+    ]
+
+    return (nodes, [x], [out], [zero, one, two, eight, value])
+
+
+@onnx_test()
 def pad_symbolic_pads_axis1_test():
     # Pads the N columns of x at the end with N more, so the pad is not on the first axis
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 'N'])

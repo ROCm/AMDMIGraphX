@@ -206,8 +206,9 @@ struct parse_pad : op_parser<parse_pad>
                 const auto& pad = pads[index];
                 if(pad == zero)
                     continue;
-                if(sym::strict_less(pad, zero).value_or(false))
-                    MIGRAPHX_THROW("PARSE_PAD: non-constant `pads` cannot be negative");
+                // A pad that could be negative at run time would crop, which a concat cannot do
+                if(sym::strict_less(pad, zero).value_or(true))
+                    MIGRAPHX_THROW("PARSE_PAD: non-constant `pads` must be nonnegative");
                 // The run-time dims of the fill: those of x, with the pad size on this axis
                 auto x_dims =
                     info.add_instruction(make_op("dimensions_of", {{"end", input_rank}}), x);

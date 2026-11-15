@@ -161,6 +161,13 @@ TEST_CASE(op_sym_gather_repeated_value_unknown_indices)
                                 {shape{shape::int64_type, {3}}, shape{shape::int64_type, {2}}},
                                 {symbolic_tensor_value{s, s, lit(2)}, std::nullopt})
                    .has_value());
+    // An index known to be out of range is still rejected
+    EXPECT(not symbolic_compute(
+                   migraphx::make_op("gather", {{"axis", 0}}),
+                   shape{shape::int64_type, {2}},
+                   {shape{shape::int64_type, {3}}, shape{shape::int64_type, {2}}},
+                   {symbolic_tensor_value{s, s, s}, symbolic_tensor_value{lit(0), lit(7)}})
+                   .has_value());
 }
 
 TEST_CASE(op_sym_gather_rejects_wrong_output_size)

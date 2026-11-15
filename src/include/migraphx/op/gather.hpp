@@ -92,33 +92,32 @@ struct gather
     {
         if(args.size() != 2 or args[0].get_shape().ndim() != 1 or axis != 0 or args[0].empty())
             return {};
-        // Every element of the data is the same, so the indices do not need to be known
-        const auto values = args[0].get();
-        if(values.size() > 0 and
-           std::all_of(values.begin(), values.end(), [&](const auto& e) { return e == values[0]; }))
+        const auto data         = args[0].get();
+        const int64_t data_size = data.size();
+        auto indices = args[1].empty() ? std::nullopt : sym::fixed_values<int64_t>(args[1].get());
+        // An index known to be out of range has no value, as compute rejects it
+        if(indices.has_value())
         {
-            sym_argument result{output_shape};
-            auto output = result.get();
-            std::fill(output.begin(), output.end(), values[0]);
-            return result;
+            for(auto& index : *indices)
+            {
+                if(index < 0)
+                    index += data_size;
+                if(index < 0 or index >= data_size)
+                    return {};
+            }
         }
-        if(args[1].empty())
-            return {};
-        auto indices = sym::fixed_values<int64_t>(args[1].get());
-        if(not indices.has_value() or indices->size() != output_shape.elements())
-            return {};
 
         sym_argument result{output_shape};
-        const auto data         = args[0].get();
-        auto output             = result.get();
-        const int64_t data_size = data.size();
-        for(auto& index : *indices)
+        auto output = result.get();
+        // Every element of the data is the same, so the indices do not need to be known
+        if(data_size > 0 and
+           std::all_of(data.begin(), data.end(), [&](const auto& e) { return e == data[0]; }))
         {
-            if(index < 0)
-                index += data_size;
-            if(index < 0 or index >= data_size)
-                return {};
+            std::fill(output.begin(), output.end(), data[0]);
+            return result;
         }
+        if(not indices.has_value() or indices->size() != output_shape.elements())
+            return {};
         std::transform(indices->begin(), indices->end(), output.begin(), [&](auto index) {
             return data[index];
         });

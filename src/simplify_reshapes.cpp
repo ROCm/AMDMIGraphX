@@ -1046,19 +1046,14 @@ struct find_slice_reshaped_concat
     {
         if(ins->name() != "slice" or ins->inputs().size() != 1)
             return std::nullopt;
-        std::vector<operation> ops;
-        auto x = ins->inputs().front();
-        while(x != concat_ins)
-        {
-            if(not contains(view_ops(), x->name()))
-                return std::nullopt;
-            ops.push_back(x->get_operator());
-            x = x->inputs().front();
-        }
+        auto [source, ops] = get_input_ops_if(ins->inputs().front(), [&](instruction_ref x) {
+            return x != concat_ins and contains(view_ops(), x->name());
+        });
+        if(source != concat_ins)
+            return std::nullopt;
         // A direct slice of a concat is handled by find_concat_slice
         if(ops.empty())
             return std::nullopt;
-        std::reverse(ops.begin(), ops.end());
 
         const auto& clens = concat_ins->get_shape().lens();
         std::size_t axis  = any_cast<op::concat>(concat_ins->normalized_operator()).axis;

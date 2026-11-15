@@ -2685,6 +2685,36 @@ TEST_CASE(simplify_slice_concat_interleaved_mixed_source)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_split_group_reading_dependent_group)
+{
+    // The adds read each other (a0 reads a2) and the muls read the adds, so neither group can be
+    // fused: the muls would need the adds moved before the split input
+    migraphx::module m1;
+    {
+        std::vector<float> data(12);
+        std::iota(data.begin(), data.end(), 0.0f);
+        auto r = m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {3, 4}}, data});
+        std::vector<migraphx::instruction_ref> s;
+        s.reserve(3);
+        for(int64_t i = 0; i < 3; i++)
+            s.push_back(m1.add_instruction(
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
+                r));
+        migraphx::shape cs{migraphx::shape::float_type, {1, 4}};
+        auto c1  = m1.add_literal(migraphx::literal{cs, std::vector<float>(4, 1.0f)});
+        auto c2  = m1.add_literal(migraphx::literal{cs, std::vector<float>(4, 2.0f)});
+        auto a2  = m1.add_instruction(migraphx::make_op("add"), s[2], c2);
+        auto a1  = m1.add_instruction(migraphx::make_op("add"), s[1], c1);
+        auto a0  = m1.add_instruction(migraphx::make_op("add"), s[0], a2);
+        auto m0  = m1.add_instruction(migraphx::make_op("mul"), s[0], a0);
+        auto mm1 = m1.add_instruction(migraphx::make_op("mul"), s[1], a1);
+        auto m2  = m1.add_instruction(migraphx::make_op("mul"), s[2], a2);
+        m1.add_return({m0, mm1, m2});
+    }
+    run_pass(m1);
+    EXPECT(m1.validate() == m1.end());
+}
+
 TEST_CASE(simplify_split_dependent_group_members)
 {
     // a1 reads a3 and a0 reads a2 through their constant argument, as in the TensorFlow box

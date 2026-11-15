@@ -1797,14 +1797,6 @@ struct find_splits
         // There should be no dependency between instructions in the group
         if(is_interdependent(group, &m, root))
             return {};
-        // Nor any member reading another one, as replacing that member with a slice of the fused
-        // result would make the fused instruction depend on itself
-        if(std::any_of(group.begin(), group.end(), [&](instruction_ref a) {
-               return std::any_of(group.begin(), group.end(), [&](instruction_ref b) {
-                   return a != b and is_dependent(m, root, a, b);
-               });
-           }))
-            return {};
         return group;
     }
 
@@ -2026,6 +2018,13 @@ struct find_splits
         // Data arguments must be a constant
         if(std::any_of(
                data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
+            return {m.end(), 0};
+
+        // A data argument computed from the split input, such as one that reads another member,
+        // would have to move before that input, and the fused instruction would depend on itself
+        if(std::any_of(data_args.begin(), data_args.end(), [&](instruction_ref x) {
+               return reaches(ins, x, &m);
+           }))
             return {m.end(), 0};
 
         // Concatenating along a broadcast axis would be materialized by

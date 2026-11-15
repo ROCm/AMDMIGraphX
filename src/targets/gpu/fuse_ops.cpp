@@ -967,7 +967,8 @@ struct find_tiled_conv_pointwise
         return precompile_name("pointwise")(
             match::not_tuple(),
             match::arg(0)(
-                precompile_name("gpu::channelwise_conv", "gpu::direct_conv").bind("conv")));
+                precompile_name("gpu::channelwise_conv", "gpu::direct_conv")(match::used_once())
+                    .bind("conv")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

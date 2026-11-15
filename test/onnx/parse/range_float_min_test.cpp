@@ -33,8 +33,8 @@ TEST_CASE(range_float_min_test)
 
     migraphx::program p;
     auto* mm  = p.get_main_module();
-    auto zero = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
-    auto one  = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {1}});
+    mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {1}});
     auto limit =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {5.0f}});
     auto start =

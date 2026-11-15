@@ -365,7 +365,7 @@ std::optional<std::vector<T>> fixed_values(const Range& expressions)
 inline bool fits_range(const expr& expression, scalar lowest, scalar highest)
 {
     const auto bounds = expression.eval_interval();
-    const interval range{std::move(lowest), std::move(highest)};
+    const interval range{lowest, highest};
     return range.contains(bounds.min) and range.contains(bounds.max);
 }
 

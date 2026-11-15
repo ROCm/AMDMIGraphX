@@ -2461,6 +2461,159 @@ TEST_CASE(dot_multi_user_add)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_multi_user_before_add)
+// G has a user placed before E, which must still come after the fused op
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot1);
+        auto add = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
+        mm->add_return({transpose, add});
+    }
+    run_pass(p1);
+    // sort() repairs the instruction order, so check it first
+    EXPECT(p1.get_main_module()->validate() == p1.get_main_module()->end());
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto c     = mm->add_parameter("c", s);
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0",
+            {a, b, c},
+            [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                return std::make_tuple(dot1->get_operator(),
+                                       std::vector<migraphx::instruction_ref>{add, dot1});
+            },
+            "dot_pointwise");
+        auto get_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto get_dot =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot);
+        mm->add_return({transpose, get_add});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_reshape_multi_user_before_add)
+// G -> R -> E fusion where R has a user placed before E
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot1);
+        auto user = mm->add_instruction(non_mlir_op{}, transpose);
+        auto add  = add_pointwise(p1, "main:pointwise0", {transpose, c}, single_pointwise("add"));
+        mm->add_return({user, add});
+    }
+    run_pass(p1);
+    // sort() repairs the instruction order, so check it first
+    EXPECT(p1.get_main_module()->validate() == p1.get_main_module()->end());
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto c   = mm->add_parameter("c", s);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {a, b, c}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto transpose = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot1);
+                auto add = pm->add_instruction(migraphx::make_op("add"), transpose, inputs[2]);
+                return std::make_tuple(dot1->get_operator(),
+                                       std::vector<migraphx::instruction_ref>{add, dot1});
+            });
+        auto get_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto get_dot =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot);
+        auto user = mm->add_instruction(non_mlir_op{}, transpose);
+        mm->add_return({user, get_add});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_dot_pointwise_multi_user)
+// add(dot1, dot2(dot1)) where the fused dot2 has a user placed before the add
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), dot1, c);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
+        auto add = add_pointwise(p1, "main:pointwise0", {dot1, dot2}, single_pointwise("add"));
+        mm->add_return({transpose, add});
+    }
+    run_pass(p1);
+    // sort() repairs the instruction order, so check it first
+    EXPECT(p1.get_main_module()->validate() == p1.get_main_module()->end());
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto dot1 = add_mlir(
+            p2,
+            "mlir_dot0",
+            {a, b},
+            {"y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                return std::make_tuple(dot->get_operator(), dot);
+            },
+            "standalone_dot");
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0",
+            {dot1, c},
+            {"x0", "x1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], dot);
+                return std::make_tuple(dot->get_operator(),
+                                       std::vector<migraphx::instruction_ref>{add, dot});
+            },
+            "dot_pointwise");
+        auto get_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto get_dot =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot);
+        mm->add_return({transpose, get_add});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE_SKIP(dot_add_multi_user_dot, "GEG multi-output intermediates not supported")
 // GEG fusion has two outputs, E has external user
 // not currently supported in rocMLIR

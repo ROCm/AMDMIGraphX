@@ -880,15 +880,9 @@ struct find_mlir_fused_ops
                 migraphx::make_op("get_tuple_elem", {{"index", rins.size() - 1}}),
                 fused_ins);
 
-            // move all the reshape instructions after the fused op to avoid
-            // generating invalid migraphx program since the reshapes can be
-            // used by the replaced dot_ins
-            for(instruction_ref x : inss_to_insert)
-            {
-                if(x == gemm_based_op)
-                    continue;
-                mpm.get_module().move_instruction(x, pw_ins);
-            }
+            // The reshapes and any other users of the gemm placed before the pointwise will
+            // read from dot_ins, so move them after it to keep the program valid
+            mpm.get_module().move_output_instructions_after(gemm_based_op, dot_ins);
 
             mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
             if(rins.size() == 2)

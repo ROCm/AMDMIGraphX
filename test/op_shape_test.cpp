@@ -8091,4 +8091,46 @@ TEST_CASE(test_binary_nonpacked)
     expect_shape(sout, migraphx::make_op("mul"), sx, sy);
 }
 
+// The output shape of a loop over a body that returns cond and `outputs`, the first `deps` of them
+// loop-carried
+static migraphx::shape loop_output_shape(const std::vector<migraphx::shape>& outputs,
+                                         std::size_t deps)
+{
+    migraphx::module body("loop_body");
+    std::vector<migraphx::instruction_ref> returns = {
+        body.add_outline(migraphx::shape{migraphx::shape::bool_type, {1}})};
+    std::transform(outputs.begin(), outputs.end(), std::back_inserter(returns), [&](const auto& s) {
+        return body.add_outline(s);
+    });
+    body.add_return(returns);
+    std::vector<migraphx::shape> inputs = {migraphx::shape{migraphx::shape::int64_type, {1}},
+                                           migraphx::shape{migraphx::shape::bool_type, {1}}};
+    inputs.insert(inputs.end(), deps, migraphx::shape{migraphx::shape::float_type, {8}});
+    return migraphx::make_op("loop", {{"max_iterations", 4}}).compute_shape(inputs, {&body});
+}
+
+TEST_CASE(loop_fixed_symbolic_outputs)
+{
+    // Fixed symbolic dims become static lens, for a loop-carried value and a scan output
+    const migraphx::shape fixed{migraphx::shape::float_type, {dd{lit(8)}}};
+    auto result = loop_output_shape({fixed, fixed}, 1);
+    EXPECT(result.sub_shapes().at(0) == migraphx::shape{migraphx::shape::float_type, {8}});
+    EXPECT(result.sub_shapes().at(1) == migraphx::shape{migraphx::shape::float_type, {4, 8}});
+}
+
+TEST_CASE(loop_dynamic_carried_output)
+{
+    // A loop-carried value that is not fixed keeps its dynamic shape
+    const migraphx::shape dynamic{migraphx::shape::float_type, {dd{var("K", {1, 8})}}};
+    auto result = loop_output_shape({dynamic}, 1);
+    EXPECT(result.sub_shapes().at(0) == dynamic);
+}
+
+TEST_CASE(loop_dynamic_scan_output)
+{
+    // A scan output is stacked over the iterations, so it needs fixed dims
+    const migraphx::shape dynamic{migraphx::shape::float_type, {dd{var("K", {1, 8})}}};
+    EXPECT(test::throws([&] { loop_output_shape({dynamic}, 0); }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -8118,6 +8118,15 @@ TEST_CASE(loop_fixed_symbolic_outputs)
     EXPECT(result.sub_shapes().at(1) == migraphx::shape{migraphx::shape::float_type, {4, 8}});
 }
 
+TEST_CASE(loop_fixed_symbolic_strided_output)
+{
+    // A view with fixed dims can keep symbolic strides, as a slice of a symbolic input does
+    const migraphx::shape view{
+        migraphx::shape::float_type, {dd{lit(8)}, dd{lit(2)}}, {var("K", {2, 16}), lit(1)}};
+    auto result = loop_output_shape({view}, 0);
+    EXPECT(result.sub_shapes().at(0) == migraphx::shape{migraphx::shape::float_type, {4, 8, 2}});
+}
+
 TEST_CASE(loop_dynamic_carried_output)
 {
     // A loop-carried value that is not fixed keeps its dynamic shape

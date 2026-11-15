@@ -1011,9 +1011,9 @@ std::vector<std::size_t> concat_offsets(const std::vector<instruction_ref>& inpu
 
 // Forward a slice that reads whole segments of a concat through the view ops
 // in between: one segment reads its input directly, a run of segments reads a
-// concat of just those inputs, so the full concat can be removed entirely.
-// This shows up when a model repacks tensors (such as qkv) that an op
-// decomposition then re-slices.
+// concat of just those inputs when that removes the full concat. This shows up
+// when a model repacks tensors (such as qkv) that an op decomposition then
+// re-slices.
 struct find_slice_reshaped_concat
 {
     static const auto& view_ops()
@@ -1031,24 +1031,33 @@ struct find_slice_reshaped_concat
                                         match::name("concat").bind("concat"))));
     }
 
-    void apply(module& m, const match::matcher_result& mr) const
+    // The concat inputs [first, last) that a slice reads, with the view ops
+    // that remain to be applied to them
+    struct segment_run
     {
-        auto slice_ins  = mr.result;
-        auto concat_ins = mr.instructions["concat"];
-        if(concat_ins->get_shape().dynamic())
-            return;
+        std::ptrdiff_t first = 0;
+        std::ptrdiff_t last  = 0;
+        shape_transform_descriptor desc;
+
+        std::ptrdiff_t size() const { return last - first; }
+    };
+
+    static std::optional<segment_run> find_run(instruction_ref concat_ins, instruction_ref ins)
+    {
+        if(ins->name() != "slice" or ins->inputs().size() != 1)
+            return std::nullopt;
         std::vector<operation> ops;
-        auto x = slice_ins->inputs().front();
+        auto x = ins->inputs().front();
         while(x != concat_ins)
         {
             if(not contains(view_ops(), x->name()))
-                return;
+                return std::nullopt;
             ops.push_back(x->get_operator());
             x = x->inputs().front();
         }
         // A direct slice of a concat is handled by find_concat_slice
         if(ops.empty())
-            return;
+            return std::nullopt;
         std::reverse(ops.begin(), ops.end());
 
         const auto& clens = concat_ins->get_shape().lens();
@@ -1058,39 +1067,98 @@ struct find_slice_reshaped_concat
         // Track the element mapping of the view chain with a descriptor
         auto desc = shape_transform_descriptor::create(clens, ops);
         if(desc.empty())
-            return;
+            return std::nullopt;
 
         // Restrict the concat axis to the range of elements the slice selects
-        auto slice_val = slice_ins->normalized_operator().to_value();
+        auto slice_val = ins->normalized_operator().to_value();
         auto selected  = desc.slice_axis(axis,
                                          slice_val["axes"].to_vector<std::size_t>(),
                                          slice_val["starts"].to_vector<std::size_t>(),
                                          slice_val["ends"].to_vector<std::size_t>());
         if(not selected.has_value())
-            return;
+            return std::nullopt;
         auto [lo, hi] = *selected;
 
         // The selected range must start and end on segment boundaries
-        const auto& inputs = concat_ins->inputs();
-        auto prefix        = concat_offsets(inputs, axis);
-        auto first         = std::find(prefix.begin(), std::prev(prefix.end()), lo);
+        auto prefix = concat_offsets(concat_ins->inputs(), axis);
+        auto first  = std::find(prefix.begin(), std::prev(prefix.end()), lo);
         if(first == std::prev(prefix.end()))
-            return;
+            return std::nullopt;
         auto last = std::find(std::next(first), prefix.end(), hi);
         if(last == prefix.end())
-            return;
-        if(desc.lens() != slice_ins->get_shape().lens())
-            return;
+            return std::nullopt;
+        if(desc.lens() != ins->get_shape().lens())
+            return std::nullopt;
+        return segment_run{std::distance(prefix.begin(), first),
+                           std::distance(prefix.begin(), last),
+                           std::move(desc)};
+    }
 
-        auto seg_begin = inputs.begin() + std::distance(prefix.begin(), first);
-        auto seg_end   = inputs.begin() + std::distance(prefix.begin(), last);
-        auto seg       = *seg_begin;
-        if(std::distance(seg_begin, seg_end) > 1)
+    // The instructions that read the concat, looking through the view ops
+    static std::vector<instruction_ref> find_readers(instruction_ref concat_ins)
+    {
+        std::vector<instruction_ref> result;
+        fix([&](auto self, instruction_ref ins) {
+            for(auto output : ins->outputs())
+            {
+                // A view without outputs can be the result of the module
+                if(contains(view_ops(), output->name()) and not output->outputs().empty())
+                    self(output);
+                else
+                    result.push_back(output);
+            }
+        })(concat_ins);
+        return result;
+    }
+
+    // A run of segments is forwarded as a new concat of those segments, which
+    // is an extra kernel unless it takes the place of the full concat. So every
+    // reader has to be forwarded, and only one run can be read; the other
+    // readers each read a single segment directly.
+    static bool can_forward_run(instruction_ref concat_ins)
+    {
+        auto readers = find_readers(concat_ins);
+        std::vector<std::optional<segment_run>> found;
+        std::transform(readers.begin(),
+                       readers.end(),
+                       std::back_inserter(found),
+                       [&](instruction_ref reader) { return find_run(concat_ins, reader); });
+        if(not std::all_of(found.begin(), found.end(), [](const auto& r) { return r.has_value(); }))
+            return false;
+        std::vector<std::pair<std::ptrdiff_t, std::ptrdiff_t>> runs;
+        transform_if(
+            found.begin(),
+            found.end(),
+            std::back_inserter(runs),
+            [](const auto& r) { return r->size() > 1; },
+            [](const auto& r) { return std::make_pair(r->first, r->last); });
+        // Readers of the same run share one concat after common subexpression
+        // elimination
+        return std::adjacent_find(runs.begin(), runs.end(), std::not_equal_to<>{}) == runs.end();
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto slice_ins  = mr.result;
+        auto concat_ins = mr.instructions["concat"];
+        if(concat_ins->get_shape().dynamic())
+            return;
+        auto run = find_run(concat_ins, slice_ins);
+        if(not run.has_value())
+            return;
+        const auto& inputs = concat_ins->inputs();
+        auto seg           = inputs[run->first];
+        if(run->size() > 1)
+        {
+            if(not can_forward_run(concat_ins))
+                return;
             seg = m.insert_instruction(slice_ins,
                                        concat_ins->get_operator(),
-                                       std::vector<instruction_ref>(seg_begin, seg_end));
-        desc.simplify();
-        auto y = insert_ops(m, slice_ins, desc.generate(), seg);
+                                       std::vector<instruction_ref>(inputs.begin() + run->first,
+                                                                    inputs.begin() + run->last));
+        }
+        run->desc.simplify();
+        auto y = insert_ops(m, slice_ins, run->desc.generate(), seg);
         m.replace_instruction(slice_ins, y);
     }
 };

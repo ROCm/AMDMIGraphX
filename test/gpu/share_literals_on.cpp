@@ -28,6 +28,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/register_target.hpp>
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
@@ -37,8 +38,8 @@
 
 // Verifies MIGRAPHX_SHARE_LITERALS on behavior. The env var is set in main()
 // so it is in effect before the first compile in this process. The off/default
-// case lives in share_literals.cpp, as a separate process: the pool is
-// process-scoped, so an off-case assertion here would see this file's residue.
+// case lives in share_literals.cpp, as a separate process, since the flag is
+// read once per process.
 //
 // Sharing is detected by the free-VRAM delta after compiling: a large weight
 // makes "one copy vs N copies" unmistakable regardless of allocator noise.
@@ -61,14 +62,16 @@ std::size_t free_vram()
 
 // Compiles a program holding the given weight and returns it (kept alive by the
 // caller so its device memory stays resident).
-migraphx::program make_program_from(const migraphx::target& t, const migraphx::literal& weight)
+migraphx::program make_program_from(const migraphx::target& t,
+                                    const migraphx::literal& weight,
+                                    const migraphx::compile_options& options = {})
 {
     migraphx::program p;
     auto* mm  = p.get_main_module();
     auto w    = mm->add_literal(weight);
     auto relu = mm->add_instruction(migraphx::make_op("relu"), w);
     mm->add_return({relu});
-    p.compile(t);
+    p.compile(t, options);
     return p;
 }
 
@@ -139,8 +142,11 @@ TEST_CASE(one_ulp_apart_does_not_share)
     auto base = migraphx::generate_literal(weight_shape(), 0);
     std::vector<float> v;
     base.visit([&](auto x) { v.assign(x.begin(), x.end()); });
-    auto& e = v.at(v.size() / 2);
-    e       = std::nextafter(e, std::numeric_limits<float>::max());
+    // relu is folded into the literal at compile time, so bump an element it keeps: a
+    // negative one reads 0 in both programs, which then rightly share
+    auto it = std::find_if(v.begin() + v.size() / 2, v.end(), [](float x) { return x > 0; });
+    EXPECT(it != v.end());
+    *it = std::nextafter(*it, std::numeric_limits<float>::max());
 
     auto a               = make_program_from(t, base);
     const std::size_t f1 = free_vram();
@@ -148,6 +154,79 @@ TEST_CASE(one_ulp_apart_does_not_share)
     const std::size_t f2 = free_vram();
 
     EXPECT((f1 - f2) > (wsz / 2));
+}
+
+TEST_CASE(shared_weight_freed_with_last_program)
+{
+    auto t                = migraphx::make_target("gpu");
+    const std::size_t wsz = weight_shape().bytes();
+    // A seed no other case uses, so nothing left by an earlier case can be shared
+    auto weight = migraphx::generate_literal(weight_shape(), 7);
+
+    const std::size_t f0 = free_vram();
+    {
+        auto a = make_program_from(t, weight);
+        auto b = make_program_from(t, weight);
+    }
+    const std::size_t f1 = free_vram();
+
+    // The pool holds no reference of its own, so the weight goes with the last
+    // program that used it instead of staying until the process exits.
+    EXPECT(f1 + wsz / 2 > f0);
+}
+
+TEST_CASE(shared_weight_outlives_first_program)
+{
+    auto t                = migraphx::make_target("gpu");
+    const std::size_t wsz = weight_shape().bytes();
+    auto weight           = migraphx::generate_literal(weight_shape(), 8);
+    migraphx::compile_options options;
+    options.offload_copy = true;
+
+    auto b = [&] {
+        auto a               = make_program_from(t, weight, options);
+        const std::size_t f1 = free_vram();
+        auto shared          = make_program_from(t, weight, options);
+        // b must share a's upload, or the eval below passes without testing a shared buffer
+        EXPECT(free_vram() + wsz / 2 > f1);
+        return shared;
+    }();
+    // Allocated after a is gone, so a buffer freed with a would likely be reused here
+    auto c = make_program_from(t, migraphx::generate_literal(weight_shape(), 9), options);
+
+    // a uploaded the buffer b shares, so b must keep it alive after a is gone
+    std::vector<float> expected;
+    weight.visit([&](auto x) { expected.assign(x.begin(), x.end()); });
+    std::transform(expected.begin(), expected.end(), expected.begin(), [](float e) {
+        return std::max(e, 0.0f);
+    });
+    auto result = b.eval({}).back();
+    EXPECT(migraphx::literal{weight_shape(), expected} == result);
+}
+
+TEST_CASE(shared_weight_pooled_after_uploader_destroyed)
+{
+    auto t                = migraphx::make_target("gpu");
+    const std::size_t wsz = weight_shape().bytes();
+    auto weight           = migraphx::generate_literal(weight_shape(), 10);
+
+    const std::size_t f0 = free_vram();
+    {
+        auto b = [&] {
+            auto a               = make_program_from(t, weight);
+            const std::size_t f1 = free_vram();
+            auto shared          = make_program_from(t, weight);
+            // b must share a's upload, or d below could share b's own copy instead
+            EXPECT(free_vram() + wsz / 2 > f1);
+            return shared;
+        }();
+        // b keeps alive the entry a uploaded, so a later compile still shares it
+        const std::size_t f2 = free_vram();
+        auto d               = make_program_from(t, weight);
+        EXPECT(free_vram() + wsz / 2 > f2);
+    }
+    // Freed with the last program using it, which is not the one that uploaded it
+    EXPECT(free_vram() + wsz / 2 > f0);
 }
 
 int main(int argc, const char* argv[])

@@ -1439,6 +1439,19 @@ struct find_dot_broadcast
         return match::name("dot")(match::all_of[match::inputs()](match::broadcast()));
     }
 
+    // Whether the broadcast can be redone without its first naxes output axes.
+    // The leading input axes that no longer fit are squeezed, and a zero stride
+    // view can be non-unit there
+    static bool can_drop_broadcast_axes(instruction_ref bcast, std::size_t naxes)
+    {
+        const auto& input_lens = bcast->inputs().front()->get_shape().lens();
+        auto ndim              = bcast->get_shape().ndim() - naxes;
+        if(input_lens.size() <= ndim)
+            return true;
+        return std::all_of(
+            input_lens.begin(), input_lens.end() - ndim, [](auto len) { return len == 1; });
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
@@ -1460,6 +1473,9 @@ struct find_dot_broadcast
         assert(naxes <= nbatch_axes);
         std::vector<std::size_t> axes(naxes);
         std::iota(axes.begin(), axes.end(), 0);
+
+        if(not can_drop_broadcast_axes(a, naxes) or not can_drop_broadcast_axes(b, naxes))
+            return;
 
         auto insert_broadcast = [&](instruction_ref x_ins) -> instruction_ref {
             auto input = x_ins->inputs()[0];

@@ -2116,6 +2116,42 @@ TEST_CASE(multibroadcast_reshape_broadcast_scalar_axes)
     EXPECT(m1 == m2);
 }
 
+// A scalar view with a non-unit leading axis beyond the output rank cannot
+// be broadcast to the output directly
+TEST_CASE(multibroadcast_reshape_broadcast_scalar_nonunit_axes)
+{
+    auto create_module = [] {
+        migraphx::module m;
+        auto x  = m.add_parameter("x", {migraphx::shape::float_type, {3, 1, 1, 1}, {0, 0, 0, 0}});
+        auto sq = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), x);
+        auto mb =
+            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 2}}}), sq);
+        auto rs = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6}}}), mb);
+        m.add_return({rs});
+        return m;
+    };
+    auto m = create_module();
+    run_pass(m);
+    EXPECT(m == create_module());
+}
+
+// A scalar view of the same rank as the output still has to line up with it
+TEST_CASE(multibroadcast_reshape_broadcast_scalar_nonunit_same_rank)
+{
+    auto create_module = [] {
+        migraphx::module m;
+        auto x = m.add_parameter("x", {migraphx::shape::float_type, {3, 1, 1}, {0, 0, 0}});
+        auto mb =
+            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 2}}}), x);
+        auto rs = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 6, 1}}}), mb);
+        m.add_return({rs});
+        return m;
+    };
+    auto m = create_module();
+    run_pass(m);
+    EXPECT(m == create_module());
+}
+
 TEST_CASE(double_slice1)
 {
     migraphx::module m1;

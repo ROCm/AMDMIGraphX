@@ -4978,6 +4978,27 @@ TEST_CASE(dot_broadcast_unsqueezed_input)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// A zero stride view has a zero stride on its non-unit batch axis, which
+// cannot be squeezed away
+TEST_CASE(dot_broadcast_scalar_view_nonunit_axis)
+{
+    auto create_module = [] {
+        migraphx::module m;
+        auto x = m.add_parameter("x", {migraphx::shape::float_type, {3, 1, 1}, {0, 0, 0}});
+        auto y = m.add_parameter("y", {migraphx::shape::float_type, {2, 2}});
+        auto xb =
+            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 2}}}), x);
+        auto yb =
+            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 2}}}), y);
+        auto dot = m.add_instruction(migraphx::make_op("dot"), xb, yb);
+        m.add_return({dot});
+        return m;
+    };
+    auto m = create_module();
+    run_pass(m);
+    EXPECT(m.sort() == create_module().sort());
+}
+
 TEST_CASE(dot_fusion_reshape)
 {
     migraphx::module m1;

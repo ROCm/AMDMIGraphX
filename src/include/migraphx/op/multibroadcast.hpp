@@ -110,12 +110,9 @@ struct multibroadcast
             }
 
             // Trailing axes align with the output. Leading axes beyond its
-            // rank are dropped: a scalar has the same element everywhere and
-            // any other input must be unit there
+            // rank are dropped, so the input must be unit there
             if(s0.ndim() > output_lens.size())
             {
-                if(s0.scalar())
-                    return {t, output_lens, std::vector<std::size_t>(output_lens.size(), 0)};
                 auto extra = s0.ndim() - output_lens.size();
                 if(not std::all_of(s0.lens().begin(), s0.lens().begin() + extra, [](auto len) {
                        return len == 1;

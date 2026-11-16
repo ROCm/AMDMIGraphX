@@ -2959,6 +2959,18 @@ TEST_CASE(multibroadcast_lower_rank_error)
     throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 2}}}), input);
 }
 
+TEST_CASE(multibroadcast_scalar_lower_rank_nonunit_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {3, 1, 1, 1}, {0, 0, 0, 0}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2}}}), input);
+}
+
+TEST_CASE(multibroadcast_scalar_lower_rank_trailing_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 1, 5}, {0, 0, 0, 0}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2}}}), input);
+}
+
 TEST_CASE(multibroadcast_1in_dyn_error_0)
 {
     // multibroadcast doesn't support single dynamic shape input

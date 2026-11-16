@@ -272,6 +272,7 @@ add_library(migraphx_gpu
     device_description.cpp
     device_name.cpp
     eliminate_data_type_for_gpu.cpp
+    eliminate_device_copy.cpp
     eliminate_recompile_anchors.cpp
     file_binary_cache.cpp
     fixed_pad.cpp

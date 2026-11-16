@@ -144,6 +144,16 @@ bool is_inlinable_constant(instruction_ref ins)
     return ins->get_shape().elements() == 1 or is_range_literal(ins->get_literal());
 }
 
+auto supported_dot(const std::set<shape::type_t>& unsupported_types)
+{
+    auto has_unsupported_inputs = match::make_basic_pred_matcher([=](instruction_ref ins) {
+        return std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](instruction_ref input) {
+            return contains(unsupported_types, input->get_shape().type());
+        });
+    });
+    return match::name("dot")(match::none_of(has_unsupported_inputs));
+}
+
 // Profitability gate shared by the attention matchers: the fused kernel keeps a head-dim
 // wide accumulator per q row in registers (loses past max_head_dim unless the kv loop is
 // <= wide_head_kv_len) and only parallelizes over q rows (batch * heads * seq, needs
@@ -469,11 +479,12 @@ struct find_attention_sinks
 struct find_transposed_attention
 {
     attention_gate gate = {};
+    std::set<shape::type_t> unsupported_types;
 
     auto matcher() const
     {
-        auto gemm1 =
-            match::opaque(match::any_of[pointwise_inputs()](match::name("dot").bind("dot1")));
+        auto dot   = supported_dot(unsupported_types);
+        auto gemm1 = match::opaque(match::any_of[pointwise_inputs()](dot.bind("dot1")));
         auto softmax =
             match::opaque(match::skip(match::name("convert"))(match::softmax_input(gemm1)));
         auto swap_last_two = match::make_basic_pred_matcher([](instruction_ref ins) {
@@ -489,7 +500,7 @@ struct find_transposed_attention
             match::opaque(match::name("transpose")(swap_last_two, match::arg(0)(softmax))
                               .bind("transposed_softmax"));
         auto input_of_dot2 = match::any().bind("input_of_dot2");
-        return match::name("dot")(match::arg(0)(input_of_dot2), match::arg(1)(transposed_softmax));
+        return dot(match::arg(0)(input_of_dot2), match::arg(1)(transposed_softmax));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -535,14 +546,15 @@ struct find_attention
 {
     std::size_t* counter;
     attention_gate gate = {};
+    std::set<shape::type_t> unsupported_types;
 
     auto matcher() const
     {
-        auto gemm1 =
-            match::opaque(match::any_of[pointwise_inputs()](match::name("dot").bind("dot1")));
+        auto dot   = supported_dot(unsupported_types);
+        auto gemm1 = match::opaque(match::any_of[pointwise_inputs()](dot.bind("dot1")));
         auto softmax =
             match::opaque(match::skip(match::name("convert"))(match::softmax_input(gemm1)));
-        return match::name("dot")(match::arg(0)(softmax));
+        return dot(match::arg(0)(softmax));
     }
 
     std::string get_count() const { return std::to_string((*counter)++); }
@@ -1195,6 +1207,7 @@ struct find_flash_decoding
 struct find_kv_cache_attention
 {
     std::size_t* counter;
+    std::set<shape::type_t> unsupported_types;
 
     auto matcher() const
     {
@@ -1205,7 +1218,8 @@ struct find_kv_cache_attention
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k"));
         auto keys_transpose  = match::opaque(match::name("transpose")(match::arg(0)(keys)));
         auto k_transpose     = match::opaque(match::skip(match::name(skip_set))(keys_transpose));
-        auto gemm1 = match::opaque(match::name("dot")(match::arg(1)(k_transpose)).bind("gemm1"));
+        auto dot             = supported_dot(unsupported_types);
+        auto gemm1           = match::opaque(dot(match::arg(1)(k_transpose)).bind("gemm1"));
         auto gemm1_maybe_cvt = match::opaque(match::skip(match::name("convert"))(gemm1));
         auto scale    = match::opaque(match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt)));
         auto constant = match::opaque(match::is_constant());
@@ -1235,7 +1249,7 @@ struct find_kv_cache_attention
             match::opaque(match::skip(match::name("convert"))(match::softmax_input(mask_cvt)));
         auto values = match::opaque(
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v"));
-        return match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
+        return dot(match::arg(0)(attn_probabilities), match::arg(1)(values));
     }
 
     /// The view ops laying out the attention output after the second gemm,
@@ -1463,7 +1477,8 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
 
     // Fuse kv-cache attention by default
-    match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
+    match::find_matches(
+        mpm, find_kv_cache_attention{.counter = &counter, .unsupported_types = unsupported_types});
     mpm.get_module().sort();
     mpm.run_pass(dead_code_elimination{});
 
@@ -1478,10 +1493,14 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_quant_attention{.gate = gate});
         mpm.run_pass(dead_code_elimination{});
 
-        match::find_matches(mpm, find_transposed_attention{.gate = gate});
+        match::find_matches(
+            mpm, find_transposed_attention{.gate = gate, .unsupported_types = unsupported_types});
         mpm.run_pass(dead_code_elimination{});
 
-        match::find_matches(mpm, find_attention{.counter = &counter, .gate = gate});
+        match::find_matches(mpm,
+                            find_attention{.counter           = &counter,
+                                           .gate              = gate,
+                                           .unsupported_types = unsupported_types});
         mpm.get_module().sort();
         mpm.run_pass(dead_code_elimination{});
     }

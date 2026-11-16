@@ -491,6 +491,12 @@ inline migraphx::program create_external_data_prog()
     return p;
 }
 
+struct group_norm_options
+{
+    bool is_contrib = false;
+    bool stash_type = true;
+};
+
 inline migraphx::program make_group_norm(
     const std::vector<int64_t>& input_dims,
     const std::vector<int64_t>& scale_dims,
@@ -503,8 +509,7 @@ inline migraphx::program make_group_norm(
                                                                      migraphx::shape::float_type},
     const std::pair<std::string, migraphx::shape::type_t>& param2 = {"bias",
                                                                      migraphx::shape::float_type},
-    bool is_contrib                                               = false,
-    bool stash_type                                               = true)
+    group_norm_options options                                    = {})
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -514,8 +519,9 @@ inline migraphx::program make_group_norm(
     auto bias  = mm->add_parameter(param2.first, {param2.second, bias_dims});
 
     auto x_dims = x->get_shape().lens();
-    const auto compute_dtype = (is_contrib or stash_type) ? migraphx::shape::float_type : dtype;
-    const auto affine_dtype  = is_contrib ? compute_dtype : dtype;
+    const auto compute_dtype =
+        (options.is_contrib or options.stash_type) ? migraphx::shape::float_type : dtype;
+    const auto affine_dtype = options.is_contrib ? compute_dtype : dtype;
     if(compute_dtype != dtype)
         x = mm->add_instruction(migraphx::make_op("convert", {{"target_type", compute_dtype}}), x);
 

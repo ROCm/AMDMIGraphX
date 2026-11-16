@@ -36,8 +36,7 @@ TEST_CASE(group_norm_v21_fp16_stash_fp16_test)
                                           migraphx::shape::half_type,
                                           {"scale", migraphx::shape::half_type},
                                           {"bias", migraphx::shape::half_type},
-                                          false,
-                                          false);
+                                          {false, false});
     auto prog           = optimize_onnx("group_norm_v21_fp16_stash_fp16_test.onnx");
     EXPECT(p == prog);
 }

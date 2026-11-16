@@ -127,12 +127,6 @@ struct binary : op_name<Derived>
             const auto y = args[1].get();
             auto output  = result.get();
             par_broadcast_transform(self.apply(), output, x, y);
-            // An int32 result that could overflow at run time has no expression
-            if(output_shape.type() == shape::int32_type and
-               not std::all_of(output.begin(), output.end(), [](const auto& e) {
-                   return sym::fits<int32_t>(e);
-               }))
-                return {};
             return result;
         }
         else

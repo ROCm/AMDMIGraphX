@@ -369,13 +369,6 @@ inline bool fits_range(const expr& expression, scalar lowest, scalar highest)
     return range.contains(bounds.min) and range.contains(bounds.max);
 }
 
-// Whether every value the expression can take is representable as T
-template <class T>
-bool fits(const expr& expression)
-{
-    return fits_range(expression, std::numeric_limits<T>::lowest(), std::numeric_limits<T>::max());
-}
-
 // `min`/`max` that collapse to one operand when `strict_less` proves the ordering.
 MIGRAPHX_EXPORT expr resolve_min(const expr& a, const expr& b);
 MIGRAPHX_EXPORT expr resolve_max(const expr& a, const expr& b);

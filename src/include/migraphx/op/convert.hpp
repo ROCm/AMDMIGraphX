@@ -126,10 +126,8 @@ struct convert : unary<convert>
             if(target == shape::double_type)
                 return sym::fits_range(whole, -(int64_t{1} << 53), int64_t{1} << 53) ? whole
                                                                                      : sym::expr{};
-            if(target == shape::int64_type)
+            if(target == shape::int64_type or target == shape::int32_type)
                 return whole;
-            if(target == shape::int32_type)
-                return sym::fits<int32_t>(whole) ? whole : sym::expr{};
             const auto value = sym::fixed_value(whole);
             if(not value.has_value())
                 return sym::expr{};

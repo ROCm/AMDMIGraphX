@@ -168,7 +168,7 @@ constexpr std::size_t vec_size()
 }
 
 template <class F, class V, class... Vs, MIGRAPHX_REQUIRES((vec_size<V>() > 0))>
-void vec_apply(F f, V& v, Vs... vs)
+void vec_apply(F f, V& v, const Vs&... vs)
 {
     assert(all_of({vec_size<Vs>()...}, [&](auto n) { return n == vec_size<V>(); }));
     assert(vec_size<V>() == v.array.size());

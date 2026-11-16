@@ -76,10 +76,8 @@ struct convert : unary<convert>
     auto apply() const
     {
         return [target = target_type](const sym::expr& x) {
-            if(target == shape::int64_type)
+            if(target == shape::int64_type or target == shape::int32_type)
                 return x;
-            if(target == shape::int32_type)
-                return sym::fits<int32_t>(x) ? x : sym::expr{};
             const auto value = sym::fixed_value(x);
             if(not value.has_value())
                 return sym::expr{};

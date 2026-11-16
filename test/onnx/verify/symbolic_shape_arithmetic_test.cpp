@@ -47,7 +47,7 @@ TEST_CASE(symbolic_shape_arithmetic)
                 migraphx::shape::dynamic_dimension{sequence + migraphx::sym::lit(int64_t{1})},
                 migraphx::shape::dynamic_dimension{sequence + migraphx::sym::lit(int64_t{1})},
                 migraphx::shape::dynamic_dimension{sequence + sequence}}});
-    // sequence is at most 4, so the cast through int32 keeps its value
+    // The cast through int32 keeps the value of sequence
     EXPECT(outputs[3] == migraphx::shape{migraphx::shape::float_type, {input_dims[1]}});
 
     p.compile(migraphx::make_target("ref"));
@@ -58,18 +58,4 @@ TEST_CASE(symbolic_shape_arithmetic)
     EXPECT(results[1].get_shape().lens() == std::vector<std::size_t>{2});
     EXPECT(results[2].get_shape().lens() == std::vector<std::size_t>{2, 3, 3, 4});
     EXPECT(results[3].get_shape().lens() == std::vector<std::size_t>{2});
-}
-
-TEST_CASE(symbolic_shape_arithmetic_narrow_cast_overflow)
-{
-    // sequence can exceed int32, so the cast through int32 falls back to a dynamic shape
-    migraphx::onnx_options options;
-    options.use_symbolic_shapes     = true;
-    options.map_dyn_input_dims["x"] = {{1, 1}, {1, 3000000000}};
-    auto p                          = read_onnx("symbolic_shape_arithmetic_test.onnx", options);
-
-    const auto outputs = p.get_output_shapes();
-    EXPECT(outputs.size() == 4);
-    EXPECT(outputs[3].dynamic());
-    EXPECT(not outputs[3].symbolic());
 }

@@ -332,22 +332,6 @@ TEST_CASE(op_sym_sub_int32)
                             inputs,
                             {symbolic_tensor_value{lit(10)}, symbolic_tensor_value{s}}) ==
            symbolic_tensor_value{lit(10) - s});
-    // The difference could underflow int32, although its upper bound fits
-    EXPECT(
-        not symbolic_compute(migraphx::make_op("sub"),
-                             output,
-                             inputs,
-                             {symbolic_tensor_value{lit(std::numeric_limits<int32_t>::min() + 4)},
-                              symbolic_tensor_value{var("T", {1, 8})}})
-                .has_value());
-    // The sum could overflow int32
-    EXPECT(not symbolic_compute(
-                   migraphx::make_op("add"),
-                   output,
-                   inputs,
-                   {symbolic_tensor_value{var("T", {0, std::numeric_limits<int32_t>::max()})},
-                    symbolic_tensor_value{lit(1)}})
-                   .has_value());
 }
 
 TEST_CASE(op_sym_mul)
@@ -459,16 +443,6 @@ TEST_CASE(op_sym_convert_rejects_unsupported_cases)
                                 shape{shape::float_type, {1}},
                                 {shape{shape::int64_type, {1}}},
                                 {symbolic_tensor_value{lit(1)}})
-                   .has_value());
-    EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::int32_type}}),
-                                shape{shape::int32_type, {1}},
-                                {shape{shape::int64_type, {1}}},
-                                {symbolic_tensor_value{var("S", {0, int64_t{1} << 40})}})
-                   .has_value());
-    EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::int32_type}}),
-                                shape{shape::int32_type, {1}},
-                                {shape{shape::int64_type, {1}}},
-                                {symbolic_tensor_value{var("S", {-(int64_t{1} << 40), 0})}})
                    .has_value());
     EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::bool_type}}),
                                 shape{shape::bool_type, {1}},

@@ -258,6 +258,28 @@ std::vector<std::size_t> shared_dynamic_indices(const module_metadata& candidate
 
 } // namespace
 
+bool select_module::compatible_output_shape(const shape& logical, const shape& output)
+{
+    if(logical.type() != output.type())
+        return false;
+    if(logical.type() == shape::tuple_type)
+    {
+        return logical.sub_shapes().size() == output.sub_shapes().size() and
+               std::equal(logical.sub_shapes().begin(),
+                          logical.sub_shapes().end(),
+                          output.sub_shapes().begin(),
+                          [](const shape& logical_sub, const shape& output_sub) {
+                              return compatible_output_shape(logical_sub, output_sub);
+                          });
+    }
+    if(logical.ndim() != output.ndim())
+        return false;
+    auto logical_max = logical.max_lens();
+    auto output_max  = output.max_lens();
+    return std::equal(
+        logical_max.begin(), logical_max.end(), output_max.begin(), std::less_equal<>{});
+}
+
 select_module::module_set_metadata
 select_module::build_module_metadata(const std::vector<module_ref>& candidates) const
 {

@@ -305,7 +305,11 @@ TEST_CASE(split_sym_dim_supports_zero_length_root)
             {{"output_dyn_shapes",
                 migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
                   migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{target_n}}}}})},
-               {"empty_guard_inputs", {0}}}),
+               {"logical_output_dyn_shapes",
+                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}}}})},
+               {"input_shapes",
+                migraphx::to_value(std::vector<migraphx::shape>{expected_input->get_shape()})}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         modules);
     auto expected_output =
@@ -5890,13 +5894,19 @@ TEST_CASE(split_sym_dim_output_slice_uses_parameter_and_data_root_sources)
     auto target_width = var("split_sym_dim_width_target", {1, 2}, {1, 2});
     auto target_count = var("split_sym_dim_count_target", {0, 2}, {1, 2});
     auto select       = expected_main.add_instruction(
-        migraphx::make_op("select_module",
-                                {{"output_dyn_shapes",
-                                  migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                                migraphx::shape{migraphx::shape::float_type,
-                                                      {dd{target_width}, dd{target_count}},
-                                                      {lit(0), lit(0)}}}})},
-                                 {"empty_guard_inputs", {0}}}),
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+                    migraphx::to_value(migraphx::shape{
+                  std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type,
+                                                                     {dd{target_width}, dd{target_count}},
+                                                                     {lit(0), lit(0)}}}})},
+                   {"logical_output_dyn_shapes",
+                    migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{width}, dd{count}}, {lit(0), lit(0)}}}})},
+                   {"input_shapes",
+                    migraphx::to_value(std::vector<migraphx::shape>{expected_selected->get_shape(),
+                                                                    expected_x->get_shape()})}}),
         std::vector<migraphx::instruction_ref>{expected_selected, expected_x},
         modules);
     auto expected_output =

@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/insert_select_module.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
@@ -38,7 +39,7 @@ std::vector<instruction_ref> insert_select_module(module_pass_manager& mpm,
                                                   const std::vector<instruction_ref>& inputs,
                                                   std::vector<module> clones,
                                                   const std::vector<shape>& output_shapes,
-                                                  const std::vector<std::size_t>& empty_guard_inputs)
+                                                  const std::vector<shape>& logical_output_shapes)
 {
     std::vector<module_ref> submodules;
     submodules.reserve(clones.size());
@@ -49,8 +50,13 @@ std::vector<instruction_ref> insert_select_module(module_pass_manager& mpm,
         });
 
     value attributes{{"output_dyn_shapes", to_value(shape{output_shapes})}};
-    if(not empty_guard_inputs.empty())
-        attributes["empty_guard_inputs"] = empty_guard_inputs;
+    if(not logical_output_shapes.empty())
+    {
+        if(logical_output_shapes.size() != output_shapes.size())
+            MIGRAPHX_THROW("INSERT_SELECT_MODULE: logical output count does not match outputs");
+        attributes["logical_output_dyn_shapes"] = to_value(shape{logical_output_shapes});
+        attributes["input_shapes"]              = to_value(to_shapes(inputs));
+    }
     auto selection = m.add_instruction(make_op("select_module", attributes), inputs, submodules);
     std::vector<instruction_ref> outputs;
     outputs.reserve(output_shapes.size());

@@ -685,9 +685,11 @@ TEST_CASE(select_module_zero_output_short_circuit)
     auto input                           = mm->add_parameter("data", input_shape);
     std::vector<migraphx::shape> outputs = {input_shape};
     auto select                          = mm->add_instruction(
-        migraphx::make_op("select_module",
-                                                   {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-                                                    {"empty_guard_inputs", {0}}}),
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
+                                      {"logical_output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
+                                      {"input_shapes", migraphx::to_value(std::vector<migraphx::shape>{input_shape})}}),
         {input},
         {submod});
     auto output = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -734,8 +736,13 @@ TEST_CASE(select_module_mixed_empty_concat_runs)
     std::vector<migraphx::shape> outputs = {migraphx::shape{migraphx::shape::float_type, {0, 3}},
                                             migraphx::shape{migraphx::shape::float_type, {2, 3}}};
     auto select                          = mm->add_instruction(
-        migraphx::make_op("select_module",
-                                                   {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})}}),
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
+                                      {"logical_output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
+                                      {"input_shapes",
+                                       migraphx::to_value(
+                  std::vector<migraphx::shape>{main_data->get_shape(), main_empty->get_shape()})}}),
         {main_data, main_empty},
         {submod});
     auto empty_output =

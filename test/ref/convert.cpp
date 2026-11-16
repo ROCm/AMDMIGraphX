@@ -66,6 +66,26 @@ TEST_CASE(convert_float_to_bool_test)
     EXPECT(results_vector == std::vector<int>{1, 1, 1, 1, 0, 1, 1});
 }
 
+TEST_CASE(convert_double_to_bool_test)
+{
+    // The smallest denormal is nonzero, and -0.0 is zero
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::double_type, {4}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+    std::vector<double> data = {std::numeric_limits<double>::denorm_min(),
+                                -0.0,
+                                -std::numeric_limits<double>::infinity(),
+                                -std::numeric_limits<double>::denorm_min()};
+    auto result              = p.eval({{"x", migraphx::argument{s, data.data()}}}).back();
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector == std::vector<int>{1, 0, 1, 1});
+}
+
 TEST_CASE(convert_int_to_bool_test)
 {
     migraphx::program p;

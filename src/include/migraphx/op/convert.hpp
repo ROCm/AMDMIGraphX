@@ -26,7 +26,6 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/unary.hpp>
-#include <migraphx/float_equal.hpp>
 #include <migraphx/sym_argument.hpp>
 #include <cmath>
 
@@ -106,7 +105,7 @@ struct convert : unary<convert>
                     input.begin(), input.end(), output.begin(), [&](auto x) -> output_type {
                         double dx = x;
                         if(to_bool)
-                            return output_type(float_equal(dx, 0.0) ? 0.0 : 1.0);
+                            return output_type(std::fpclassify(dx) == FP_ZERO ? 0.0 : 1.0);
                         if(std::isnan(dx))
                             return std::numeric_limits<output_type>::quiet_NaN();
                         if(not std::is_integral<output_type>{} and std::isinf(dx))

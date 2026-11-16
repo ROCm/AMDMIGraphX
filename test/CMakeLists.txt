@@ -85,6 +85,18 @@ if(MIGRAPHX_ENABLE_GPU)
     add_subdirectory(gpu/kernels)
 endif()
 
+if(MIGRAPHX_ENABLE_CPU)
+    # cpu tests
+    file(GLOB CPU_TESTS CONFIGURE_DEPENDS cpu/*.cpp)
+
+    foreach(TEST ${CPU_TESTS})
+        get_filename_component(BASE_NAME ${TEST} NAME_WE)
+        rocm_add_test_executable(test_cpu_${BASE_NAME} ${TEST})
+        rocm_clang_tidy_check(test_cpu_${BASE_NAME})
+        target_link_libraries(test_cpu_${BASE_NAME} migraphx_lazy_ref migraphx_cpu)
+    endforeach()
+endif()
+
 if(MIGRAPHX_ENABLE_FPGA)
     # fpga tests
     file(GLOB FPGA_TESTS CONFIGURE_DEPENDS fpga/*.cpp)

@@ -186,6 +186,13 @@ argument::data_t argument::data_t::from_args(const std::vector<argument>& args)
 
 argument argument::copy() const
 {
+    if(m_shape.type() == shape::tuple_type)
+    {
+        auto subs = this->get_sub_objects();
+        std::transform(
+            subs.begin(), subs.end(), subs.begin(), [](const auto& sub) { return sub.copy(); });
+        return argument{subs};
+    }
     argument result{this->get_shape()};
     auto* src = this->data();
     std::copy(src, src + this->get_shape().bytes(), result.data());
@@ -202,10 +209,14 @@ std::vector<argument> argument::get_sub_objects() const
                    m_shape.sub_shapes().end(),
                    m_data.sub.begin(),
                    std::back_inserter(result),
-                   [](auto&& s, auto&& d) {
-                       return argument{s, d};
-                   });
+                   [](auto&& s, auto&& d) { return argument{s, d}; });
     return result;
+}
+
+argument argument::get_sub_object(std::size_t index) const
+{
+    assert(m_shape.sub_shapes().size() == m_data.sub.size());
+    return {m_shape.sub_shapes().at(index), m_data.sub.at(index)};
 }
 
 argument argument::element(std::size_t i) const

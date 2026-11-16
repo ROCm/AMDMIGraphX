@@ -131,6 +131,28 @@ TEST_CASE(literal_standard_buffer_broadcast)
     EXPECT(l.to_vector<int32_t>() == data);
 }
 
+TEST_CASE(literal_raw_buffer_transposed)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {2, 3}, {1, 2}};
+    migraphx::literal src{migraphx::shape{migraphx::shape::int32_type, {6}},
+                          std::vector<int32_t>{0, 3, 1, 4, 2, 5}};
+
+    auto l = migraphx::literal::from_raw_buffer(s, src.data());
+    EXPECT(l.get_shape() == s);
+    EXPECT(l.to_vector<int32_t>() == std::vector<int32_t>{0, 1, 2, 3, 4, 5});
+    EXPECT(std::equal(l.data(), l.data() + s.bytes(), src.data()));
+}
+
+TEST_CASE(literal_raw_buffer_broadcast)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {3}, {0}};
+    migraphx::literal src{migraphx::shape{migraphx::shape::int32_type, {1}}, {7}};
+
+    auto l = migraphx::literal::from_raw_buffer(s, src.data());
+    EXPECT(l.get_shape() == s);
+    EXPECT(l.to_vector<int32_t>() == std::vector<int32_t>{7, 7, 7});
+}
+
 TEST_CASE(literal_vector_too_many_values)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};

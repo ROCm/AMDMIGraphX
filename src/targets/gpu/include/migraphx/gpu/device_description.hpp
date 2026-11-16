@@ -51,6 +51,8 @@ struct MIGRAPHX_GPU_EXPORT device_description
     std::size_t max_threads_per_cu    = 2048;
     std::size_t max_threads_per_block = 1024;
     std::size_t wavefront_size        = 0;
+    /// Shared memory (LDS) available to one workgroup, in bytes
+    std::size_t max_shared_memory_per_block = 64 * 1024;
 };
 
 } // namespace gpu

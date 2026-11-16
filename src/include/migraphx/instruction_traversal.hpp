@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/optional.hpp>
 #include <migraphx/unfold.hpp>
 #include <algorithm>
 #include <iterator>
@@ -89,6 +90,11 @@ inline auto get_alias_path(instruction_ref ins)
         return aliases.front();
     });
 }
+
+// The instructions that own the buffers backing `ins`. A lowered select_module returns a tuple
+// backed by one trailing buffer per element, so a get_tuple_elem resolves to that one buffer
+// rather than to every buffer backing the tuple.
+MIGRAPHX_EXPORT std::vector<instruction_ref> resolve_output_aliases(instruction_ref ins);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -16438,6 +16438,25 @@ def roialign_test():
 
 
 @onnx_test()
+def roialign_dynamic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5, 4, 7])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT,
+                                        ['num_rois', 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64,
+                                       ['num_rois'])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      ['num_rois', 5, 3, 2])
+
+    node = onnx.helper.make_node('RoiAlign',
+                                 inputs=['x', 'rois', 'batch_ind'],
+                                 outputs=['y'],
+                                 output_height=3,
+                                 output_width=2)
+
+    return ([node], [x, roi, bi], [y])
+
+
+@onnx_test()
 def rotary_embedding_test():
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
                                           [1, 2, 18])
@@ -17140,6 +17159,55 @@ def symbolic_reshape_zero_dim_test():
     return (nodes, [x], [y])
 
 
+@onnx_test(opset_version=1)
+def symbolic_reshape_attribute_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+    node = helper.make_node('Reshape',
+                            inputs=['x'],
+                            outputs=['y'],
+                            shape=[-1, 4])
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_cross_root_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+    nodes = [
+        helper.make_node('Flatten', ['x'], ['flattened'], axis=0),
+        helper.make_node('Shape', ['x'], ['target_shape']),
+        helper.make_node('Reshape', ['flattened', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_invalid_elements_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 2, 2])
+    target = helper.make_tensor('target_value', TensorProto.INT64, [3],
+                                [0, 2, 2])
+    nodes = [
+        helper.make_node('Constant', [], ['target_shape'], value=target),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_missing_source_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      ['output_batch', 6])
+    target = from_array(np.array([-1, 6], dtype=np.int64), 'target_value')
+    nodes = [
+        helper.make_node('Constant', [], ['target_shape'], value=target),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
 @onnx_test()
 def symbolic_reshape_negative_one_dim_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
@@ -17155,6 +17223,108 @@ def symbolic_reshape_negative_one_dim_test():
         helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
     ]
     return (nodes, [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_constant_test():
+    other = helper.make_tensor_value_info('other', TensorProto.FLOAT, [2])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    constant_output = helper.make_tensor_value_info('constant_output',
+                                                    TensorProto.FLOAT,
+                                                    ['batch', 4])
+    attribute_output = helper.make_tensor_value_info('attribute_output',
+                                                     TensorProto.FLOAT,
+                                                     ['batch', 4])
+    target = helper.make_tensor('target_value', TensorProto.INT64, [2], [0, 4])
+    nodes = [
+        helper.make_node('Constant', [], ['target'], value=target),
+        helper.make_node('Reshape', ['x', 'target'], ['constant_output']),
+        helper.make_node('Reshape', ['x'], ['attribute_output'], shape=[0, 4]),
+    ]
+    return (nodes, [other, x], [constant_output, attribute_output])
+
+
+@onnx_test()
+def symbolic_reshape_if_test():
+    cond = helper.make_tensor_value_info('cond', TensorProto.BOOL, [])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    then_output = helper.make_tensor_value_info('then_output',
+                                                TensorProto.FLOAT,
+                                                ['batch', 4])
+    else_output = helper.make_tensor_value_info('else_output',
+                                                TensorProto.FLOAT,
+                                                ['batch', 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           ['batch', 4])
+
+    then_reshape = helper.make_node('Reshape', ['x'], ['then_output'],
+                                    shape=[0, 4])
+    else_reshape = helper.make_node('Reshape', ['x'], ['else_output'],
+                                    shape=[0, 4])
+    then_body = helper.make_graph([then_reshape], 'then_body', [],
+                                  [then_output])
+    else_body = helper.make_graph([else_reshape], 'else_body', [],
+                                  [else_output])
+    node = helper.make_node('If', ['cond'], ['output'],
+                            then_branch=then_body,
+                            else_branch=else_body)
+    return ([node], [cond, x], [output])
+
+
+@onnx_test()
+def symbolic_reshape_loop_test():
+    iteration = helper.make_tensor_value_info('iteration_num',
+                                              TensorProto.INT64, [1])
+    body_cond = helper.make_tensor_value_info('body_cond', TensorProto.BOOL,
+                                              [1])
+    body_carried = helper.make_tensor_value_info('body_carried',
+                                                 TensorProto.FLOAT, [1, 1])
+    reduced_output = helper.make_tensor_value_info('reduced_output',
+                                                   TensorProto.FLOAT, [1, 1])
+    reshape = helper.make_node('Reshape', ['x'], ['body_output'], shape=[0, 4])
+    reduce = helper.make_node('ReduceSum', ['body_output'], ['reduced_output'],
+                              axes=[0, 1],
+                              keepdims=1)
+    body = helper.make_graph([reshape, reduce], 'body',
+                             [iteration, body_cond, body_carried],
+                             [body_cond, reduced_output])
+
+    max_trip_count = helper.make_tensor_value_info('max_trip_count',
+                                                   TensorProto.INT64, [1])
+    cond = helper.make_tensor_value_info('cond', TensorProto.BOOL, [1])
+    carried = helper.make_tensor_value_info('carried', TensorProto.FLOAT,
+                                            [1, 1])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    carried_output = helper.make_tensor_value_info('carried_output',
+                                                   TensorProto.FLOAT, [1, 1])
+    node = helper.make_node('Loop', ['max_trip_count', 'cond', 'carried'],
+                            ['carried_output'],
+                            body=body)
+    return ([node], [max_trip_count, cond, carried, x], [carried_output])
+
+
+@onnx_test()
+def symbolic_reshape_data_root_test():
+    condition = helper.make_tensor_value_info('condition', TensorProto.BOOL,
+                                              [4])
+    output = helper.make_tensor_value_info('output', TensorProto.INT64,
+                                           ['count', 1, 1, 1])
+    trailing_dims = helper.make_tensor('trailing_dims_value',
+                                       TensorProto.INT64, [2], [1, 1])
+    nodes = [
+        helper.make_node('NonZero', ['condition'], ['nonzero_indices']),
+        helper.make_node('Transpose', ['nonzero_indices'], ['transposed'],
+                         perm=[1, 0]),
+        helper.make_node('Shape', ['transposed'], ['transposed_shape']),
+        helper.make_node('Constant', [], ['trailing_dims'],
+                         value=trailing_dims),
+        helper.make_node('Concat', ['transposed_shape', 'trailing_dims'],
+                         ['target_shape'],
+                         axis=0),
+        helper.make_node('Reshape', ['transposed', 'target_shape'],
+                         ['output']),
+    ]
+    return (nodes, [condition], [output])
 
 
 @onnx_test()

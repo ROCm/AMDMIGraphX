@@ -671,7 +671,8 @@ struct find_dot_axis_linear_ops
 
         // The constant operand of a dot that recombines the tracked axis: the
         // left one for the rows of its output, the right one for its columns
-        static optional<instruction_ref> axis_matrix(instruction_ref ins, std::size_t tracked)
+        static optional<instruction_ref>
+        axis_matrix(instruction_ref ins, const axes& a, std::size_t tracked)
         {
             auto ndim = ins->get_shape().ndim();
             if(tracked + 2 < ndim)
@@ -679,6 +680,12 @@ struct find_dot_axis_linear_ops
             auto w = ins->inputs()[tracked + 2 - ndim];
             auto z = ins->inputs()[ndim - 1 - tracked];
             if(not w->can_eval() or is_from_int4(w) or z->can_eval())
+                return nullopt;
+            // Each matrix of w has to stay with one batch of x
+            const auto& s = w->get_shape();
+            if(not all_of(range(ndim - 2), [&](auto i) {
+                   return s.strides()[i] == 0 or s.lens()[i] == 1 or a.is_batch(i);
+               }))
                 return nullopt;
             return w;
         }
@@ -716,7 +723,7 @@ struct find_dot_axis_linear_ops
             if(name == "mul")
                 result.constant = axis_scale(ins, a, tracked);
             else if(name == "dot")
-                result.constant = axis_matrix(ins, tracked);
+                result.constant = axis_matrix(ins, a, tracked);
             if(contains({"mul", "dot"}, name))
             {
                 if(not result.constant.has_value())
@@ -927,31 +934,53 @@ struct find_dot_axis_linear_ops
 
         // Fold the constant `w` of a dot that recombines the tracked axis into
         // `cin`: w maps rows when it is the left operand and columns when it
-        // is the right one, and cin takes it on the side its contracted axis is on
+        // is the right one, and cin takes it on the side its contracted axis
+        // is on. The batch axes of w follow `a` to those of cin
         instruction_ref
-        matrix(module& m, instruction_ref cin, instruction_ref w, bool columns) const
+        matrix(module& m, instruction_ref cin, instruction_ref w, bool columns, const axes& a) const
         {
-            auto ndim = w->get_shape().ndim();
-            assert(ndim >= 2);
-            // Broadcast batch axes of w carry one matrix, so keep just that
             const auto& wlens    = w->get_shape().lens();
             const auto& wstrides = w->get_shape().strides();
-            w                    = slice_front(m, w, find_all(range(ndim - 2), [&](auto i) {
-                                return wlens[i] > 1 and wstrides[i] == 0;
-                                               }));
-            const bool rows      = c_axis == ndim - 2;
-            if(columns != rows)
-            {
-                std::vector<int64_t> perm(ndim);
-                std::iota(perm.begin(), perm.end(), 0);
-                std::swap(perm[ndim - 1], perm[ndim - 2]);
-                w = m.insert_instruction(dot, make_op("transpose", {{"permutation", perm}}), w);
-            }
-            // The dots pin the batch lengths of w to those of cin
+            auto ndim            = wlens.size();
+            assert(ndim >= 2);
+            auto batch = range(ndim - 2);
+            // Broadcast batch axes of w carry one matrix, so keep just that
+            w = slice_front(
+                m, w, find_all(batch, [&](auto i) { return wlens[i] > 1 and wstrides[i] == 0; }));
+            auto varying =
+                find_all(batch, [&](auto i) { return wlens[i] > 1 and wstrides[i] != 0; });
+            std::vector<std::size_t> targets;
+            std::transform(
+                varying.begin(), varying.end(), std::back_inserter(targets), [&](auto i) {
+                    assert(a.is_batch(i));
+                    return *a.to_x[i];
+                });
             const auto& clens = cin->get_shape().lens();
-            std::vector<std::size_t> lens(clens.begin(), clens.end() - 2);
-            lens.insert(lens.end(), w->get_shape().lens().end() - 2, w->get_shape().lens().end());
-            if(lens != w->get_shape().lens())
+            auto cndim        = clens.size();
+            const bool rows   = c_axis == cndim - 2;
+            // Order the varying batch axes as in cin, leaving the others in place
+            std::vector<int64_t> perm(ndim);
+            std::iota(perm.begin(), perm.end(), 0);
+            auto ordered = reorder_dims(varying, sort_permutation(targets, std::less<>{}));
+            for_each(varying.begin(), varying.end(), ordered.begin(), [&](auto i, auto j) {
+                perm[i] = j;
+            });
+            if(columns != rows)
+                std::swap(perm[ndim - 1], perm[ndim - 2]);
+            if(not std::is_sorted(perm.begin(), perm.end()))
+                w = m.insert_instruction(dot, make_op("transpose", {{"permutation", perm}}), w);
+            // The dots pin the batch lengths of w to those of cin
+            auto lens = clens;
+            std::copy(w->get_shape().lens().end() - 2, w->get_shape().lens().end(), lens.end() - 2);
+            // Only unit axes move to bring the varying ones onto their axes of cin
+            auto dims   = lens;
+            auto cbatch = range(cndim - 2);
+            std::transform(cbatch.begin(), cbatch.end(), dims.begin(), [&](auto i) -> std::size_t {
+                return contains(targets, i) ? lens[i] : 1;
+            });
+            if(dims != w->get_shape().lens())
+                w = m.insert_instruction(dot, make_op("reshape", {{"dims", dims}}), w);
+            if(lens != dims)
                 w = m.insert_instruction(dot, make_op("multibroadcast", {{"out_lens", lens}}), w);
             if(rows)
                 return m.insert_instruction(dot, make_op("dot"), w, cin);
@@ -990,7 +1019,7 @@ struct find_dot_axis_linear_ops
             if(name == "dot")
             {
                 auto columns = axis == ins->get_shape().ndim() - 1;
-                return fold(m, input, matrix(m, cin, *lin->constant, columns), a);
+                return fold(m, input, matrix(m, cin, *lin->constant, columns, a), a);
             }
             if(name == "reverse")
                 return fold(

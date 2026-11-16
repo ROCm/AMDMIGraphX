@@ -748,7 +748,8 @@ struct miopen_apply
             {
                 std::vector<instruction_ref> copied_inputs;
                 std::vector<std::size_t> copied_indices;
-                // The data input stays on GPU since slice creates an aliased view into it.
+                // The data input stays on GPU since slice and broadcast_with_dims create an aliased
+                // view into it.
                 // Copy only runtime metadata that was not already produced on the host.
                 for(std::size_t i = 1; i < inputs.size(); ++i)
                 {

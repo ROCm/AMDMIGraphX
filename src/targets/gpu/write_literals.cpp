@@ -32,9 +32,11 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/liveness.hpp>
 #include <migraphx/algorithm.hpp>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -152,8 +154,9 @@ bool same_bytes(const argument& a, const argument& b)
 
 // Process- and device-scoped pool of uploaded weights. Each entry keeps the host
 // literal (to confirm a candidate with same_bytes) and the device buffer, shared
-// via argument::share() so N identical weights use 1 VRAM copy. Guarded by a
-// mutex since finalize may run on multiple compile threads.
+// so N identical weights use 1 VRAM copy. The pool holds weak references only: the
+// programs sharing an entry own it, so a weight is freed with the last program using
+// it. Guarded by a mutex since finalize may run on multiple compile threads.
 struct pooled_literal
 {
     argument host;
@@ -167,7 +170,57 @@ struct shared_literal_pool
     // rather than dropped: with a single entry per key a colliding weight could
     // never register, so every later copy of it would re-upload and sharing
     // would silently stop working for that weight.
-    std::unordered_map<std::string, std::vector<pooled_literal>> buckets;
+    std::unordered_map<std::string, std::vector<std::weak_ptr<pooled_literal>>> buckets;
+    // Entries, not buckets, are counted: a reloaded model appends to buckets it already has
+    std::size_t entry_count = 0;
+    std::size_t sweep_at    = 0;
+
+    // A live entry with the same bytes as data, or else a new one holding upload()
+    template <class F>
+    std::shared_ptr<pooled_literal>
+    get_or_add(const std::string& key, const argument& data, F upload)
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        auto it = buckets.find(key);
+        if(it != buckets.end())
+        {
+            for(const auto& weak_entry : it->second)
+            {
+                auto entry = weak_entry.lock();
+                if(entry != nullptr and same_bytes(entry->host, data))
+                    return entry;
+            }
+        }
+        if(entry_count >= sweep_at)
+        {
+            remove_expired();
+            sweep_at = 2 * entry_count;
+        }
+        auto entry = std::make_shared<pooled_literal>(pooled_literal{data.share(), upload()});
+        buckets[key].push_back(entry);
+        entry_count++;
+        return entry;
+    }
+
+    // Forget weights whose programs are all gone, so the pool does not grow with every model
+    void remove_expired()
+    {
+        entry_count = 0;
+        for(auto it = buckets.begin(); it != buckets.end();)
+        {
+            auto& bucket = it->second;
+            bucket.erase(
+                std::remove_if(bucket.begin(),
+                               bucket.end(),
+                               [](const auto& weak_entry) { return weak_entry.expired(); }),
+                bucket.end());
+            entry_count += bucket.size();
+            if(bucket.empty())
+                it = buckets.erase(it);
+            else
+                ++it;
+        }
+    }
 
     static shared_literal_pool& instance()
     {
@@ -211,19 +264,10 @@ struct gpu_literal
             const std::string key = ctx.get_current_device().get_gfx_name() + ":" +
                                     std::to_string(get_device_id()) + ":" +
                                     std::to_string(literal_fingerprint(data));
-            auto& pool = shared_literal_pool::instance();
-            std::lock_guard<std::mutex> lock(pool.mtx);
-            auto& bucket = pool.buckets[key];
-            for(const auto& entry : bucket)
-            {
-                if(same_bytes(entry.host, data))
-                {
-                    gpu_data = entry.gpu.share();
-                    return;
-                }
-            }
-            gpu_data = to_gpu(data);
-            bucket.push_back(pooled_literal{data.share(), gpu_data.share()});
+            auto entry =
+                shared_literal_pool::instance().get_or_add(key, data, [&] { return to_gpu(data); });
+            // The program owns the shared buffer through this capture
+            gpu_data = {data.get_shape(), [entry] { return entry->gpu.data(); }};
             return;
         }
         if(host)

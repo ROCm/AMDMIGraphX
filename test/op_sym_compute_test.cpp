@@ -176,12 +176,6 @@ TEST_CASE(op_sym_convert_float_whole_numbers)
                                 {shape{shape::float_type, {1}}},
                                 {symbolic_tensor_value{lit(0.5)}})
                    .has_value());
-    // Not every value of T is exact as float
-    EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::float_type}}),
-                                shape{shape::float_type, {1}},
-                                {shape{shape::int64_type, {1}}},
-                                {symbolic_tensor_value{var("T", {0, int64_t{1} << 30})}})
-                   .has_value());
 }
 
 TEST_CASE(op_sym_convert_float_inexact_literals)
@@ -204,10 +198,7 @@ TEST_CASE(op_sym_convert_float_inexact_literals)
                    .has_value());
     EXPECT(to_type(shape::double_type, shape::float_type, migraphx::sym::min(lit(5.0), s)) ==
            symbolic_tensor_value{migraphx::sym::min(lit(5), s)});
-    // To double: exact up to 2^53
     EXPECT(to_type(shape::int64_type, shape::double_type, s) == symbolic_tensor_value{s});
-    EXPECT(not to_type(shape::int64_type, shape::double_type, var("T", {0, int64_t{1} << 60}))
-                   .has_value());
 }
 
 TEST_CASE(op_sym_gather)

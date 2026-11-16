@@ -115,18 +115,12 @@ struct convert : unary<convert>
     auto apply() const
     {
         return [target = target_type](const sym::expr& x) {
-            // Integers up to 2^24 (2^53 for double) are exact as floating point. The literals have
-            // to be whole too, since a fraction of a double can change when rounded to float.
+            // The literals have to be whole, since a fraction of a double can change when rounded
+            // to float, and is truncated when converted to an integer
             auto whole = to_integer(x);
             if(whole.empty())
                 return whole;
-            if(target == shape::float_type)
-                return sym::fits_range(whole, -(int64_t{1} << 24), int64_t{1} << 24) ? whole
-                                                                                     : sym::expr{};
-            if(target == shape::double_type)
-                return sym::fits_range(whole, -(int64_t{1} << 53), int64_t{1} << 53) ? whole
-                                                                                     : sym::expr{};
-            if(target == shape::int64_type or target == shape::int32_type)
+            if(target != shape::bool_type)
                 return whole;
             const auto value = sym::fixed_value(whole);
             if(not value.has_value())

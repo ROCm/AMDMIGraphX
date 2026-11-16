@@ -40,6 +40,7 @@
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/unfold.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <numeric>
 #include <unordered_set>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
@@ -119,6 +120,21 @@ struct find_dot
 
     auto matcher() const { return match::name("dot"); }
 
+    // The rows multiplied by one b matrix: a b matrix broadcast along a batch
+    // axis is shared by every a matrix on that axis, so the dot is a gemm with
+    // that many more rows
+    static std::size_t effective_rows(const shape& a_shape, const shape& b_shape)
+    {
+        auto nbatch = a_shape.ndim() - 2;
+        return std::inner_product(
+            a_shape.lens().begin(),
+            a_shape.lens().begin() + nbatch,
+            b_shape.strides().begin(),
+            a_shape.lens().at(nbatch),
+            std::multiplies<>{},
+            [](std::size_t len, std::size_t stride) { return stride == 0 ? len : std::size_t{1}; });
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
@@ -129,8 +145,7 @@ struct find_dot
         auto a_shape = a_mat->get_shape();
         auto b_shape = b_mat->get_shape();
         auto ndim    = a_shape.ndim();
-        auto rows    = a_shape.lens().at(ndim - 2);
-        if(rows > 2)
+        if(effective_rows(a_shape, b_shape) > 2)
             return;
 
         std::vector<int64_t> permutation(ndim);

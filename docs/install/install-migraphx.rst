@@ -173,11 +173,14 @@ environment.
       .. selector:: SLES version
          :key: sles-ver
 
-         .. selector-option:: 16
-            :width: 6
+         .. selector-option:: 16.1
+            :width: 4
+
+         .. selector-option:: 16.0
+            :width: 4
 
          .. selector-option:: 15.7
-            :width: 6
+            :width: 4
 
    .. raw:: html
 
@@ -400,7 +403,7 @@ environment.
 
       .. selected:: os=sles
 
-         .. selected:: sles-ver=16
+         .. selected:: sles-ver=16.1 sles-ver=16.0
 
             .. code-block:: bash
 
@@ -576,7 +579,7 @@ environment.
          .. code-block:: bash
             :substitutions:
 
-            sudo zypper remove amdrocm|ROCM_MAJOR|-migraphx amdrocm|ROCM_MAJOR|-migraphx-devel
+            sudo zypper remove --clean-deps amdrocm|ROCM_MAJOR|-migraphx amdrocm|ROCM_MAJOR|-migraphx-devel
 
    2. Remove the MIGraphX repository.
 
@@ -606,7 +609,7 @@ environment.
          .. code-block:: bash
 
             # Remove MIGraphX repository
-            sudo rm /etc/zypp/repos.d/amdrocm-migraphx.repo
+            sudo zypper removerepo "amdrocm-migraphx"
 
             # Clear the cache and clean the system
             sudo zypper clean --all

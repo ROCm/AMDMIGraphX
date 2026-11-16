@@ -4874,13 +4874,14 @@ TEST_CASE(dot_broadcast_different_broadcast1)
 
     migraphx::module m2;
     {
-        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {64}});
-        auto y  = m2.add_parameter("y", {migraphx::shape::float_type, {64, 64}});
-        auto xb = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {4, 64}}}), x);
-        auto dot       = m2.add_instruction(migraphx::make_op("dot"), xb, y);
+        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {64}});
+        auto y   = m2.add_parameter("y", {migraphx::shape::float_type, {64, 64}});
+        auto row = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), row, y);
+        auto rows =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 64}}}), dot);
         auto broadcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 4, 64}}}), dot);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 4, 64}}}), rows);
         m2.add_return({broadcast});
     };
     run_pass(m1);
@@ -4933,13 +4934,14 @@ TEST_CASE(dot_broadcast_different_rank)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {768}});
-        auto y = m2.add_parameter("y", {migraphx::shape::float_type, {768, 3072}});
-        auto xb =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {384, 768}}}), x);
-        auto dot       = m2.add_instruction(migraphx::make_op("dot"), xb, y);
+        auto x    = m2.add_parameter("x", {migraphx::shape::float_type, {768}});
+        auto y    = m2.add_parameter("y", {migraphx::shape::float_type, {768, 3072}});
+        auto row  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
+        auto dot  = m2.add_instruction(migraphx::make_op("dot"), row, y);
+        auto rows = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {384, 3072}}}), dot);
         auto broadcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 3072}}}), dot);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 3072}}}), rows);
         m2.add_return({broadcast});
     };
 
@@ -4976,6 +4978,52 @@ TEST_CASE(dot_broadcast_unsqueezed_input)
 
     run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_broadcast_rows)
+{
+    std::vector<float> weights(24);
+    std::iota(weights.begin(), weights.end(), 0.0f);
+
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {4}});
+        auto xb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 4}}}), x);
+        auto matrix =
+            m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {4, 6}}, weights});
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), xb, matrix);
+        m1.add_return({dot});
+    };
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {4}});
+        auto row = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
+        auto matrix =
+            m2.add_literal(migraphx::literal{{migraphx::shape::float_type, {4, 6}}, weights});
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), row, matrix);
+        auto broadcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 6}}}), dot);
+        m2.add_return({broadcast});
+    };
+
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_broadcast_rows_rank2_input)
+{
+    migraphx::module m1;
+    auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {1, 4}});
+    auto xb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 4}}}), x);
+    auto matrix = m1.add_parameter("matrix", {migraphx::shape::float_type, {4, 6}});
+    auto dot    = m1.add_instruction(migraphx::make_op("dot"), xb, matrix);
+    m1.add_return({dot});
+
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(dot_fusion_reshape)
@@ -7042,7 +7090,7 @@ TEST_CASE(simplify_concat_unsqueeze_same_axis)
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua, ub);
         m1.add_return({concat});
     }
-    auto m2 = m1;
+    auto m2               = m1;
     std::size_t pass_runs = 0;
     m1.repeat_while_changes(2, [&] {
         pass_runs++;

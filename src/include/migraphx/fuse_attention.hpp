@@ -37,7 +37,17 @@ struct module_pass_manager;
 
 struct MIGRAPHX_EXPORT fuse_attention
 {
-    bool attn_enabled                         = false;
+    bool attn_enabled = false;
+    // Widest Q/V head dim to fuse at any kv length: past this the fused kernel's
+    // per-row accumulator overwhelms the register budget and loses to separate kernels
+    std::size_t attn_max_head_dim = 256;
+    // Fewest total q rows (batch * heads * seq) to fuse, scaled down proportionally
+    // for head dims under 128: the fused kernel only parallelizes over q rows, so
+    // fewer rows leave the device idle while separate kernels split the kv length
+    std::size_t attn_min_q_rows = 1;
+    // Longest kv length where head dims past attn_max_head_dim still fuse: a
+    // short kv loop keeps the wide accumulator profitable; 0 allows none
+    std::size_t attn_wide_head_kv_len         = 0;
     bool flash_decoding_enabled               = false;
     std::size_t flash_decoding_num_splits     = 0;
     std::size_t flash_decoding_threshold      = 32;

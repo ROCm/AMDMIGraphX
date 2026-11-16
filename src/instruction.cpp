@@ -508,7 +508,7 @@ sym_argument instruction::sym_eval() const
 void instruction::finalize(context& ctx)
 {
     if(has_finalize(this->op))
-        this->op.finalize(ctx, this->get_shape(), to_shapes(this->inputs()));
+        this->op.finalize(ctx, this->get_shape(), to_shapes(this->inputs()), this->module_inputs());
 }
 
 void instruction::print(std::ostream& os,

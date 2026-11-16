@@ -381,6 +381,16 @@ TEST_CASE(binary_sym_zero_packed_vs_broadcasted)
     expect_shape(sx, migraphx::make_op("add"), sx, sy);
 }
 
+TEST_CASE(binary_sym_zero_broadcasted_vs_different_packed)
+{
+    auto n = var("n", {0, 200});
+    std::vector<dd> output_dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, output_dims, {lit(0), lit(4), lit(1)}};
+    migraphx::shape sy{migraphx::shape::float_type, output_dims};
+    migraphx::shape output{migraphx::shape::float_type, output_dims};
+    expect_shape(output, migraphx::make_op("add"), sx, sy);
+}
+
 TEST_CASE(binary_sym_broadcasted_vs_different_packed)
 {
     auto n = var("n", {2, 8});
@@ -2033,6 +2043,21 @@ TEST_CASE(eval_expr_from_shape_multi_input)
                      "eval_expr_from_shape",
                      {{"expressions",
                        migraphx::value::array{migraphx::to_value(m + n), migraphx::to_value(m)}}}),
+                 a,
+                 b);
+}
+
+TEST_CASE(eval_expr_from_shape_multi_input_compound)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    migraphx::shape a{migraphx::shape::float_type, {dd{m + lit(1)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{n * lit(2)}}};
+    auto expression = migraphx::sym::min(var("m") + lit(1), var("n") * lit(2));
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {1}},
+                 migraphx::make_op(
+                     "eval_expr_from_shape",
+                     {{"expressions", migraphx::value::array{migraphx::to_value(expression)}}}),
                  a,
                  b);
 }

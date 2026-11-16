@@ -440,39 +440,81 @@ std::vector<std::size_t> output_alias_op(const T&, const std::vector<shape>&)
 }
 
 template <class T>
-auto finalize_op(
-    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+auto finalize_op(rank<2>,
+                 T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input,
+                 const std::vector<module_ref>& mod_args)
+    -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input, mod_args), void())
+{
+    x.finalize(auto_any_cast(ctx), output_shape, input, mod_args);
+}
+
+template <class T>
+auto finalize_op(rank<1>,
+                 T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input,
+                 const std::vector<module_ref>&)
     -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input), void())
 {
     x.finalize(auto_any_cast(ctx), output_shape, input);
 }
 
 template <class T>
-void finalize_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+void finalize_op(
+    rank<0>, T&, context&, const shape&, const std::vector<shape>&, const std::vector<module_ref>&)
 {
+}
+
+template <class T>
+void finalize_op(T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input,
+                 const std::vector<module_ref>& mod_args)
+{
+    finalize_op(rank<2>{}, x, ctx, output_shape, input, mod_args);
 }
 
 template <class T>
 void finalize_op(T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
 {
-    finalize_op(rank<1>{}, x, ctx, output_shape, input);
+    finalize_op(rank<1>{}, x, ctx, output_shape, input, {});
 }
 
 template <class T>
-auto has_finalize_op(
-    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+auto has_finalize_op(rank<2>,
+                     T& x,
+                     context& ctx,
+                     const shape& output_shape,
+                     const std::vector<shape>& input,
+                     const std::vector<module_ref>& mod_args)
+    -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input, mod_args), std::true_type{});
+
+template <class T>
+auto has_finalize_op(rank<1>,
+                     T& x,
+                     context& ctx,
+                     const shape& output_shape,
+                     const std::vector<shape>& input,
+                     const std::vector<module_ref>&)
     -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input), std::true_type{});
 
 template <class T>
-auto has_finalize_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+auto has_finalize_op(
+    rank<0>, T&, context&, const shape&, const std::vector<shape>&, const std::vector<module_ref>&)
     -> std::false_type;
 
 template <class T>
-auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
+auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<2>{},
                                                            std::declval<T&>(),
                                                            std::declval<context&>(),
                                                            std::declval<const shape&>(),
-                                                           std::declval<std::vector<shape>>()))
+                                                           std::declval<std::vector<shape>>(),
+                                                           std::declval<std::vector<module_ref>>()))
 {
     return {};
 }
@@ -562,6 +604,12 @@ lifetime get_lifetime_op(const T&)
                 output  = 'const shape&',
                 input   = 'const std::vector<shape>&',
                 default = 'detail::finalize_op'),
+        virtual('finalize',
+                ctx      = 'context&',
+                output   = 'const shape&',
+                input    = 'const std::vector<shape>&',
+                mod_args = 'const std::vector<module_ref>&',
+                default  = 'detail::finalize_op'),
         virtual('compute_shape',
                 returns = 'shape',
                 input   = 'const std::vector<shape>&',

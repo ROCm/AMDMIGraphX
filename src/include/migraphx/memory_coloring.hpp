@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <string>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/allocation_model.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -34,11 +35,12 @@ struct module;
 
 /**
  * Remove multiple memory allocations using graph coloring to find memory allocations that can be
- * reused.
+ * reused. The scratch memory of a submodule is hoisted into an allocation in its parent module so
+ * it is colored alongside the parent's allocations.
  */
 struct MIGRAPHX_EXPORT memory_coloring
 {
-    std::string allocation_op{};
+    allocation_model model;
     bool verify = false;
     std::string name() const { return "memory_coloring"; }
     void apply(module& m) const;

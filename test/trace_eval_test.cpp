@@ -28,6 +28,7 @@
 #include <stdexcept>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/reflect.hpp>
@@ -113,7 +114,9 @@ struct empty_outputs_op
     migraphx::argument compute(const migraphx::shape& output_shape,
                                const std::vector<migraphx::argument>&) const
     {
-        return migraphx::argument{output_shape};
+        const auto& shapes = output_shape.sub_shapes();
+        return migraphx::argument{{migraphx::argument{shapes.front()},
+                                   migraphx::literal{shapes.back(), {1.0f, 2.0f}}.get_argument()}};
     }
 };
 
@@ -131,7 +134,9 @@ TEST_CASE(trace_eval_level_2_empty)
         cout_redirect cr{out};
         p.eval({{"x", migraphx::argument{migraphx::shape{migraphx::shape::float_type, {0}}}}});
     }
-    EXPECT(out.str().find("Empty") != std::string::npos);
+    // The empty tensor and the empty element of the tuple, in the preview and the statistics
+    EXPECT(out.str().find("Output: empty\nEmpty\n") != std::string::npos);
+    EXPECT(out.str().find("Output: {empty}{1, 2}\nEmpty\nMin value: 1") != std::string::npos);
 }
 
 TEST_CASE(trace_eval_migraphx_exception)

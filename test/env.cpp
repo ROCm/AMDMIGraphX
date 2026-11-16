@@ -23,7 +23,6 @@
  */
 #include <migraphx/env.hpp>
 #include <test.hpp>
-#include <cstdlib>
 #include <string>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TEST_ENV_UNSET_VALUE)
@@ -59,14 +58,4 @@ TEST_CASE(string_value_of_set_overrides_every_fallback)
     EXPECT(migraphx::get_all_envs().at("MIGRAPHX_TEST_ENV_SET_STRING") == "x");
 }
 
-int main(int argc, const char* argv[])
-{
-#ifdef _WIN32
-    _putenv_s("MIGRAPHX_TEST_ENV_SET_VALUE", "16");
-    _putenv_s("MIGRAPHX_TEST_ENV_SET_STRING", "x");
-#else
-    setenv("MIGRAPHX_TEST_ENV_SET_VALUE", "16", 1);
-    setenv("MIGRAPHX_TEST_ENV_SET_STRING", "x", 1);
-#endif
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

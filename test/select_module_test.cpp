@@ -527,16 +527,16 @@ TEST_CASE(select_module_compute_maps_parameters_by_name)
 
 TEST_CASE(select_module_empty_logical_output_returns_output_allocation)
 {
-    auto n = migraphx::sym::var("n", {0, 1});
-    migraphx::shape candidate_s{migraphx::shape::float_type, {1, 4}};
-    migraphx::shape empty_s{migraphx::shape::float_type, {0, 4}};
+    auto n = migraphx::sym::var("n", {0, 4});
+    migraphx::shape candidate_s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape empty_s{migraphx::shape::float_type, {2, 0}, {4, 1}};
     migraphx::shape output_s{
         migraphx::shape::float_type,
-        {migraphx::shape::dynamic_dimension{migraphx::sym::var("target_n", {0, 1})},
-         migraphx::shape::dynamic_dimension{migraphx::sym::lit(4)}}};
+        {migraphx::shape::dynamic_dimension{migraphx::sym::lit(2)},
+         migraphx::shape::dynamic_dimension{migraphx::sym::var("target_n", {0, 4})}}};
     migraphx::shape logical_output_s{migraphx::shape::float_type,
-                                     {migraphx::shape::dynamic_dimension{n},
-                                      migraphx::shape::dynamic_dimension{migraphx::sym::lit(4)}}};
+                                     {migraphx::shape::dynamic_dimension{migraphx::sym::lit(2)},
+                                      migraphx::shape::dynamic_dimension{n}}};
     migraphx::module submod{"sub"};
     submod.add_parameter("data", candidate_s);
     auto output = submod.add_parameter("sub:#output_0", candidate_s);

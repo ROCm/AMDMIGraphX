@@ -342,7 +342,7 @@ TEST_CASE(split_sym_dim_supports_zero_length_root)
              {{"data",
                migraphx::argument{migraphx::shape{migraphx::shape::float_type, {1, 0}}, nullptr}}})
             .back();
-    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {1, 0}});
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {1, 0}, {4, 1}});
 }
 
 TEST_CASE(split_sym_dim_covers_full_interval)
@@ -6001,7 +6001,7 @@ TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
         EXPECT(result.get_shape() == expected_shape);
         EXPECT(values == expected_values);
     };
-    check_result({0, 0, 0, 0}, migraphx::shape{migraphx::shape::float_type, {2, 0}, {0, 1}}, {});
+    check_result({0, 0, 0, 0}, migraphx::shape{migraphx::shape::float_type, {2, 0}, {4, 1}}, {});
     check_result(
         {0, 1, 0, 0}, migraphx::shape{migraphx::shape::float_type, {2, 1}, {1, 1}}, {0.0f, 1.0f});
     check_result({0, 1, 1, 0},

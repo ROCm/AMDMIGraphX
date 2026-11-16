@@ -489,7 +489,7 @@ TEST_CASE(dyn_slice_end_before_start_error_test)
     EXPECT(test::throws([&] { p.eval(params); }));
 }
 
-TEST_CASE(dyn_slice_empty_output_is_standard)
+TEST_CASE(dyn_slice_empty_output_preserves_strides)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -507,5 +507,5 @@ TEST_CASE(dyn_slice_empty_output_is_standard)
 
     std::vector<int32_t> data(input_shape.elements());
     auto result = p.eval({{"input", migraphx::argument{input_shape, data.data()}}}).back();
-    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int32_type, {1, 0}});
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int32_type, {1, 0}, {4, 1}});
 }

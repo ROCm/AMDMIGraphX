@@ -285,7 +285,12 @@ struct select_module
                     results.push_back(fix<argument>(
                         [&](auto self, const argument& current, const shape& output_shape) {
                             if(output_shape.type() != shape::tuple_type)
-                                return current.reshape(output_shape);
+                            {
+                                auto empty_shape = shape{output_shape.type(),
+                                                         output_shape.lens(),
+                                                         current.get_shape().strides()};
+                                return current.reshape(empty_shape);
+                            }
                             auto sub_args = current.get_sub_objects();
                             if(sub_args.size() != output_shape.sub_shapes().size())
                                 MIGRAPHX_THROW(
@@ -304,21 +309,28 @@ struct select_module
         }
         else
         {
-            std::transform(output_shapes.begin(),
-                           output_shapes.end(),
-                           std::back_inserter(results),
-                           fix<argument>([](auto self, const shape& s) {
-                               if(s.type() != shape::tuple_type)
-                                   return argument{s, nullptr};
-                               std::vector<argument> sub_objects;
-                               sub_objects.reserve(s.sub_shapes().size());
-                               std::transform(
-                                   s.sub_shapes().begin(),
-                                   s.sub_shapes().end(),
-                                   std::back_inserter(sub_objects),
-                                   [&](const shape& sub_shape) { return self(sub_shape); });
-                               return argument{sub_objects};
-                           }));
+            migraphx::for_each(
+                output_shapes.begin(),
+                output_shapes.end(),
+                output_dyn_shapes.sub_shapes().begin(),
+                [&](const shape& logical, const shape& physical) {
+                    results.push_back(fix<argument>([](auto self, const shape& x, const shape& y) {
+                        if(x.type() != shape::tuple_type)
+                        {
+                            auto physical_shape = y.dynamic() ? shape{y.type(), y.max_lens()} : y;
+                            auto empty_shape = shape{x.type(), x.lens(), physical_shape.strides()};
+                            return argument{empty_shape, nullptr};
+                        }
+                        std::vector<argument> sub_objects;
+                        migraphx::for_each(x.sub_shapes().begin(),
+                                           x.sub_shapes().end(),
+                                           y.sub_shapes().begin(),
+                                           [&](const shape& xsub, const shape& ysub) {
+                                               sub_objects.push_back(self(xsub, ysub));
+                                           });
+                        return argument{sub_objects};
+                    })(logical, physical));
+                });
         }
         return argument{results};
     }

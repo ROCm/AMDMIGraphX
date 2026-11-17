@@ -7244,9 +7244,9 @@ TEST_CASE(simplify_dot_axis_linear_rotate)
         auto c  = m2.add_literal(migraphx::generate_literal(cs, 1));
         auto c0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), c);
-        auto p0 = m2.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 2, 0, 0, 0}}}), c0);
         auto c1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}), c);
+        auto p0  = m2.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 2, 0, 0, 0}}}), c0);
         auto p1  = m2.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 1}}}), c1);
         auto sum = m2.add_instruction(migraphx::make_op("add"), p0, p1);
         auto dot = m2.add_instruction(migraphx::make_op("dot"), sum, y);
@@ -7851,6 +7851,116 @@ TEST_CASE(simplify_dot_axis_linear_mismatched_transforms)
             m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
         auto cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), y, tr);
         auto dot = m1.add_instruction(migraphx::make_op("dot"), c, cat);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// The subtrahend takes the negated constant
+TEST_CASE(simplify_dot_axis_linear_sub)
+{
+    migraphx::shape ys{migraphx::shape::float_type, {1, 4, 3}};
+    migraphx::shape cs{migraphx::shape::float_type, {1, 2, 4}};
+    migraphx::module m1;
+    {
+        auto y   = m1.add_parameter("y", ys);
+        auto c   = m1.add_literal(migraphx::generate_literal(cs, 1));
+        auto rev = m1.add_instruction(migraphx::make_op("reverse", {{"axes", {1}}}), y);
+        auto sub = m1.add_instruction(migraphx::make_op("sub"), y, rev);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, sub);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y   = m2.add_parameter("y", ys);
+        auto c   = m2.add_literal(migraphx::generate_literal(cs, 1));
+        auto neg = m2.add_instruction(migraphx::make_op("neg"), c);
+        auto rev = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2}}}), neg);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), c, rev);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), sum, y);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+// Every stage reads the previous one twice, so there are 2^20 paths from the
+// dot to y. Each stage is mirrored once
+TEST_CASE(simplify_dot_axis_linear_shared_stages)
+{
+    const std::size_t stages = 20;
+    migraphx::shape ys{migraphx::shape::float_type, {1, 4, 3}};
+    migraphx::shape cs{migraphx::shape::float_type, {1, 2, 4}};
+    auto add_stages = [&](migraphx::module& m, migraphx::instruction_ref z, std::size_t axis) {
+        for(std::size_t i = 0; i < stages; ++i)
+        {
+            auto rev = m.add_instruction(migraphx::make_op("reverse", {{"axes", {axis}}}), z);
+            z        = m.add_instruction(migraphx::make_op("add"), z, rev);
+        }
+        return z;
+    };
+    migraphx::module m1;
+    {
+        auto y   = m1.add_parameter("y", ys);
+        auto c   = m1.add_literal(migraphx::generate_literal(cs, 1));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, add_stages(m1, y, 1));
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto y   = m2.add_parameter("y", ys);
+        auto c   = m2.add_literal(migraphx::generate_literal(cs, 1));
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), add_stages(m2, c, 2), y);
+        m2.add_instruction(pass_op{}, dot);
+    }
+    EXPECT(m1 == m2);
+}
+
+// The transpose on one branch of every stage gives each path its own layout
+// ops, and the branches of a stage disagree on the batch axes, so nothing
+// folds. The search still visits each stage once
+TEST_CASE(simplify_dot_axis_linear_shared_stages_transposed)
+{
+    const std::size_t stages = 20;
+    migraphx::module m1;
+    {
+        auto z = m1.add_parameter("y", {migraphx::shape::float_type, {2, 2, 4, 3}});
+        auto c = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 2, 2, 4}}, 1));
+        for(std::size_t i = 0; i < stages; ++i)
+        {
+            auto tr = m1.add_instruction(
+                migraphx::make_op("transpose", {{"permutation", {1, 0, 2, 3}}}), z);
+            z = m1.add_instruction(migraphx::make_op("add"), z, tr);
+        }
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), c, z);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Both branches reach y with the same axes, since merged batch axes land on
+// none of the dot, but they merge the batches in a different order
+TEST_CASE(simplify_dot_axis_linear_shared_different_layouts)
+{
+    migraphx::module m1;
+    {
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {2, 2, 4, 3}});
+        auto c =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2, 4}}, 1));
+        auto rsp1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4, 3}}}), y);
+        auto tr =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2, 3}}}), y);
+        auto rsp2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4, 3}}}), tr);
+        auto sum  = m1.add_instruction(migraphx::make_op("add"), rsp1, rsp2);
+        auto dot  = m1.add_instruction(migraphx::make_op("dot"), c, sum);
         m1.add_instruction(pass_op{}, dot);
     }
     migraphx::module m2 = m1;

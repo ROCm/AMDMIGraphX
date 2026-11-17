@@ -47,6 +47,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <numeric>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace migraphx {
@@ -609,6 +610,33 @@ struct find_dot_axis_linear_ops
             }
         };
 
+        // A value for each node of the chain and the axes it is reached with.
+        // Paths that share a node with the same axes then visit it once
+        template <class T>
+        struct node_map
+        {
+            using key = std::vector<optional<std::size_t>>;
+            std::unordered_map<instruction_ref, std::vector<std::pair<key, T>>> values;
+
+            optional<T> find(instruction_ref ins, const axes& a) const
+            {
+                auto it = values.find(ins);
+                if(it == values.end())
+                    return nullopt;
+                auto entry = std::find_if(it->second.begin(), it->second.end(), [&](const auto& p) {
+                    return p.first == a.to_x;
+                });
+                if(entry == it->second.end())
+                    return nullopt;
+                return entry->second;
+            }
+
+            void insert(instruction_ref ins, const axes& a, T value)
+            {
+                values[ins].emplace_back(a.to_x, std::move(value));
+            }
+        };
+
         // The layout ops of a path rebased onto its leaf, and the shape they
         // then produce
         struct rebased_layouts
@@ -778,12 +806,20 @@ struct find_dot_axis_linear_ops
             return result;
         }
 
+        // The path through `layouts` to a node and on to the leaf `below` it.
+        // Only the rebase depends on the layouts above the node
+        static leaf_path extend(std::vector<instruction_ref> layouts, const leaf_path& below)
+        {
+            leaf_path leaf{below.ins, below.a, std::move(layouts), nullopt, below.linear};
+            leaf.layouts.insert(leaf.layouts.end(), below.layouts.begin(), below.layouts.end());
+            leaf.rebased = rebase_layouts(leaf);
+            return leaf;
+        }
+
         static leaf_path
         make_leaf(instruction_ref ins, const axes& a, std::vector<instruction_ref> layouts)
         {
-            leaf_path leaf{ins, a, std::move(layouts), nullopt, false};
-            leaf.rebased = rebase_layouts(leaf);
-            return leaf;
+            return extend(std::move(layouts), leaf_path{ins, a, {}, nullopt, false});
         }
 
         static optional<linear_fold> find(instruction_ref dot)
@@ -811,10 +847,10 @@ struct find_dot_axis_linear_ops
             // The deepest tensor the chain below a node is linear in. That is
             // the node itself when its inputs reach different tensors or the
             // contracted axis cannot pass through it
-            auto leaf = fix<leaf_path>([](auto self,
-                                          instruction_ref ins,
-                                          const axes& a,
-                                          const std::vector<instruction_ref>& layouts) {
+            auto descend = [](auto self,
+                              instruction_ref ins,
+                              const axes& a,
+                              const std::vector<instruction_ref>& layouts) {
                 assert(a.to_x.size() == ins->get_shape().ndim());
                 if(contains(layout_ops(), ins->name()))
                 {
@@ -848,6 +884,26 @@ struct find_dot_axis_linear_ops
                     return make_leaf(ins, a, layouts);
                 first.linear = true;
                 return std::move(first);
+            };
+            // The leaf below each node, without the layouts above the node
+            node_map<leaf_path> below;
+            auto leaf = fix<leaf_path>([&](auto self,
+                                           instruction_ref ins,
+                                           const axes& a,
+                                           const std::vector<instruction_ref>& layouts) {
+                auto found = below.find(ins, a);
+                if(found.has_value())
+                    return extend(layouts, *found);
+                auto path = descend(self, ins, a, layouts);
+                assert(std::equal(layouts.begin(), layouts.end(), path.layouts.begin()));
+                below.insert(ins,
+                             a,
+                             leaf_path{path.ins,
+                                       path.a,
+                                       {path.layouts.begin() + layouts.size(), path.layouts.end()},
+                                       nullopt,
+                                       path.linear});
+                return path;
             })(result.x, result.x_axes, std::vector<instruction_ref>{});
             if(not leaf.linear or leaf.ins->can_eval())
                 return nullopt;
@@ -987,49 +1043,64 @@ struct find_dot_axis_linear_ops
             return m.insert_instruction(dot, make_op("dot"), cin, w);
         }
 
-        // Mirror op `ins` of the recombination onto the contracted axis of
-        // `cin` and continue into its inputs
-        instruction_ref
-        fold(module& m, instruction_ref ins, instruction_ref cin, const axes& a) const
+        // A node of the chain with where its axes land in x
+        struct node
         {
-            if(ins == y)
-                return cin;
-            assert(a.to_x.size() == ins->get_shape().ndim());
-            if(contains(layout_ops(), ins->name()))
+            instruction_ref ins;
+            axes a;
+        };
+
+        // The nodes that the op of `n` recombines
+        std::vector<node> operands(const node& n) const
+        {
+            if(n.ins == y)
+                return {};
+            assert(n.a.to_x.size() == n.ins->get_shape().ndim());
+            if(contains(layout_ops(), n.ins->name()))
             {
-                auto in_axes = a.through(ins);
+                auto in_axes = n.a.through(n.ins);
                 assert(in_axes.has_value());
-                return fold(m, ins->inputs().front(), cin, *in_axes);
+                return {{n.ins->inputs().front(), *in_axes}};
             }
-            auto lin = as_linear_op(ins, a);
+            auto lin = as_linear_op(n.ins, n.a);
             assert(lin.has_value());
-            auto axis        = a.tracked();
-            auto input       = lin->inputs.front();
-            const auto& name = ins->name();
+            std::vector<node> result;
+            std::transform(lin->inputs.begin(),
+                           lin->inputs.end(),
+                           std::back_inserter(result),
+                           [&](instruction_ref input) { return node{input, n.a}; });
+            return result;
+        }
+
+        // Mirror the op of `n` onto the contracted axis of `cin`, which gives
+        // the constant for each of its operands
+        std::vector<instruction_ref> mirror(module& m, const node& n, instruction_ref cin) const
+        {
+            const auto& name = n.ins->name();
+            if(contains(layout_ops(), name))
+                return {cin};
+            auto lin = as_linear_op(n.ins, n.a);
+            assert(lin.has_value());
+            auto axis  = n.a.tracked();
+            auto input = lin->inputs.front();
             if(name == "neg")
-                return fold(m, input, m.insert_instruction(dot, make_op("neg"), cin), a);
-            if(name == "add" or name == "sub")
-            {
-                auto lhs = fold(m, lin->inputs[0], cin, a);
-                auto rhs = fold(m, lin->inputs[1], cin, a);
-                return m.insert_instruction(dot, make_op(name), lhs, rhs);
-            }
+                return {m.insert_instruction(dot, make_op("neg"), cin)};
+            if(name == "add")
+                return {cin, cin};
+            if(name == "sub")
+                return {cin, m.insert_instruction(dot, make_op("neg"), cin)};
             if(name == "mul")
-                return fold(m, input, scale(m, cin, *lin->constant, a), a);
+                return {scale(m, cin, *lin->constant, n.a)};
             if(name == "dot")
             {
-                auto columns = axis == ins->get_shape().ndim() - 1;
-                return fold(m, input, matrix(m, cin, *lin->constant, columns, a), a);
+                auto columns = axis == n.ins->get_shape().ndim() - 1;
+                return {matrix(m, cin, *lin->constant, columns, n.a)};
             }
             if(name == "reverse")
-                return fold(
-                    m,
-                    input,
-                    m.insert_instruction(dot, make_op("reverse", {{"axes", {c_axis}}}), cin),
-                    a);
+                return {m.insert_instruction(dot, make_op("reverse", {{"axes", {c_axis}}}), cin)};
             if(name == "slice")
             {
-                auto v      = ins->normalized_operator().to_value();
+                auto v      = n.ins->normalized_operator().to_value();
                 auto starts = v.at("starts").to_vector<int64_t>();
                 auto ends   = v.at("ends").to_vector<int64_t>();
                 assert(starts.size() == 1 and ends.size() == 1);
@@ -1038,16 +1109,15 @@ struct find_dot_axis_linear_ops
                 std::vector<int64_t> pads(2 * ndim, 0);
                 pads[c_axis]        = starts.front();
                 pads[c_axis + ndim] = len - ends.front();
-                return fold(
-                    m, input, m.insert_instruction(dot, make_op("pad", {{"pads", pads}}), cin), a);
+                return {m.insert_instruction(dot, make_op("pad", {{"pads", pads}}), cin)};
             }
             if(name == "pad")
             {
-                auto pads = ins->get_operator().to_value().at("pads").to_vector<int64_t>();
+                auto pads = n.ins->get_operator().to_value().at("pads").to_vector<int64_t>();
                 assert(axis < pads.size() / 2);
                 std::int64_t start = pads[axis];
                 std::int64_t len   = input->get_shape().lens()[axis];
-                return fold(m, input, slice_c(m, cin, start, start + len), a);
+                return {slice_c(m, cin, start, start + len)};
             }
             assert(name == "concat");
             const auto& inputs = lin->inputs;
@@ -1066,19 +1136,72 @@ struct find_dot_axis_linear_ops
                            std::back_inserter(parts),
                            [&](instruction_ref z, std::int64_t start) {
                                std::int64_t len = z->get_shape().lens()[axis];
-                               return fold(m, z, slice_c(m, cin, start, start + len), a);
+                               return slice_c(m, cin, start, start + len);
                            });
+            return parts;
+        }
+
+        instruction_ref sum(module& m, const std::vector<instruction_ref>& parts) const
+        {
+            assert(not parts.empty());
             return std::accumulate(std::next(parts.begin()),
                                    parts.end(),
                                    parts.front(),
-                                   [&](instruction_ref sum, instruction_ref part) {
-                                       return m.insert_instruction(dot, make_op("add"), sum, part);
+                                   [&](instruction_ref total, instruction_ref part) {
+                                       return m.insert_instruction(
+                                           dot, make_op("add"), total, part);
                                    });
+        }
+
+        // Mirror the recombination from x down to y onto the contracted axis
+        // of c. A node sums the constants of all the ops that read it before
+        // its own op is mirrored, so a node shared between paths is mirrored once
+        instruction_ref fold(module& m) const
+        {
+            struct step
+            {
+                node n;
+                // Positions of its operands in the steps
+                std::vector<std::size_t> operands;
+                // The constants of the ops that read it
+                std::vector<instruction_ref> parts;
+            };
+            // Each node comes after its operands, so y is first and x is last
+            std::vector<step> steps;
+            node_map<std::size_t> visited;
+            fix<std::size_t>([&](auto self, const node& n) {
+                auto found = visited.find(n.ins, n.a);
+                if(found.has_value())
+                    return *found;
+                auto inputs = operands(n);
+                std::vector<std::size_t> ids(inputs.size());
+                // In reverse, so the steps of the first operand are mirrored first
+                std::transform(inputs.rbegin(),
+                               inputs.rend(),
+                               ids.rbegin(),
+                               [&](const node& input) { return self(input); });
+                auto id = steps.size();
+                visited.insert(n.ins, n.a, id);
+                steps.push_back({n, std::move(ids), {}});
+                return id;
+            })(node{x, x_axes});
+            assert(steps.front().n.ins == y);
+            steps.back().parts = {c};
+            for(const auto& s : reverse(range(std::next(steps.begin()), steps.end())))
+            {
+                auto parts = mirror(m, s.n, sum(m, s.parts));
+                assert(parts.size() == s.operands.size());
+                for_each(s.operands.begin(),
+                         s.operands.end(),
+                         parts.begin(),
+                         [&](auto i, instruction_ref part) { steps[i].parts.push_back(part); });
+            }
+            return sum(m, steps.front().parts);
         }
 
         void apply(module& m) const
         {
-            auto folded = fold(m, x, c, x_axes);
+            auto folded = fold(m);
             auto input  = insert_ops(m, dot, layouts, y);
             if(c == dot->inputs().front())
                 m.replace_instruction(dot, make_op("dot"), folded, input);

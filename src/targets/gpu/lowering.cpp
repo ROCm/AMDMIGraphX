@@ -441,8 +441,8 @@ struct miopen_apply
     {
         apply_map.emplace("loop", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
-            inputs.at(0)     = insert_host_scalar(ins, inputs.at(0));
-            inputs.at(1)     = insert_host_scalar(ins, inputs.at(1));
+            inputs.at(0)                        = insert_host_scalar(ins, inputs.at(0));
+            inputs.at(1)                        = insert_host_scalar(ins, inputs.at(1));
             auto copy_inputs = inputs;
             std::transform(copy_inputs.begin(),
                            copy_inputs.end(),

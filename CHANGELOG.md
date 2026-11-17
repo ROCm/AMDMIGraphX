@@ -31,6 +31,7 @@ Full documentation for MIGraphX is available at
 * Fixed `simplify_reshapes` generating invalid inverse shape transforms when moving an element-expanding shape-transform chain through a shared reduction (#5360).
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).
 * Fixed mixed `uint8` and `int8` quantization (#5075).
+* Fixed out-of-process hiprtc compiles hanging on Windows: the `migraphx-hiprtc-driver` child could stay alive after writing its reply, because DLL detach deadlocked on compiler-library locks, so the parent never returned. The child now exits without running DLL detach.
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
 
 ### Optimized

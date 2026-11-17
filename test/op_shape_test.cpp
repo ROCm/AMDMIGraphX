@@ -4802,6 +4802,18 @@ TEST_CASE(reshape_transposed_broadcast_merge)
     EXPECT(not output.standard());
 }
 
+TEST_CASE(reshape_broadcast_merge_singleton)
+{
+    // The broadcast axis merges with a length-1 axis, which doesn't place it in memory, so the
+    // output is standard.
+    migraphx::shape input{migraphx::shape::float_type, {2, 1, 1}};
+    auto broadcasted =
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 4}}}).compute_shape({input});
+    std::vector<std::size_t> lens = {2, 4};
+    migraphx::shape output{migraphx::shape::float_type, lens};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), broadcasted);
+}
+
 TEST_CASE(reshape_transposed_slice)
 {
     // Input is transposed (axis 0 fastest, axis 1 slowest) with stride gaps (sliced).

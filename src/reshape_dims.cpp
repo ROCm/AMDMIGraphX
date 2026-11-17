@@ -38,6 +38,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static bool is_zero(const sym::expr& e) { return sym::same_symbol(e, sym::lit(std::int64_t{0})); }
 
+static bool is_one(const sym::expr& e) { return sym::same_symbol(e, sym::lit(std::int64_t{1})); }
+
 template <class Iterator>
 static Iterator compute_end_dim(Iterator start, Iterator last, const sym::expr& dim)
 {
@@ -238,13 +240,18 @@ compute_reshape_strides(const std::vector<sym::expr>& idims,
                 auto last_stride  = first_stride + n + 1;
                 if(options.lazy and not can_strides_merge(start, it + 1, first_stride, last_stride))
                     return nullopt;
-                // A broadcast axis has no place in memory, so the merged axis sits where the
-                // innermost non-broadcast axis of the run does. A view can't mix the two, so
-                // this only differs from the last stride when copying.
+                // Neither a broadcast axis nor a length-1 axis has a place in memory, since the
+                // stride of a length-1 axis is arbitrary. The merged axis sits where the innermost
+                // axis of the run that has one does, and is a broadcast when no axis has one. A
+                // view can't mix the two, so this only differs from the last stride when copying.
                 auto rlast = std::make_reverse_iterator(first_stride);
-                auto inner = std::find_if(std::make_reverse_iterator(last_stride),
-                                          rlast,
-                                          [](const auto& stride) { return not is_zero(stride); });
+                auto inner = std::mismatch(std::make_reverse_iterator(last_stride),
+                                           rlast,
+                                           std::make_reverse_iterator(it + 1),
+                                           [](const auto& stride, const auto& dim) {
+                                               return is_zero(stride) or is_one(dim);
+                                           })
+                                 .first;
                 i += n;
                 rstrides.push_back(inner == rlast ? istrides[i] : *inner);
             }
@@ -340,15 +347,13 @@ reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_di
         return result;
     // An output axis made only of broadcast data has no place in memory, so its order relative to
     // the other axes is ambiguous and the copy falls back to a standard layout.
-    if(std::inner_product(rdims.begin(),
-                          rdims.end(),
-                          rstrides->begin(),
-                          false,
-                          std::logical_or<>{},
-                          [](const auto& dim, const auto& stride) {
-                              return is_zero(stride) and
-                                     not sym::same_symbol(dim, sym::lit(std::int64_t{1}));
-                          }))
+    if(std::inner_product(
+           rdims.begin(),
+           rdims.end(),
+           rstrides->begin(),
+           false,
+           std::logical_or<>{},
+           [](const auto& dim, const auto& stride) { return is_zero(stride) and not is_one(dim); }))
         return shape{input.type(), rdds};
     return shape::from_permutation(result.type(), rdds, find_copy_permutation(result));
 }

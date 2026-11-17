@@ -61,6 +61,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
@@ -503,17 +504,17 @@ struct compile_plan
 
     struct candidate
     {
-        const compile_plan* plan   = nullptr;
-        const compiler_replace* cr = nullptr;
-        value sol                  = value{};
+        const compile_plan* plan = nullptr;
+        const compile_cell* cell = nullptr;
+        value sol                = value{};
 
         // Parameters whose shape id (type + dims) is in the compiled result's fill_map hold that
         // value, the rest random data. Each key leads with the fill value, or "random", so only
         // parameters that hold the same data share a key.
         std::vector<std::pair<std::string, shape>> generate_argument_keys(const program& p) const
         {
-            assert(cr != nullptr);
-            const auto& fill_map = cr->code.fill_map;
+            assert(cell != nullptr);
+            const auto& fill_map = cell->result->code.fill_map;
             const auto* mm       = p.get_main_module();
             auto names           = mm->get_parameter_names();
             std::vector<std::pair<std::string, shape>> keys;
@@ -546,8 +547,8 @@ struct compile_plan
 
         program make_program() const
         {
-            assert(plan != nullptr and cr != nullptr);
-            return plan->make_program(*cr);
+            assert(plan != nullptr and cell != nullptr);
+            return plan->make_program(*cell->result);
         }
 
         // Set based on trace level
@@ -563,10 +564,10 @@ struct compile_plan
         // Used to print the program and other info on higher trace levels
         void before_run(const program& p) const
         {
-            assert(plan != nullptr and cr != nullptr);
+            assert(plan != nullptr and cell != nullptr);
             if(value_of(MIGRAPHX_TRACE_BENCHMARKING{}) > 2)
             {
-                cr->trace(std::cout, plan->ins);
+                cell->result->trace(std::cout, plan->ins);
                 std::cout << "\n" << p << std::endl;
             }
         }
@@ -679,7 +680,8 @@ struct compile_plan
         return input_shapes.str();
     }
 
-    const compiler_replace& benchmark() const
+    /// The cell holding the selected result.
+    const compile_cell& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
         if(trace_level > 0 and not results.empty())
@@ -695,7 +697,7 @@ struct compile_plan
             if(not results.front()->result.has_value())
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                                problem_string() + "\n\n" + print_modules());
-            return *results.front()->result;
+            return *results.front();
         }
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
@@ -713,7 +715,7 @@ struct compile_plan
             std::back_inserter(candidates),
             [](const auto& cell, const auto&) { return cell->result.has_value(); },
             [&](const auto& cell, const auto& solution) {
-                return candidate{this, &*cell->result, solution};
+                return candidate{this, cell.get(), solution};
             });
         auto skipped = results.size() - candidates.size();
         if(skipped > 0 and trace_level > 1)
@@ -731,10 +733,16 @@ struct compile_plan
         if(skipped > 0)
             log::info() << "Skipped " << skipped << " configs for " << preop.name();
 
-        return *any_cast<candidate>(best).cr;
+        return *any_cast<candidate>(best).cell;
     }
 
-    void replace(module& m) const { benchmark().replace(m, ins); }
+    /// Replace the instruction with the selected result, and return the cell holding it.
+    const compile_cell& replace(module& m) const
+    {
+        const auto& best = benchmark();
+        best.result->replace(m, ins);
+        return best;
+    }
 
     std::size_t save_binaries(const fs::path& mxr_dir) const
     {
@@ -792,6 +800,9 @@ struct compile_manager
     fs::path mxr_dir             = {};
     std::size_t dumped_mxr_files = 0;
 
+    using task     = std::pair<compile_plan*, std::shared_ptr<compile_cell>>;
+    using cell_set = std::unordered_set<const compile_cell*>;
+
     template <class... Ts>
     void add_plan(Ts&&... xs)
     {
@@ -803,37 +814,47 @@ struct compile_manager
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
-    /// Store every compiled result in the binary cache.
-    static void
-    store_results(const std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>>& tasks)
+    /// Store compiled results in the binary cache. When the problem cache persists its choices,
+    /// later compiles only reuse the chosen solutions, so the results are returned instead for
+    /// compile() to store the winners.
+    static cell_set store_results(const std::vector<task>& tasks)
     {
         if(tasks.empty())
-            return;
+            return {};
         // Every plan compiles with the same context, so the entries all go to one cache in a
         // single insert, letting its storage commit them together rather than one at a time.
         auto* ctx = tasks.front().first->ctx;
-        assert(all_of(tasks, [&](const auto& task) { return task.first->ctx == ctx; }));
+        assert(all_of(tasks, [&](const auto& t) { return t.first->ctx == ctx; }));
+        const bool winners_only = ctx->get_problem_cache().persists();
+        cell_set pending;
         std::vector<binary_cache_entry> entries;
         entries.reserve(tasks.size());
         for(const auto& [cp, cell] : tasks)
         {
             if(not cell->result.has_value())
                 continue;
-            // When verifying, reused results are stored again, harmlessly replacing each entry
-            // with an equivalent one.
-            if(auto e = cp->cache_entry(cell->solution, cell->key, cell->result->code))
-                entries.push_back(std::move(*e));
             assert(not cell->result->code.empty());
             // Only the serializable code is used from here on; dropping the replace function
             // releases what its closure holds and keeps it off other instructions.
             cell->result->replace_fn = nullptr;
+            if(winners_only)
+            {
+                pending.insert(cell.get());
+                continue;
+            }
+            // When verifying, reused results are stored again, harmlessly replacing entries
+            // with equivalent ones.
+            if(auto e = cp->cache_entry(cell->solution, cell->key, cell->result->code))
+                entries.push_back(std::move(*e));
         }
         ctx->get_binary_cache().insert(*ctx, std::move(entries));
+        return pending;
     }
 
     /// Fill every cell's result, from the cache or by compiling, sharing one compile among
-    /// the cells with the same key.
-    void compile_cells()
+    /// the cells with the same key. Returns the compiled cells whose store waits for
+    /// benchmarking, as store_results decides.
+    cell_set compile_cells()
     {
         {
             // Every slot is collected so the keys can be computed in parallel.
@@ -856,9 +877,7 @@ struct compile_manager
         // Group slots that would compile to the same code by pointing them at one shared cell,
         // so writing the result once puts it in place everywhere; the stored plan drives the
         // compile. The keys are whole kernel sources, so the index views them instead of copying.
-        std::unordered_map<std::string_view,
-                           std::pair<compile_plan*, std::shared_ptr<compile_cell>>>
-            index;
+        std::unordered_map<std::string_view, task> index;
         for(auto& cp : cps)
         {
             for(auto& cell : cp.results)
@@ -882,7 +901,7 @@ struct compile_manager
 
         // Only cells that still need work, a compile or a verify of a reused result, become
         // tasks; each cell gets exactly one task, so the compiles never coordinate.
-        std::vector<std::pair<compile_plan*, std::shared_ptr<compile_cell>>> tasks;
+        std::vector<task> tasks;
         transform_if(
             index.begin(),
             index.end(),
@@ -901,7 +920,7 @@ struct compile_manager
                 cell->result = cp->run_compile(cell->solution);
         });
 
-        store_results(tasks);
+        return store_results(tasks);
     }
 
     /// Add every precompile op in the module to the batch.
@@ -921,20 +940,32 @@ struct compile_manager
         const bool dump_mxr = not mxr_dir.empty();
         for(auto& cp : cps)
             cp.add_cells(skip_benchmark, dump_mxr);
-        compile_cells();
+        auto pending = compile_cells();
 
         if(dump_mxr)
             fs::create_directories(mxr_dir);
 
+        // Pending results that won benchmarking; the losers are never stored. A dumped plan is
+        // not benchmarked, so its candidates are dropped too.
+        std::vector<binary_cache_entry> winners;
         for(const auto& cp : cps)
         {
             if(cp.results.empty())
                 continue;
             if(dump_mxr and cp.results.size() > 1)
+            {
                 dumped_mxr_files += cp.save_binaries(mxr_dir);
-            else
-                cp.replace(*cp.mod);
+                continue;
+            }
+            const auto& best = cp.replace(*cp.mod);
+            // Erasing also stores a winner shared by several plans only once.
+            if(pending.erase(&best) == 0)
+                continue;
+            if(auto e = cp.cache_entry(best.solution, best.key, best.result->code))
+                winners.push_back(std::move(*e));
         }
+        if(not winners.empty())
+            cps.front().ctx->get_binary_cache().insert(*cps.front().ctx, std::move(winners));
 
         // Remove compile_plan already executed
         cps.erase(std::remove_if(cps.begin(),

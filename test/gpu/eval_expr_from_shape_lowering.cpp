@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
@@ -35,7 +36,9 @@ static void run_lowering(migraphx::module& m)
 {
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(m,
-                         {migraphx::gpu::lowering{&ctx, false}, migraphx::dead_code_elimination{}});
+                         {migraphx::gpu::lowering{&ctx, false},
+                          migraphx::gpu::eliminate_device_copy{},
+                          migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(eval_expr_from_shape_lowering_single_input)

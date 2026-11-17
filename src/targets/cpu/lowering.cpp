@@ -450,6 +450,9 @@ struct cpu_apply
 #endif
             else if(it->name() == "reshape")
             {
+                if(it->inputs().size() == 2)
+                    MIGRAPHX_THROW(
+                        "cpu::lowering: two-input reshape must be eliminated before lowering");
                 apply_reshape(it);
             }
             else if(apply_map.count(it->name()) > 0)

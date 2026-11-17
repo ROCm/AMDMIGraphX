@@ -162,12 +162,11 @@ bool same_bytes(const argument& a, const argument& b)
     return std::memcmp(a.data(), b.data(), sa.bytes()) == 0;
 }
 
-// Device-scoped pool of uploaded weights. Each entry keeps the host literal (to
-// confirm a candidate with same_bytes) and the device buffer, so N identical
-// weights use 1 VRAM copy. The pool only holds weak references: the programs
-// sharing an entry own it, so a weight is freed with the last program using it
-// rather than at process exit. Guarded by a mutex since finalize may run on
-// multiple compile threads.
+// Device-scoped pool of uploaded weights, so N identical weights use 1 VRAM copy.
+// Each entry keeps the host literal (to confirm a match with same_bytes) and the
+// device buffer. The pool holds only weak references: the programs using an
+// entry own it, so it is freed with the last of them. Guarded by a mutex since
+// finalize may run on multiple compile threads.
 struct pooled_literal
 {
     argument host;
@@ -182,8 +181,7 @@ struct shared_literal_pool
     // never register, so every later copy of it would re-upload and sharing
     // would silently stop working for that weight.
     std::unordered_map<std::string, std::vector<std::weak_ptr<pooled_literal>>> buckets;
-    // Expired entries are swept once the pool doubles, so sweeping stays linear
-    // in the number of uploads
+    // Expired entries are swept each time the pool doubles (amortized O(1) per upload)
     std::size_t sweep_at = 0;
 
     // A live entry with the same bytes as data, or else a new one holding upload()

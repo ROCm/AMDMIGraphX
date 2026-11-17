@@ -3039,6 +3039,27 @@ TEST_CASE(multibroadcast_1in_sym_maybe_one_error)
                  input);
 }
 
+TEST_CASE(multibroadcast_1in_sym_run_time_static_input)
+{
+    // At run time the input of a mask read as n + 1 is static; the target takes its length
+    auto n = var("n", {1, 64});
+    migraphx::shape input{migraphx::shape::int64_type, {1, 2}};
+    std::vector<dd> out{dd{lit(1)}, dd{n + lit(1)}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 2}, {2, 1}},
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_run_time_static_input_out_of_range_error)
+{
+    // n + 1 is at most 65, so a static length of 70 is not a value of the target
+    auto n = var("n", {1, 64});
+    migraphx::shape input{migraphx::shape::int64_type, {1, 70}};
+    std::vector<dd> out{dd{lit(1)}, dd{n + lit(1)}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
 TEST_CASE(multibroadcast_1in_range_dyn_with_sym_target_error)
 {
     auto n = var("n", {2, 8});

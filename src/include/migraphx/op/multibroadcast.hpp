@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <optional>
 #include <migraphx/common.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/sym_argument.hpp>
@@ -75,6 +76,43 @@ struct multibroadcast
         {
             return false;
         }
+    }
+
+    // At run time the input is static. A target dim that is a different symbol than the input's
+    // at compile time (same_at_run_time) has the value of the input dim, which is checked against
+    // its range. Gives no lens when the static input matches the target as is, or when a target
+    // symbol is broadcast from 1 and has no value.
+    static std::optional<std::vector<std::size_t>>
+    run_time_lens(const std::vector<std::size_t>& in_lens,
+                  const std::vector<shape::dynamic_dimension>& out_dims)
+    {
+        if(in_lens.size() > out_dims.size())
+            return std::nullopt;
+        auto offset = out_dims.size() - in_lens.size();
+        std::vector<std::size_t> result(out_dims.size());
+        bool from_input = false;
+        for(std::size_t i = 0; i < out_dims.size(); ++i)
+        {
+            const auto& out = out_dims[i];
+            if(out.is_fixed())
+            {
+                result[i] = out.get_interval().min;
+                if(i >= offset and in_lens[i - offset] != 1 and in_lens[i - offset] != result[i])
+                    return std::nullopt;
+                continue;
+            }
+            if(i < offset or in_lens[i - offset] == 1)
+                return std::nullopt;
+            auto in       = in_lens[i - offset];
+            auto interval = out.get_interval();
+            if(in < interval.min or in > interval.max)
+                return std::nullopt;
+            result[i]  = in;
+            from_input = true;
+        }
+        if(not from_input)
+            return std::nullopt;
+        return result;
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -132,6 +170,12 @@ struct multibroadcast
             if(symbolic_target)
             {
                 auto s0_sym = s0.to_symbolic();
+                if(not s0.dynamic())
+                {
+                    auto lens = run_time_lens(s0.lens(), output_dyn_dims);
+                    if(lens.has_value())
+                        return make_bcast_shape(s0, *lens);
+                }
                 validate(s0_sym.dyn_dims(), output_dyn_dims, true);
                 return make_bcast_shape(s0_sym, output_dyn_dims);
             }

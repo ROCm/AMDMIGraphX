@@ -192,6 +192,15 @@ struct hip_copy_to_gpu
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
+        // An empty input, such as a KV cache of length 0, has nothing to copy, and registering
+        // its host memory fails
+        if(args[0].get_shape().elements() == 0)
+        {
+            if(args.size() == 1)
+                return args[0];
+            argument result = args[1].share();
+            return result.get_shape().dynamic() ? result.reshape(args[0].get_shape()) : result;
+        }
         auto input = register_on_gpu(args[0]);
         if(args.size() == 1)
             return input;
@@ -223,6 +232,9 @@ struct hip_copy_from_gpu
     argument
     compute(context& ctx, const dyn_output& dyn_out, const std::vector<argument>& args) const
     {
+        // An empty output has nothing to copy, and launching the copy kernel fails
+        if(args.size() == 1 and args[0].get_shape().elements() == 0)
+            return argument{dyn_out.computed_shape};
         if(args.size() == 1)
         {
             argument result = allocate_gpu(dyn_out.computed_shape, true);

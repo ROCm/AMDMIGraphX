@@ -825,7 +825,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
                            migraphx::to_string(expected_shape));
         if(data == nullptr and nbytes != 0)
             MIGRAPHX_THROW("PARSE_TENSOR: external initializer \"" + t.name() + "\" has no data");
-        return create_literal(type, dims, static_cast<const char*>(data), nbytes);
+        return create_literal(type, dims, static_cast<const char*>(data));
     }
 
     if(not external_data.empty())

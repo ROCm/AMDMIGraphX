@@ -2210,6 +2210,112 @@ void specialize_blocks(module_pass_manager& mpm,
     m.sort();
 }
 
+bool is_fixed_symbolic(const shape& s)
+{
+    return s.symbolic() and s.is_fixed() and s.has_fixed_strides();
+}
+
+// Emits an operation of the code after the blocks for static inputs. Ops that carry their output
+// dims get the static form of their fixed shape.
+instruction_ref emit_static(module& m, instruction_ref ins, std::vector<instruction_ref> args)
+{
+    const auto& s    = ins->get_shape();
+    const auto& name = ins->name();
+    if(is_fixed_symbolic(s))
+    {
+        auto lens = s.to_static().lens();
+        if(contains({"multibroadcast", "broadcast_with_dims"}, name))
+            return m.insert_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", lens}}), args.front());
+        if(name == "broadcast")
+            return m.insert_instruction(
+                ins,
+                make_op("broadcast",
+                        {{"axis", ins->get_operator().to_value().at("axis")}, {"out_lens", lens}}),
+                args.front());
+        if(name == "allocate")
+            return m.insert_instruction(ins,
+                                        make_op("allocate", {{"shape", to_value(s.to_static())}}));
+        if(name == "reshape" and args.size() == 2)
+            return m.insert_instruction(ins, make_op("reshape", {{"dims", lens}}), args.front());
+    }
+    return m.insert_instruction(ins, ins->get_operator(), args, ins->module_inputs());
+}
+
+// The blocks leave the code after them, such as the layers after the last block, in symbolic
+// form although every shape is fixed. A select_module whose fixed outputs feed no other block
+// is re-emitted with those outputs static, and the code reading them in static form.
+void staticize_code_after_blocks(module& m)
+{
+    std::unordered_map<instruction_ref, bool> reaches;
+    auto reaches_select = fix<bool>([&](auto self, instruction_ref ins) -> bool {
+        auto found = reaches.find(ins);
+        if(found != reaches.end())
+            return found->second;
+        reaches[ins] = false;
+        bool result  = any_of(ins->outputs(), [&](auto output) {
+            return output->name() == "select_module" or self(output);
+        });
+        reaches[ins] = result;
+        return result;
+    });
+
+    std::unordered_map<instruction_ref, instruction_ref> mapped;
+    for(auto ins : iterator_for(m))
+    {
+        if(contains(mapped, ins) or starts_with(ins->name(), "@"))
+            continue;
+        if(ins->name() == "select_module")
+        {
+            auto subs   = ins->get_shape().sub_shapes();
+            bool change = false;
+            for(auto output : ins->outputs())
+            {
+                if(output->name() != "get_tuple_elem")
+                    continue;
+                auto index = output->get_operator().to_value().at("index").to<std::size_t>();
+                if(not is_fixed_symbolic(subs.at(index)) or reaches_select(output))
+                    continue;
+                subs.at(index) = subs.at(index).to_static();
+                change         = true;
+            }
+            if(not change)
+                continue;
+            auto v                 = ins->get_operator().to_value();
+            v["output_dyn_shapes"] = to_value(shape{subs});
+            auto select            = m.insert_instruction(
+                std::next(ins), make_op("select_module", v), ins->inputs(), ins->module_inputs());
+            mapped[select] = select;
+            for(auto output : ins->outputs())
+            {
+                if(output->name() != "get_tuple_elem")
+                    continue;
+                auto elem = m.insert_instruction(std::next(select), output->get_operator(), select);
+                mapped[output] = elem;
+                mapped[elem]   = elem;
+            }
+            continue;
+        }
+        auto inputs = ins->inputs();
+        if(none_of(inputs, [&](auto input) { return contains(mapped, input); }))
+            continue;
+        std::vector<instruction_ref> args;
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(args), [&](auto input) {
+            return contains(mapped, input) ? mapped.at(input) : input;
+        });
+        auto result    = emit_static(m, ins, std::move(args));
+        mapped[ins]    = result;
+        mapped[result] = result;
+    }
+    if(mapped.empty())
+        return;
+    auto returns = m.get_returns();
+    std::transform(returns.begin(), returns.end(), returns.begin(), [&](auto r) {
+        return contains(mapped, r) ? mapped.at(r) : r;
+    });
+    m.replace_return(returns);
+}
+
 } // namespace
 
 void split_sym_dim::apply(module_pass_manager& mpm) const
@@ -2284,6 +2390,8 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     // Materialize one clone for each target combination, dispatch through select_module, expose
     // runtime output extents, and rewire uses outside each block.
     specialize_blocks(mpm, graph, plans, root_sources);
+    run_passes(m, {dead_code_elimination{}});
+    staticize_code_after_blocks(m);
     run_passes(m, {dead_code_elimination{}});
 }
 

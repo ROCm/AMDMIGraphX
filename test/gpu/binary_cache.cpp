@@ -603,7 +603,6 @@ static void verified_reuse_matches_fresh_compiles()
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<directory_backend>);
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<database_backend>);
 
-<<<<<<< HEAD
 // A cache named by read_only_binary_cache is only read: kernels it lacks are compiled but not
 // added.
 template <class Backend>
@@ -628,7 +627,6 @@ static void read_only_backend_option_is_not_written()
 
 TEST_CASE_REGISTER(read_only_backend_option_is_not_written<directory_backend>);
 TEST_CASE_REGISTER(read_only_backend_option_is_not_written<database_backend>);
-=======
 // Benchmarking compiles every candidate solution, but when the problem cache saves the choice a
 // later compile only ever needs the winner, so only winners are stored.
 template <class Backend>
@@ -660,7 +658,6 @@ static void persisted_problem_cache_stores_only_winners()
 }
 TEST_CASE_REGISTER(persisted_problem_cache_stores_only_winners<directory_backend>);
 TEST_CASE_REGISTER(persisted_problem_cache_stores_only_winners<database_backend>);
->>>>>>> develop
 
 // The extension of the path picks the backend and nothing else does, so the only way to see the
 // choice from outside is the artifact it leaves: a database file, or a directory tree.

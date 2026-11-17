@@ -5173,6 +5173,46 @@ TEST_CASE(split_sym_dim_dyn_concat_count_root)
     }
 }
 
+TEST_CASE(split_sym_dim_specializes_if_branches)
+{
+    // The branches of an if read x of the main module; its symbol is the root of their blocks
+    auto n = var("n", {1, 8}, {2});
+    migraphx::program p;
+    auto& m     = *p.get_main_module();
+    auto cond   = m.add_parameter("cond", migraphx::shape{migraphx::shape::bool_type, {1}});
+    auto x      = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto branch = [&](const std::string& name, const std::string& op) {
+        auto* sm = p.create_module(name);
+        sm->add_return({sm->add_instruction(migraphx::make_op(op), x)});
+        return sm;
+    };
+    auto* then_mod = branch("then", "relu");
+    auto* else_mod = branch("else", "neg");
+    auto result    = m.add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    m.add_return({m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), result)});
+
+    auto reference = p;
+    run_pass(p);
+
+    for(const auto* sm : {then_mod, else_mod})
+        EXPECT(migraphx::any_of(migraphx::iterator_for(*sm),
+                                [](auto ins) { return ins->name() == "select_module"; }));
+
+    auto target = migraphx::make_target("ref");
+    reference.compile(target);
+    p.compile(target);
+    std::vector<float> x_values = {-1.0f, 2.0f, -3.0f};
+    for(bool c : {true, false})
+    {
+        migraphx::parameter_map params;
+        params["x"] =
+            migraphx::argument{migraphx::shape{migraphx::shape::float_type, {3}}, x_values.data()};
+        params["cond"] = migraphx::argument{migraphx::shape{migraphx::shape::bool_type, {1}}, &c};
+        EXPECT(p.eval(params).back().to_vector<float>() ==
+               reference.eval(params).back().to_vector<float>());
+    }
+}
+
 TEST_CASE(split_sym_dim_keeps_unsupported_dependency_outside_clone)
 {
     auto n = var("n", {1, 8}, {2});

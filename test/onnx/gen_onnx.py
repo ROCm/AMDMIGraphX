@@ -18144,6 +18144,46 @@ def skip_layer_normalization_invalid_input_test():
 
 
 @onnx_test()
+def slice_static_symbolic_bounds_test():
+    # A constant [8, 8] tensor sliced on axis 0 up to the length N of x
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 8])
+
+    data = helper.make_tensor('data', TensorProto.FLOAT, [8, 8],
+                              np.arange(64).astype(np.float32))
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['shape']),
+        helper.make_node('Gather', ['shape', 'zero'], ['n'], axis=0),
+        helper.make_node('Slice', ['data', 'zero', 'n', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x], [out], [data, zero, axes])
+
+
+@onnx_test()
+def slice_static_symbolic_bounds_test():
+    # A constant [8, 8] tensor sliced on axis 0 up to the length N of x
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 8])
+
+    data = helper.make_tensor('data', TensorProto.FLOAT, [8, 8],
+                              np.arange(64).astype(np.float32))
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['shape']),
+        helper.make_node('Gather', ['shape', 'zero'], ['n'], axis=0),
+        helper.make_node('Slice', ['data', 'zero', 'n', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x], [out], [data, zero, axes])
+
+
+@onnx_test()
 def slice_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])

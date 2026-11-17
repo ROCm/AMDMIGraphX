@@ -50,7 +50,8 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
                 MIGRAPHX_THROW("ConstantOfShape: attribute value can contain only 1 elements!");
             }
             // convert to a scalar literal
-            l_val = literal(shape{l_val.get_shape().type(), {1}, {0}}, l_val.data());
+            l_val =
+                literal::from_raw_buffer(shape{l_val.get_shape().type(), {1}, {0}}, l_val.data());
         }
         else
         {

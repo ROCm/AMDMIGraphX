@@ -24,20 +24,70 @@
 
 #include <migraphx/verify_args.hpp>
 #include <migraphx/logger.hpp>
+#include <limits>
+#include <optional>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VERIFY_DUMP_DIFF);
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace {
+
+void set_rms_error(double* output, double error)
+{
+    if(output != nullptr)
+        *output = error;
+}
+
+std::optional<bool>
+verify_empty_args(const std::string& name, const argument& target_arg, const argument& ref_arg)
+{
+    const auto& target_shape = target_arg.get_shape();
+    const auto& ref_shape    = ref_arg.get_shape();
+    if(target_shape.type() == shape::tuple_type or ref_shape.type() == shape::tuple_type or
+       target_shape.dynamic() or ref_shape.dynamic())
+        return std::nullopt;
+
+    bool target_empty = target_shape.elements() == 0;
+    bool ref_empty    = ref_shape.elements() == 0;
+    if(not target_empty and not ref_empty)
+        return std::nullopt;
+
+    bool passed = target_empty and ref_empty and target_shape.type() == ref_shape.type() and
+                  target_shape.lens() == ref_shape.lens();
+    if(not passed)
+    {
+        log::error() << "FAILED: " << name;
+        log::error() << "Empty tensor mismatch: ref=" << ref_shape << ", target=" << target_shape;
+    }
+    return passed;
+}
+
+} // namespace
+
 bool verify_args(const std::string& name,
                  const argument& target_arg,
                  const verify::expected<argument>& ref_arg,
                  verify::tolerance tols)
 {
-    bool passed = true;
+    return verify_args(name, target_arg, ref_arg, tols, nullptr);
+}
+
+bool verify_args(const std::string& name,
+                 const argument& target_arg,
+                 const verify::expected<argument>& ref_arg,
+                 verify::tolerance tols,
+                 double* out_rms_error)
+{
+    bool passed    = true;
     argument t_arg = target_arg;
     argument r_arg = ref_arg.data();
+    if(auto empty_result = verify_empty_args(name, t_arg, r_arg))
+    {
+        set_rms_error(out_rms_error, *empty_result ? 0.0 : std::numeric_limits<double>::infinity());
+        return *empty_result;
+    }
     if(not t_arg.get_shape().computable())
     {
         shape o_t_shape = t_arg.get_shape();
@@ -50,6 +100,7 @@ bool verify_args(const std::string& name,
         double rms_error;
         passed =
             verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &rms_error);
+        set_rms_error(out_rms_error, rms_error);
         if(not passed)
         {
             // TODO: Check for nans
@@ -111,6 +162,8 @@ bool verify_args_with_tolerance(const std::string& name,
 {
     double rms_tol = 0.001;
     argument t_arg = target_arg;
+    if(auto empty_result = verify_empty_args(name, t_arg, ref_arg.data()))
+        return *empty_result;
     if(not t_arg.get_shape().computable())
     {
         shape o_t_shape = t_arg.get_shape();

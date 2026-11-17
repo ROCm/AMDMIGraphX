@@ -780,7 +780,8 @@ struct compiler_target
            {"--gpu-arch-params"},
            ap.help("Device properties to assume for cross-compilation, as a JSON object "
                    "(format: \"{arch:gfx942, num_cu:120, num_chiplets:1, "
-                   "max_threads_per_cu:2048, max_threads_per_block:1024, wavefront_size:32}\"). "
+                   "max_threads_per_cu:2048, max_threads_per_block:1024, wavefront_size:32, "
+                   "max_shared_memory_per_block:65536}\"). "
                    "Overrides --gpu-arch, --gpu-num-cus, --gpu-num-chiplets and "
                    "--gpu-wavefront-size for any keys present."));
     }
@@ -793,7 +794,8 @@ struct compiler_target
             {"num_chiplets", "gpu_num_chiplets"},
             {"max_threads_per_cu", "gpu_max_threads_per_cu"},
             {"max_threads_per_block", "gpu_max_threads_per_block"},
-            {"wavefront_size", "gpu_wavefront_size"}};
+            {"wavefront_size", "gpu_wavefront_size"},
+            {"max_shared_memory_per_block", "gpu_max_shared_memory_per_block"}};
         return key_map;
     }
 
@@ -1115,9 +1117,14 @@ struct time_cmd : command<time_cmd>
 {
     compiler c;
     unsigned n = 100;
+    unsigned nbuffers = 1;
     void parse(argument_parser& ap)
     {
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run."));
+        ap(nbuffers,
+           {"--buffers", "-b"},
+           ap.help("Number of parameter buffer sets to rotate through between iterations (avoids "
+                   "cache reuse)."));
         c.parse(ap);
     }
 
@@ -1125,9 +1132,12 @@ struct time_cmd : command<time_cmd>
     {
         auto p = c.compile();
         log::info() << "Allocating params ...";
-        auto m = c.params(p);
+        if(nbuffers == 0)
+            MIGRAPHX_THROW("--buffers must be at least 1");
+        std::vector<parameter_map> ms;
+        std::generate_n(std::back_inserter(ms), nbuffers, [&] { return c.params(p); });
         log::info() << "Running ...";
-        double t = time_run(p, m, n);
+        double t = time_run(p, ms, n);
         std::cout << "Total time: " << t << "ms" << std::endl;
     }
 };

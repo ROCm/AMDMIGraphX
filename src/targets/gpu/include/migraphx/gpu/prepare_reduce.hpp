@@ -32,14 +32,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
 namespace gpu {
 
 struct MIGRAPHX_GPU_EXPORT prepare_reduce
 {
     std::string name() const { return "gpu::prepare_reduce"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu

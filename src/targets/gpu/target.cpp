@@ -37,6 +37,7 @@
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
+#include <migraphx/fuse_topk.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/json.hpp>
@@ -66,9 +67,12 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_symbolic_dimensions.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/split_sym_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#include <migraphx/gpu/binary_cache.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -76,9 +80,12 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
@@ -88,6 +95,7 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -102,6 +110,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR)
 
 namespace {
 // Backend options recognized by the GPU target, supplied via
@@ -109,28 +118,69 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
-    // Read/write problem caches (the common case: a user tuning a model). New
-    // tuning solutions are saved back to these files.
+    /// Where compiled kernels are cached between runs. Defaults to ``MIGRAPHX_BINARY_CACHE``.
+    std::string binary_cache = binary_cache_settings{}.path;
+    /// Compile even when a kernel could be reused, and fail if the two disagree.
+    bool binary_cache_verify = false;
+    // Enable the hipgraphify pass (wrap capturable runs in hip::graph ops).
+    bool hip_graph = false;
+    // List of ops to force onto MLIR, e.g. ["convolution", "dot", "!attention"]; a '!' or '~'
+    // prefix forces the op off. Same format as MIGRAPHX_MLIR_USE_SPECIFIC_OPS, which takes
+    // priority over this. Attention fusion is enabled by default on every device: an
+    // "attention" entry additionally fuses every attention block, bypassing the attn_*
+    // profitability gate below, and "!attention" disables the fusion.
+    std::vector<std::string> mlir_use_specific_ops = {};
+    // Widest attention head dim fuse_attention will fuse when the kv length is past
+    // attn_wide_head_kv_len; wider attention blocks run as separate gemm and softmax
+    // kernels. 0 picks the device default: 512 on wave64 devices, 256 on wave32.
+    std::size_t attn_max_head_dim = 0;
+    // Fewest total q rows (batch * heads * seq) fuse_attention will fuse; blocks with
+    // less parallelism run as separate kernels, and the pass scales the requirement
+    // down for head dims under 128. 0 picks the device default of 24 rows per CU.
+    std::size_t attn_min_q_rows = 0;
+    // Longest kv length where head dims past attn_max_head_dim still fuse. 0 picks the
+    // device default: 1024 on wave64 devices, no exception on wave32.
+    std::size_t attn_wide_head_kv_len = 0;
+    // Problem caches that new tuning solutions are saved back to.
     std::vector<std::string> problem_cache_files = {};
-    // Read-only problem caches (system-level, e.g. shipped by gpuep or an ISV),
-    // searched after the writable caches and never written back.
+    // System-level problem caches, searched after the writable ones and never written.
     std::vector<std::string> read_only_problem_cache_files = {};
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
-    // When true, skip spawning migraphx-hiprtc-driver and compile hiprtc in-process.
+    // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with pointwise ops.
+    bool enable_skinny_dot   = false;
+    bool standardize_outputs = false;
+    // Keep range-based dynamic shapes for runtime compilation instead of specializing ranges.
+    bool disable_range_based_splitting = false;
+    // When true, kernels compile in-process, not in migraphx-hiprtc-driver.
+    // Not honoured by binary_cache's compiler-version probe, which still spawns the driver.
     bool hiprtc_disable_processes = false;
-    compile_ops_tuning_overrides tuning{};
+    // Fuse the concat_past_present kv-cache append into its producer kernel.
+    bool eliminate_concat_past_present = true;
+    // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
+    // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
+    std::size_t literal_staging_peak_percent = 5;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack_join(
-            pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
-                 f(self.convolution_layout, "convolution_layout"),
-                 f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
-                 f(self.problem_cache_files, "problem_cache_files"),
-                 f(self.read_only_problem_cache_files, "read_only_problem_cache_files")),
-            migraphx::reflect(self.tuning, f));
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.binary_cache, "binary_cache"),
+                    f(self.binary_cache_verify, "binary_cache_verify"),
+                    f(self.mlir_use_specific_ops, "mlir_use_specific_ops"),
+                    f(self.attn_max_head_dim, "attn_max_head_dim"),
+                    f(self.attn_min_q_rows, "attn_min_q_rows"),
+                    f(self.attn_wide_head_kv_len, "attn_wide_head_kv_len"),
+                    f(self.hip_graph, "hip_graph"),
+                    f(self.convolution_layout, "convolution_layout"),
+                    f(self.enable_skinny_dot, "enable_skinny_dot"),
+                    f(self.standardize_outputs, "standardize_outputs"),
+                    f(self.disable_range_based_splitting, "disable_range_based_splitting"),
+                    f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
+                    f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
+                    f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
+                    f(self.problem_cache_files, "problem_cache_files"),
+                    f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
 };
 
@@ -151,6 +201,40 @@ backend_options get_backend_options(const compile_options& options)
     return from_value<backend_options>(value(opts));
 }
 
+// Wave64 devices (accvgprs double the per-lane register budget) fuse head dims up to 512
+// unconditionally: measured on gfx942 they win 30-45% at kv lengths <= 1024 and lose at most
+// ~1.5x at long kv, a bounded cost preferred over disabling a winning fusion. On wave32
+// (gfx1201) head dims past 256 lose at every kv length.
+std::size_t default_attn_max_head_dim(const context& ctx)
+{
+    return ctx.get_current_device().get_wavefront_size() == 64 ? 512 : 256;
+}
+
+// Head dims past attn_max_head_dim stay profitable while the kv loop is short: on gfx942
+// the fused win at kv lengths <= 1024 (1.3-1.5x loss past 4096) held up to the widest
+// measured d of 512, and is assumed to extend past the limit. No such window was measured
+// on wave32 (gfx1201), where wide head dims lose at every kv length.
+std::size_t default_attn_wide_head_kv_len(const context& ctx)
+{
+    return ctx.get_current_device().get_wavefront_size() == 64 ? 1024 : 0;
+}
+
+// A backend option set to 0 picks the device default
+std::size_t option_or(std::size_t option, std::size_t device_default)
+{
+    return option == 0 ? device_default : option;
+}
+
+// The fused kernel needs enough q rows to fill the device while the separate gemms also
+// parallelize over the kv length: the measured crossover sits between 16 and 27 q rows per
+// CU on both gfx942 and gfx1201. Wave32 devices report workgroup processors (two CUs each)
+// rather than CUs, so normalize the count by the wavefront size.
+std::size_t default_attn_min_q_rows(const context& ctx)
+{
+    const auto& device = ctx.get_current_device();
+    return 24 * device.get_cu_count() * 64 / device.get_wavefront_size();
+}
+
 struct pipeline_factory
 {
     migraphx::context* gctx_ptr = nullptr;
@@ -162,10 +246,38 @@ struct pipeline_factory
     // cppcheck-suppress CastIntegerToAddressAtReturn
     context* get_context() const { return any_cast<context>(gctx_ptr); }
 
+    fuse_pointwise_reduce get_fuse_pointwise_reduce() const
+    {
+        const auto& device = get_context()->get_current_device();
+        fuse_pointwise_reduce result;
+        // A workgroup per reduction output fills the device once the batch
+        // reaches the number of resident workgroups
+        auto max_batch = device.get_max_workgroups();
+        if(max_batch > 0)
+            result.lower_max_batch = max_batch;
+        // Fusing trailing operators into the small completion reduce of a
+        // split needs enough outputs to stream the full-sized result: an
+        // eighth of the resident workgroups, tuned on gfx1201
+        result.min_fused_outputs = std::max<std::size_t>(result.lower_max_batch / 8, 1);
+        // With a large batch the fused kernel re-reads each row from the
+        // last-level cache, so a split is only needed once the resident
+        // rows (sized for 2-byte types) no longer fit
+        auto cache_elements = device.get_last_level_cache_size() / (2 * result.lower_max_batch);
+        if(cache_elements > 0)
+            result.upper_split_size = cache_elements;
+        return result;
+    }
+
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
-            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+            dead_code_elimination{},
+            simplify_symbolic_dimensions{},
+            dead_code_elimination{},
+            split_sym_dim{},
+            enable_pass(not backend_opts.disable_range_based_splitting and
+                            disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
+                        split_single_dyn_dim{}),
             dead_code_elimination{},
             simplify_dyn_ops{},
             dead_code_elimination{},
@@ -225,7 +337,8 @@ struct pipeline_factory
             prefuse_ops{get_context()},
             dead_code_elimination{},
             dead_code_elimination{},
-            rewrite_reduce{},
+            rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                           .fast_math         = options.fast_math},
             rewrite_topk{},
             rewrite_low_precision{},
             enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
@@ -239,22 +352,45 @@ struct pipeline_factory
         };
     }
 
+    // Requesting "attention" (env var or mlir_use_specific_ops) fuses every attention block,
+    // bypassing the profitability gate; otherwise the gate picks fused or separate per block.
+    fuse_attention make_fuse_attention() const
+    {
+        if(mlir_attention_requested(backend_opts.mlir_use_specific_ops))
+            return {.attn_enabled           = true,
+                    .attn_max_head_dim      = std::numeric_limits<std::size_t>::max(),
+                    .attn_min_q_rows        = 1,
+                    .flash_decoding_enabled = mlir_flash_decoding_enabled()};
+        const auto& ctx = *get_context();
+        return {.attn_enabled = mlir_attention_enabled(backend_opts.mlir_use_specific_ops),
+                .attn_max_head_dim =
+                    option_or(backend_opts.attn_max_head_dim, default_attn_max_head_dim(ctx)),
+                .attn_min_q_rows =
+                    option_or(backend_opts.attn_min_q_rows, default_attn_min_q_rows(ctx)),
+                .attn_wide_head_kv_len  = option_or(backend_opts.attn_wide_head_kv_len,
+                                                    default_attn_wide_head_kv_len(ctx)),
+                .flash_decoding_enabled = mlir_flash_decoding_enabled()};
+    }
+
     std::vector<pass> fusion_pipeline() const
     {
         return {
             enable_pass(options.compile_mode != compile_modes::eager and mlir_enabled(),
-                        fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
-                                       .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+                        make_fuse_attention()),
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
-            fuse_pointwise_reduce{},
+            get_fuse_pointwise_reduce(),
             dead_code_elimination{},
 #ifndef _WIN32
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
             dead_code_elimination{},
-            enable_pass(mlir_enabled(), fuse_mlir{get_context()}),
+            enable_pass(mlir_enabled(),
+                        fuse_mlir{.ctx              = get_context(),
+                                  .use_specific_ops = backend_opts.mlir_use_specific_ops}),
+            dead_code_elimination{},
+            fuse_topk{},
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},
@@ -266,9 +402,10 @@ struct pipeline_factory
         std::size_t max_memory =
             get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
         return {
-            auto_contiguous{},
+            auto_contiguous{.standardize_outputs = backend_opts.standardize_outputs},
             dead_code_elimination{},
             lowering{get_context(), options.offload_copy},
+            eliminate_device_copy{},
             eliminate_contiguous{"gpu::contiguous"},
             dead_code_elimination{},
             lower_reshape{},
@@ -283,6 +420,8 @@ struct pipeline_factory
 #endif
             fuse_ops{get_context(), options.fast_math},
             dead_code_elimination{},
+            enable_pass(backend_opts.eliminate_concat_past_present, fuse_concat_past_present{}),
+            dead_code_elimination{},
 #if MIGRAPHX_USE_HIPBLASLT
             compile_hipblaslt{get_generic_context()},
             dead_code_elimination{},
@@ -295,14 +434,17 @@ struct pipeline_factory
             compile_ops{get_context(),
                         options.exhaustive_tune,
                         options.compile_mode == compile_modes::eager,
-                        backend_opts.tuning.resolve()},
+                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{})},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{.max_memory = max_memory},
+            write_literals{.max_memory           = max_memory,
+                           .staging_peak_percent = backend_opts.literal_staging_peak_percent},
+            enable_pass(backend_opts.hip_graph, hipgraphify{}),
+            dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
-            memory_coloring{"hip::allocate"},
+            memory_coloring{gpu_allocation_model{}},
             sync_device{},
             preallocate_param{"scratch", gpu_allocation_model{}},
             dead_code_elimination{},
@@ -316,19 +458,26 @@ struct pipeline_factory
 };
 } // namespace
 
+static migraphx::context make_context(const target& t)
+{
+    if(t.is_cross_compile())
+        return context(t.desc);
+    return context(gpu::get_device_id());
+}
+
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto& ctx         = any_cast<context>(gctx);
     auto backend_opts = get_backend_options(options);
+    auto& ctx         = any_cast<context>(gctx);
+    // The context predates the compile options, so the cache they configure is installed here.
+    ctx.set_binary_cache(std::make_shared<binary_cache>(
+        binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
-    // Problem cache files arrive as GPU backend options. The writable caches
-    // (problem_cache_files) save new tuning solutions back; the read-only caches
-    // (read_only_problem_cache_files) are system-level and never written.
     ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
                             backend_opts.problem_cache_files);
 
@@ -343,7 +492,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             p.required_pipeline(),
             {optimize_module{},
              dead_code_elimination{},
-             rewrite_reduce{},
+             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
+                            .fast_math         = options.fast_math},
              rewrite_topk{},
              dead_code_elimination{}},
             p.fusion_pipeline(),
@@ -368,12 +518,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 std::string target::name() const { return "gpu"; }
 
-migraphx::context target::get_context() const
-{
-    if(is_cross_compile())
-        return context(desc);
-    return context(gpu::get_device_id());
-}
+migraphx::context target::get_context() const { return make_context(*this); }
 
 argument target::copy_to(const argument& arg) const
 {

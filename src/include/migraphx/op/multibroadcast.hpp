@@ -70,15 +70,28 @@ struct multibroadcast
                            to_string(s0.ndim()));
         }
 
+        auto validate = [](const auto& in_dims, const auto& out_dims) {
+            if(in_dims.size() > out_dims.size())
+                MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" + to_string(in_dims.size()) +
+                               ") should be <= output size (" + to_string(out_dims.size()) + ")");
+            auto offset = out_dims.size() - in_dims.size();
+            if(not std::equal(in_dims.begin(),
+                              in_dims.end(),
+                              out_dims.begin() + offset,
+                              [](const auto& in, const auto& out) { return out == in or in == 1; }))
+                MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(in_dims) +
+                               "} cannot be broadcasted to {" + to_string_range(out_dims) + "}!");
+        };
+        const bool symbolic_target = not output_dyn_dims.empty() and
+                                     std::all_of(output_dyn_dims.begin(),
+                                                 output_dyn_dims.end(),
+                                                 [](const auto& d) { return d.is_symbolic(); });
+
         if(inputs.size() == 1)
         {
             // Symbolic 1-input mode: opt-in via a fully-symbolic output_dyn_dims attribute.
             // Input may be static (bridged via to_symbolic()) or already symbolic.
             // Range-based dynamic input is not allowed.
-            const bool symbolic_target = not output_dyn_dims.empty() and
-                                         std::all_of(output_dyn_dims.begin(),
-                                                     output_dyn_dims.end(),
-                                                     [](const auto& d) { return d.is_symbolic(); });
             if(not output_dyn_dims.empty() and not symbolic_target)
                 MIGRAPHX_THROW(
                     "MULTIBROADCAST: output_dyn_dims must be fully symbolic but given {" +
@@ -88,22 +101,6 @@ struct multibroadcast
                 MIGRAPHX_THROW("MULTIBROADCAST: Single dynamic input shape not supported.  Use two "
                                "inputs. Input shape: " +
                                to_string(s0));
-
-            // Shared validation: input dims must align with target dims, with axis-1 broadcast.
-            auto validate = [](const auto& in_dims, const auto& out_dims) {
-                if(in_dims.size() > out_dims.size())
-                    MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" +
-                                   to_string(in_dims.size()) + ") should be <= output size (" +
-                                   to_string(out_dims.size()) + ")");
-                auto offset = out_dims.size() - in_dims.size();
-                for(std::ptrdiff_t i = in_dims.size() - 1; i >= 0; --i)
-                {
-                    if(out_dims[i + offset] != in_dims[i] and in_dims[i] != 1)
-                        MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(in_dims) +
-                                       "} cannot be broadcasted to {" + to_string_range(out_dims) +
-                                       "}!");
-                }
-            };
 
             if(symbolic_target)
             {
@@ -121,6 +118,16 @@ struct multibroadcast
             if(std::any_of(
                    inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
             {
+                const bool has_range_input =
+                    std::any_of(inputs.begin(), inputs.end(), [](auto input) {
+                        return input.dynamic() and not input.symbolic();
+                    });
+                if(symbolic_target and not has_range_input)
+                {
+                    for(const auto& input : inputs)
+                        validate(input.to_symbolic().dyn_dims(), output_dyn_dims);
+                    return make_bcast_shape(s0.to_symbolic(), output_dyn_dims);
+                }
                 if(not output_dyn_dims.empty())
                 {
                     return {t, output_dyn_dims};

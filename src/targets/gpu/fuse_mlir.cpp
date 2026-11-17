@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
@@ -36,6 +37,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -75,15 +77,6 @@ bool mlir_enabled()
 #endif
 }
 
-namespace {
-struct requested
-{
-};
-struct rejected
-{
-};
-} // namespace
-
 static bool is_negated_op(const std::string& s)
 {
     if(s.empty())
@@ -91,24 +84,24 @@ static bool is_negated_op(const std::string& s)
     return contains({'!', '~'}, s[0]);
 }
 
-template <class Action>
-static std::vector<std::string> get_usage()
+static std::string remove_not_symbol(const std::string& s)
 {
-    static const auto options =
-        split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ',');
-    static const bool enabled = std::is_same<Action, requested>{};
+    if(is_negated_op(s))
+        return s.substr(1);
+    return s;
+}
+
+// Keeps the plain entries of an op list (`enabled`), or the '!'/'~'-prefixed ones with the
+// prefix stripped (not `enabled`). Entries that name no op, such as a bare '!', are dropped.
+static std::vector<std::string> get_usage(const std::vector<std::string>& options, bool enabled)
+{
     std::vector<std::string> result;
-    auto remove_not_symbol = [&](const std::string& s) {
-        if(is_negated_op(s))
-            return s.substr(1);
-        return s;
-    };
     transform_if(
         options.begin(),
         options.end(),
         std::back_inserter(result),
         [&](const std::string& option) {
-            if(option.empty())
+            if(remove_not_symbol(option).empty())
                 return false;
             if(is_negated_op(option))
                 return not enabled;
@@ -118,35 +111,71 @@ static std::vector<std::string> get_usage()
     return result;
 }
 
-template <class Action>
-static bool specific_op(std::string_view option, bool fallback = false)
+// True when `option` is listed; a "fused" entry matches any op with "fused" in its name.
+static bool has_op(const std::vector<std::string>& options, std::string_view option)
 {
-    static const auto options = get_usage<Action>();
-    if(options.empty())
-        return fallback;
     if(contains(option, "fused") and contains(options, "fused"))
         return true;
     return contains(options, option);
 }
 
-bool mlir_attention_enabled(context* ctx)
+namespace {
+// An op list in the MIGRAPHX_MLIR_USE_SPECIFIC_OPS format, split into ops forced on and forced
+// off.
+struct op_usage
+{
+    std::vector<std::string> requested_ops = {};
+    std::vector<std::string> rejected_ops  = {};
+
+    bool is_requested(std::string_view option) const { return has_op(requested_ops, option); }
+    bool is_rejected(std::string_view option) const { return has_op(rejected_ops, option); }
+};
+} // namespace
+
+static op_usage parse_op_usage(std::vector<std::string> list)
+{
+    // The env var "conv, !dot" splits into " !dot", whose '!' is no longer at index 0 and so
+    // would not negate; trimming also tolerates stray spaces in hand-written JSON entries.
+    std::transform(
+        list.begin(), list.end(), list.begin(), [](const std::string& s) { return trim(s); });
+    return {.requested_ops = get_usage(list, true), .rejected_ops = get_usage(list, false)};
+}
+
+// Ops forced on or off by MIGRAPHX_MLIR_USE_SPECIFIC_OPS. Parsed on first use.
+static const op_usage& env_op_usage()
+{
+    static const auto ops =
+        parse_op_usage(split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ','));
+    return ops;
+}
+
+// Attention fusion is enabled by default on every device; a "!attention" entry disables it.
+// The env var takes priority over the compile option, so an env request cannot be rejected
+// by the option.
+bool mlir_attention_enabled(const std::vector<std::string>& use_specific_ops)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
         return false;
-    if(specific_op<rejected>("attention"))
+    if(env_op_usage().is_rejected("attention"))
         return false;
-    if(ctx != nullptr)
-    {
-        // Enable attention by default for mi300/350
-        const auto supported_prefixes = {"gfx94", "gfx95"};
-        const auto& device_name       = ctx->get_current_device().get_gfx_name();
-        if(std::any_of(supported_prefixes.begin(),
-                       supported_prefixes.end(),
-                       [&](const char* prefix) { return starts_with(device_name, prefix); }))
-            return true;
-    }
-    return specific_op<requested>("attention");
+    if(env_op_usage().is_requested("attention"))
+        return true;
+    return not parse_op_usage(use_specific_ops).is_rejected("attention");
+#else
+    return false;
+#endif
+}
+
+// An explicit "attention" entry asks for every attention block to fuse, bypassing the
+// fuse_attention profitability gate; a rejection still disables the fusion entirely.
+bool mlir_attention_requested(const std::vector<std::string>& use_specific_ops)
+{
+#ifdef MIGRAPHX_MLIR
+    if(not mlir_attention_enabled(use_specific_ops))
+        return false;
+    return env_op_usage().is_requested("attention") or
+           parse_op_usage(use_specific_ops).is_requested("attention");
 #else
     return false;
 #endif
@@ -875,20 +904,18 @@ struct find_mlir_fused_geg_ops
     bool is_gemm_supported(instruction_ref ins, bool is_second_gemm = false) const
     {
         // convolution is only allowed in first position, and only when ceg_mode is enabled
-        if(contains({"convolution", "quant_convolution"}, ins->name()))
+        if(contains({"convolution", "quant_convolution"}, ins->name()) and
+           (is_second_gemm or not ceg_mode))
         {
-            if(is_second_gemm or not ceg_mode)
-                return false;
+            return false;
         }
 
         // on navi, wmma doesn't support fp32, so skip fp32 GEMMs
         // one gemm being f32 is sufficient to turn off this fusion
-        if(starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12"))
+        if((starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12")) and
+           ins->get_shape().type() == shape::type_t::float_type)
         {
-            if(ins->get_shape().type() == shape::type_t::float_type)
-            {
-                return false;
-            }
+            return false;
         }
         return true;
     }
@@ -948,7 +975,7 @@ struct find_mlir_fused_geg_ops
         constexpr std::int64_t n1_m_max = 1024;
         constexpr std::int64_t n1_k_max = 128;
         constexpr std::int64_t n1_g_max = 64;
-        if(n == 1 and k <= n1_k_max and m <= n1_m_max and g <= n1_g_max)
+        if(n == 1 and shape_a1.ndim() == 2 and k <= n1_k_max and m <= n1_m_max and g <= n1_g_max)
             return true;
 
         // Large batch skinny-k MLP bottom avoids huge m x n DRAM roundtrip.
@@ -1120,10 +1147,125 @@ using find_mlir_standalone_conv_backwards_op = find_mlir_standalone_op<&is_mlir_
 using find_mlir_standalone_conv_op           = find_mlir_standalone_op<&is_mlir_conv>;
 using find_mlir_standalone_dot_op            = find_mlir_standalone_op<&is_mlir_dot>;
 
+std::unordered_map<instruction_ref, instruction_ref>
+invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    std::unordered_map<instruction_ref, instruction_ref> inverse_map;
+    for(auto const& [key, value] : map_ins)
+    {
+        assert(not contains(inverse_map, value));
+        inverse_map[value] = key;
+    }
+    return inverse_map;
+}
+
+// Rebuilds an attention group as the module of a gpu::mlir_op, fusing each
+// group output's single-use pointwise consumer in as an epilogue (eg the
+// attention-sink gate sigmoid(lse - sinks) on the lse output)
+struct mlir_attention_builder
+{
+    instruction_ref group;
+    module_ref mlir_attn;
+    std::vector<instruction_ref> attn_outs                                     = {};
+    std::unordered_map<instruction_ref, instruction_ref> map_main_to_mlir_attn = {};
+    std::unordered_map<instruction_ref, instruction_ref> inss_to_replace       = {};
+
+    // The map copy keeps the group module params out of map_main_to_mlir_attn
+    // so it stays invertible
+    void fuse_group_mod()
+    {
+        std::unordered_map<instruction_ref, instruction_ref> map_group_mod_to_mlir_attn(
+            map_main_to_mlir_attn);
+        attn_outs = mlir_attn->fuse(
+            *group->module_inputs().front(), group->inputs(), &map_group_mod_to_mlir_attn);
+    }
+
+    // A pointwise that also depends on another output of the group (eg the mul
+    // applying the sink gate to the attention output) would make the mlir_op
+    // an input of itself
+    bool creates_cycle(instruction_ref pw, instruction_ref attn_output_ins) const
+    {
+        return std::any_of(pw->inputs().begin(), pw->inputs().end(), [&](instruction_ref input) {
+            return input != attn_output_ins and reaches(group, input);
+        });
+    }
+
+    // Only fuse attention outputs that are used once by pointwise ops
+    void fuse_pointwise_outputs(module& m)
+    {
+        if(group->outputs().size() != 1 and attn_outs.size() <= 1)
+            return;
+        std::size_t out_idx  = 0;
+        auto attn_output_ins = group;
+        for(auto out : group->outputs())
+        {
+            auto op = out->get_operator();
+            if(op.name() == "get_tuple_elem")
+            {
+                inss_to_replace[out]  = out;
+                out_idx               = op.to_value()["index"].to<std::size_t>();
+                auto tuple_elem_users = out->outputs();
+                if(tuple_elem_users.size() > 1)
+                    continue;
+
+                attn_output_ins = out;
+                out             = tuple_elem_users.front();
+            }
+
+            auto match_pw = match::match_instruction(m, out, mlir_pointwise());
+            if(match_pw.result != out)
+                continue;
+            if(creates_cycle(out, attn_output_ins))
+                continue;
+
+            map_main_to_mlir_attn[attn_output_ins] = attn_outs[out_idx];
+            inss_to_replace[attn_output_ins]       = out;
+
+            auto lit_map = create_param_map_with_literals(
+                mlir_attn, out->module_inputs().front(), out->get_shape());
+            mlir_attn->add_params(out->inputs(), &map_main_to_mlir_attn);
+            map_main_to_mlir_attn.insert(lit_map.begin(), lit_map.end());
+            std::unordered_map<instruction_ref, instruction_ref> map_pm_to_mlir_attn(
+                map_main_to_mlir_attn);
+            auto fused_pw_outs =
+                mlir_attn->fuse(*out->module_inputs().front(), out->inputs(), &map_pm_to_mlir_attn);
+            assert(fused_pw_outs.size() == 1);
+
+            map_main_to_mlir_attn[out] = fused_pw_outs.front();
+            attn_outs[out_idx]         = fused_pw_outs.front();
+        }
+    }
+
+    // Insert the mlir_op and replace the group outputs and fused users with
+    // its tuple outputs
+    void replace_group(module_pass_manager& mpm, const operation& op) const
+    {
+        mlir_attn->add_return(attn_outs);
+
+        auto map_mlir_attn_to_main = invert_map_ins(map_main_to_mlir_attn);
+        auto new_inputs            = mlir_attn->get_inputs(map_mlir_attn_to_main);
+
+        auto mlir_ins = mpm.get_module().insert_instruction(
+            group, op, mlir_contiguous(mpm, new_inputs), {mlir_attn});
+
+        if(inss_to_replace.empty())
+        {
+            mpm.get_module().replace_instruction(group, mlir_ins);
+            return;
+        }
+        for(auto const& [attn_out, fused_user] : inss_to_replace)
+        {
+            auto replace_ins = mlir_ins;
+            auto output_op   = attn_out->get_operator();
+            if(output_op.name() == "get_tuple_elem")
+                replace_ins = mpm.get_module().insert_instruction(group, output_op, {mlir_ins});
+            mpm.get_module().replace_instruction(fused_user, replace_ins);
+        }
+    }
+};
+
 struct find_mlir_kv_cache_attention_op
 {
-    mlir_mode dot_mode = mlir_mode::none;
-
     auto matcher() const
     {
         return match::name("group")(match::has_op_value("tag", "kv_cache_attention"));
@@ -1131,10 +1273,16 @@ struct find_mlir_kv_cache_attention_op
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto group   = r.result;
-        auto* m_attn = group->module_inputs()[0];
-        mpm.get_module().replace_instruction(
-            group, mlir_op{group->get_operator()}, mlir_contiguous(mpm, group->inputs()), {m_attn});
+        auto group           = r.result;
+        auto* group_mod      = group->module_inputs().front();
+        module_ref mlir_attn = mpm.create_module("mlir_" + group_mod->name());
+        mlir_attn->set_bypass();
+
+        mlir_attention_builder builder{group, mlir_attn};
+        mlir_attn->add_params(group->inputs(), &builder.map_main_to_mlir_attn);
+        builder.fuse_group_mod();
+        builder.fuse_pointwise_outputs(mpm.get_module());
+        builder.replace_group(mpm, mlir_op{group->get_operator()});
     }
 };
 
@@ -1145,101 +1293,19 @@ struct find_mlir_attention_op
         return match::name("group")(match::has_op_value("tag", "attention")).bind("group");
     }
 
-    std::unordered_map<instruction_ref, instruction_ref>
-    invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
-    {
-        std::unordered_map<instruction_ref, instruction_ref> inverse_map;
-        for(auto const& [key, value] : map_ins)
-        {
-            assert(not contains(inverse_map, value));
-            inverse_map[value] = key;
-        }
-        return inverse_map;
-    }
-
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto group = r.instructions["group"];
-
-        auto* group_mod = group->module_inputs().front();
-
-        std::string module_name = "mlir_" + group_mod->name();
-        module_ref mlir_attn    = mpm.create_module(module_name);
+        auto group           = r.instructions["group"];
+        auto* group_mod      = group->module_inputs().front();
+        module_ref mlir_attn = mpm.create_module("mlir_" + group_mod->name());
         mlir_attn->set_bypass();
 
+        mlir_attention_builder builder{group, mlir_attn};
         // Fuse any input reshapes
-        std::unordered_map<instruction_ref, instruction_ref> map_main_to_mlir_attn;
-        fuse_input_ops(mlir_attn, group->inputs(), &map_main_to_mlir_attn);
-
-        std::unordered_map<instruction_ref, instruction_ref> map_group_mod_to_mlir_attn(
-            map_main_to_mlir_attn);
-        auto attn_outs = mlir_attn->fuse(*group_mod, group->inputs(), &map_group_mod_to_mlir_attn);
-
-        std::unordered_map<instruction_ref, instruction_ref> inss_to_replace;
-        // Only fuse attention outputs that are used once by pointwise ops
-        if(group->outputs().size() == 1 or attn_outs.size() > 1)
-        {
-            std::size_t out_idx  = 0;
-            auto attn_output_ins = group;
-            for(auto out : group->outputs())
-            {
-                auto op = out->get_operator();
-                if(op.name() == "get_tuple_elem")
-                {
-                    inss_to_replace[out]  = out;
-                    out_idx               = op.to_value()["index"].to<std::size_t>();
-                    auto tuple_elem_users = out->outputs();
-                    if(tuple_elem_users.size() > 1)
-                        continue;
-
-                    attn_output_ins = out;
-                    out             = tuple_elem_users.front();
-                }
-
-                auto match_pw = match::match_instruction(mpm.get_module(), out, mlir_pointwise());
-                if(match_pw.result != out)
-                    continue;
-
-                map_main_to_mlir_attn[attn_output_ins] = attn_outs[out_idx];
-                inss_to_replace[attn_output_ins]       = out;
-
-                auto lit_map = create_param_map_with_literals(
-                    mlir_attn, out->module_inputs().front(), out->get_shape());
-                mlir_attn->add_params(out->inputs(), &map_main_to_mlir_attn);
-                map_main_to_mlir_attn.insert(lit_map.begin(), lit_map.end());
-                std::unordered_map<instruction_ref, instruction_ref> map_pm_to_mlir_attn(
-                    map_main_to_mlir_attn);
-                auto fused_pw_outs = mlir_attn->fuse(
-                    *out->module_inputs().front(), out->inputs(), &map_pm_to_mlir_attn);
-                assert(fused_pw_outs.size() == 1);
-
-                map_main_to_mlir_attn[out] = fused_pw_outs.front();
-                attn_outs[out_idx]         = fused_pw_outs.front();
-            }
-        }
-        mlir_attn->add_return(attn_outs);
-
-        auto map_mlir_attn_to_main = invert_map_ins(map_main_to_mlir_attn);
-        auto new_inputs            = mlir_attn->get_inputs(map_mlir_attn_to_main);
-
-        auto mlir_ins = mpm.get_module().insert_instruction(
-            group, mlir_op{make_op("dot")}, mlir_contiguous(mpm, new_inputs), {mlir_attn});
-
-        if(inss_to_replace.empty())
-        {
-            mpm.get_module().replace_instruction(group, mlir_ins);
-        }
-        else
-        {
-            for(auto const& [attn_out, fused_user] : inss_to_replace)
-            {
-                auto replace_ins = mlir_ins;
-                auto output_op   = attn_out->get_operator();
-                if(output_op.name() == "get_tuple_elem")
-                    replace_ins = mpm.get_module().insert_instruction(group, output_op, {mlir_ins});
-                mpm.get_module().replace_instruction(fused_user, replace_ins);
-            }
-        }
+        fuse_input_ops(mlir_attn, group->inputs(), &builder.map_main_to_mlir_attn);
+        builder.fuse_group_mod();
+        builder.fuse_pointwise_outputs(mpm.get_module());
+        builder.replace_group(mpm, mlir_op{make_op("dot")});
     }
 };
 
@@ -1286,12 +1352,8 @@ struct find_pointwise_mlir
                 if(not match::instruction_matches(mpm.get_module(), input, supported_pointwise()))
                     return false;
                 auto* pm = input->module_inputs().front();
-                if(input->inputs().size() > 1 and not is_simple_op(pm, {"dequantizelinear"}))
-                {
-                    if(not enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
-                        return false;
-                }
-                return true;
+                return input->inputs().size() <= 1 or is_simple_op(pm, {"dequantizelinear"}) or
+                       enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{});
             });
         if(pws.empty())
             return;
@@ -1434,6 +1496,23 @@ struct find_mlir_output_reshape_ops
         return match::name("gpu::mlir_op")(atleast_one_reshape);
     }
 
+    // Only fuse the trailing view ops when the simplified transformation
+    // collapses dimensions or requires a transpose; other views can be
+    // handled outside the kernel.
+    static bool requires_output_fusion(instruction_ref mlir_op_ins,
+                                       const std::vector<instruction_ref>& view_instructions)
+    {
+        std::vector<operation> ops;
+        std::transform(view_instructions.begin(),
+                       view_instructions.end(),
+                       std::back_inserter(ops),
+                       [](instruction_ref ins) { return ins->get_operator(); });
+        auto td = shape_transform_descriptor::create(mlir_op_ins->get_shape().lens(), ops);
+        if(td.empty())
+            return true;
+        return td.is_collapsing() or td.is_transposed();
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto mlir_op_ins     = r.result;
@@ -1451,6 +1530,8 @@ struct find_mlir_output_reshape_ops
         }
 
         assert(not reshape_instructions.empty());
+        if(not requires_output_fusion(mlir_op_ins, reshape_instructions))
+            return;
         std::string module_name = mlir_op_module->name();
         std::transform(reshape_instructions.begin(),
                        reshape_instructions.end(),
@@ -1593,11 +1674,12 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
+    const auto ops          = parse_op_usage(use_specific_ops);
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
-        if(specific_op<rejected>(option))
+        if(env_op_usage().is_rejected(option))
             return mlir_mode::none;
-        if(specific_op<requested>(option))
+        if(env_op_usage().is_requested(option))
             return mlir_mode::all;
         if(is_navi)
             return mlir_mode::all;
@@ -1609,13 +1691,19 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         if(contains(option, "dot") or contains(option, "fused_dot"))
             return mlir_mode::all;
 #endif
+        // compile_options is checked last: the env var and the navi/build-config forcing above
+        // win, but this still overrides the m1/m2 default.
+        if(ops.is_rejected(option))
+            return mlir_mode::none;
+        if(ops.is_requested(option))
+            return mlir_mode::all;
         return std::max(m1, m2);
     };
 
     match::find_matches(mpm, find_channel_slice_convolution{});
     mpm.run_pass(dead_code_elimination{});
 
-    match::find_matches(mpm, find_mlir_kv_cache_attention_op{mlir_mode::all});
+    match::find_matches(mpm, find_mlir_kv_cache_attention_op{});
     mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(mpm, find_mlir_attention_op{});

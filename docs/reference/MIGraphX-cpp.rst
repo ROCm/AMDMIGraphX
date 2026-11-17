@@ -50,6 +50,28 @@ program
    :members:
    :undoc-members:
 
+verify
+------
+
+Use ``migraphx::program::verify`` to compare a program with the ``ref`` target. Verification
+supports output, instruction, reduction, bisection, and layerwise modes.
+
+.. doxygenenum:: migraphx_program_verify_mode_t
+
+.. doxygenenum:: migraphx_program_verify_precision_t
+
+.. doxygenstruct:: migraphx::program_verify_options
+   :members:
+   :undoc-members:
+
+.. doxygenstruct:: migraphx::program_verify_layer_result
+   :members:
+   :undoc-members:
+
+.. doxygenstruct:: migraphx::program_verify_result
+   :members:
+   :undoc-members:
+
 quantize
 --------
 

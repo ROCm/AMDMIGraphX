@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
+#include <limits>
 
 TEST_CASE(fixed_pad_test)
 {
@@ -64,4 +65,42 @@ TEST_CASE(fixed_pad_same_shape_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-3, -2, -1, 0, 1, 2};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(fixed_pad_value_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("fixed_pad", {{"value", -2.0f}}), x);
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> data = {-3, -2, -1, 0, 1, 2};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3}};
+    migraphx::argument arg(s2, data.data());
+    auto result = p.eval({{"x", arg}}).back();
+    std::vector<float> results_vector(12);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-3, -2, -1, 0, 1, 2, -2, -2, -2, -2, -2, -2};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(fixed_pad_lowest_half_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::half_type, {{1, 1}, {1, 4}}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_instruction(
+        migraphx::make_op("fixed_pad", {{"value", std::numeric_limits<float>::lowest()}}), x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<migraphx::half> data = {migraphx::half{1.0f}, migraphx::half{2.0f}};
+    migraphx::shape input_shape{migraphx::shape::half_type, {1, 2}};
+    auto result = p.eval({{"x", migraphx::argument{input_shape, data.data()}}}).back();
+    std::vector<migraphx::half> result_data;
+    result.visit([&](auto output) { result_data.assign(output.begin(), output.end()); });
+    auto lowest                      = std::numeric_limits<migraphx::half>::lowest();
+    std::vector<migraphx::half> gold = {migraphx::half{1.0f}, migraphx::half{2.0f}, lowest, lowest};
+    EXPECT(result_data == gold);
 }

@@ -24,6 +24,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/precompile_op.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
@@ -467,17 +468,6 @@ void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
 }
 #endif
 
-template <class... Strings>
-inline auto precompile_name(Strings... names) // NOLINT
-{
-    return match::make_basic_pred_matcher([=](instruction_ref ins) {
-        if(ins->name() != "gpu::precompile_op")
-            return false;
-        auto op = from_value<operation>(ins->get_operator().to_value().at("op"));
-        return (contains({names...}, op.name()));
-    });
-}
-
 #if MIGRAPHX_USE_MIOPEN
 struct find_conv_bias
 {
@@ -666,7 +656,7 @@ struct find_rocblas_gemm_pointwise : gemm_pointwise
             {
                 auto c = make_op("contiguous");
                 auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
-                c_ins  = m.add_literal(l.get_shape(), l.data());
+                c_ins  = m.add_literal(literal::from_raw_buffer(l.get_shape(), l.data()));
             }
             inputs.push_back(c_ins);
         }
@@ -726,7 +716,7 @@ struct find_hipblas_gemm_pointwise : gemm_pointwise
             {
                 auto c = make_op("contiguous");
                 auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
-                c_ins  = m.add_literal(l.get_shape(), l.data());
+                c_ins  = m.add_literal(literal::from_raw_buffer(l.get_shape(), l.data()));
             }
             inputs.push_back(c_ins);
         }
@@ -968,39 +958,6 @@ struct find_precompile_copy
     }
 };
 
-struct find_layernorm_pointwise
-{
-    auto matcher() const
-    {
-        return precompile_name("pointwise")(
-            match::not_tuple(),
-            match::arg(0)(
-                precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto pw_ins    = r.result;
-        auto layernorm = r.instructions["layernorm"];
-        if(not layernorm->module_inputs().empty())
-            return;
-        auto* pm       = pw_ins->module_inputs().front();
-        auto pw_inputs = pw_ins->inputs();
-        auto ln_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), layernorm);
-        assert(ln_pos != pw_inputs.end());
-        pw_inputs.erase(ln_pos);
-        auto inputs = layernorm->inputs();
-        inputs.pop_back();
-        inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
-
-        // Ensure the output shape retains the memory layout
-        auto layernorm_op_val            = layernorm->get_operator().to_value();
-        layernorm_op_val["output_shape"] = to_value(pw_ins->get_shape());
-
-        m.replace_instruction(pw_ins, make_op(layernorm->name(), layernorm_op_val), inputs, {pm});
-    }
-};
-
 struct find_channelwise_conv_pointwise
 {
     auto matcher() const
@@ -1124,7 +1081,6 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m, find_hipblas_gemm_pointwise{});
 #endif
     match::find_matches(m,
-                        find_layernorm_pointwise{},
                         find_channelwise_conv_pointwise{},
                         find_winograd_conv_pointwise{},
                         find_concat_pointwise{},

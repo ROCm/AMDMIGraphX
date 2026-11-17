@@ -55,7 +55,7 @@ TEST_CASE(unpack_fp4)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::fp4x2_type, {2, 1}};
     std::vector<uint8_t> packed_data = {0x5C, 0x06};
-    auto lit                         = migraphx::literal{s, packed_data.data()};
+    auto lit                         = migraphx::literal::from_raw_buffer(s, packed_data.data());
     auto l0                          = mm->add_literal(lit);
     mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), l0);
     p.compile(migraphx::make_target("ref"));

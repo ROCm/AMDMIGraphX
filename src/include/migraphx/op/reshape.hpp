@@ -141,9 +141,7 @@ struct reshape
     {
         // Lift static input to symbolic literals so the same dd arithmetic resolves both.
         auto sym_in          = s0.to_symbolic();
-        auto output_dyn_dims = resolve_reshape_dims(sym_in, dims);
-        const bool has_inferred_dim =
-            std::find(dims.begin(), dims.end(), dim_like{-1}) != dims.end();
+        auto output_dyn_dims          = resolve_reshape_dims(sym_in, dims);
         const bool dims_have_symbolic = std::any_of(dims.begin(), dims.end(), is_symbolic);
 
         // Preserve the input layout when reshape_dims can derive it; else standard.
@@ -155,19 +153,7 @@ struct reshape
         auto result = reshape_dims(sym_in, target, {.lazy = false})
                           .value_or(shape{s0.type(), output_dyn_dims});
 
-        // An inferred -1 over a symbolic input is a floor division, so its element
-        // count is only resolvable at runtime; otherwise throw on a provably
-        // mismatched count (strict_less either way), letting indeterminate ones pass.
-        if(not(s0.symbolic() and has_inferred_dim))
-        {
-            auto out_elems = result.sym_elements();
-            auto in_elems  = s0.sym_elements();
-            if(sym::strict_less(out_elems, in_elems).value_or(false) or
-               sym::strict_less(in_elems, out_elems).value_or(false))
-                MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
-                               to_string(out_elems) + " elements whereas the input has " +
-                               to_string(in_elems));
-        }
+        validate_reshape_element_count(name(), s0, result, dims);
 
         // Only a static input with integer dims is fully literal; evaluate it back to
         // the concrete layout. Anything symbolic stays symbolic.
@@ -204,6 +190,8 @@ struct reshape
             return {};
 
         sym_argument result{output_shape};
+        if(output_shape.elements() == 0)
+            return result;
         const auto input = args[0].get();
         auto output      = result.get();
         std::copy(input.begin(), input.end(), output.begin());
@@ -215,6 +203,8 @@ struct reshape
         if(args.size() == 1)
         {
             argument result{dyn_out.computed_shape};
+            if(dyn_out.computed_shape.elements() == 0)
+                return result;
 
             visit_all(result, args[0])([&](auto output, auto input) {
                 std::copy(input.begin(), input.end(), output.begin());
@@ -230,6 +220,8 @@ struct reshape
                                std::to_string(args[0].get_shape().elements()) +
                                " Output buffer: " + std::to_string(args[1].get_shape().elements()));
             }
+            if(args[1].get_shape().elements() == 0)
+                return args[1];
             visit_all(args[1], args[0])([&](auto output, auto input) {
                 std::copy(input.begin(), input.end(), output.begin());
             });

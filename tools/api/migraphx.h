@@ -85,6 +85,24 @@ typedef enum
 
 } migraphx_compile_mode;
 
+typedef enum
+{
+    migraphx_program_verify_mode_outputs,
+    migraphx_program_verify_mode_instructions,
+    migraphx_program_verify_mode_reduce,
+    migraphx_program_verify_mode_bisect,
+    migraphx_program_verify_mode_layerwise,
+
+} migraphx_program_verify_mode_t;
+
+typedef enum
+{
+    migraphx_program_verify_precision_fp32,
+    migraphx_program_verify_precision_fp16,
+    migraphx_program_verify_precision_bf16,
+
+} migraphx_program_verify_precision_t;
+
 <%
     generate_c_header()
 %>

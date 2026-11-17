@@ -71,18 +71,18 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         else
             return 1;
     }
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    hip_src make_src(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
         options.inputs         = flatten_tuple_shapes(inputs);
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
         options.emplace_param("-Wno-float-equal");
-        auto axis              = find_fast_axis(options.virtual_inputs);
-        auto vec               = vectorize::elements(ctx, axis, options.virtual_inputs);
-        options.kernel_name    = v.get("kernel", "kernel");
-        auto noutputs = options.inputs.size() - inputs.size() + 1;
-        auto t                 = tile::elements(options.virtual_inputs, noutputs);
+        auto axis           = find_fast_axis(options.virtual_inputs);
+        auto vec            = vectorize::elements(ctx, axis, options.virtual_inputs);
+        options.kernel_name = v.get("kernel", "kernel");
+        auto noutputs       = options.inputs.size() - inputs.size() + 1;
+        auto t              = tile::elements(options.virtual_inputs, noutputs);
         // auto t = tile{};
         if(t.ntiles == 0)
             options.set_launch_params(
@@ -100,24 +100,34 @@ struct pointwise_compiler : compiler<pointwise_compiler>
                                 {"tiled", t.ntiles > 0 ? "true" : "false"},
                                 {"noutputs", std::to_string(noutputs)},
                                 {"preamble", v.get("preamble", std::string{})}});
-        return compile_hip_code_object(ctx, src, options);
+        return {src, options};
+    }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        return compile_hip_code_object(ctx, make_src(ctx, inputs, v));
+    }
+
+    static value make_value(instruction_ref ins, const operation& op)
+    {
+        if(contains({"layout", "contiguous", "hip::copy"}, op.name()))
+        {
+            return {{"lambda", "[](auto x) { return make_tuple(x); }"},
+                    {"kernel", to_c_id(op.name()) + "_kernel"}};
+        }
+        assert(not ins->module_inputs().empty());
+        return pointwise_options(ins->module_inputs().front());
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        if(contains({"layout", "contiguous", "hip::copy"}, op.name()))
-        {
-            return compile_op(ctx,
-                              to_shapes(ins->inputs()),
-                              {{"lambda", "[](auto x) { return make_tuple(x); }"},
-                               {"kernel", to_c_id(op.name()) + "_kernel"}});
-        }
-        else
-        {
-            assert(not ins->module_inputs().empty());
-            const_module_ref pm = ins->module_inputs().front();
-            return compile_pointwise(ctx, to_shapes(ins->inputs()), pm);
-        }
+        return compile_op(ctx, to_shapes(ins->inputs()), make_value(ins, op));
+    }
+
+    std::string
+    compile_key(context& ctx, instruction_ref ins, const operation& op, const value&) const
+    {
+        return hip_compile_key(ctx, make_src(ctx, to_shapes(ins->inputs()), make_value(ins, op)));
     }
 };
 } // namespace gpu

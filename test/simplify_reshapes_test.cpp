@@ -5810,6 +5810,25 @@ TEST_CASE(slice_squeeze_argmin)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(slice_multibroadcast_higher_rank)
+{
+    // The last element of a shape vector broadcast to {1, 12, 1, 1}: rebasing the broadcast onto
+    // the slice input of length 4 loses it, so the slice stays before the broadcast
+    migraphx::module m1;
+    {
+        auto dims = m1.add_parameter("dims", {migraphx::shape::int32_type, {4}});
+        auto y    = m1.add_parameter("y", {migraphx::shape::int32_type, {1, 12, 1, 1}});
+        auto sl   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), dims);
+        auto bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 1}}}), sl);
+        m1.add_return({m1.add_instruction(migraphx::make_op("add"), bcast, y)});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(slice_squeeze_axis_mismatch)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 2, 4}};

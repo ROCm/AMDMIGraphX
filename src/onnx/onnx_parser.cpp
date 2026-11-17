@@ -446,6 +446,19 @@ parse_inputs(onnx_parser& parser,
             {
                 s = parser.parse_param_shape(input.type(), name);
             }
+            if(contains(parser.map_input_values, name))
+            {
+                const auto& values = parser.map_input_values.at(name);
+                if(s.dynamic())
+                    MIGRAPHX_THROW("PARSE_INPUTS: input \"" + name +
+                                   "\" with given values must have a static shape");
+                if(values.size() != s.elements())
+                    MIGRAPHX_THROW("PARSE_INPUTS: input \"" + name + "\" has " +
+                                   std::to_string(s.elements()) + " elements, but " +
+                                   std::to_string(values.size()) + " values are given");
+                mod_insts[name] = mod->add_literal(literal{s, values});
+                continue;
+            }
             mod_insts[name] = mod->add_parameter(name, s);
         }
     }

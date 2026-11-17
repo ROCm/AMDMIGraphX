@@ -37,8 +37,7 @@ std::vector<instruction_ref> insert_select_module(module_pass_manager& mpm,
                                                   module& m,
                                                   const std::vector<instruction_ref>& inputs,
                                                   std::vector<module> clones,
-                                                  const std::vector<shape>& output_shapes,
-                                                  const std::vector<std::size_t>& empty_guard_inputs)
+                                                  const std::vector<shape>& output_shapes)
 {
     std::vector<module_ref> submodules;
     submodules.reserve(clones.size());
@@ -49,16 +48,17 @@ std::vector<instruction_ref> insert_select_module(module_pass_manager& mpm,
         });
 
     value attributes{{"output_dyn_shapes", to_value(shape{output_shapes})}};
-    if(not empty_guard_inputs.empty())
-        attributes["empty_guard_inputs"] = empty_guard_inputs;
     auto selection = m.add_instruction(make_op("select_module", attributes), inputs, submodules);
     std::vector<instruction_ref> outputs;
     outputs.reserve(output_shapes.size());
-    auto output_indices = range(output_shapes.size());
-    std::transform(
-        output_indices.begin(), output_indices.end(), std::back_inserter(outputs), [&](auto index) {
-            return m.add_instruction(make_op("get_tuple_elem", {{"index", index}}), selection);
-        });
+    auto logical_indices = range(output_shapes.size());
+    std::transform(logical_indices.begin(),
+                   logical_indices.end(),
+                   std::back_inserter(outputs),
+                   [&](auto index) {
+                       return m.add_instruction(make_op("get_tuple_elem", {{"index", index}}),
+                                                selection);
+                   });
     return outputs;
 }
 

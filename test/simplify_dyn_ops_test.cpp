@@ -1031,6 +1031,10 @@ TEST_CASE(select_module_preserves_symbolic_output_shape)
 // Test case with static output shape in the submodules (look at `sm_shape`)
 TEST_CASE(select_module_update0)
 {
+    auto n = migraphx::sym::var("n", {1, 4});
+    migraphx::shape logical_output{migraphx::shape::float_type,
+                                   {migraphx::shape::dynamic_dimension{n},
+                                    migraphx::shape::dynamic_dimension{migraphx::sym::lit(4)}}};
     migraphx::program p0;
     {
         auto* mm0 = p0.get_main_module();
@@ -1054,15 +1058,13 @@ TEST_CASE(select_module_update0)
         auto* dim3 = create_submodule(3, "dim_3");
         auto* dim4 = create_submodule(4, "dim_4");
 
-        migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+        migraphx::shape s                       = logical_output;
         auto input0                             = mm0->add_parameter("data", s);
-        std::vector<migraphx::shape> sub_shapes = {};
-        auto max_int                            = std::numeric_limits<std::size_t>::max();
-        sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{0, max_int}, {4, 4}}});
-        migraphx::shape out_attr = migraphx::shape{sub_shapes};
-        auto sm_ins              = mm0->add_instruction(
+        auto sm_ins                             = mm0->add_instruction(
             migraphx::make_op("select_module",
-                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes",
+                                migraphx::to_value(migraphx::shape{
+                                    std::vector<migraphx::shape>{logical_output}})}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret =
@@ -1071,8 +1073,7 @@ TEST_CASE(select_module_update0)
     }
     migraphx::run_passes(p0, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
 
-    // difference is `output_dyn_shapes` attribute in `select_module`
-    // multibroadcast also simplified
+    // The select shape is authoritative; only the clone multibroadcasts are simplified.
     migraphx::program p1;
     {
         auto* mm1 = p1.get_main_module();
@@ -1096,14 +1097,13 @@ TEST_CASE(select_module_update0)
         auto* dim3 = create_submodule(3, "dim_3");
         auto* dim4 = create_submodule(4, "dim_4");
 
-        migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+        migraphx::shape s                       = logical_output;
         auto input0                             = mm1->add_parameter("data", s);
-        std::vector<migraphx::shape> sub_shapes = {};
-        sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
-        migraphx::shape out_attr = migraphx::shape{sub_shapes};
-        auto sm_ins              = mm1->add_instruction(
+        auto sm_ins                             = mm1->add_instruction(
             migraphx::make_op("select_module",
-                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                              {{"output_dyn_shapes",
+                                migraphx::to_value(migraphx::shape{
+                                    std::vector<migraphx::shape>{logical_output}})}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret =

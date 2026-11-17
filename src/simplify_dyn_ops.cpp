@@ -124,9 +124,9 @@ struct find_static_dyn_concat : match::supports_dynamic_shapes
             total += value;
         }
 
-        auto concat = data.front();
-        if(data.size() > 1)
-            concat = m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), data);
+        auto concat = data.size() == 1
+                          ? data.front()
+                          : m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), data);
         auto total_literal = m.insert_literal(ins, literal{{shape::int64_type, {1}}, {total}});
 
         std::vector<instruction_ref> buffers;
@@ -690,11 +690,10 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
             }
         }
         auto tuple_shape = shape{dyn_shapes};
+        auto attributes                 = sm_ins->get_operator().to_value();
+        attributes["output_dyn_shapes"] = to_value(tuple_shape);
         m.replace_instruction(
-            sm_ins,
-            make_op("select_module", {{"output_dyn_shapes", to_value(tuple_shape)}}),
-            sm_ins->inputs(),
-            sm_module_inputs);
+            sm_ins, make_op("select_module", attributes), sm_ins->inputs(), sm_module_inputs);
     }
 
     std::vector<std::size_t> get_shapes_ndim(const std::vector<shape>& shapes) const

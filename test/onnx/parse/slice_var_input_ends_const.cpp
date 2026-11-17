@@ -22,8 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/serialize.hpp>
-#include <migraphx/sym.hpp>
 #include <onnx_test.hpp>
 
 TEST_CASE(slice_var_input_ends_const)
@@ -32,18 +30,9 @@ TEST_CASE(slice_var_input_ends_const)
     auto* mm    = p.get_main_module();
     auto data   = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 2}});
     auto starts = mm->add_parameter("starts", migraphx::shape{migraphx::shape::int64_type, {2}});
-    auto ends   = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {2}}, {3, 2}});
-    auto op     = migraphx::make_op(
-        "dyn_slice",
-        {{"axes", {0, 1}},
-             {"starts",
-              migraphx::value::array{
-              migraphx::to_value(migraphx::sym::var("main_Slice_3_start_0", {0, 3})),
-              migraphx::to_value(migraphx::sym::var("main_Slice_3_start_1", {0, 2}))}},
-             {"ends",
-              migraphx::value::array{migraphx::to_value(migraphx::sym::lit(3)),
-                                 migraphx::to_value(migraphx::sym::lit(2))}}});
-    mm->add_instruction(op, data, starts, ends);
+    mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {2}}, {3, 2}});
+    auto op = migraphx::make_op("slice", {{"axes", {0, 1}}, {"ends", {3, 2}}});
+    mm->add_instruction(op, data, starts);
     auto prog = optimize_onnx("slice_var_input_ends_const.onnx");
 
     EXPECT(p == prog);

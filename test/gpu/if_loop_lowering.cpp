@@ -133,8 +133,7 @@ TEST_CASE(if_lowering_multi_element_cond)
         auto* else_mod = p2.create_module("If_0_else");
         else_mod->add_return({else_mod->add_literal(migraphx::literal{s, {3.0f, 4.0f}})});
         auto cpu_cond = mm->add_instruction(migraphx::make_op("hip::copy_from_gpu"), cond);
-        auto r        = mm->add_instruction(
-            migraphx::make_op("if"), {cpu_cond}, {then_mod, else_mod});
+        auto r = mm->add_instruction(migraphx::make_op("if"), {cpu_cond}, {then_mod, else_mod});
         mm->add_return({r});
     }
     EXPECT(p1 == p2);

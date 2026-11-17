@@ -960,12 +960,9 @@ TEST_CASE(common_dims_transpose_reshape)
                make_op("reshape", {{"dims", {2, 1, 64, 64}}})});
 }
 
-// A split whose two sub-axes are then transposed relative to each other: axis 1 (12)
-// splits into 4,3 but the transpose makes common dims visit them as 3,4. The inverse must
-// merge them back in source order (4 then 3), so its permutation is {2,1,0,3} -- the same
-// one the forward uses, since it is self-inverse on these lengths. Merging in visit order
-// instead yields {2,0,1,3}, which still produces a {1,12,5} of the right size but with
-// the two sub-axes interleaved the wrong way round.
+// The transpose makes common dims visit axis 1's sub-axes (4 then 3) as (3 then 4); the
+// inverse must still merge them in source order. Merging in visit order instead yields
+// transpose{2,0,1,3}, a {1,12,5} with the two sub-axes interleaved the wrong way round.
 TEST_CASE(common_dims_reshape_transpose_split_merge_order)
 {
     auto desc = make_simple_descriptor({1, 12, 5},

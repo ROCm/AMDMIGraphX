@@ -426,6 +426,83 @@ TEST_CASE(dot_batched_m2_rewrite)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// One b matrix broadcast over the batch is shared by every batch row, so
+// [B=256, M=1, K] @ [K, N] is a 256-row gemm and the dot is left alone.
+TEST_CASE(dot_batched_shared_b_no_rewrite)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {256, 1, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {128, 8}};
+    migraphx::module m1;
+    {
+        auto a    = m1.add_parameter("a", a_shape);
+        auto b    = m1.add_parameter("b", b_shape);
+        auto b_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {256, 128, 8}}}), b);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b_bc);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.enable_skinny_dot = true});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The shared b matrix counts the batch rows on every axis it is broadcast
+// along: [2, 2, M=1, K] @ [K, N] is 4 rows.
+TEST_CASE(dot_batched_shared_b_multi_axis_no_rewrite)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {2, 2, 1, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {128, 8}};
+    migraphx::module m1;
+    {
+        auto a    = m1.add_parameter("a", a_shape);
+        auto b    = m1.add_parameter("b", b_shape);
+        auto b_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 128, 8}}}), b);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b_bc);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.enable_skinny_dot = true});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A b matrix shared by two batch rows is still within the skinny threshold,
+// so [B=2, M=1, K] @ [K, N] gets rewritten.
+TEST_CASE(dot_batched_shared_b_m2_rewrite)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {2, 1, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {128, 8}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("a", a_shape);
+        auto b = m1.add_parameter("b", b_shape);
+        auto b_bc =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 128, 8}}}), b);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b_bc);
+        m1.add_return({dot});
+    }
+    run_pass(m1, {.enable_skinny_dot = true});
+
+    migraphx::module m2;
+    {
+        auto a       = m2.add_parameter("a", a_shape);
+        auto b       = m2.add_parameter("b", b_shape);
+        auto a_unsq  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), a);
+        auto b_unsq  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), b);
+        auto b_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), b_unsq);
+        auto b_bc = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 1, 8, 128}}}), b_trans);
+        auto a_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 8, 128}}}), a_unsq);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), a_bc, b_bc);
+        auto red = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), mul);
+        auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), red);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // Batched dot feeding a softmax that returns (no downstream dot) is not
 // attention; find_dot rewrites the dot and find_softmax decomposes the softmax.
 // Using float_type avoids the fp16->fp32 upcast wrapping.

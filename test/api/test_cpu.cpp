@@ -302,4 +302,12 @@ TEST_CASE(set_external_initializer_size_mismatch)
     EXPECT(test::throws([&] { migraphx::parse_onnx_buffer(onnx_buffer, options); }));
 }
 
+TEST_CASE(set_external_initializer_null_name)
+{
+    migraphx::onnx_options options;
+    float data = 0;
+    CHECK(migraphx_onnx_options_set_external_initializer(
+              options.get_handle_ptr(), nullptr, &data, sizeof(data)) == migraphx_status_bad_param);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

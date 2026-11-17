@@ -177,14 +177,19 @@ TEST_CASE(shared_weight_freed_with_last_program)
 
 TEST_CASE(shared_weight_outlives_first_program)
 {
-    auto t      = migraphx::make_target("gpu");
-    auto weight = migraphx::generate_literal(weight_shape(), 8);
+    auto t                = migraphx::make_target("gpu");
+    const std::size_t wsz = weight_shape().bytes();
+    auto weight           = migraphx::generate_literal(weight_shape(), 8);
     migraphx::compile_options options;
     options.offload_copy = true;
 
     auto b = [&] {
-        auto a = make_program_from(t, weight, options);
-        return make_program_from(t, weight, options);
+        auto a               = make_program_from(t, weight, options);
+        const std::size_t f1 = free_vram();
+        auto shared          = make_program_from(t, weight, options);
+        // b must share a's upload, or the eval below passes without testing a shared buffer
+        EXPECT(free_vram() + wsz / 2 > f1);
+        return shared;
     }();
     // Allocated after a is gone, so a buffer freed with a would likely be reused here
     auto c = make_program_from(t, migraphx::generate_literal(weight_shape(), 9), options);
@@ -197,6 +202,31 @@ TEST_CASE(shared_weight_outlives_first_program)
     });
     auto result = b.eval({}).back();
     EXPECT(migraphx::literal{weight_shape(), expected} == result);
+}
+
+TEST_CASE(shared_weight_pooled_after_uploader_destroyed)
+{
+    auto t                = migraphx::make_target("gpu");
+    const std::size_t wsz = weight_shape().bytes();
+    auto weight           = migraphx::generate_literal(weight_shape(), 10);
+
+    const std::size_t f0 = free_vram();
+    {
+        auto b = [&] {
+            auto a               = make_program_from(t, weight);
+            const std::size_t f1 = free_vram();
+            auto shared          = make_program_from(t, weight);
+            // b must share a's upload, or d below could share b's own copy instead
+            EXPECT(free_vram() + wsz / 2 > f1);
+            return shared;
+        }();
+        // b keeps alive the entry a uploaded, so a later compile still shares it
+        const std::size_t f2 = free_vram();
+        auto d               = make_program_from(t, weight);
+        EXPECT(free_vram() + wsz / 2 > f2);
+    }
+    // Freed with the last program using it, which is not the one that uploaded it
+    EXPECT(free_vram() + wsz / 2 > f0);
 }
 
 int main(int argc, const char* argv[])

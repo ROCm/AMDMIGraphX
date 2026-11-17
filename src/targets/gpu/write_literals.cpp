@@ -162,12 +162,11 @@ bool same_bytes(const argument& a, const argument& b)
     return std::memcmp(a.data(), b.data(), sa.bytes()) == 0;
 }
 
-// Device-scoped pool of uploaded weights. Each entry keeps the host literal (to
-// confirm a candidate with same_bytes) and the device buffer, so N identical
-// weights use 1 VRAM copy. The pool only holds weak references: the programs
-// sharing an entry own it, so a weight is freed with the last program using it
-// rather than at process exit. Guarded by a mutex since finalize may run on
-// multiple compile threads.
+// Process- and device-scoped pool of uploaded weights. Each entry keeps the host
+// literal (to confirm a candidate with same_bytes) and the device buffer, shared
+// so N identical weights use 1 VRAM copy. The pool holds weak references only: the
+// programs sharing an entry own it, so a weight is freed with the last program using
+// it. Guarded by a mutex since finalize may run on multiple compile threads.
 struct pooled_literal
 {
     argument host;
@@ -182,9 +181,9 @@ struct shared_literal_pool
     // never register, so every later copy of it would re-upload and sharing
     // would silently stop working for that weight.
     std::unordered_map<std::string, std::vector<std::weak_ptr<pooled_literal>>> buckets;
-    // Expired entries are swept once the pool doubles, so sweeping stays linear
-    // in the number of uploads
-    std::size_t sweep_at = 0;
+    // Entries, not buckets, are counted: a reloaded model appends to buckets it already has
+    std::size_t entry_count = 0;
+    std::size_t sweep_at    = 0;
 
     // A live entry with the same bytes as data, or else a new one holding upload()
     template <class F>
@@ -202,19 +201,21 @@ struct shared_literal_pool
                     return entry;
             }
         }
-        if(buckets.size() >= sweep_at)
+        if(entry_count >= sweep_at)
         {
             remove_expired();
-            sweep_at = 2 * buckets.size();
+            sweep_at = 2 * entry_count;
         }
         auto entry = std::make_shared<pooled_literal>(pooled_literal{data.share(), upload()});
         buckets[key].push_back(entry);
+        entry_count++;
         return entry;
     }
 
     // Forget weights whose programs are all gone, so the pool does not grow with every model
     void remove_expired()
     {
+        entry_count = 0;
         for(auto it = buckets.begin(); it != buckets.end();)
         {
             auto& bucket = it->second;
@@ -223,6 +224,7 @@ struct shared_literal_pool
                                bucket.end(),
                                [](const auto& weak_entry) { return weak_entry.expired(); }),
                 bucket.end());
+            entry_count += bucket.size();
             if(bucket.empty())
                 it = buckets.erase(it);
             else

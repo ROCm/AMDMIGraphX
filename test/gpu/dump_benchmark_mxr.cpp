@@ -38,6 +38,7 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/eliminate_device_copy.hpp>
+#include <migraphx/register_target.hpp>
 #include <test.hpp>
 #include <reduce.hpp>
 #include <algorithm>
@@ -47,7 +48,8 @@
 #include <vector>
 
 static migraphx::fs::path executable; // NOLINT
-static const char* const dump_flag = "--dump-benchmarks";
+static const char* const dump_flag           = "--dump-benchmarks";
+static const char* const recompile_dump_flag = "--recompile-dump-benchmarks";
 
 // A reduce has several exhaustive tuning candidates on every device
 static migraphx::program reduce_program()
@@ -71,6 +73,20 @@ static int dump_benchmarks(const migraphx::fs::path& dir)
         {migraphx::gpu::lowering{&ctx, false},
          migraphx::gpu::eliminate_device_copy{},
          migraphx::gpu::compile_ops{.ctx = &ctx, .exhaustive_tune = true, .dump_mxr_dir = dir}});
+    return 1;
+}
+
+// Recompile the saved program at mxr_file with MIGRAPHX_GPU_DUMP_BENCHMARK_MXR already set in
+// this process's environment (by the parent, via migraphx::process::env): the fresh process
+// means target::get_recompile_passes sees the env var on its first use, the same as a normal
+// compile would. Returning at all means nothing was dumped, same as dump_benchmarks above.
+static int recompile_dump_benchmarks(const migraphx::fs::path& mxr_file)
+{
+    migraphx::log::set_severity(migraphx::log::severity::warn);
+    auto p = migraphx::load(mxr_file.string(), {.finalize = false});
+    migraphx::compile_options co;
+    co.exhaustive_tune = true;
+    p.recompile(migraphx::make_target("gpu"), co);
     return 1;
 }
 
@@ -149,10 +165,38 @@ TEST_CASE(dumps_one_mxr_per_candidate)
     EXPECT(std::is_permutation(dumped.begin(), dumped.end(), expected.begin(), expected.end()));
 }
 
+// target::get_recompile_passes should pass MIGRAPHX_GPU_DUMP_BENCHMARK_MXR into compile_ops the
+// same way target::get_passes does for a normal compile, so `migraphx-driver recompile` can also
+// dump unresolved candidates for external tuning instead of only benchmarking them in-process.
+TEST_CASE(recompile_dumps_one_mxr_per_candidate)
+{
+    auto p = reduce_program();
+    migraphx::compile_options co;
+    co.recompilable = true;
+    co.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), co);
+
+    migraphx::tmp_dir src_dir{"recompile-src"};
+    auto mxr_file = src_dir.path / "program.mxr";
+    migraphx::save(p, mxr_file.string());
+
+    migraphx::tmp_dir td{"recompile-benchmark-mxr"};
+    migraphx::process{executable, {recompile_dump_flag, mxr_file.string()}}
+        .env({"MIGRAPHX_GPU_DUMP_BENCHMARK_MXR=" + td.path.string()})
+        .exec();
+
+    auto files = mxr_files(td.path);
+    EXPECT(not files.empty());
+    for(const auto& file : files)
+        benchmark_comment(file);
+}
+
 int main(int argc, const char* argv[])
 {
     if(argc > 2 and std::string_view{argv[1]} == dump_flag)
         return dump_benchmarks(argv[2]);
+    if(argc > 2 and std::string_view{argv[1]} == recompile_dump_flag)
+        return recompile_dump_benchmarks(argv[2]);
     // The child is spawned by path, so a bare-name argv[0] has to be resolved here.
     executable = migraphx::fs::absolute(argv[0]);
     test::run(argc, argv);

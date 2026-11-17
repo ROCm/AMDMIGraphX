@@ -75,6 +75,16 @@ static void check_no_concat_broadcasts(migraphx::module& m,
     EXPECT(m == before);
 }
 
+TEST_CASE(compute_broadcasted_lens_zero)
+{
+    // A dimension of 1 broadcasts to 0 in either order, as in numpy
+    EXPECT(migraphx::compute_broadcasted_lens({2, 1}, {2, 0}) == std::vector<std::size_t>{2, 0});
+    EXPECT(migraphx::compute_broadcasted_lens({2, 0}, {2, 1}) == std::vector<std::size_t>{2, 0});
+    EXPECT(migraphx::compute_broadcasted_lens({0}, {0}) == std::vector<std::size_t>{0});
+    EXPECT(migraphx::compute_broadcasted_lens({3, 4}, {4}) == std::vector<std::size_t>{3, 4});
+    EXPECT(test::throws([] { migraphx::compute_broadcasted_lens({0}, {3}); }));
+}
+
 TEST_CASE(concat_broadcasts_stacked_weights)
 {
     auto ws = migraphx::shape{migraphx::shape::float_type, {8, 5}};

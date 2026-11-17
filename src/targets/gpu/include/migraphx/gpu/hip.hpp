@@ -31,6 +31,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/value.hpp>
+#include <cassert>
 #include <utility>
 
 namespace migraphx {
@@ -178,7 +179,8 @@ struct hip_load_scalar
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        // Copy through a single-element view so broadcast inputs also use the direct copy
+        // Stride-0 inputs are not packed, so copy a one-element view to stay on the memcpy path
+        assert(args.front().get_shape().type() == result.get_shape().type());
         shape element{result.get_shape().type()};
         copy_from_gpu(ctx, args.front().reshape(element), result.reshape(element));
         gpu_spin_sync(ctx);

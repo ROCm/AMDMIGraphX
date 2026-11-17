@@ -71,7 +71,7 @@ TEST_CASE(if_lowering_load_scalar)
     EXPECT(p1 == p2);
 }
 
-// hip::load_scalar keeps the stride-0 scalar shape of the condition.
+// A 0-d (stride-0) condition also lowers to hip::load_scalar.
 TEST_CASE(if_lowering_scalar_cond)
 {
     migraphx::shape cond_s{migraphx::shape::bool_type};
@@ -99,14 +99,13 @@ TEST_CASE(if_lowering_scalar_cond)
         auto* else_mod = p2.create_module("If_0_else");
         else_mod->add_return({else_mod->add_literal(migraphx::literal{s, {3.0f, 4.0f}})});
         auto loaded = mm->add_instruction(migraphx::make_op("hip::load_scalar"), cond);
-        EXPECT(loaded->get_shape() == cond_s);
-        auto r = mm->add_instruction(migraphx::make_op("if"), {loaded}, {then_mod, else_mod});
+        auto r      = mm->add_instruction(migraphx::make_op("if"), {loaded}, {then_mod, else_mod});
         mm->add_return({r});
     }
     EXPECT(p1 == p2);
 }
 
-// A condition spanning more than one element keeps copy_from_gpu.
+// A condition spanning more than one element falls back to copy_from_gpu.
 TEST_CASE(if_lowering_multi_element_cond)
 {
     migraphx::shape cond_s{migraphx::shape::bool_type, {2}};
@@ -134,8 +133,8 @@ TEST_CASE(if_lowering_multi_element_cond)
         auto* else_mod = p2.create_module("If_0_else");
         else_mod->add_return({else_mod->add_literal(migraphx::literal{s, {3.0f, 4.0f}})});
         auto cpu_cond = mm->add_instruction(migraphx::make_op("hip::copy_from_gpu"), cond);
-        auto synced   = mm->add_instruction(migraphx::make_op("hip::sync_stream"), cpu_cond);
-        auto r = mm->add_instruction(migraphx::make_op("if"), {synced}, {then_mod, else_mod});
+        auto r        = mm->add_instruction(
+            migraphx::make_op("if"), {cpu_cond}, {then_mod, else_mod});
         mm->add_return({r});
     }
     EXPECT(p1 == p2);
@@ -199,8 +198,10 @@ TEST_CASE(loop_lowering_load_scalar)
 
 TEST_CASE(load_scalar_shape)
 {
+    migraphx::shape scalar{migraphx::shape::bool_type};
     migraphx::shape broadcasted{migraphx::shape::int64_type, {4}, {0}};
     auto load = migraphx::make_op("hip::load_scalar");
+    EXPECT(load.compute_shape({scalar}) == scalar);
     EXPECT(load.compute_shape({broadcasted}) == broadcasted);
     EXPECT(test::throws(
         [&] { load.compute_shape({migraphx::shape{migraphx::shape::int64_type, {2}}}); }));

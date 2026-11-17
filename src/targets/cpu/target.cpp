@@ -104,7 +104,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             dead_code_elimination{},
             write_literals{},
             dead_code_elimination{},
-            memory_coloring{"cpu::allocate"},
+            memory_coloring{cpu_allocation_model{}},
             dead_code_elimination{},
             preallocate_param{"scratch", cpu_allocation_model{}},
             dead_code_elimination{}};

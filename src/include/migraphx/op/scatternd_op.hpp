@@ -137,19 +137,19 @@ struct scatternd_op : op_name<Derived>
 
                     // A negative index counts back from the end of its dimension.
                     std::vector<std::size_t> out_idx(r, 0);
-                    std::transform(
-                        index_start,
-                        index_end,
-                        out_lens.begin(),
-                        out_idx.begin(),
-                        [](std::int64_t index, std::size_t dim) {
-                            auto size = static_cast<std::int64_t>(dim);
-                            if(index < -size or index >= size)
-                                MIGRAPHX_THROW("ScatterND: index " + std::to_string(index) +
-                                               " is out of bounds for dim of len " +
-                                               std::to_string(dim));
-                            return static_cast<std::size_t>(index < 0 ? index + size : index);
-                        });
+                    std::transform(index_start,
+                                   index_end,
+                                   out_lens.begin(),
+                                   out_idx.begin(),
+                                   [](std::int64_t index, std::size_t dim) {
+                                       std::int64_t size = dim;
+                                       if(index < -size or index >= size)
+                                           MIGRAPHX_THROW("ScatterND: index " +
+                                                          std::to_string(index) +
+                                                          " is out of bounds for dim of len " +
+                                                          std::to_string(dim));
+                                       return index < 0 ? index + size : index;
+                                   });
                     std::copy(
                         updates_idx.begin() + (q - 1), updates_idx.end(), out_idx.begin() + k);
 

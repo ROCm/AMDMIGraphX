@@ -7121,4 +7121,59 @@ TEST_CASE(simplify_concat_unsqueeze_scalar)
     EXPECT(m1 == m2);
 }
 
+// The branches of an `if` that read the same values. The users in the branches are not users in
+// the main module, so nothing in the main module changes.
+static migraphx::program
+make_if_program(const std::function<migraphx::instruction_ref(
+                    migraphx::module&, migraphx::instruction_ref, int)>& branch,
+                migraphx::instruction_ref& out)
+{
+    migraphx::program p;
+    auto* mm       = p.get_main_module();
+    auto c         = mm->add_parameter("c", migraphx::shape{migraphx::shape::bool_type, {1}});
+    auto x         = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 4}});
+    out            = mm->add_instruction(migraphx::make_op("add"), x, x);
+    auto* then_mod = p.create_module("If_0_if");
+    then_mod->add_return({branch(*then_mod, out, 0)});
+    auto* else_mod = p.create_module("If_0_else");
+    else_mod->add_return({branch(*else_mod, out, 1)});
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {c}, {then_mod, else_mod});
+    mm->add_return({mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret)});
+    return p;
+}
+
+TEST_CASE(simplify_dot_horiz_users_in_if_branches)
+{
+    migraphx::instruction_ref out;
+    auto p = make_if_program(
+        [](migraphx::module& m, migraphx::instruction_ref input, int i) {
+            auto w = m.add_literal(migraphx::generate_literal(
+                migraphx::shape{migraphx::shape::float_type, {4, 6}}, i));
+            return m.add_instruction(migraphx::make_op("dot"), input, w);
+        },
+        out);
+    auto* mm      = p.get_main_module();
+    auto expected = *mm;
+    run_pass(*mm);
+    EXPECT(*mm == expected);
+}
+
+TEST_CASE(simplify_split_slices_in_if_branches)
+{
+    migraphx::instruction_ref out;
+    auto p = make_if_program(
+        [](migraphx::module& m, migraphx::instruction_ref input, int i) {
+            auto sl = m.add_instruction(
+                migraphx::make_op("slice",
+                                  {{"axes", {0}}, {"starts", {2 * i}}, {"ends", {2 * i + 2}}}),
+                input);
+            return m.add_instruction(migraphx::make_op("relu"), sl);
+        },
+        out);
+    auto* mm      = p.get_main_module();
+    auto expected = *mm;
+    run_pass(*mm);
+    EXPECT(*mm == expected);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

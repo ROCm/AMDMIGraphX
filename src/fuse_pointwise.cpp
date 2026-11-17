@@ -113,8 +113,13 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             if(contains(param_map, input))
                 continue;
             auto scalar = get_scalar(input);
+            // A result of one element that is not a scalar may get its rank only from such an
+            // input, as when a scalar is added to a tensor of one element, so it stays an input
+            const auto& out = ins->get_shape();
+            bool keeps_rank = not out.dynamic() and out.elements() == 1 and not out.scalar() and
+                              not input->get_shape().scalar();
             // Have dynamic shapes always get put into a pointwise module even if scalar input
-            if(scalar.empty() or input->get_shape().dynamic())
+            if(scalar.empty() or input->get_shape().dynamic() or keeps_rank)
             {
                 pointwise_inputs.push_back(input);
                 param_map[input] =

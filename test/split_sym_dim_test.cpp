@@ -303,34 +303,12 @@ TEST_CASE(split_sym_dim_supports_zero_length_root)
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{target_n}}}}})},
-               {"logical_output_dyn_shapes",
-                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}}}})},
-               {"input_shapes",
-                migraphx::to_value(std::vector<migraphx::shape>{expected_input->get_shape()})}}),
+                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{lit(1)}, dd{n}}, {target_n, lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     auto selections = migraphx::find_all(migraphx::iterator_for(m),
@@ -342,7 +320,7 @@ TEST_CASE(split_sym_dim_supports_zero_length_root)
              {{"data",
                migraphx::argument{migraphx::shape{migraphx::shape::float_type, {1, 0}}, nullptr}}})
             .back();
-    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {1, 0}, {4, 1}});
+    EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {1, 0}});
 }
 
 TEST_CASE(split_sym_dim_covers_full_interval)
@@ -370,34 +348,16 @@ TEST_CASE(split_sym_dim_covers_full_interval)
     auto& expected_main = *expected.get_main_module();
     auto input          = expected_main.add_parameter(
         "data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 8}, {1, 2, 4, 8});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{input},
         modules);
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        output,
-        output_start,
-        output_end);
     expected_main.add_return({output});
 
     EXPECT(matches_expected(p, expected));
@@ -442,35 +402,17 @@ TEST_CASE(split_sym_dim_materializes_roialign)
         "rois", migraphx::shape{migraphx::shape::float_type, {dd{r}, dd{lit(4)}}});
     auto expected_batch_ind = expected_main.add_parameter(
         "batch_ind", migraphx::shape{migraphx::shape::int64_type, {dd{r}}});
-    auto target_r = var("split_sym_dim_r_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type,
-                                  {dd{target_r}, dd{lit(1)}, dd{lit(1)}, dd{lit(1)}}}}})}}),
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                {dd{r}, dd{lit(1)}, dd{lit(1)}, dd{lit(1)}},
+                                                {lit(1), lit(1), lit(1), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_batch_ind, expected_rois, expected_x},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_rois});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{r})}}),
-        std::vector<migraphx::instruction_ref>{expected_rois});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{r})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -529,9 +471,8 @@ TEST_CASE(split_sym_dim_supports_one_to_one_axis_transforms)
     auto& expected_main = *expected.get_main_module();
     auto input          = expected_main.add_parameter(
         "data", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(4)}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 8}, {1, 2, 4, 8});
     migraphx::shape output_shape{
-        migraphx::shape::float_type, {dd{lit(4)}, dd{target_n}}, {lit(1), lit(4)}};
+        migraphx::shape::float_type, {dd{lit(4)}, dd{n}}, {lit(1), lit(4)}};
     auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
@@ -541,23 +482,6 @@ TEST_CASE(split_sym_dim_supports_one_to_one_axis_transforms)
         modules);
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        output,
-        output_start,
-        output_end);
     expected_main.add_return({output});
 
     EXPECT(matches_expected(p, expected));
@@ -617,34 +541,17 @@ TEST_CASE(split_sym_dim_freezes_one_input_reshape_symbolic_dims)
     auto& expected_main = *expected.get_main_module();
     auto expected_input = expected_main.add_parameter(
         "data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 8}, {1, 2, 4, 8});
-    auto select   = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}, dd{lit(1)}}}}})}}),
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                {dd{n}, dd{lit(4)}, dd{lit(1)}},
+                                                {lit(4), lit(1), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        output_start,
-        output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -681,34 +588,17 @@ TEST_CASE(split_sym_dim_freezes_non_unit_one_input_reshape_symbolic_dims)
     auto& expected_main = *expected.get_main_module();
     auto expected_input = expected_main.add_parameter(
         "data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 8}, {1, 2, 4, 8});
-    auto select   = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{target_n}, dd{lit(2)}, dd{lit(2)}}}}})}}),
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                {dd{n}, dd{lit(2)}, dd{lit(2)}},
+                                                {lit(4), lit(2), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        output_start,
-        output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -755,29 +645,12 @@ TEST_CASE(split_sym_dim_splits_at_nonparallel_symbolic_reshape)
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{target_n}}}}})}}),
+                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{lit(4)}, dd{n}}, {target_n, lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_reshape, expected_data},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -823,34 +696,16 @@ TEST_CASE(split_sym_dim_materializes_symbolic_multibroadcast)
         "data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}});
     auto expected_bias =
         expected_main.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(3)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(3), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_bias, expected_data},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -900,34 +755,16 @@ TEST_CASE(split_sym_dim_materializes_symbolic_multibroadcast_with_multiple_shape
                                 migraphx::shape{migraphx::shape::float_type, {1, 3}});
     auto expected_bias =
         expected_main.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(3)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(3), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_bias, expected_data},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -990,32 +827,16 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_multibroadcast)
         migraphx::shape{migraphx::shape::float_type, {dd{fixed_batch}, dd{lit(4)}, dd{lit(4)}}});
     auto target_sequence = var("split_sym_dim_sequence_target", {1, 4}, {1, 2, 4});
     auto select          = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{lit(1)}, dd{target_sequence}, dd{lit(4)}}}}})}}),
+        migraphx::make_op("select_module",
+                                   {{"output_dyn_shapes",
+                                     migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                         {dd{lit(1)}, dd{sequence}, dd{lit(4)}},
+                                                         {target_sequence * 4, lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data, expected_weights},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -1064,34 +885,17 @@ TEST_CASE(split_sym_dim_materializes_symbolic_broadcast)
         "data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}}});
     auto expected_bias =
         expected_main.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {3}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{target_n}, dd{lit(3)}, dd{lit(4)}}}}})}}),
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                {dd{n}, dd{lit(3)}, dd{lit(4)}},
+                                                {lit(12), lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_bias, expected_data},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -1146,30 +950,14 @@ TEST_CASE(split_sym_dim_materializes_symbolic_broadcast_with_dims)
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type,
-                                  {dd{lit(1)}, dd{lit(1)}, dd{target_n}, dd{target_n}}}}})}}),
+                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type,
+                    {dd{lit(1)}, dd{lit(1)}, dd{n}, dd{n}},
+                    {target_n * target_n, target_n * target_n, target_n, lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n, n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{2, 3}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n, n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -1216,10 +1004,8 @@ TEST_CASE(split_sym_dim_coalesces_into_symbolic_broadcast_with_dims)
         "data", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}});
     expected_main.add_parameter("dims",
                                 migraphx::shape{migraphx::shape::int64_type, {std::size_t{3}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    migraphx::shape output_shape{migraphx::shape::float_type,
-                                 {dd{lit(1)}, dd{target_n}, dd{target_n}},
-                                 {lit(0), lit(0), lit(1)}};
+    migraphx::shape output_shape{
+        migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{n}}, {lit(0), lit(0), lit(1)}};
     auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
@@ -1229,23 +1015,6 @@ TEST_CASE(split_sym_dim_coalesces_into_symbolic_broadcast_with_dims)
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n, n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1, 2}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n, n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -1283,34 +1052,16 @@ TEST_CASE(split_sym_dim_materializes_symbolic_allocate)
         "source", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
     expected_main.add_parameter("dims",
                                 migraphx::shape{migraphx::shape::int64_type, {std::size_t{2}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_source},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_source});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_source});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -1355,33 +1106,16 @@ TEST_CASE(split_sym_dim_materializes_two_input_symbolic_reshape)
         migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(4)}, dd{lit(4)}}});
     auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type,
-                                  {dd{lit(1)}, dd{target_n}, dd{lit(4)}, dd{lit(4)}}}}})}}),
+        migraphx::make_op("select_module",
+                            {{"output_dyn_shapes",
+                              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                  {dd{lit(1)}, dd{n}, dd{lit(4)}, dd{lit(4)}},
+                                                  {target_n * 16, lit(16), lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -1426,33 +1160,16 @@ TEST_CASE(split_sym_dim_specializes_two_input_symbolic_reshape_with_unit_axis)
         migraphx::shape{migraphx::shape::float_type, {dd{batch}, dd{lit(1)}, dd{n}, dd{lit(4)}}});
     auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type,
-                                  {dd{lit(1)}, dd{lit(1)}, dd{target_n}, dd{lit(4)}}}}})}}),
+        migraphx::make_op("select_module",
+                            {{"output_dyn_shapes",
+                              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                  {dd{lit(1)}, dd{lit(1)}, dd{n}, dd{lit(4)}},
+                                                  {target_n * 4, target_n * 4, lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{2}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -1511,32 +1228,16 @@ TEST_CASE(split_sym_dim_absorbs_fixed_symbolic_reshape)
         migraphx::shape{migraphx::shape::float_type, {dd{fixed_batch}, dd{lit(4)}, dd{lit(4)}}});
     auto target_sequence = var("split_sym_dim_sequence_target", {1, 4}, {1, 2, 4});
     auto select          = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{lit(1)}, dd{target_sequence}, dd{lit(4)}}}}})}}),
+        migraphx::make_op("select_module",
+                                   {{"output_dyn_shapes",
+                                     migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                         {dd{lit(1)}, dd{sequence}, dd{lit(4)}},
+                                                         {target_sequence * 4, lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data, expected_weights},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -1601,32 +1302,16 @@ TEST_CASE(split_sym_dim_drops_absorbed_reshape_shape_dependencies)
         "weights", migraphx::shape{migraphx::shape::float_type, {dd{fixed_batch}, dd{lit(16)}}});
     auto target_sequence = var("split_sym_dim_sequence_target", {1, 4}, {1, 2, 4});
     auto select          = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{lit(1)}, dd{target_sequence}, dd{lit(4)}}}}})}}),
+        migraphx::make_op("select_module",
+                                   {{"output_dyn_shapes",
+                                     migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                         {dd{lit(1)}, dd{sequence}, dd{lit(4)}},
+                                                         {target_sequence * 4, lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data, expected_weights},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -1682,58 +1367,24 @@ TEST_CASE(split_sym_dim_keeps_padded_reshape_dependency_at_boundary)
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{target_n}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{lit(4)}, dd{n}}, {target_n, lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data},
         before_modules);
     auto before_output = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_before);
-    auto before_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto before_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    before_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        before_output,
-        before_output_start,
-        before_output_end);
     auto expected_reshape =
         expected_main.add_instruction(migraphx::make_op("reshape"), before_output, expected_target);
     auto select_after = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_reshape, expected_data},
         after_modules);
     auto expected_output = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_after);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -1819,66 +1470,29 @@ TEST_CASE(split_sym_dim_retries_affected_connected_edge)
         "other", migraphx::shape{migraphx::shape::float_type, {dd{m}, dd{lit(4)}}});
     auto expected_q_source = expected_main.add_parameter(
         "q_source", migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{q}}});
-    std::vector<migraphx::instruction_ref> nq_sources = {expected_input, expected_q_source};
 
-    auto target_n  = var("split_sym_dim_n_target", {1, 2}, {1, 2});
     auto target_q  = var("split_sym_dim_q_target", {1, 2}, {1, 2});
     auto select_nq = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{target_q}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{q}}, {target_q, lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_input, expected_q_source},
         connected_modules);
     auto output_nq = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_nq);
-    auto output_nq_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-        nq_sources);
-    auto output_nq_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n, q})}}),
-        nq_sources);
-    output_nq = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0, 1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n, q})},
-                           {"normalize_bounds", false}}),
-        output_nq,
-        output_nq_start,
-        output_nq_end);
 
-    auto target_m = var("split_sym_dim_m_target", {1, 2}, {1, 2});
     auto select_m = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_m}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{m}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_other},
         other_modules);
     auto output_m = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_m);
-    auto output_m_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        expected_other);
-    auto output_m_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{m})}}),
-        expected_other);
-    output_m = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{m})},
-                           {"normalize_bounds", false}}),
-        output_m,
-        output_m_start,
-        output_m_end);
     expected_main.add_return({output_nq, output_m});
 
     EXPECT(matches_expected(p, expected));
@@ -1966,34 +1580,16 @@ TEST_CASE(split_sym_dim_preserves_routed_symbolic_parameter_strides)
     auto& expected_main   = *expected.get_main_module();
     auto expected_data    = expected_main.add_parameter("data", data_shape);
     auto expected_weights = expected_main.add_parameter("weights", weights_shape);
-    auto target_n         = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select           = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+                        migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data, expected_weights},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -2048,34 +1644,16 @@ TEST_CASE(split_sym_dim_keeps_variable_stride_dependency_at_boundary)
     auto expected_weights = expected_main.add_parameter("weights", weights_shape);
     auto expected_identity =
         expected_main.add_instruction(migraphx::make_op("identity"), expected_weights);
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_identity, expected_data},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -2108,34 +1686,16 @@ TEST_CASE(split_sym_dim_uses_clone_output_layout_for_dispatch)
 
     auto& expected_main = *expected.get_main_module();
     auto expected_input = expected_main.add_parameter("input", input_shape);
-    auto target_n       = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select         = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+                      migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -2171,8 +1731,7 @@ TEST_CASE(split_sym_dim_uses_non_degenerate_clone_layout_for_dispatch)
     auto& expected_main = *expected.get_main_module();
     auto expected_input = expected_main.add_parameter("input", input_shape);
     auto target_n       = var("split_sym_dim_n_target", {1, 3}, {1, 2, 3});
-    migraphx::shape output_shape{
-        migraphx::shape::float_type, {dd{target_n}, dd{target_n}}, {lit(1), target_n}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {dd{n}, dd{n}}, {lit(1), target_n}};
     auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
@@ -2182,23 +1741,6 @@ TEST_CASE(split_sym_dim_uses_non_degenerate_clone_layout_for_dispatch)
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n, n})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0, 1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n, n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -2257,33 +1799,16 @@ TEST_CASE(split_sym_dim_materializes_reshape_with_shape_chain_target)
         "data", migraphx::shape{migraphx::shape::float_type, {dd{batch}, dd{n}, dd{lit(16)}}});
     auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type,
-                                  {dd{lit(1)}, dd{target_n}, dd{lit(4)}, dd{lit(4)}}}}})}}),
+        migraphx::make_op("select_module",
+                            {{"output_dyn_shapes",
+                              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                  {dd{lit(1)}, dd{n}, dd{lit(4)}, dd{lit(4)}},
+                                                  {target_n * 16, lit(16), lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -2348,34 +1873,16 @@ TEST_CASE(split_sym_dim_uses_interval_bounds_without_optimals)
     auto& expected_main = *expected.get_main_module();
     auto input          = expected_main.add_parameter(
         "data", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 8}, {1, 8});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{input},
         modules);
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        output,
-        output_start,
-        output_end);
     expected_main.add_return({output});
 
     EXPECT(matches_expected(p, expected));
@@ -2583,34 +2090,16 @@ TEST_CASE(split_sym_dim_reduce_all_uses_one)
     auto& expected_main = *expected.get_main_module();
     auto input          = expected_main.add_parameter(
         "data", migraphx::shape{migraphx::shape::bool_type, {dd{b}, dd{s}}});
-    auto target_b = var("split_sym_dim_b_target", {1, 2}, {1, 2});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::bool_type, {dd{target_b}, dd{lit(1)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::bool_type, {dd{b}, dd{lit(1)}}, {lit(1), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{input},
         modules);
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{b})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{b})},
-                           {"normalize_bounds", false}}),
-        output,
-        output_start,
-        output_end);
     expected_main.add_return({output});
 
     EXPECT(matches_expected(p, expected));
@@ -2676,29 +2165,12 @@ TEST_CASE(split_sym_dim_pads_absorbed_reduction_input)
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::int32_type, {dd{lit(1)}, dd{target_n}}}}})}}),
+                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::int32_type, {dd{lit(1)}, dd{n}}, {target_n, lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_mask, expected_values},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_mask});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_mask});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -2789,33 +2261,16 @@ TEST_CASE(split_sym_dim_global_max_pooling_preserves_runtime_spatial_extent)
         migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{n}, dd{lit(1)}}});
     auto target_n   = var("split_sym_dim_n_target", {1, 8}, {1, 8});
     auto neg_select = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type,
-                                  {dd{lit(1)}, dd{lit(1)}, dd{target_n}, dd{lit(1)}}}}})}}),
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                {dd{lit(1)}, dd{lit(1)}, dd{n}, dd{lit(1)}},
+                                                {target_n, target_n, lit(1), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         neg_modules);
     auto neg_output = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), neg_select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    neg_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{2}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        neg_output,
-        output_start,
-        output_end);
 
     auto pooling_modules = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
         auto clone_n = var("n", {clone.min, clone.max});
@@ -2896,33 +2351,19 @@ TEST_CASE(split_sym_dim_splits_windowed_boundary)
     auto target_s    = var("split_sym_dim_s_target", {8, 16}, {8, 12, 16});
     auto conv_extent = target_s - 2;
     auto conv_select = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type,
-                                  {dd{lit(1)}, dd{lit(1)}, dd{conv_extent}, dd{conv_extent}}}}})}}),
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                {dd{lit(1)}, dd{lit(1)}, dd{s - 2}, dd{s - 2}},
+                                                {conv_extent * conv_extent,
+                                                 conv_extent * conv_extent,
+                                                 conv_extent,
+                                                 lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         convolution_modules);
     auto conv_output = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), conv_select);
-    auto conv_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto conv_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{s - 2, s - 2})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    conv_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{2, 3}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{s - 2, s - 2})},
-                           {"normalize_bounds", false}}),
-        conv_output,
-        conv_output_start,
-        conv_output_end);
 
     auto pooling_modules = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
         auto clone_s = var("s", {clone.min, clone.max});
@@ -2949,37 +2390,22 @@ TEST_CASE(split_sym_dim_splits_windowed_boundary)
     });
 
     auto pooled_extent = (target_s - 3) / 2 + 1;
+    auto output_extent = (s - 3) / 2 + 1;
     auto pool_select   = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type,
-                  {dd{lit(1)}, dd{lit(1)}, dd{pooled_extent}, dd{pooled_extent}}}}})}}),
+                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type,
+                                    {dd{lit(1)}, dd{lit(1)}, dd{output_extent}, dd{output_extent}},
+                                    {pooled_extent * pooled_extent,
+                                     pooled_extent * pooled_extent,
+                                     pooled_extent,
+                                     lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{conv_output, expected_input},
         pooling_modules);
     auto output = expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}),
                                                 pool_select);
-    auto output_extent = (s - 3) / 2 + 1;
-    auto output_start  = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op(
-            "eval_expr_from_shape",
-            {{"expressions", migraphx::to_value(std::vector<se>{output_extent, output_extent})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    output = expected_main.add_instruction(
-        migraphx::make_op(
-            "dyn_slice",
-            {{"axes", std::vector<int64_t>{2, 3}},
-             {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-             {"ends", migraphx::to_value(std::vector<se>{output_extent, output_extent})},
-             {"normalize_bounds", false}}),
-        output,
-        output_start,
-        output_end);
     expected_main.add_return({output});
 
     EXPECT(matches_expected(p, expected));
@@ -3040,35 +2466,21 @@ TEST_CASE(split_sym_dim_retains_only_nonparallel_boundary_axes)
     auto target_batch   = var("split_sym_dim_batch_target", {1, 2}, {1, 2});
     auto target_spatial = var("split_sym_dim_spatial_target", {8, 16}, {8, 12, 16});
     auto conv_extent    = target_spatial - 2;
-    auto conv_select    = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type,
-                  {dd{target_batch}, dd{lit(1)}, dd{conv_extent}, dd{conv_extent}}}}})}}),
+    auto conv_strides =
+        std::vector<se>{conv_extent * conv_extent, conv_extent * conv_extent, conv_extent, lit(1)};
+    auto retained_conv_shape =
+        migraphx::shape{migraphx::shape::float_type,
+                        {dd{target_batch}, dd{lit(1)}, dd{spatial - 2}, dd{spatial - 2}},
+                        conv_strides};
+    auto conv_select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{
+                                std::vector<migraphx::shape>{retained_conv_shape}})}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         convolution_modules);
     auto conv_output = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), conv_select);
-    auto conv_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto conv_output_end = expected_main.add_instruction(
-        migraphx::make_op(
-            "eval_expr_from_shape",
-            {{"expressions", migraphx::to_value(std::vector<se>{spatial - 2, spatial - 2})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    conv_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{2, 3}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{spatial - 2, spatial - 2})},
-                           {"normalize_bounds", false}}),
-        conv_output,
-        conv_output_start,
-        conv_output_end);
 
     auto pooling_modules = add_clones(expected, 1, clones, [&](auto& sm, const auto& clone) {
         auto clone_batch   = var("batch", {clone.batch, clone.batch});
@@ -3097,39 +2509,22 @@ TEST_CASE(split_sym_dim_retains_only_nonparallel_boundary_axes)
     });
 
     auto pooled_extent = (target_spatial - 3) / 2 + 1;
+    auto output_extent = (spatial - 3) / 2 + 1;
     auto pool_select   = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type,
-                  {dd{target_batch}, dd{lit(1)}, dd{pooled_extent}, dd{pooled_extent}}}}})}}),
+                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type,
+                                    {dd{batch}, dd{lit(1)}, dd{output_extent}, dd{output_extent}},
+                                    {pooled_extent * pooled_extent,
+                                     pooled_extent * pooled_extent,
+                                     pooled_extent,
+                                     lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{conv_output, expected_input},
         pooling_modules);
     auto output = expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}),
                                                 pool_select);
-    auto output_extent = (spatial - 3) / 2 + 1;
-    auto output_start  = expected_main.add_instruction(
-        migraphx::make_op(
-            "eval_expr_from_shape",
-            {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0), lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op(
-            "eval_expr_from_shape",
-            {{"expressions",
-              migraphx::to_value(std::vector<se>{batch, output_extent, output_extent})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    output = expected_main.add_instruction(
-        migraphx::make_op(
-            "dyn_slice",
-            {{"axes", std::vector<int64_t>{0, 2, 3}},
-             {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0), lit(0)})},
-             {"ends", migraphx::to_value(std::vector<se>{batch, output_extent, output_extent})},
-             {"normalize_bounds", false}}),
-        output,
-        output_start,
-        output_end);
     expected_main.add_return({output});
 
     EXPECT(matches_expected(p, expected));
@@ -3170,9 +2565,9 @@ TEST_CASE(split_sym_dim_merges_independent_supported_branches)
         "x0", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
     auto expected_x1 = expected_main.add_parameter(
         "x1", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
-    auto target_n     = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto output_shape = migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}};
-    auto select       = expected_main.add_instruction(
+    auto output_shape =
+        migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}};
+    auto select = expected_main.add_instruction(
         migraphx::make_op("select_module",
                           {{"output_dyn_shapes",
                             migraphx::to_value(migraphx::shape{
@@ -3181,42 +2576,8 @@ TEST_CASE(split_sym_dim_merges_independent_supported_branches)
         modules);
     auto output0 =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output0_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_x0});
-    auto output0_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_x0});
-    output0 = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        output0,
-        output0_start,
-        output0_end);
     auto output1 =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), select);
-    auto output1_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_x0});
-    auto output1_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_x0});
-    output1 = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        output1,
-        output1_start,
-        output1_end);
     expected_main.add_return({output0, output1});
 
     EXPECT(matches_expected(p, expected));
@@ -3249,34 +2610,17 @@ TEST_CASE(split_sym_dim_deduplicates_duplicate_block_returns)
     auto& expected_main = *expected.get_main_module();
     auto expected_x     = expected_main.add_parameter(
         "x", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
+    auto output_shape =
+        migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}};
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{output_shape}})}}),
         std::vector<migraphx::instruction_ref>{expected_x},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        expected_x);
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        expected_x);
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        output_start,
-        output_end);
     expected_main.add_return({expected_output, expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -3307,9 +2651,8 @@ TEST_CASE(split_sym_dim_orders_merged_blocks_by_dependencies)
                                          [](auto ins) { return ins->name() == "select_module"; });
     EXPECT(selections.size() == 2);
     EXPECT(migraphx::any_of(selections.back()->inputs(), [&](auto input) {
-        return input->name() == "dyn_slice" and not input->inputs().empty() and
-               input->inputs().front()->name() == "get_tuple_elem" and
-               input->inputs().front()->inputs().front() == selections.front();
+        return input->name() == "get_tuple_elem" and not input->inputs().empty() and
+               input->inputs().front() == selections.front();
     }));
 
     auto target = migraphx::make_target("ref");
@@ -3398,9 +2741,12 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge)
             m.add_parameter("x",
                             migraphx::shape{migraphx::shape::float_type,
                                             {dd{lit(1)}, dd{lit(4)}, dd{spatial}, dd{spatial}}});
-        auto output_shape =
-            migraphx::shape{migraphx::shape::float_type,
-                            {dd{lit(1)}, dd{lit(4)}, dd{target_spatial}, dd{target_spatial}}};
+        auto output_shape      = migraphx::shape{migraphx::shape::float_type,
+                                                 {dd{lit(1)}, dd{lit(4)}, dd{spatial}, dd{spatial}},
+                                                 {lit(4) * target_spatial * target_spatial,
+                                                  target_spatial * target_spatial,
+                                                  target_spatial,
+                                                  lit(1)}};
         auto select_activation = m.add_instruction(
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes",
@@ -3410,25 +2756,6 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge)
             activation_modules);
         auto activation = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}),
                                             select_activation);
-        auto activation_start = m.add_instruction(
-            migraphx::make_op(
-                "eval_expr_from_shape",
-                {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-            std::vector<migraphx::instruction_ref>{x});
-        auto activation_end = m.add_instruction(
-            migraphx::make_op(
-                "eval_expr_from_shape",
-                {{"expressions", migraphx::to_value(std::vector<se>{spatial, spatial})}}),
-            std::vector<migraphx::instruction_ref>{x});
-        activation = m.add_instruction(
-            migraphx::make_op("dyn_slice",
-                              {{"axes", std::vector<int64_t>{2, 3}},
-                               {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})},
-                               {"normalize_bounds", false}}),
-            activation,
-            activation_start,
-            activation_end);
         auto select_convolution = m.add_instruction(
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes",
@@ -3436,27 +2763,8 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge)
                                     migraphx::shape{std::vector<migraphx::shape>{output_shape}})}}),
             std::vector<migraphx::instruction_ref>{activation, x},
             convolution_modules);
-        auto output       = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}),
-                                              select_convolution);
-        auto output_start = m.add_instruction(
-            migraphx::make_op(
-                "eval_expr_from_shape",
-                {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-            std::vector<migraphx::instruction_ref>{x});
-        auto output_end = m.add_instruction(
-            migraphx::make_op(
-                "eval_expr_from_shape",
-                {{"expressions", migraphx::to_value(std::vector<se>{spatial, spatial})}}),
-            std::vector<migraphx::instruction_ref>{x});
-        output = m.add_instruction(
-            migraphx::make_op("dyn_slice",
-                              {{"axes", std::vector<int64_t>{2, 3}},
-                               {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})},
-                               {"normalize_bounds", false}}),
-            output,
-            output_start,
-            output_end);
+        auto output = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}),
+                                        select_convolution);
         m.add_return({output});
     }
     EXPECT(matches_expected(p, expected));
@@ -3528,9 +2836,12 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge_reversed_inputs)
             m.add_parameter("x",
                             migraphx::shape{migraphx::shape::float_type,
                                             {dd{lit(1)}, dd{lit(4)}, dd{spatial}, dd{spatial}}});
-        auto output_shape =
-            migraphx::shape{migraphx::shape::float_type,
-                            {dd{lit(1)}, dd{lit(4)}, dd{target_spatial}, dd{target_spatial}}};
+        auto output_shape      = migraphx::shape{migraphx::shape::float_type,
+                                                 {dd{lit(1)}, dd{lit(4)}, dd{spatial}, dd{spatial}},
+                                                 {lit(4) * target_spatial * target_spatial,
+                                                  target_spatial * target_spatial,
+                                                  target_spatial,
+                                                  lit(1)}};
         auto select_activation = m.add_instruction(
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes",
@@ -3540,25 +2851,6 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge_reversed_inputs)
             activation_modules);
         auto activation = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}),
                                             select_activation);
-        auto activation_start = m.add_instruction(
-            migraphx::make_op(
-                "eval_expr_from_shape",
-                {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-            std::vector<migraphx::instruction_ref>{x});
-        auto activation_end = m.add_instruction(
-            migraphx::make_op(
-                "eval_expr_from_shape",
-                {{"expressions", migraphx::to_value(std::vector<se>{spatial, spatial})}}),
-            std::vector<migraphx::instruction_ref>{x});
-        activation = m.add_instruction(
-            migraphx::make_op("dyn_slice",
-                              {{"axes", std::vector<int64_t>{2, 3}},
-                               {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})},
-                               {"normalize_bounds", false}}),
-            activation,
-            activation_start,
-            activation_end);
         auto select_convolution = m.add_instruction(
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes",
@@ -3566,27 +2858,8 @@ TEST_CASE(split_sym_dim_rejects_cyclic_residual_merge_reversed_inputs)
                                     migraphx::shape{std::vector<migraphx::shape>{output_shape}})}}),
             std::vector<migraphx::instruction_ref>{activation, x},
             convolution_modules);
-        auto output       = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}),
-                                              select_convolution);
-        auto output_start = m.add_instruction(
-            migraphx::make_op(
-                "eval_expr_from_shape",
-                {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-            std::vector<migraphx::instruction_ref>{x});
-        auto output_end = m.add_instruction(
-            migraphx::make_op(
-                "eval_expr_from_shape",
-                {{"expressions", migraphx::to_value(std::vector<se>{spatial, spatial})}}),
-            std::vector<migraphx::instruction_ref>{x});
-        output = m.add_instruction(
-            migraphx::make_op("dyn_slice",
-                              {{"axes", std::vector<int64_t>{2, 3}},
-                               {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                               {"ends", migraphx::to_value(std::vector<se>{spatial, spatial})},
-                               {"normalize_bounds", false}}),
-            output,
-            output_start,
-            output_end);
+        auto output = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}),
+                                        select_convolution);
         m.add_return({output});
     }
     EXPECT(matches_expected(p, expected));
@@ -3625,34 +2898,16 @@ TEST_CASE(split_sym_dim_materializes_fixed_axis_slice)
     auto& expected_main = *expected.get_main_module();
     auto input          = expected_main.add_parameter(
         "x", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(2)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(2)}}, {lit(2), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{input},
         modules);
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        output,
-        output_start,
-        output_end);
     expected_main.add_return({output});
 
     EXPECT(matches_expected(p, expected));
@@ -3767,34 +3022,16 @@ TEST_CASE(split_sym_dim_materializes_gather_concat_and_dyn_slice)
     auto& expected_main = *expected.get_main_module();
     auto expected_ids =
         expected_main.add_parameter("ids", migraphx::shape{migraphx::shape::int64_type, {dd{n}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-                migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_ids},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        expected_ids);
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        expected_ids);
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -3834,32 +3071,16 @@ TEST_CASE(split_sym_dim_materializes_gathernd)
         "indices", migraphx::shape{migraphx::shape::int64_type, {dd{lit(1)}, dd{n}, dd{lit(1)}}});
     auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select   = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{lit(1)}, dd{target_n}, dd{lit(4)}}}}})}}),
+        migraphx::make_op("select_module",
+                            {{"output_dyn_shapes",
+                              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                  {dd{lit(1)}, dd{n}, dd{lit(4)}},
+                                                  {target_n * 4, lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_indices},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_indices});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_indices});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -4010,33 +3231,16 @@ TEST_CASE(split_sym_dim_materializes_fill_range_and_scatter)
         migraphx::make_op("eval_expr_from_shape",
                           {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
         expected_data);
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes",
-                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
+    auto select = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type, {dd{n}}, {lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_extent, expected_data, expected_updates},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -4078,34 +3282,16 @@ TEST_CASE(split_sym_dim_materializes_scatternd_with_static_indices)
         expected_main.add_parameter("indices", {migraphx::shape::int64_type, {1, 1}});
     auto expected_updates =
         expected_main.add_parameter("updates", {migraphx::shape::float_type, {1, 4}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 4});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data, expected_indices, expected_updates},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -4154,33 +3340,16 @@ TEST_CASE(split_sym_dim_rewrites_padded_scatter_indices)
         "indices", migraphx::shape{migraphx::shape::int64_type, {dd{n}, dd{lit(1)}}});
     auto expected_updates = expected_main.add_parameter(
         "updates", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 4});
-    auto select   = expected_main.add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes",
-                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
+    auto select = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type, {dd{n}}, {lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data, expected_indices, expected_updates},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -4238,34 +3407,16 @@ TEST_CASE(split_sym_dim_rewrites_zero_depth_scatter_indices)
         "indices", migraphx::shape{migraphx::shape::int64_type, {dd{n}, dd{lit(0)}}});
     auto expected_updates = expected_main.add_parameter(
         "updates", migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{m_dim}, dd{lit(2)}}});
-    auto target_m = var("split_sym_dim_m_target", {1, 2}, {1, 2});
-    auto select   = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_m}, dd{lit(2)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{m_dim}, dd{lit(2)}}, {lit(2), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_data, expected_indices, expected_updates},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{m_dim})}}),
-        std::vector<migraphx::instruction_ref>{expected_data});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{m_dim})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -4602,33 +3753,17 @@ TEST_CASE(split_sym_dim_materializes_attention_chain)
         expected_ids);
     auto target_sequence = var("split_sym_dim_sequence_length_target", {1, 4}, {1, 2, 4});
     auto select          = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{lit(1)}, dd{target_sequence}, dd{lit(4)}}}}})}}),
+        migraphx::make_op("select_module",
+                                   {{"output_dyn_shapes",
+                                     migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                         {dd{lit(1)}, dd{sequence}, dd{lit(4)}},
+                                                         {target_sequence * 4, lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{
             expected_extent, expected_ids, expected_mask_buffer, expected_update_buffer},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_ids});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-        std::vector<migraphx::instruction_ref>{expected_ids});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -4685,34 +3820,16 @@ TEST_CASE(split_sym_dim_clones_fixed_shape_dependencies_into_cases)
         migraphx::make_op("eval_expr_from_shape",
                           {{"expressions", migraphx::to_value(std::vector<se>{lit(4)})}}),
         expected_input);
-    auto target_sequence = var("split_sym_dim_sequence_length_target", {1, 4}, {1, 2, 4});
-    auto select          = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
               migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{target_sequence}, dd{lit(4)}}}}})}}),
+                  migraphx::shape::float_type, {dd{sequence}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_extent, expected_input},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     auto selections = migraphx::find_all(migraphx::iterator_for(m),
@@ -4842,63 +3959,27 @@ TEST_CASE(split_sym_dim_applies_clone_cap_per_block)
     auto expected_x1 = expected_main.add_parameter(
         "x1", migraphx::shape{migraphx::shape::float_type, {dd{m_dim}, dd{lit(4)}}});
 
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
     auto select_n = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_n}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_x0},
         n_modules);
     auto output_n = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_n);
-    auto output_n_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        expected_x0);
-    auto output_n_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        expected_x0);
-    output_n = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        output_n,
-        output_n_start,
-        output_n_end);
 
-    auto target_m = var("split_sym_dim_m_target", {1, 4}, {1, 2, 4});
     auto select_m = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type, {dd{target_m}, dd{lit(4)}}}}})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{m_dim}, dd{lit(4)}}, {lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_x1},
         m_modules);
     auto output_m = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_m);
-    auto output_m_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        expected_x1);
-    auto output_m_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{m_dim})}}),
-        expected_x1);
-    output_m = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{m_dim})},
-                           {"normalize_bounds", false}}),
-        output_m,
-        output_m_start,
-        output_m_end);
     expected_main.add_return({output_n, output_m});
 
     EXPECT(matches_expected(p, expected));
@@ -4956,35 +4037,17 @@ TEST_CASE(split_sym_dim_keeps_literals_in_clones)
     auto expected_input = expected_main.add_parameter(
         "data",
         migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{lit(5)}, dd{lit(5)}}});
-    auto target_n = var("split_sym_dim_n_target", {1, 4}, {1, 2, 4});
-    auto select   = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                  migraphx::shape{migraphx::shape::float_type,
-                                  {dd{target_n}, dd{lit(1)}, dd{lit(3)}, dd{lit(3)}}}}})}}),
+    auto select = expected_main.add_instruction(
+        migraphx::make_op("select_module",
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                {dd{n}, dd{lit(1)}, dd{lit(3)}, dd{lit(3)}},
+                                                {lit(9), lit(9), lit(3), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         modules);
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        output,
-        output_start,
-        output_end);
     expected_main.add_return({output});
 
     EXPECT(matches_expected(p, expected));
@@ -5052,36 +4115,22 @@ TEST_CASE(split_sym_dim_coalesces_spatial_cnn)
                         {dd{lit(1)}, dd{lit(3)}, dd{spatial}, dd{spatial}}});
     auto target_spatial = var("split_sym_dim_spatial_target", {8, 16}, {8, 12, 16});
     auto output_extent  = (target_spatial - 6) / 2 + 1;
+    auto real_extent    = (spatial - 6) / 2 + 1;
     auto select         = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type,
-                  {dd{lit(1)}, dd{lit(6)}, dd{output_extent}, dd{output_extent}}}}})}}),
+                      migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type,
+                                          {dd{lit(1)}, dd{lit(6)}, dd{real_extent}, dd{real_extent}},
+                                          {lit(6) * output_extent * output_extent,
+                                           output_extent * output_extent,
+                                           output_extent,
+                                           lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{input},
         modules);
     auto output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto real_extent  = (spatial - 6) / 2 + 1;
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op(
-            "eval_expr_from_shape",
-            {{"expressions", migraphx::to_value(std::vector<se>{real_extent, real_extent})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{2, 3}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{real_extent, real_extent})},
-                           {"normalize_bounds", false}}),
-        output,
-        output_start,
-        output_end);
     expected_main.add_return({output});
 
     EXPECT(matches_expected(p, expected));
@@ -5141,32 +4190,16 @@ TEST_CASE(split_sym_dim_preserves_compound_mask_extent)
     auto target_sequence = var("split_sym_dim_sequence_target", {4, 16}, {4, 8, 16});
     auto target_extent   = target_sequence - 2;
     auto select          = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{target_extent}}}}})}}),
+        migraphx::make_op("select_module",
+                                   {{"output_dyn_shapes",
+                                     migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                         {dd{lit(1)}, dd{lit(1)}, dd{sequence - 2}},
+                                                         {target_extent, target_extent, lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_input},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{sequence - 2})}}),
-        std::vector<migraphx::instruction_ref>{expected_input});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{2}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence - 2})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -5253,30 +4286,14 @@ TEST_CASE(split_sym_dim_freezes_fixed_roots_in_mask_extents)
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{target_extent}}}}})}}),
+                       migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type,
+                                           {dd{lit(1)}, dd{lit(1)}, dd{-kernel + sequence + 1}},
+                                           {target_extent, target_extent, lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_input, expected_weights},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_input, expected_weights});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op(
-            "eval_expr_from_shape",
-            {{"expressions", migraphx::to_value(std::vector<se>{-kernel + sequence + 1})}}),
-        std::vector<migraphx::instruction_ref>{expected_input, expected_weights});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{2}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{-kernel + sequence + 1})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -5353,32 +4370,16 @@ TEST_CASE(split_sym_dim_specializes_transformer_core)
         migraphx::shape{migraphx::shape::float_type, {dd{lit(2)}, dd{sequence}, dd{lit(8)}}});
     auto target_sequence = var("split_sym_dim_sequence_target", {4, 16}, {4, 8, 16});
     auto select          = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{lit(2)}, dd{target_sequence}, dd{lit(8)}}}}})}}),
+        migraphx::make_op("select_module",
+                                   {{"output_dyn_shapes",
+                                     migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                         {dd{lit(2)}, dd{sequence}, dd{lit(8)}},
+                                                         {target_sequence * 8, lit(8), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{key, query, value},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{query});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-        std::vector<migraphx::instruction_ref>{query});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        output_start,
-        output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -5457,32 +4458,16 @@ TEST_CASE(split_sym_dim_specializes_transformer)
         "x", migraphx::shape{migraphx::shape::float_type, {dd{lit(2)}, dd{sequence}, dd{lit(8)}}});
     auto target_sequence = var("split_sym_dim_sequence_target", {4, 16}, {4, 8, 16});
     auto select          = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{lit(2)}, dd{target_sequence}, dd{lit(8)}}}}})}}),
+        migraphx::make_op("select_module",
+                                   {{"output_dyn_shapes",
+                                     migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                         {dd{lit(2)}, dd{sequence}, dd{lit(8)}},
+                                                         {target_sequence * 8, lit(8), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{input},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        output_start,
-        output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -5571,30 +4556,14 @@ TEST_CASE(split_sym_dim_masks_contraction_operands_independently)
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                       migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
                   migraphx::shape{migraphx::shape::float_type,
-                                  {dd{lit(1)}, dd{lit(1)}, dd{target_sequence}, dd{lit(4)}}}}})}}),
+                                           {dd{lit(1)}, dd{lit(1)}, dd{sequence}, dd{lit(4)}},
+                                           {target_sequence * 4, target_sequence * 4, lit(4), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_a, expected_b, expected_scores},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_scores});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-        std::vector<migraphx::instruction_ref>{expected_scores});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{2}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -5662,32 +4631,16 @@ TEST_CASE(split_sym_dim_keeps_softmax_mask_off_contract_axis)
         migraphx::shape{migraphx::shape::float_type, {dd{lit(2)}, dd{sequence}, dd{lit(8)}}});
     auto target_sequence = var("split_sym_dim_sequence_target", {4, 16}, {4, 8, 16});
     auto select          = expected_main.add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes",
-              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{lit(2)}, dd{target_sequence}, dd{lit(8)}}}}})}}),
+        migraphx::make_op("select_module",
+                                   {{"output_dyn_shapes",
+                                     migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                                migraphx::shape{migraphx::shape::float_type,
+                                                         {dd{lit(2)}, dd{sequence}, dd{lit(8)}},
+                                                         {target_sequence * 8, lit(8), lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_value, input},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    auto output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{sequence})}}),
-        std::vector<migraphx::instruction_ref>{input});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{sequence})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        output_start,
-        output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -5746,59 +4699,26 @@ TEST_CASE(split_sym_dim_keeps_reduction_of_padded_body_outside_clone)
     auto& expected_main = *expected.get_main_module();
     auto expected_x =
         expected_main.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
-    auto target_n   = var("split_sym_dim_n_target", {1, 8}, {1, 2, 8});
     auto select_exp = expected_main.add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes",
-                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type, {dd{n}}, {lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_x},
         exp_modules);
     auto expected_exp = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_exp);
-    auto expected_exp_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_x});
-    auto expected_exp_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_x});
-    expected_exp = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_exp,
-        expected_exp_start,
-        expected_exp_end);
     auto select_sub = expected_main.add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes",
-                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type, {dd{n}}, {lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_exp, expected_exp, expected_x},
         sub_modules);
     auto expected_output = expected_main.add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), select_sub);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_x});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_x});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -5891,44 +4811,16 @@ TEST_CASE(split_sym_dim_output_slice_uses_parameter_and_data_root_sources)
         expected_indices,
         expected_starts,
         expected_count);
-    auto target_width = var("split_sym_dim_width_target", {1, 2}, {1, 2});
-    auto target_count = var("split_sym_dim_count_target", {0, 2}, {1, 2});
-    auto select       = expected_main.add_instruction(
+    auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
             {{"output_dyn_shapes",
-                    migraphx::to_value(migraphx::shape{
-                  std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type,
-                                                                     {dd{target_width}, dd{target_count}},
-                                                                     {lit(0), lit(0)}}}})},
-                   {"logical_output_dyn_shapes",
-                    migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
-                  migraphx::shape::float_type, {dd{width}, dd{count}}, {lit(0), lit(0)}}}})},
-                   {"input_shapes",
-                    migraphx::to_value(std::vector<migraphx::shape>{expected_selected->get_shape(),
-                                                                    expected_x->get_shape()})}}),
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{migraphx::shape{
+                  migraphx::shape::float_type, {dd{width}, dd{count}}, {lit(0), lit(0)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_selected, expected_x},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_sources = std::vector<migraphx::instruction_ref>{expected_x, expected_selected};
-    auto output_starts    = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                             {{"expressions", migraphx::to_value(std::vector<se>{lit(0), lit(0)})}}),
-        expected_sources);
-    auto output_ends = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{width, count})}}),
-        expected_sources);
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0, 1}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0), lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{width, count})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        output_starts,
-        output_ends);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -6001,7 +4893,7 @@ TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
         EXPECT(result.get_shape() == expected_shape);
         EXPECT(values == expected_values);
     };
-    check_result({0, 0, 0, 0}, migraphx::shape{migraphx::shape::float_type, {2, 0}, {4, 1}}, {});
+    check_result({0, 0, 0, 0}, migraphx::shape{migraphx::shape::float_type, {2, 0}}, {});
     check_result(
         {0, 1, 0, 0}, migraphx::shape{migraphx::shape::float_type, {2, 1}, {1, 1}}, {0.0f, 1.0f});
     check_result({0, 1, 1, 0},
@@ -6189,33 +5081,16 @@ TEST_CASE(split_sym_dim_keeps_unsupported_dependency_outside_clone)
         expected_main.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
     auto expected_concat = expected_main.add_instruction(
         migraphx::make_op("concat", {{"axis", 0}}), expected_x, expected_x);
-    auto target_n = var("split_sym_dim_n_target", {1, 8}, {1, 2, 8});
-    auto select   = expected_main.add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes",
-                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
+    auto select = expected_main.add_instruction(
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
+              migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                  migraphx::shape{migraphx::shape::float_type, {dd{n}}, {lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_concat, expected_x},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_x});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_x});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output});
 
     EXPECT(matches_expected(p, expected));
@@ -6246,7 +5121,7 @@ TEST_CASE(split_sym_dim_rejects_reshape_with_unowned_root)
                                    [](auto ins) { return ins->name() == "add"; });
     EXPECT(adds.size() == 1);
     if(adds.size() == 1)
-        EXPECT(adds.front()->inputs().back()->name() == "dyn_slice");
+        EXPECT(adds.front()->inputs().back()->name() == "get_tuple_elem");
     EXPECT(migraphx::all_of(p.get_modules(), [](auto* module) {
         if(module->name() == "main")
             return true;
@@ -6271,11 +5146,10 @@ TEST_CASE(split_sym_dim_preserves_original_output_expr)
     run_pass(p);
 
     EXPECT(m.get_returns().size() == 1);
-    EXPECT(m.get_returns().front()->name() == "dyn_slice");
+    EXPECT(m.get_returns().front()->name() == "get_tuple_elem");
     EXPECT(m.get_returns().front()->get_shape() ==
            migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}});
-    EXPECT(
-        not m.get_returns().front()->get_operator().to_value().at("normalize_bounds").to<bool>());
+    EXPECT(m.get_returns().front()->inputs().front()->name() == "select_module");
 }
 
 TEST_CASE(split_sym_dim_materializes_bounded_prefix_dyn_slice)
@@ -6408,33 +5282,16 @@ TEST_CASE(split_sym_dim_memoizes_unchanged_shared_dependencies)
     auto expected_static_input = expected_main.add_parameter(
         "static_path", migraphx::shape{migraphx::shape::float_type, {std::size_t{4}}});
     auto expected_static_path = add_residual_diamonds(expected_main, expected_static_input, 50);
-    auto target_n             = var("split_sym_dim_n_target", {1, 8}, {1, 2, 8});
     auto select               = expected_main.add_instruction(
-        migraphx::make_op("select_module",
-                          {{"output_dyn_shapes",
+        migraphx::make_op(
+            "select_module",
+            {{"output_dyn_shapes",
                             migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
-                                migraphx::shape{migraphx::shape::float_type, {dd{target_n}}}}})}}),
+                  migraphx::shape{migraphx::shape::float_type, {dd{n}}, {lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_x},
         modules);
     auto expected_output =
         expected_main.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto expected_output_start = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{lit(0)})}}),
-        std::vector<migraphx::instruction_ref>{expected_x});
-    auto expected_output_end = expected_main.add_instruction(
-        migraphx::make_op("eval_expr_from_shape",
-                          {{"expressions", migraphx::to_value(std::vector<se>{n})}}),
-        std::vector<migraphx::instruction_ref>{expected_x});
-    expected_output = expected_main.add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", std::vector<int64_t>{0}},
-                           {"starts", migraphx::to_value(std::vector<se>{lit(0)})},
-                           {"ends", migraphx::to_value(std::vector<se>{n})},
-                           {"normalize_bounds", false}}),
-        expected_output,
-        expected_output_start,
-        expected_output_end);
     expected_main.add_return({expected_output, expected_static_path});
 
     EXPECT(matches_expected(p, expected));

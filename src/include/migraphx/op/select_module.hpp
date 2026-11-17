@@ -34,7 +34,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/sym.hpp>
-#include <migraphx/symbolic_shape_helpers.hpp>
 #include <algorithm>
 #include <cassert>
 #include <functional>
@@ -48,12 +47,8 @@ namespace op {
 
 struct select_module
 {
-    // output_dyn_shapes describes the output shapes returned by candidates.
     shape output_dyn_shapes;
-    // logical_output_dyn_shapes describes the actual unpadded output shapes.
-    // These are different from output_dyn_shapes when bucketizing adds fixed padding.
-    optional<shape> logical_output_dyn_shapes;
-    // Captures symbolic input expressions used to evaluate logical output shapes at runtime.
+    // Captures symbolic input expressions used to evaluate output dimensions at runtime.
     std::vector<shape> input_shapes;
 
     struct output_location
@@ -95,7 +90,6 @@ struct select_module
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.output_dyn_shapes, "output_dyn_shapes"),
-                    f(self.logical_output_dyn_shapes, "logical_output_dyn_shapes"),
                     f(self.input_shapes, "input_shapes"));
     }
 
@@ -103,51 +97,17 @@ struct select_module
 
     std::size_t num_outputs() const { return output_dyn_shapes.sub_shapes().size(); }
 
-    static MIGRAPHX_EXPORT bool compatible_output_shape(const shape& logical, const shape& output);
+    static MIGRAPHX_EXPORT shape
+    resolve_output_shape(const shape& output,
+                         const std::unordered_map<sym::expr, std::size_t>& values,
+                         const shape* physical = nullptr);
+    static MIGRAPHX_EXPORT argument reshape_output(const argument& arg, const shape& output_shape);
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
-        if(not logical_output_dyn_shapes.has_value())
-            return shape{output_dyn_shapes};
-        if(logical_output_dyn_shapes->sub_shapes().size() != num_outputs())
-            MIGRAPHX_THROW("SELECT_MODULE: logical output count does not match outputs");
-        if(input_shapes.empty() or input_shapes.size() > inputs.size())
+        if(not input_shapes.empty() and input_shapes.size() > inputs.size())
             MIGRAPHX_THROW("SELECT_MODULE: symbolic input shapes were not captured");
-
-        // Check that each logical output shape is compatible with its physical output shape.
-        migraphx::for_each(logical_output_dyn_shapes->sub_shapes().begin(),
-                           logical_output_dyn_shapes->sub_shapes().end(),
-                           output_dyn_shapes.sub_shapes().begin(),
-                           [&](const shape& logical, const shape& output) {
-                               if(not compatible_output_shape(logical, output))
-                                   MIGRAPHX_THROW(
-                                       "SELECT_MODULE: logical output is incompatible with "
-                                       "declared output");
-                           });
-
-        std::vector<sym::expr> expressions;
-        fix([&](auto self, const shape& s) {
-            if(s.type() == shape::tuple_type)
-            {
-                std::for_each(s.sub_shapes().begin(),
-                              s.sub_shapes().end(),
-                              [&](const shape& sub_shape) { self(sub_shape); });
-                return;
-            }
-            if(s.dynamic() and not s.symbolic())
-                MIGRAPHX_THROW("SELECT_MODULE: logical outputs must be static or symbolic");
-            if(not s.symbolic())
-                return;
-            std::transform(s.dyn_dims().begin(),
-                           s.dyn_dims().end(),
-                           std::back_inserter(expressions),
-                           [](const auto& dim) { return dim.sym_expr; });
-            expressions.insert(expressions.end(), s.dyn_strides().begin(), s.dyn_strides().end());
-        })(*logical_output_dyn_shapes);
-        if(auto unresolved = find_unresolved_shape_expression(input_shapes, expressions))
-            MIGRAPHX_THROW("SELECT_MODULE: logical output expression '" + unresolved->to_string() +
-                           "' cannot be resolved from the input dimensions");
         return shape{output_dyn_shapes};
     }
 
@@ -156,18 +116,29 @@ struct select_module
                   const std::vector<shape>& inputs,
                   const std::vector<module_ref>& submodule_list)
     {
-        if(logical_output_dyn_shapes.has_value() and
-           (input_shapes.empty() or input_shapes.size() > inputs.size()))
-            MIGRAPHX_THROW("SELECT_MODULE: symbolic input shapes were not captured");
         metadata = build_module_metadata(submodule_list);
+        if(metadata.modules.empty())
+            MIGRAPHX_THROW("SELECT_MODULE: no candidate modules");
+        bool has_output_allocations = not metadata.modules.front().outputs.empty();
+        if(any_of(metadata.modules, [&](const auto& candidate) {
+               return (not candidate.outputs.empty()) != has_output_allocations;
+           }))
+            MIGRAPHX_THROW("SELECT_MODULE: candidates disagree on output allocations");
+        if(has_output_allocations and inputs.size() < num_outputs())
+            MIGRAPHX_THROW("SELECT_MODULE: missing output allocations");
+        auto input_count = inputs.size() - (has_output_allocations ? num_outputs() : 0);
+        input_shapes.assign(inputs.begin(), inputs.begin() + input_count);
     }
 
-    std::vector<shape> compute_logical_output_shapes(const std::vector<argument>& args) const
+    std::vector<shape> compute_output_shapes(const std::vector<argument>& args,
+                                             const std::vector<shape>& physical_shapes = {}) const
     {
-        if(not logical_output_dyn_shapes.has_value())
+        if(input_shapes.empty())
             return {};
-        if(input_shapes.empty() or input_shapes.size() > args.size())
+        if(input_shapes.size() > args.size())
             MIGRAPHX_THROW("SELECT_MODULE: symbolic input shapes were not captured");
+        if(not physical_shapes.empty() and physical_shapes.size() != num_outputs())
+            MIGRAPHX_THROW("SELECT_MODULE: physical output count does not match outputs");
 
         std::unordered_map<sym::expr, std::size_t> values;
         migraphx::for_each(
@@ -199,10 +170,11 @@ struct select_module
             });
 
         std::vector<shape> result;
-        std::transform(logical_output_dyn_shapes->sub_shapes().begin(),
-                       logical_output_dyn_shapes->sub_shapes().end(),
-                       std::back_inserter(result),
-                       [&](const shape& s) { return s.to_static(values); });
+        auto indices = range(num_outputs());
+        std::transform(indices.begin(), indices.end(), std::back_inserter(result), [&](auto i) {
+            const shape* physical = physical_shapes.empty() ? nullptr : &physical_shapes.at(i);
+            return resolve_output_shape(output_dyn_shapes.sub_shapes().at(i), values, physical);
+        });
         return result;
     }
 
@@ -285,12 +257,7 @@ struct select_module
                     results.push_back(fix<argument>(
                         [&](auto self, const argument& current, const shape& output_shape) {
                             if(output_shape.type() != shape::tuple_type)
-                            {
-                                auto empty_shape = shape{output_shape.type(),
-                                                         output_shape.lens(),
-                                                         current.get_shape().strides()};
-                                return current.reshape(empty_shape);
-                            }
+                                return current.reshape(output_shape);
                             auto sub_args = current.get_sub_objects();
                             if(sub_args.size() != output_shape.sub_shapes().size())
                                 MIGRAPHX_THROW(
@@ -309,28 +276,20 @@ struct select_module
         }
         else
         {
-            migraphx::for_each(
-                output_shapes.begin(),
-                output_shapes.end(),
-                output_dyn_shapes.sub_shapes().begin(),
-                [&](const shape& logical, const shape& physical) {
-                    results.push_back(fix<argument>([](auto self, const shape& x, const shape& y) {
-                        if(x.type() != shape::tuple_type)
-                        {
-                            auto physical_shape = y.dynamic() ? shape{y.type(), y.max_lens()} : y;
-                            auto empty_shape = shape{x.type(), x.lens(), physical_shape.strides()};
-                            return argument{empty_shape, nullptr};
-                        }
-                        std::vector<argument> sub_objects;
-                        migraphx::for_each(x.sub_shapes().begin(),
-                                           x.sub_shapes().end(),
-                                           y.sub_shapes().begin(),
-                                           [&](const shape& xsub, const shape& ysub) {
-                                               sub_objects.push_back(self(xsub, ysub));
-                                           });
-                        return argument{sub_objects};
-                    })(logical, physical));
-                });
+            std::transform(output_shapes.begin(),
+                           output_shapes.end(),
+                           std::back_inserter(results),
+                           fix<argument>([](auto self, const shape& s) {
+                               if(s.type() != shape::tuple_type)
+                                   return argument{s, nullptr};
+                               std::vector<argument> sub_objects;
+                               std::transform(
+                                   s.sub_shapes().begin(),
+                                   s.sub_shapes().end(),
+                                   std::back_inserter(sub_objects),
+                                   [&](const shape& sub_shape) { return self(sub_shape); });
+                               return argument{sub_objects};
+                           }));
         }
         return argument{results};
     }
@@ -425,10 +384,10 @@ struct select_module
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         const auto& finalized = finalized_metadata(submodule_list.size());
-        auto logical_outputs  = compute_logical_output_shapes(args);
-        if(not logical_outputs.empty() and
-           all_of(logical_outputs, [](const shape& s) { return empty_output_shape(s); }))
-            return short_circuit_outputs(finalized, args, logical_outputs);
+        auto output_shapes    = compute_output_shapes(args);
+        if(not output_shapes.empty() and
+           all_of(output_shapes, [](const shape& s) { return empty_output_shape(s); }))
+            return short_circuit_outputs(finalized, args, output_shapes);
         const auto& module_info =
             find_module(finalized, args.size(), [&](std::size_t index) -> const argument& {
                 return args[index];
@@ -466,6 +425,17 @@ struct select_module
                            return std::make_pair(output.name, prepare_output(output, get_output));
                        });
         auto results = run(module_to_run, p_map);
+        if(results.size() != num_outputs())
+            MIGRAPHX_THROW("SELECT_MODULE: candidate returned the wrong number of outputs");
+        if(not output_shapes.empty())
+        {
+            auto resolved_shapes = compute_output_shapes(args, to_shapes(results));
+            migraphx::for_each(
+                results.begin(),
+                results.end(),
+                resolved_shapes.begin(),
+                [](argument& result, const shape& s) { result = reshape_output(result, s); });
+        }
         return argument{results};
     }
 

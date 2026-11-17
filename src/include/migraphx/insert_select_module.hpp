@@ -41,8 +41,7 @@ insert_select_module(module_pass_manager& mpm,
                      module& m,
                      const std::vector<instruction_ref>& inputs,
                      std::vector<module> clones,
-                     const std::vector<shape>& output_shapes,
-                     const std::vector<shape>& logical_output_shapes = {});
+                     const std::vector<shape>& output_shapes);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

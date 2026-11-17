@@ -44,6 +44,25 @@ using module_metadata    = select_module::module_metadata;
 using output_location    = select_module::output_location;
 using parameter_metadata = select_module::parameter_metadata;
 
+std::optional<std::size_t>
+evaluate_dimension(const sym::expr& expression,
+                   const std::unordered_map<sym::expr, std::size_t>& values)
+{
+    std::unordered_map<sym::expr, sym::expr> substitutions;
+    std::transform(
+        values.begin(),
+        values.end(),
+        std::inserter(substitutions, substitutions.end()),
+        [](const auto& item) { return std::make_pair(item.first, sym::lit(item.second)); });
+    auto value = sym::fixed_value(expression.subs(substitutions));
+    if(not value.has_value())
+        return std::nullopt;
+    auto integer = sym::to<int64_t>(*value);
+    if(integer < 0)
+        MIGRAPHX_THROW("SELECT_MODULE: output dimension is negative");
+    return static_cast<std::size_t>(integer);
+}
+
 // The ref target wraps every operator in ref::op, which reports the wrapped one in to_value.
 std::optional<std::size_t> tuple_element_index(instruction_ref ins)
 {
@@ -258,26 +277,75 @@ std::vector<std::size_t> shared_dynamic_indices(const module_metadata& candidate
 
 } // namespace
 
-bool select_module::compatible_output_shape(const shape& logical, const shape& output)
+shape select_module::resolve_output_shape(const shape& output,
+                                          const std::unordered_map<sym::expr, std::size_t>& values,
+                                          const shape* physical)
 {
-    if(logical.type() != output.type())
-        return false;
-    if(logical.type() == shape::tuple_type)
+    if(output.type() == shape::tuple_type)
     {
-        return logical.sub_shapes().size() == output.sub_shapes().size() and
-               std::equal(logical.sub_shapes().begin(),
-                          logical.sub_shapes().end(),
-                          output.sub_shapes().begin(),
-                          [](const shape& logical_sub, const shape& output_sub) {
-                              return compatible_output_shape(logical_sub, output_sub);
-                          });
+        if(physical != nullptr and (physical->type() != shape::tuple_type or
+                                    physical->sub_shapes().size() != output.sub_shapes().size()))
+            MIGRAPHX_THROW("SELECT_MODULE: physical output tuple does not match declared output");
+        std::vector<shape> sub_shapes;
+        auto indices = range(output.sub_shapes().size());
+        std::transform(indices.begin(), indices.end(), std::back_inserter(sub_shapes), [&](auto i) {
+            const shape* physical_sub =
+                physical == nullptr ? nullptr : &physical->sub_shapes().at(i);
+            return resolve_output_shape(output.sub_shapes().at(i), values, physical_sub);
+        });
+        return shape{sub_shapes};
     }
-    if(logical.ndim() != output.ndim())
-        return false;
-    auto logical_max = logical.max_lens();
-    auto output_max  = output.max_lens();
-    return std::equal(
-        logical_max.begin(), logical_max.end(), output_max.begin(), std::less_equal<>{});
+
+    if(physical != nullptr and
+       (physical->type() != output.type() or physical->ndim() != output.ndim()))
+        MIGRAPHX_THROW("SELECT_MODULE: physical output does not match declared output");
+
+    std::vector<std::size_t> lens;
+    if(not output.dynamic())
+    {
+        lens = output.lens();
+    }
+    else
+    {
+        lens.reserve(output.ndim());
+        auto axes = range(output.ndim());
+        std::transform(axes.begin(), axes.end(), std::back_inserter(lens), [&](auto axis) {
+            const auto& dim = output.dyn_dims().at(axis);
+            if(dim.is_fixed())
+                return dim.get_interval().min;
+            if(dim.is_symbolic())
+            {
+                auto value = evaluate_dimension(dim.sym_expr, values);
+                if(value.has_value())
+                    return *value;
+            }
+            return physical == nullptr ? dim.get_interval().max : physical->lens().at(axis);
+        });
+    }
+
+    if(physical == nullptr)
+        return shape{output.type(), lens};
+    if(any_of(range(lens.size()),
+              [&](auto axis) { return lens.at(axis) > physical->lens().at(axis); }))
+        MIGRAPHX_THROW("SELECT_MODULE: logical output exceeds physical output");
+    return shape{output.type(), std::move(lens), physical->strides()};
+}
+
+argument select_module::reshape_output(const argument& arg, const shape& output_shape)
+{
+    if(output_shape.type() != shape::tuple_type)
+        return arg.reshape(output_shape);
+    auto sub_args = arg.get_sub_objects();
+    if(sub_args.size() != output_shape.sub_shapes().size())
+        MIGRAPHX_THROW("SELECT_MODULE: output tuple does not match declared output");
+    std::vector<argument> result;
+    migraphx::for_each(sub_args.begin(),
+                       sub_args.end(),
+                       output_shape.sub_shapes().begin(),
+                       [&](const argument& sub_arg, const shape& sub_shape) {
+                           result.push_back(reshape_output(sub_arg, sub_shape));
+                       });
+    return argument{result};
 }
 
 select_module::module_set_metadata

@@ -520,7 +520,7 @@ TEST_CASE(select_module_static_stride_mismatch_error)
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
 
-TEST_CASE(select_module_empty_stride_mismatch)
+TEST_CASE(select_module_empty_output_short_circuits_before_stride_reshape)
 {
     migraphx::module submodule{"empty"};
     auto expected = migraphx::shape{migraphx::shape::int64_type, {1, 0}, {0, 1}};
@@ -539,7 +539,7 @@ TEST_CASE(select_module_empty_stride_mismatch)
             EXPECT(params.at("data").get_shape() == expected);
             return std::vector<migraphx::argument>{params.at("data")};
         });
-    EXPECT(invoked);
+    EXPECT(not invoked);
     EXPECT(result.get_sub_objects().front().get_shape() == expected);
 }
 
@@ -671,7 +671,6 @@ TEST_CASE(select_module_nested_output_buffers)
 
 TEST_CASE(select_module_zero_output_short_circuit)
 {
-    using migraphx::sym::lit;
     auto n = migraphx::sym::var("n", {0, 4});
     migraphx::program p;
     auto* submod      = p.create_module("n4");
@@ -685,32 +684,11 @@ TEST_CASE(select_module_zero_output_short_circuit)
     auto input                           = mm->add_parameter("data", input_shape);
     std::vector<migraphx::shape> outputs = {input_shape};
     auto select                          = mm->add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-                                      {"logical_output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-                                      {"input_shapes", migraphx::to_value(std::vector<migraphx::shape>{input_shape})}}),
+        migraphx::make_op("select_module",
+                                                   {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})}}),
         {input},
         {submod});
     auto output = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
-    auto starts = mm->add_instruction(
-        migraphx::make_op(
-            "eval_expr_from_shape",
-            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{lit(0)})}}),
-        input);
-    auto ends = mm->add_instruction(
-        migraphx::make_op(
-            "eval_expr_from_shape",
-            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}}),
-        input);
-    output = mm->add_instruction(
-        migraphx::make_op("dyn_slice",
-                          {{"axes", {0}},
-                           {"starts", {0}},
-                           {"ends", migraphx::value::array{migraphx::to_value(n)}}}),
-        output,
-        starts,
-        ends);
     mm->add_return({output});
     p.compile(migraphx::make_target("ref"));
 
@@ -736,13 +714,8 @@ TEST_CASE(select_module_mixed_empty_concat_runs)
     std::vector<migraphx::shape> outputs = {migraphx::shape{migraphx::shape::float_type, {0, 3}},
                                             migraphx::shape{migraphx::shape::float_type, {2, 3}}};
     auto select                          = mm->add_instruction(
-        migraphx::make_op(
-            "select_module",
-            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-                                      {"logical_output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})},
-                                      {"input_shapes",
-                                       migraphx::to_value(
-                  std::vector<migraphx::shape>{main_data->get_shape(), main_empty->get_shape()})}}),
+        migraphx::make_op("select_module",
+                                                   {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})}}),
         {main_data, main_empty},
         {submod});
     auto empty_output =

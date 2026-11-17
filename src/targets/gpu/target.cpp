@@ -229,6 +229,20 @@ std::size_t option_or(std::size_t option, std::size_t device_default)
     return option == 0 ? device_default : option;
 }
 
+// dot, convolution and their pointwise fusions have an MLIR path that compiles to a
+// gpu::code_object, which gets a recipe; rocBLAS, hipBLASLt and MIOpen calls do not (see
+// gpu::restore_recipes::is_out_of_scope), so recompile would refuse to retarget them to another
+// GPU. A recompilable program forces these ops onto MLIR so every kernel has a recipe; an
+// explicit "!dot"-style rejection in mlir_use_specific_ops or MIGRAPHX_MLIR_USE_SPECIFIC_OPS
+// still wins, because gpu::fuse_mlir::apply checks rejections before requests.
+std::vector<std::string> force_mlir_ops_for_recompile(std::vector<std::string> use_specific_ops)
+{
+    static const std::vector<std::string> required = {
+        "dot", "fused_dot", "convolution", "fused_convolution", "fused"};
+    use_specific_ops.insert(use_specific_ops.end(), required.begin(), required.end());
+    return use_specific_ops;
+}
+
 // The fused kernel needs enough q rows to fill the device while the separate gemms also
 // parallelize over the kv length: the measured crossover sits between 16 and 27 q rows per
 // CU on both gfx942 and gfx1201. Wave32 devices report workgroup processors (two CUs each)
@@ -316,9 +330,13 @@ struct pipeline_factory
             insert_pad{{"convolution"}},
             dead_code_elimination{},
             inline_module{},
+            // gpu::lrn is a MIOpen call with no recipe (gpu::restore_recipes::is_out_of_scope),
+            // so a recompilable program rewrites it into ops that can be recompiled, same as
+            // MIGRAPHX_REWRITE_LRN=1.
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
                         rewrite_pooling{.rewrite_lrn = (not MIGRAPHX_USE_MIOPEN or
-                                                        enabled(MIGRAPHX_REWRITE_LRN{}))}),
+                                                        enabled(MIGRAPHX_REWRITE_LRN{}) or
+                                                        options.recompilable)}),
             dead_code_elimination{},
         };
     }
@@ -514,7 +532,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 {
     auto backend_v    = backend_options_value(options);
     auto backend_opts = from_value<backend_options>(backend_v);
-    auto& ctx         = any_cast<context>(gctx);
+    if(options.recompilable)
+        backend_opts.mlir_use_specific_ops =
+            force_mlir_ops_for_recompile(backend_opts.mlir_use_specific_ops);
+    auto& ctx = any_cast<context>(gctx);
     setup_context(ctx, options, backend_opts);
 
     pipeline_factory p{&gctx, options, backend_opts};

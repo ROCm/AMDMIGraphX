@@ -146,6 +146,35 @@ static void expect_nms_result(const migraphx::program& p)
     EXPECT(indices == std::vector<std::int64_t>{0, 0, 3, 0, 0, 0, 0, 0, 5});
 }
 
+// Kept in sync by hand with gpu::restore_recipes::is_out_of_scope (restore_recipes.cpp): library
+// calls with no recipe, which recompile cannot regenerate for another device.
+static bool has_out_of_scope_kernel(const migraphx::program& p)
+{
+    static const std::vector<std::string> out_of_scope = {"gpu::gemm",
+                                                           "gpu::quant_gemm",
+                                                           "gpu::hip_gemm",
+                                                           "gpu::hip_quant_gemm",
+                                                           "gpu::hipblaslt_op",
+                                                           "gpu::convolution",
+                                                           "gpu::quant_convolution",
+                                                           "gpu::convolution_backwards",
+                                                           "gpu::miopen_op",
+                                                           "gpu::miopen_fusion",
+                                                           "gpu::conv_bias",
+                                                           "gpu::conv_bias_relu",
+                                                           "gpu::lrn",
+                                                           "gpu::mlss_conv"};
+    for(const auto* mod : p.get_modules())
+    {
+        for(auto ins : migraphx::iterator_for(*mod))
+        {
+            if(migraphx::contains(out_of_scope, ins->name()))
+                return true;
+        }
+    }
+    return false;
+}
+
 static bool has_kernel(const migraphx::program& p, const std::string& symbol)
 {
     auto kernels = get_kernels(p);
@@ -577,6 +606,59 @@ TEST_CASE(recompile_keeps_unused_writers)
     EXPECT(count_unused(p) == unused);
     EXPECT(get_kernels(p).size() == kernels);
     expect_same_as_ref(p, ref, make_params());
+}
+
+// gpu::lrn is a MIOpen call with no recipe; a recompilable program rewrites lrn into ops that
+// do have one, same as MIGRAPHX_REWRITE_LRN=1 (target.cpp's required_pipeline).
+TEST_CASE(recompilable_rewrites_lrn)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {1, 8, 4, 4}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_return({mm->add_instruction(
+        migraphx::make_op("lrn", {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),
+        x)});
+    auto ref = p;
+    p.compile(migraphx::make_target("gpu"), recipe_options());
+
+    EXPECT(not has_out_of_scope_kernel(p));
+    EXPECT(all_have_recipes(p));
+    expect_same_as_ref(p, ref, {{"x", migraphx::generate_argument(s, 0)}});
+}
+
+// dot and convolution lower to rocBLAS/hipBLASLt/MIOpen calls with no recipe unless forced onto
+// MLIR; a recompilable program forces them on (target.cpp's force_mlir_ops_for_recompile), so
+// every kernel is one recompile can regenerate for another device.
+TEST_CASE(recompilable_avoids_out_of_scope_kernels)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // K (the shared 2048 dim) past 1535 makes is_mlir_dot's fast-mode heuristic skip MLIR by
+    // default (fuse_mlir.cpp); forcing mode to "all" for a recompilable program bypasses that.
+    migraphx::shape a_s{migraphx::shape::float_type, {4, 2048}};
+    migraphx::shape b_s{migraphx::shape::float_type, {2048, 256}};
+    auto a   = mm->add_parameter("a", a_s);
+    auto b   = mm->add_parameter("b", b_s);
+    auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+
+    migraphx::shape img_s{migraphx::shape::float_type, {1, 3, 8, 8}};
+    migraphx::shape w_s{migraphx::shape::float_type, {4, 3, 3, 3}};
+    auto img  = mm->add_parameter("img", img_s);
+    auto w    = mm->add_literal(migraphx::generate_literal(w_s, 1));
+    auto conv = mm->add_instruction(migraphx::make_op("convolution"), img, w);
+    mm->add_return({dot, mm->add_instruction(migraphx::make_op("flatten"), conv)});
+    // Cross-compile for a non-Navi device with MIOpen/rocBLAS/hipBLASLt all available, so the
+    // forcing in target.cpp, not a build config or gfx11/12 default, is what is under test.
+    // channels_first keeps the convolution out of is_mlir_conv's "always use mlir for NHWC"
+    // shortcut, so its square, 3-divisible 3x3 kernel exercises the same fast-mode profitability
+    // check (false by default) that the forcing bypasses.
+    auto options                              = recipe_options();
+    options.backend_options["convolution_layout"] = "channels_first";
+    p.compile(cross_target("gfx942"), options);
+
+    EXPECT(not has_out_of_scope_kernel(p));
+    EXPECT(all_have_recipes(p));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

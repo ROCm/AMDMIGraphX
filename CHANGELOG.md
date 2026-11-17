@@ -29,6 +29,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `MIGRAPHX_SHARE_LITERALS` keeping every pooled weight in device and host memory until the process exited; a pooled weight is now freed with the last program that uses it (#5566).
 * Fixed `find_conv_concat_split_fuse` skipping valid horizontal convolution fusion when the convolutions have different output-channel counts, which regressed Topaz trf/trfn performance on gfx1151 after #5167.
 * Fixed a regression in `simplify_algebra` where `find_add_convs` and `find_conv_concat_split_fuse` could fuse parallel convolutions with mismatched spatial dimensions after `rewrite_convolution`, causing `CONCAT: all input dimensions should match` failures when compiling U-Net-style models (#5167).
 * Fixed a GPU compile failure with `redefinition of parameter` when a pointwise fused into a reduce consumed the same tensor at more than one operand slot, which could happen with `--fp16` on models that slice a shared tensor into multiple branches (#5130).

@@ -5810,6 +5810,26 @@ TEST_CASE(slice_squeeze_argmin)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(slice_squeeze_scalar_add)
+{
+    // The squeeze is a scalar while the add has rank 1, so the add cannot move before the squeeze
+    migraphx::shape s{migraphx::shape::int32_type, {4}};
+    migraphx::shape bs{migraphx::shape::int32_type, {1}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto bias  = m1.add_parameter("bias", bs);
+        auto sl    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), input);
+        auto sq   = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sl);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), sq, bias);
+        auto unsq = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), add);
+        m1.add_return({unsq});
+    }
+    run_pass(m1);
+    EXPECT(m1.get_output_shapes().front() == migraphx::shape{migraphx::shape::int32_type, {1, 1}});
+}
+
 TEST_CASE(slice_squeeze_axis_mismatch)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 2, 4}};

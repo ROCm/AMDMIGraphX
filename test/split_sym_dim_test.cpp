@@ -5213,6 +5213,44 @@ TEST_CASE(split_sym_dim_specializes_if_branches)
     }
 }
 
+TEST_CASE(split_sym_dim_freezes_one_input_multibroadcast)
+{
+    // A mask {1, n} broadcast to {4, n} by the one-input form, then used with scores {4, n}
+    auto n = var("n", {1, 8}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto mask =
+        m.add_parameter("mask", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}});
+    auto scores = m.add_parameter(
+        "scores", migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{n}}});
+    auto expanded = m.add_instruction(
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_dyn_dims", migraphx::to_value(std::vector<dd>{dd{lit(4)}, dd{n}})}}),
+        mask);
+    m.add_return({m.add_instruction(migraphx::make_op("add"), scores, expanded)});
+
+    run_pass(p);
+
+    // The broadcast is frozen in the clones; the main module keeps no symbolic broadcast
+    EXPECT(migraphx::none_of(migraphx::iterator_for(m),
+                             [](auto ins) { return ins->name() == "multibroadcast"; }));
+
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> mask_values = {1.0f, 2.0f, 3.0f};
+    std::vector<float> scores_values(12);
+    std::iota(scores_values.begin(), scores_values.end(), 0.0f);
+    migraphx::parameter_map params;
+    params["mask"]   = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {1, 3}},
+                                          mask_values.data()};
+    params["scores"] = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {4, 3}},
+                                          scores_values.data()};
+    std::vector<float> gold(12);
+    for(std::size_t i = 0; i < gold.size(); ++i)
+        gold[i] = scores_values[i] + mask_values[i % 3];
+    EXPECT(p.eval(params).back().to_vector<float>() == gold);
+}
+
 TEST_CASE(split_sym_dim_keeps_unsupported_dependency_outside_clone)
 {
     auto n = var("n", {1, 8}, {2});

@@ -47,8 +47,10 @@ bool is_symbolic_broadcast(const operation& op, std::size_t ninputs)
 {
     if(symbolic_broadcast_dims(op).empty())
         return false;
+    // The one-input form takes its dims from out_dyn_dims, as insert_common_args emits for an
+    // input that keeps its own symbols
     if(op.name() == "multibroadcast")
-        return ninputs >= 2;
+        return ninputs >= 1;
     return ninputs == 2;
 }
 

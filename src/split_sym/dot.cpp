@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/split_sym/analyzer.hpp>
+#include <migraphx/make_op.hpp>
 #include <string>
 
 namespace migraphx {
@@ -41,13 +42,30 @@ struct analyze_dot : analyzer<analyze_dot>
     symbolic_op_info analyze(instruction_ref ins) const
     {
         auto input_shapes = to_shapes(ins->inputs());
-        return analyze_axes(ins, [&](std::size_t input, std::size_t axis) {
+        auto result       = analyze_axes(ins, [&](std::size_t input, std::size_t axis) {
             std::size_t rank = input_shapes.at(input).ndim();
             assert(rank >= 2);
             std::size_t contraction_axis = (input == 0) ? rank - 1 : rank - 2;
             return axis == contraction_axis ? masked_axis(mask_role::contracted, fill_kind::zero)
                                             : parallel_axis();
         });
+        if(result.supported)
+            result.freezer = freeze;
+        return result;
+    }
+
+    // A body may absorb the dot without its plan, as for a dot of fixed shape whose operands come
+    // from another block; zeros padded on the contracted axis leave the products unchanged
+    static instruction_ref freeze(module& m,
+                                  instruction_ref source,
+                                  const std::vector<instruction_ref>& args,
+                                  const std::unordered_map<sym::expr, std::size_t>&)
+    {
+        auto padded_args = args;
+        for(auto& arg : padded_args)
+            if(arg->get_shape().dynamic())
+                arg = m.add_instruction(make_op("fixed_pad", {{"value", 0.0f}}), arg);
+        return m.add_instruction(source->get_operator(), padded_args);
     }
 };
 

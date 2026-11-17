@@ -527,7 +527,7 @@ TEST_CASE(select_module_compute_maps_parameters_by_name)
 
 TEST_CASE(select_module_empty_logical_output_returns_output_allocation)
 {
-    auto n = migraphx::sym::var("n", {0, 4});
+    auto n        = migraphx::sym::var("n", {0, 4});
     auto target_n = migraphx::sym::var("target_n", {0, 4});
     migraphx::shape candidate_s{migraphx::shape::float_type, {2, 4}};
     migraphx::shape empty_s{migraphx::shape::float_type, {2, 0}};

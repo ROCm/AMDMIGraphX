@@ -49,13 +49,13 @@ void dyn_concat(hipStream_t stream,
     assert(axis >= 0 and axis < rank);
     const index_int normalized_axis = axis;
     const index_int ninputs         = inputs.size();
-    constexpr index_int block_size = 256;
-    const auto n_aligned           = ((ninputs + block_size - 1) / block_size) * block_size;
+    constexpr index_int block_size  = 256;
+    const auto n_aligned            = ((ninputs + block_size - 1) / block_size) * block_size;
 
     hip_pointer_visit_all(counts, total)([&](auto counts_ptr, auto total_ptr) {
         for(std::size_t input_index = 0; input_index < inputs.size(); ++input_index)
         {
-            const auto& input = inputs.at(input_index);
+            const auto& input             = inputs.at(input_index);
             const index_int current_input = input_index;
             const index_int elements      = input.get_shape().elements();
             const auto nblocks = std::max<index_int>(1, (elements + block_size - 1) / block_size);

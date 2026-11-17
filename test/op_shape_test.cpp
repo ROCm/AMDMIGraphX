@@ -3014,6 +3014,31 @@ TEST_CASE(multibroadcast_1in_sym_mismatch_error)
                  input);
 }
 
+TEST_CASE(multibroadcast_1in_sym_equal_dims)
+{
+    // m and n + 1 cannot be 1, so broadcasting one to the other is only valid when they are
+    // equal: the axis keeps the input stride
+    auto m = var("m", {2, 9});
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{m}}};
+    std::vector<dd> out{dd{lit(3)}, dd{n + lit(1)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(0), lit(1)}};
+    expect_shape(expected,
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_maybe_one_error)
+{
+    // m can be 1, so a different target symbol could be a broadcast or a mismatch
+    auto m = var("m", {1, 9});
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{m}}};
+    std::vector<dd> out{dd{n + lit(1)}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
 TEST_CASE(multibroadcast_1in_range_dyn_with_sym_target_error)
 {
     auto n = var("n", {2, 8});

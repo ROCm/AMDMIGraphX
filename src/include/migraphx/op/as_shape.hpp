@@ -50,7 +50,27 @@ struct as_shape
         if(s.dynamic() and not s.symbolic())
             MIGRAPHX_THROW("AS_SHAPE: target shape must be static or symbolic");
         assert(not strict_less(inputs.front().sym_elements(), s.sym_elements()).value_or(false));
-        return s;
+        if(not s.symbolic())
+            return s;
+        // A symbolic target keeps the type of the input, which later passes may narrow
+        const auto& input = inputs.front();
+        if(not input.dynamic() and same_dims_at_run_time(input.lens()))
+            return shape{input.type(), input.lens()};
+        return shape{input.type(), s.dyn_dims(), s.dyn_strides()};
+    }
+
+    // At run time the input is static. A target that names the same dims with other symbols,
+    // as simplify_symbolic_dimensions reads a value of an enclosing module, has the input's dims:
+    // each literal dim is equal and each symbol's range holds the input dim.
+    bool same_dims_at_run_time(const std::vector<std::size_t>& lens) const
+    {
+        const auto& dims = s.dyn_dims();
+        if(lens.size() != dims.size())
+            return false;
+        return std::equal(lens.begin(), lens.end(), dims.begin(), [](auto len, const auto& d) {
+            auto interval = d.get_interval();
+            return len >= interval.min and len <= interval.max;
+        });
     }
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {

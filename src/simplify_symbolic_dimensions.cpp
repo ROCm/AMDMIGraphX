@@ -398,6 +398,33 @@ void simplify_symbolic_dimensions::apply(module& m) const
         if(contains({"@literal", "@param", "@outline", "@comment"}, ins->name()))
             replacements.emplace(ins, ins);
     }
+    // A submodule, such as a branch of an if, also reads values of its parent module. Equalities
+    // found here only hold in this module, so such a value is read here as the canonical shape.
+    for(auto ins : original)
+    {
+        for(auto input : ins->inputs())
+        {
+            if(m.has_instruction(input) or contains(replacements, input))
+                continue;
+            const auto& s = input->get_shape();
+            if(not s.symbolic())
+                continue;
+            auto canonical = substitute_shape(s, values);
+            if(canonical == s)
+                continue;
+            auto pos  = m.begin();
+            auto read = input;
+            if(not s.standard())
+                read = m.insert_instruction(pos, make_op("contiguous"), read);
+            replacements.emplace(
+                input,
+                m.insert_instruction(
+                    pos,
+                    make_op("as_shape",
+                            {{"shape", to_value(shape{s.type(), canonical.dyn_dims()})}}),
+                    read));
+        }
+    }
     auto outputs = m.add_instructions(
         original,
         &replacements,

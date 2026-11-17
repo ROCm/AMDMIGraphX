@@ -39,6 +39,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/symbolic_shape_helpers.hpp>
 #include <migraphx/utility_operators.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/zip_view.hpp>
@@ -303,50 +304,9 @@ bool has_symbolic_param(const module& m)
     return any_of(param_shapes, [](const auto& p) { return p.second.symbolic(); });
 }
 
-std::unordered_map<sym::expr, instruction_ref> find_root_sources(const module& m)
-{
-    std::unordered_map<sym::expr, instruction_ref> result;
-    for(const auto& name : m.get_parameter_names())
-    {
-        auto parameter = m.get_parameter(name);
-        const auto& s  = parameter->get_shape();
-        if(not s.symbolic())
-            continue;
-        for(const auto& d : s.dyn_dims())
-            if(d.is_symbolic() and d.sym_expr.name() == "variable")
-                result.emplace(sym::as_symbol(d.sym_expr), parameter);
-    }
-    return result;
-}
-
-std::optional<std::vector<instruction_ref>>
-find_expression_sources(const std::vector<sym::expr>& expressions,
-                        const std::unordered_map<sym::expr, instruction_ref>& root_sources,
-                        const std::vector<instruction_ref>& sources)
-{
-    std::unordered_set<instruction_ref> required_sources;
-    if(any_of(expressions, [&](const auto& expression) {
-           auto variables = sym::find_variables(expression);
-           return any_of(variables, [&](const auto& variable) {
-               if(not contains(root_sources, variable))
-                   return true;
-               required_sources.insert(root_sources.at(variable));
-               return false;
-           });
-       }))
-        return std::nullopt;
-
-    std::vector<instruction_ref> result;
-    std::copy_if(sources.begin(),
-                 sources.end(),
-                 std::back_inserter(result),
-                 [&](instruction_ref source) { return contains(required_sources, source); });
-    return result;
-}
-
 struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
 {
-    std::unordered_map<sym::expr, instruction_ref> root_sources;
+    symbol_source_map root_sources;
     std::vector<instruction_ref> sources;
 
     auto matcher() const { return match::name("dimensions_of")(match::nargs(1)); }
@@ -375,7 +335,7 @@ struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
 
 struct find_eval_expr_from_intermediate_ins : match::supports_dynamic_shapes
 {
-    std::unordered_map<sym::expr, instruction_ref> root_sources;
+    symbol_source_map root_sources;
     std::vector<instruction_ref> sources;
 
     auto matcher() const
@@ -1986,13 +1946,18 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
         return;
 
     // Rewrite shape expressions to read their runtime values directly from module parameters.
-    auto root_sources = find_root_sources(m);
-    match::find_matches(m,
-                        resolve_symbolic_dimensions_of_match{.root_sources = root_sources,
-                                                             .sources      = m.get_parameters()});
-    match::find_matches(m,
-                        find_eval_expr_from_intermediate_ins{.root_sources = root_sources,
-                                                             .sources      = m.get_parameters()});
+    std::vector<instruction_ref> ordered_parameters;
+    auto parameter_names = m.get_parameter_names();
+    std::transform(parameter_names.begin(),
+                   parameter_names.end(),
+                   std::back_inserter(ordered_parameters),
+                   [&](const auto& name) { return m.get_parameter(name); });
+    auto root_sources = make_symbol_source_map(ordered_parameters);
+    auto sources      = m.get_parameters();
+    match::find_matches(
+        m, resolve_symbolic_dimensions_of_match{.root_sources = root_sources, .sources = sources});
+    match::find_matches(
+        m, find_eval_expr_from_intermediate_ins{.root_sources = root_sources, .sources = sources});
     run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
 
     // Determine how each symbolic operation must be padded, masked, or rewritten for a fixed

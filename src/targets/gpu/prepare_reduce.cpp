@@ -31,6 +31,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/check_shapes.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/literal.hpp>
@@ -124,6 +125,7 @@ struct mul_reduce_sum
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {
+        check_shapes{inputs, *this}.has(2);
         auto s    = inputs.front();
         auto lens = s.lens();
         for(auto a : axes)
@@ -271,12 +273,28 @@ std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_
     return result;
 }
 
-bool is_only_mul(const module& m)
+/// The two inputs the pointwise multiplies when its module is only a mul of
+/// its parameters, or nothing otherwise. A squared input is returned twice. A
+/// mul by a literal is a scale with no second tensor to read, so it is not a
+/// match.
+std::vector<instruction_ref> find_mul_inputs(instruction_ref pw)
 {
-    return std::count_if(m.begin(),
-                         m.end(),
-                         [](const auto& ins) { return not starts_with(ins.name(), "@"); }) == 1 and
-           std::any_of(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "mul"; });
+    const auto& pm = *pw->module_inputs().front();
+    auto returns   = pm.get_returns();
+    if(returns.size() != 1 or returns.front()->name() != "mul")
+        return {};
+    const auto& operands = returns.front()->inputs();
+    if(not std::all_of(operands.begin(), operands.end(), [](instruction_ref operand) {
+           return operand->name() == "@param";
+       }))
+        return {};
+    auto pmap = pm.get_ins_param_map(pw->inputs(), true);
+    std::vector<instruction_ref> result;
+    std::transform(operands.begin(),
+                   operands.end(),
+                   std::back_inserter(result),
+                   [&](instruction_ref operand) { return pmap.at(operand); });
+    return result;
 }
 
 void rewrite_mul_reduce_sum(module& m)
@@ -288,10 +306,11 @@ void rewrite_mul_reduce_sum(module& m)
         auto pw = ins->inputs().front();
         if(pw->name() != "pointwise")
             continue;
-        if(not is_only_mul(*pw->module_inputs().front()))
+        auto inputs = find_mul_inputs(pw);
+        if(inputs.empty())
             continue;
         auto axes = ins->get_operator().to_value()["axes"].to_vector<std::int64_t>();
-        auto mrs  = m.insert_instruction(ins, mul_reduce_sum{std::move(axes)}, pw->inputs());
+        auto mrs  = m.insert_instruction(ins, mul_reduce_sum{std::move(axes)}, inputs);
         m.replace_instruction(ins, mrs);
     }
 }

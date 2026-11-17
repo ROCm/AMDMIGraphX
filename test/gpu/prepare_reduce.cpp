@@ -410,6 +410,356 @@ TEST_CASE(unpack_int4_no_convert)
     EXPECT(p1 == p2);
 }
 
+static migraphx::instruction_ref add_mul_reduce_sum(migraphx::module& m,
+                                                    const std::vector<int64_t>& axes,
+                                                    migraphx::instruction_ref x,
+                                                    migraphx::instruction_ref y)
+{
+    return m.add_instruction(migraphx::make_op("gpu::mul_reduce_sum", {{"axes", axes}}), x, y);
+}
+
+TEST_CASE(mul_reduce_sum)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto mul = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rs});
+    }
+    run_program_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        mm->add_return({add_mul_reduce_sum(*mm, {1}, x, y)});
+    }
+
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(mul_reduce_sum_multiple_axes)
+{
+    migraphx::shape s{migraphx::shape::half_type, {2, 3, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto mul = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), mul);
+        mm->add_return({rs});
+    }
+    run_program_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        mm->add_return({add_mul_reduce_sum(*mm, {1, 2}, x, y)});
+    }
+
+    EXPECT(p1 == p2);
+    EXPECT(p1.get_output_shapes().front() ==
+           migraphx::shape{migraphx::shape::half_type, {2, 1, 1}});
+}
+
+// The operands follow the order of the mul in the pointwise module
+TEST_CASE(mul_reduce_sum_swapped_operands)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto mul = add_pointwise(p1, "main:pointwise0", {x, y}, [](auto* pm, const auto& inputs) {
+            return pm->add_instruction(migraphx::make_op("mul"), inputs[1], inputs[0]);
+        });
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rs});
+    }
+    run_program_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        mm->add_return({add_mul_reduce_sum(*mm, {1}, y, x)});
+    }
+
+    EXPECT(p1 == p2);
+}
+
+// A squared input is a pointwise with one input, which is read for both operands
+TEST_CASE(mul_reduce_sum_square)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto mul = add_pointwise(p1, "main:pointwise0", {x}, [](auto* pm, const auto& inputs) {
+            return pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[0]);
+        });
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rs});
+    }
+    run_program_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        mm->add_return({add_mul_reduce_sum(*mm, {1}, x, x)});
+    }
+
+    EXPECT(p1 == p2);
+}
+
+// Only one of the inputs is broadcast, so the broadcast stays in front of the reduction
+TEST_CASE(mul_reduce_sum_broadcast_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape ys{migraphx::shape::float_type, {2, 1}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", ys);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8}}}), y);
+        auto mul = add_pointwise(p1, "main:pointwise0", {x, yb}, single_pointwise("mul"));
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rs});
+    }
+    run_program_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", ys);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8}}}), y);
+        mm->add_return({add_mul_reduce_sum(*mm, {1}, x, yb)});
+    }
+
+    EXPECT(p1 == p2);
+}
+
+// The pointwise is still needed by its other consumer
+TEST_CASE(mul_reduce_sum_pointwise_used_twice)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto mul = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({mul, rs});
+    }
+    run_program_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto mul = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        mm->add_return({mul, add_mul_reduce_sum(*mm, {1}, x, y)});
+    }
+
+    EXPECT(p1 == p2);
+}
+
+// The rewritten reductions read two inputs each, so they are not fused into
+// a gpu::parallel_reduce
+TEST_CASE(mul_reduce_sum_no_parallel_reduce)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto mul1 = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto mul2 = add_pointwise(p1, "main:pointwise1", {x, z}, single_pointwise("mul"));
+        auto rs1  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul1);
+        auto rs2  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul2);
+        mm->add_return({rs1, rs2});
+    }
+    run_program_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
+        auto rs1 = add_mul_reduce_sum(*mm, {1}, x, y);
+        auto rs2 = add_mul_reduce_sum(*mm, {1}, x, z);
+        mm->add_return({rs1, rs2});
+    }
+
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// A mul by a literal is a scale, which has no second tensor to read
+TEST_CASE(mul_reduce_sum_literal_operand)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto mul = add_pointwise(p1, "main:pointwise0", {x}, [](auto* pm, const auto& inputs) {
+            auto two = pm->add_literal(2.0f);
+            return pm->add_instruction(migraphx::make_op("mul"), inputs[0], two);
+        });
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rs});
+    }
+    migraphx::program p2 = p1;
+    run_program_pass(p1);
+
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(mul_reduce_sum_not_mul)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto add = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), add);
+        mm->add_return({rs});
+    }
+    migraphx::program p2 = p1;
+    run_program_pass(p1);
+
+    EXPECT(p1 == p2);
+}
+
+// A product of three inputs is not a dot product of two tensors
+TEST_CASE(mul_reduce_sum_three_operands)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
+        auto mul =
+            add_pointwise(p1, "main:pointwise0", {x, y, z}, [](auto* pm, const auto& inputs) {
+                auto xy = pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("mul"), xy, inputs[2]);
+            });
+        auto rs = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rs});
+    }
+    migraphx::program p2 = p1;
+    run_program_pass(p1);
+
+    EXPECT(p1 == p2);
+}
+
+// The mul is not the result of the pointwise module
+TEST_CASE(mul_reduce_sum_mul_not_last)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto mul = add_pointwise(p1, "main:pointwise0", {x, y}, [](auto* pm, const auto& inputs) {
+            auto xy = pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
+            return pm->add_instruction(migraphx::make_op("relu"), xy);
+        });
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rs});
+    }
+    migraphx::program p2 = p1;
+    run_program_pass(p1);
+
+    EXPECT(p1 == p2);
+}
+
+// Only a sum of products is a dot product
+TEST_CASE(mul_reduce_sum_not_reduce_sum)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto mul = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), mul);
+        mm->add_return({rs});
+    }
+    migraphx::program p2 = p1;
+    run_program_pass(p1);
+
+    EXPECT(p1 == p2);
+}
+
+// The mul is not fused into a pointwise, so there is no module to match
+TEST_CASE(mul_reduce_sum_not_pointwise)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto mul = mm->add_instruction(migraphx::make_op("mul"), x, y);
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rs});
+    }
+    migraphx::program p2 = p1;
+    run_program_pass(p1);
+
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(mul_reduce_sum_shape_requires_two_inputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 8}};
+    auto op = migraphx::make_op("gpu::mul_reduce_sum", {{"axes", {1}}});
+    EXPECT(op.compute_shape({s, s}) == migraphx::shape{migraphx::shape::float_type, {2, 1}});
+    EXPECT(test::throws([&] { op.compute_shape({s}); }));
+    EXPECT(test::throws([&] { op.compute_shape({s, s, s}); }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
 
 TEST_CASE(pointwise_broadcast_inputs)

@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
@@ -32,6 +33,7 @@
 #include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/stringutils.hpp>
 #include <test.hpp>
 
 struct pre_gemm_softmax_gemm : migraphx::gpu::gemm_softmax_gemm
@@ -139,6 +141,58 @@ TEST_CASE(find_gemm_softmax_gemm_no_scale)
         m2.add_instruction(pre_gemm_softmax_gemm{migraphx::make_op("dot"), 1}, x, y, z);
     }
 
+    EXPECT(m1 == m2);
+}
+
+// A depthwise convolution whose halo fits in shared memory becomes a channelwise conv on
+// the gfx11 and gfx12 devices that run the channelwise kernel
+TEST_CASE(channelwise_conv_halo_fits)
+{
+    migraphx::gpu::context ctx;
+    const auto gfx = ctx.get_current_device().get_gfx_name();
+    if(not migraphx::starts_with(gfx, "gfx11") and not migraphx::starts_with(gfx, "gfx12"))
+        test::skip("The channelwise kernel only runs on gfx11 and gfx12");
+    migraphx::shape xs{migraphx::shape::float_type, {1, 4, 64, 64}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 1, 3, 3}};
+    migraphx::value attrs = {{"padding", {2, 2, 2, 2}}, {"stride", {1, 1}}, {"dilation", {2, 2}}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", xs);
+        auto w          = m1.add_parameter("w", ws);
+        auto conv_v     = attrs;
+        conv_v["group"] = 4;
+        auto conv       = m1.add_instruction(migraphx::make_op("convolution", conv_v), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::run_passes(
+        m1, {migraphx::gpu::prefuse_ops{.ctx = &ctx}, migraphx::dead_code_elimination{}});
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", xs);
+        auto w    = m2.add_parameter("w", ws);
+        auto conv = m2.add_instruction(migraphx::make_op("gpu::channelwise_conv", attrs), x, w);
+        m2.add_return({conv});
+    }
+    EXPECT(m1 == m2);
+}
+
+// Dilation 64 needs 66,564 bytes of halo for a single float output, more than a gfx11 or
+// gfx12 block may use, so the convolution is left for the other backends
+TEST_CASE(channelwise_conv_halo_too_large)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::float_type, {1, 4, 257, 257}});
+        auto w    = m1.add_parameter("w", {migraphx::shape::float_type, {4, 1, 3, 3}});
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution", {{"group", 4}, {"dilation", {64, 64}}}), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::module m2 = m1;
+    migraphx::gpu::context ctx;
+    migraphx::run_passes(
+        m1, {migraphx::gpu::prefuse_ops{.ctx = &ctx}, migraphx::dead_code_elimination{}});
     EXPECT(m1 == m2);
 }
 

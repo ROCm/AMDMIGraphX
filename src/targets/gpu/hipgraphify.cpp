@@ -45,11 +45,28 @@ namespace gpu {
 
 // Host memory filled by a device-to-host copy (possibly viewed through a
 // sync); its contents only exist at capture time.
-static bool is_host_value(instruction_ref ins)
+static bool is_copied_host_value(instruction_ref ins)
 {
     auto path = get_alias_path(ins);
     return std::any_of(path.begin(), path.end(), [](instruction_ref x) {
         return contains({"hip::copy_from_gpu", "hip::load_scalar"}, x->name());
+    });
+}
+
+// A value produced on the host that can change between evaluations. Input-less
+// values such as literals are stable and do not make a view runtime-dependent.
+static bool is_runtime_host_value(instruction_ref ins)
+{
+    if(ins->name() == "@param")
+        return true;
+    const auto& op = ins->get_operator();
+    if(not op.is_context_free())
+        return false;
+    auto aliases = op.output_alias(to_shapes(ins->inputs()));
+    if(aliases.empty())
+        return not ins->inputs().empty();
+    return std::any_of(aliases.begin(), aliases.end(), [&](std::size_t i) {
+        return is_runtime_host_value(ins->inputs().at(i));
     });
 }
 
@@ -83,9 +100,18 @@ static bool is_runtime_view(instruction_ref ins)
     // buffer; the address of the result does not depend on it
     if(ins->name() == "select_module_index")
         return false;
-    if(ins->get_operator().output_alias(to_shapes(ins->inputs())).empty())
+    auto aliases = ins->get_operator().output_alias(to_shapes(ins->inputs()));
+    if(aliases.empty())
         return false;
-    return std::any_of(ins->inputs().begin(), ins->inputs().end(), is_host_value);
+    if(std::any_of(ins->inputs().begin(), ins->inputs().end(), is_copied_host_value))
+        return true;
+
+    // A direct parameter can be device data, so only classify it as host-side
+    // metadata when the view does not alias that input.
+    auto indices = range(ins->inputs().size());
+    return std::any_of(indices.begin(), indices.end(), [&](std::size_t i) {
+        return not contains(aliases, i) and is_runtime_host_value(ins->inputs().at(i));
+    });
 }
 
 // True when an input's buffer is reached through a runtime view, so the

@@ -62,6 +62,10 @@ foreach(TEST ${TESTS})
     rocm_clang_tidy_check(test_${BASE_NAME})
 endforeach()
 
+set_tests_properties(test_env PROPERTIES
+    ENVIRONMENT "MIGRAPHX_TEST_ENV_SET_VALUE=16;MIGRAPHX_TEST_ENV_SET_STRING=x"
+)
+
 if(MIGRAPHX_ENABLE_GPU)
     # gpu tests
     file(GLOB GPU_TESTS CONFIGURE_DEPENDS gpu/*.cpp)

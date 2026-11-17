@@ -57,6 +57,10 @@ device_description device_description::from_device(std::size_t device)
     result.max_threads_per_cu    = props.maxThreadsPerMultiProcessor;
     result.max_threads_per_block = props.maxThreadsPerBlock;
     result.wavefront_size        = props.warpSize;
+    result.last_level_cache_size = get_hsa_last_level_cache_size(device);
+    if(result.last_level_cache_size == 0)
+        result.last_level_cache_size = std::max(props.l2CacheSize, 0);
+    result.max_shared_memory_per_block = props.sharedMemPerBlock;
     return result;
 }
 
@@ -71,6 +75,7 @@ void device_description::normalize()
     num_chiplets          = std::max<std::size_t>(num_chiplets, 1);
     max_threads_per_cu    = std::max<std::size_t>(max_threads_per_cu, 1);
     max_threads_per_block = std::max<std::size_t>(max_threads_per_block, 1);
+    max_shared_memory_per_block = std::max<std::size_t>(max_shared_memory_per_block, 1);
 }
 
 } // namespace gpu

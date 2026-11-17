@@ -96,11 +96,11 @@ struct test_split_sym_dim_mask_rcnn_staged : verify_program<test_split_sym_dim_m
         auto iou_threshold   = mm->add_literal(0.5f);
         auto score_threshold = mm->add_literal(0.0f);
         auto nms0            = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
-                                        boxes,
-                                        scores0,
-                                        max_output,
-                                        iou_threshold,
-                                        score_threshold);
+                                                   boxes,
+                                                   scores0,
+                                                   max_output,
+                                                   iou_threshold,
+                                                   score_threshold);
         auto nms_buffer0 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms0);
         auto nms_count0 =

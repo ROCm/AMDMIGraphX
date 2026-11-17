@@ -1062,8 +1062,8 @@ TEST_CASE(select_module_update0)
         auto input0                             = mm0->add_parameter("data", s);
         auto sm_ins                             = mm0->add_instruction(
             migraphx::make_op("select_module",
-                                                          {{"output_dyn_shapes",
-                                                            migraphx::to_value(migraphx::shape{
+                              {{"output_dyn_shapes",
+                                migraphx::to_value(migraphx::shape{
                                     std::vector<migraphx::shape>{logical_output}})}}),
             {input0},
             {dim1, dim2, dim3, dim4});
@@ -1101,8 +1101,8 @@ TEST_CASE(select_module_update0)
         auto input0                             = mm1->add_parameter("data", s);
         auto sm_ins                             = mm1->add_instruction(
             migraphx::make_op("select_module",
-                                                          {{"output_dyn_shapes",
-                                                            migraphx::to_value(migraphx::shape{
+                              {{"output_dyn_shapes",
+                                migraphx::to_value(migraphx::shape{
                                     std::vector<migraphx::shape>{logical_output}})}}),
             {input0},
             {dim1, dim2, dim3, dim4});

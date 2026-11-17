@@ -105,8 +105,8 @@ struct parse_topk : op_parser<parse_topk>
         if(not symbolic_k.empty() and symbolic_k.get_shape().elements() == 1 and
            shape::is_integral(symbolic_k.get_shape().type()))
         {
-            const auto& expression = symbolic_k.get()[0];
-            auto interval          = expression.eval_interval_default();
+            const auto expression = symbolic_k.get()[0];
+            auto interval         = expression.eval_interval_default();
             if(interval.valid())
             {
                 auto min_k          = sym::to<int64_t>(interval.min);

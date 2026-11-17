@@ -101,8 +101,8 @@ struct find_static_dyn_concat : match::supports_dynamic_shapes
             return;
 
         auto axis         = tune_axis(data.front()->get_shape().ndim(),
-                              ins->get_operator().to_value().at("axis").to<int64_t>(),
-                              ins->name());
+                                      ins->get_operator().to_value().at("axis").to<int64_t>(),
+                                      ins->name());
         auto count_values = inputs.front()->sym_eval();
         if(count_values.empty())
             return;
@@ -124,9 +124,9 @@ struct find_static_dyn_concat : match::supports_dynamic_shapes
             total += value;
         }
 
-        auto concat        = data.size() == 1
-                                 ? data.front()
-                                 : m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), data);
+        auto concat = data.size() == 1
+                          ? data.front()
+                          : m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), data);
         auto total_literal = m.insert_literal(ins, literal{{shape::int64_type, {1}}, {total}});
 
         std::vector<instruction_ref> buffers;

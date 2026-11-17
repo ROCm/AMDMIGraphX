@@ -131,7 +131,7 @@ struct analyze_slice : analyzer<analyze_slice>
             return symbolic_op_info{ins};
         auto result                    = analyze_axes(ins);
         result.force_static_parameters = true;
-        result.freezer                 = [bounds = std::move(*bounds)](
+        result.freezer = [bounds = std::move(*bounds)](
                              module& m,
                              instruction_ref source,
                              const std::vector<instruction_ref>& args,

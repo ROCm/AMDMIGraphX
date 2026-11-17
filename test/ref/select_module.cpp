@@ -352,7 +352,7 @@ TEST_CASE(select_module_nested_select_reordered_output_buffers)
     auto output1 = mm->add_parameter("output1", s);
     auto select  = mm->add_instruction(
         migraphx::make_op("select_module",
-                           {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{{s, s}})}}),
+                          {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{{s, s}})}}),
         {data, output0, output1},
         {outer});
     auto result0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -397,7 +397,7 @@ TEST_CASE(select_module_nested_tuple_output_parameter)
     auto output2 = mm->add_parameter("output2", s);
     auto select  = mm->add_instruction(
         migraphx::make_op("select_module",
-                           {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{{s, s, s}})}}),
+                          {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{{s, s, s}})}}),
         {data, output0, output1, output2},
         {submod});
     auto result0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -685,7 +685,7 @@ TEST_CASE(select_module_zero_output_short_circuit)
     std::vector<migraphx::shape> outputs = {input_shape};
     auto select                          = mm->add_instruction(
         migraphx::make_op("select_module",
-                                                   {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})}}),
+                          {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})}}),
         {input},
         {submod});
     auto output = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), select);
@@ -715,7 +715,7 @@ TEST_CASE(select_module_mixed_empty_concat_runs)
                                             migraphx::shape{migraphx::shape::float_type, {2, 3}}};
     auto select                          = mm->add_instruction(
         migraphx::make_op("select_module",
-                                                   {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})}}),
+                          {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{outputs})}}),
         {main_data, main_empty},
         {submod});
     auto empty_output =

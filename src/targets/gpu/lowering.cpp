@@ -431,7 +431,7 @@ struct miopen_apply
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
-            inputs.front() = insert_host_scalar(ins, inputs.front());
+            inputs.front()                      = insert_host_scalar(ins, inputs.front());
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });
     }

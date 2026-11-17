@@ -67,12 +67,33 @@ struct parse_slice : op_parser<parse_slice>
         }
     };
 
+    // A static input sliced by bounds computed from symbolic dims, such as a causal mask cut to the
+    // key length, keeps the symbolic length of the slice
+    static bool
+    has_symbolic_bounds(instruction_ref data, instruction_ref starts, instruction_ref ends)
+    {
+        if(data->get_shape().dynamic())
+            return false;
+        const auto starts_value = starts->sym_eval();
+        const auto ends_value   = ends->sym_eval();
+        if(starts_value.empty() or ends_value.empty())
+            return false;
+        auto symbolic = [](const sym_argument& a) {
+            auto values = a.get().to_vector();
+            return std::any_of(values.begin(), values.end(), [](const sym::expr& e) {
+                return not sym::fixed_value(e).has_value();
+            });
+        };
+        return symbolic(starts_value) or symbolic(ends_value);
+    }
+
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        if(args.size() >= 3 and args[0]->get_shape().symbolic())
+        if(args.size() >= 3 and
+           (args[0]->get_shape().symbolic() or has_symbolic_bounds(args[0], args[1], args[2])))
         {
             const auto starts = args[1]->sym_eval();
             const auto ends   = args[2]->sym_eval();

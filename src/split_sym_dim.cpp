@@ -346,7 +346,6 @@ root_source_info find_root_sources(const module& m)
                 result.ordered.push_back(ins);
     return result;
 }
-
 struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
 {
     symbol_source_map root_sources;

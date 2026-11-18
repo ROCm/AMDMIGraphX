@@ -54,11 +54,9 @@ std::optional<dyn_slice_bounds> prefix_stable_dyn_slice_bounds(instruction_ref i
     // still give them
     auto bounds = [&](std::size_t index, const std::string& name) {
         auto value = inputs.at(index)->sym_eval();
-        if(not value.empty())
-            return value.get().to_vector();
-        if(not attributes.contains(name))
-            return std::vector<sym::expr>{};
-        return from_value<std::vector<sym::expr>>(attributes.at(name));
+        if(value.empty())
+            return from_value<std::vector<sym::expr>>(attributes.at(name));
+        return value.get().to_vector();
     };
     auto starts = bounds(1, "starts");
     auto ends   = bounds(2, "ends");

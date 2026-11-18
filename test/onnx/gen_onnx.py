@@ -4735,6 +4735,20 @@ def gather_elements_axis1_test():
 
 
 @onnx_test()
+def gather_elements_dyn_axis_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 5])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, None])
+
+    node = onnx.helper.make_node('GatherElements',
+                                 inputs=['data', 'indices'],
+                                 outputs=['y'],
+                                 axis=1)
+
+    return ([node], [x, i], [y])
+
+
+@onnx_test()
 def gathernd_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2])
     i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 2])

@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_KERNELS_SCATTERND_HPP
 
 #include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/scatter_reduction_modes.hpp>
 
@@ -35,12 +36,12 @@ __device__ void scatternd(const T& indices_t, const U& updates_t, const V& outpu
 {
     auto index         = make_index();
     auto updates_shape = updates_t.get_shape();
+    constexpr auto k   = decltype(indices_t.get_shape()){}.lens.back();
 
     index.global_stride(updates_shape.elements(), [&](auto i) {
         auto output_shape = output_t.get_shape();
 
         auto indices_shape = indices_t.get_shape();
-        auto k             = indices_shape.lens.back();
         auto q             = indices_shape.lens.size();
 
         auto updates_idx = updates_shape.multi(i);
@@ -49,7 +50,16 @@ __device__ void scatternd(const T& indices_t, const U& updates_t, const V& outpu
 
         auto index_start = indices_t.begin_at(indices_idx);
         auto out_idx     = output_shape.multi(0);
-        copy(index_start, index_start + k, out_idx.begin());
+        // A negative index counts back from the end of its dimension. ONNX requires the indices
+        // to be in bounds, so that is only asserted.
+        repeat_c<k>([&](auto j) {
+            auto coord   = index_start[j];
+            diff_int dim = output_shape.lens[j];
+            if(coord < 0)
+                coord += dim;
+            MIGRAPHX_ASSERT(coord >= 0 and coord < dim);
+            out_idx[j] = coord;
+        });
         copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
 
         f(output_t[out_idx], updates_t[i]);

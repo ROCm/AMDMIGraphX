@@ -24,6 +24,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `ScatterND` ignoring negative indices, which the ONNX specification allows: they now count back from the end of their dimension on the reference and GPU targets. Before, a negative index was used as a huge unsigned offset and wrote out of bounds, which crashed the process, gave silently wrong results, or faulted the GPU (ROCM-30410). An index that is still outside the dimension raises an error on the reference target; on the GPU target the indices are required to be in bounds, as ONNX specifies, and this is only asserted. The same holds for programs with symbolic (dynamic) dimensions on the GPU, where the pass that pads the data now normalizes negative indices against the unpadded sizes.
 * Fixed `compute_broadcasted_lens` broadcasting a dimension of 1 to 1 instead of 0 when the other dimension is 0, which made `broadcast_with_dims` produce one element for an empty target dimension (#5529).
 * Fixed the GPU `rewrite_reduce` pass's `mean(x^2) - mean(x)^2` rewrite of `LayerNormalization`-style variance reductions producing `NaN` outputs from catastrophic cancellation at large input magnitude, by clamping the computed variance to zero before it reaches `rsqrt` (AIMIGRAPHX-1376).
 * Fixed `lower_reshape` returning a strided view as a program output when a reshape of a non-standard input (for example the last row sliced out of a KV-cache `concat`) reaches `@return`, which made `run` reject standard caller-provided output buffers (#5237).

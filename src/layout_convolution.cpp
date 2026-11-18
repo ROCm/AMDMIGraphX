@@ -158,6 +158,10 @@ std::size_t score(const module& m)
             return true;
         // A reshape whose collapsed dims are not contiguous cannot alias its input as a view
         // (reshape_lazy) and needs a copy, so count it the same as a contiguous.
+        // A dynamic shape has no lens to check that with, so it is not counted.
+        if(ins.name() == "reshape" and
+           (ins.get_shape().dynamic() or ins.inputs().front()->get_shape().dynamic()))
+            return false;
         if(ins.name() == "reshape")
             return not reshape_dims(ins.inputs().front()->get_shape(),
                                     ins.get_shape().lens(),

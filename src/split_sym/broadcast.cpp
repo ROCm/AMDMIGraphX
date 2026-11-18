@@ -58,29 +58,10 @@ struct analyze_broadcast : analyzer<analyze_broadcast>
 {
     bool matches(const operation& op) const { return is_broadcast_op(op); }
 
-    // The one-input form is frozen as a broadcast only when each input dim is 1 or the output
-    // dim. A different symbol, as simplify_symbolic_dimensions reads a parameter as the canonical
-    // dims, may fall in another bucket than the output in a clone.
-    static bool broadcasts_from_one(instruction_ref ins)
-    {
-        const auto& input = ins->inputs().front()->get_shape();
-        auto out_dims     = symbolic_broadcast_dims(ins->get_operator());
-        if(input.ndim() > out_dims.size())
-            return false;
-        auto in_dims = input.to_symbolic().dyn_dims();
-        auto offset  = out_dims.size() - in_dims.size();
-        return std::equal(in_dims.begin(),
-                          in_dims.end(),
-                          out_dims.begin() + offset,
-                          [](const auto& in, const auto& out) { return in == 1 or in == out; });
-    }
-
     symbolic_op_info analyze(instruction_ref ins) const
     {
         auto input_count = ins->inputs().size();
         if(not is_symbolic_broadcast(ins->get_operator(), input_count))
-            return symbolic_op_info{ins};
-        if(input_count == 1 and not broadcasts_from_one(ins))
             return symbolic_op_info{ins};
         auto shape_inputs = range(1, input_count);
         auto result =

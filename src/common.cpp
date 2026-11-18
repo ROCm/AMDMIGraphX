@@ -365,9 +365,7 @@ static shape make_bcast_shape_impl(shape::type_t type,
     std::vector<Stride> bcast_strides(bcast_dims.size(), zero);
     for(std::size_t i = 0; i < input_dims.size(); ++i)
     {
-        // Only an input dim of 1 is broadcast; a different symbolic dim that cannot be 1 is
-        // equal at run time and keeps its stride
-        if(bcast_dims[i + offset] == input_dims[i] or not(input_dims[i] == 1))
+        if(bcast_dims[i + offset] == input_dims[i])
             bcast_strides[i + offset] = input_strides[i];
     }
     return {type, bcast_dims, bcast_strides};

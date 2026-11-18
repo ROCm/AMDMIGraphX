@@ -398,19 +398,20 @@ void simplify_symbolic_dimensions::apply(module& m) const
         if(not contains({"@literal", "@param", "@outline", "@comment"}, ins->name()))
             continue;
         // A parameter keeps the shape the caller gives it. When one of its dims is a symbol that
-        // is replaced, its users read it through a multibroadcast to the canonical dims, which
-        // is valid since the two are equal at run time.
+        // is replaced, its users read it through an as_shape to the canonical dims, which name
+        // the same lengths, since the two are equal at run time.
         const auto& s = ins->get_shape();
         if(ins->name() == "@param" and s.symbolic())
         {
             auto canonical = substitute_shape(s, values);
             if(canonical != s)
             {
-                auto bcast = m.insert_instruction(
+                auto read = m.insert_instruction(
                     std::next(ins),
-                    make_op("multibroadcast", {{"out_dyn_dims", to_value(canonical.dyn_dims())}}),
+                    make_op("as_shape",
+                            {{"shape", to_value(shape{s.type(), canonical.dyn_dims()})}}),
                     ins);
-                replacements.emplace(ins, bcast);
+                replacements.emplace(ins, read);
                 continue;
             }
         }

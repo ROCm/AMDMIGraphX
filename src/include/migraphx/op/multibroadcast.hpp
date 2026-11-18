@@ -27,7 +27,6 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/dyn_output.hpp>
-#include <optional>
 #include <migraphx/common.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/sym_argument.hpp>
@@ -58,63 +57,6 @@ struct multibroadcast
 
     std::string name() const { return "multibroadcast"; }
 
-    // Two different symbolic dims, neither a literal, broadcast only when they are equal, as for
-    // elementwise ops (compute_broadcasted_dyn_dims). That is only a broadcast when the input
-    // cannot be 1, such as an attention mask of length at least 2 against the key length.
-    template <class T>
-    static bool same_at_run_time(const T& in, const T& out)
-    {
-        if constexpr(std::is_same<T, shape::dynamic_dimension>{})
-        {
-            if(not in.is_symbolic() or not out.is_symbolic())
-                return false;
-            if(in.sym_expr.name() == "literal" or out.sym_expr.name() == "literal")
-                return false;
-            return in.get_interval().min > 1 and out.get_interval().min > 1;
-        }
-        else
-        {
-            return false;
-        }
-    }
-
-    // At run time the input is static. A target dim that is a different symbol than the input's
-    // at compile time (same_at_run_time) has the value of the input dim, which is checked against
-    // its range. Gives no lens when the static input matches the target as is, or when a target
-    // symbol is broadcast from 1 and has no value.
-    static std::optional<std::vector<std::size_t>>
-    run_time_lens(const std::vector<std::size_t>& in_lens,
-                  const std::vector<shape::dynamic_dimension>& out_dims)
-    {
-        if(in_lens.size() > out_dims.size())
-            return std::nullopt;
-        auto offset = out_dims.size() - in_lens.size();
-        std::vector<std::size_t> result(out_dims.size());
-        bool from_input = false;
-        for(std::size_t i = 0; i < out_dims.size(); ++i)
-        {
-            const auto& out = out_dims[i];
-            if(out.is_fixed())
-            {
-                result[i] = out.get_interval().min;
-                if(i >= offset and in_lens[i - offset] != 1 and in_lens[i - offset] != result[i])
-                    return std::nullopt;
-                continue;
-            }
-            if(i < offset or in_lens[i - offset] == 1)
-                return std::nullopt;
-            auto in       = in_lens[i - offset];
-            auto interval = out.get_interval();
-            if(in < interval.min or in > interval.max)
-                return std::nullopt;
-            result[i]  = in;
-            from_input = true;
-        }
-        if(not from_input)
-            return std::nullopt;
-        return result;
-    }
-
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
@@ -128,11 +70,7 @@ struct multibroadcast
                            to_string(s0.ndim()));
         }
 
-        // An explicit symbolic target may also name a different symbol that cannot be 1 (see
-        // same_at_run_time); two inputs have to agree on their symbols
-        auto validate = [](const auto& in_dims,
-                           const auto& out_dims,
-                           bool explicit_target = false) {
+        auto validate = [](const auto& in_dims, const auto& out_dims) {
             if(in_dims.size() > out_dims.size())
                 MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" + to_string(in_dims.size()) +
                                ") should be <= output size (" + to_string(out_dims.size()) + ")");
@@ -140,10 +78,7 @@ struct multibroadcast
             if(not std::equal(in_dims.begin(),
                               in_dims.end(),
                               out_dims.begin() + offset,
-                              [explicit_target](const auto& in, const auto& out) {
-                                  return out == in or in == 1 or
-                                         (explicit_target and same_at_run_time(in, out));
-                              }))
+                              [](const auto& in, const auto& out) { return out == in or in == 1; }))
                 MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(in_dims) +
                                "} cannot be broadcasted to {" + to_string_range(out_dims) + "}!");
         };
@@ -170,13 +105,7 @@ struct multibroadcast
             if(symbolic_target)
             {
                 auto s0_sym = s0.to_symbolic();
-                if(not s0.dynamic())
-                {
-                    auto lens = run_time_lens(s0.lens(), output_dyn_dims);
-                    if(lens.has_value())
-                        return make_bcast_shape(s0, *lens);
-                }
-                validate(s0_sym.dyn_dims(), output_dyn_dims, true);
+                validate(s0_sym.dyn_dims(), output_dyn_dims);
                 return make_bcast_shape(s0_sym, output_dyn_dims);
             }
 

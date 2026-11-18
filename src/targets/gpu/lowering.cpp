@@ -719,13 +719,12 @@ struct miopen_apply
             for(const_module_ref sub : ins->module_inputs())
             {
                 auto names = sm.get_input_parameter_names(sub);
-                for(std::size_t i = 0; i < names.size() and i < inputs.size(); i++)
+                for(std::size_t i = 0; i < names.size(); i++)
                 {
                     auto expected      = sub->get_parameter_shape(names[i]);
                     const auto& actual = inputs[i]->get_shape();
                     if(expected.dynamic() or actual.dynamic() or
-                       op::select_module::compatible_input_shape(actual, expected) or
-                       not expected.standard() or not shape::same_lens(actual, expected))
+                       op::select_module::compatible_input_shape(actual, expected))
                         continue;
                     inputs[i] = mod->insert_instruction(ins,
                                                         make_op("gpu::contiguous"),

@@ -75,6 +75,26 @@ TEST_CASE(dim_param_symbolic_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(dim_param_symbolic_fixed_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    // A dim_param given one value is that value, not a symbol over a one-value range, so it
+    // matches a literal dim of another input
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter(
+        "0", migraphx::shape{migraphx::shape::float_type, sym_dims({lit(2), var("dim1", {2, 4})})});
+    mm->add_return({input});
+
+    migraphx::onnx_options opt;
+    opt.use_symbolic_shapes = true;
+    opt.dim_params          = {{"dim0", migraphx::shape::dynamic_dimension{2, 2}},
+                               {"dim1", migraphx::shape::dynamic_dimension{2, 4}}};
+    auto prog               = read_onnx("dim_param_test.onnx", opt);
+    EXPECT(p == prog);
+}
+
 TEST_CASE(dim_param_symbolic_map_dyn_input_test)
 {
     using migraphx::sym::var;

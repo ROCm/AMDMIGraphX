@@ -24,6 +24,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed GPU MLIR fusion of a dot or convolution in a branch of an `if` that reads values of the enclosing module, which failed with `gpu::mlir_op: Mismatched dims` because those inputs were dropped (#5547).
 * Fixed `compute_broadcasted_lens` broadcasting a dimension of 1 to 1 instead of 0 when the other dimension is 0, which made `broadcast_with_dims` produce one element for an empty target dimension (#5529).
 * Fixed the GPU `rewrite_reduce` pass's `mean(x^2) - mean(x)^2` rewrite of `LayerNormalization`-style variance reductions producing `NaN` outputs from catastrophic cancellation at large input magnitude, by clamping the computed variance to zero before it reaches `rsqrt` (AIMIGRAPHX-1376).
 * Fixed `lower_reshape` returning a strided view as a program output when a reshape of a non-standard input (for example the last row sliced out of a KV-cache `concat`) reaches `@return`, which made `run` reject standard caller-provided output buffers (#5237).

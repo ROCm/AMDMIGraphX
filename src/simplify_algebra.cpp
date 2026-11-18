@@ -1654,14 +1654,15 @@ move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_r
     }
 }
 
-/** Collect the "slice" instructions in an instruction's outputs. */
-static std::vector<instruction_ref> get_slice_outputs(instruction_ref ins)
+/** Collect the "slice" instructions in an instruction's outputs that are in module m. A slice in
+ *  a submodule, such as a branch of an `if` reading a value of m, is not a split of m. */
+static std::vector<instruction_ref> get_slice_outputs(const module& m, instruction_ref ins)
 {
     std::vector<instruction_ref> result;
     std::copy_if(ins->outputs().begin(),
                  ins->outputs().end(),
                  std::back_inserter(result),
-                 [](auto i) { return i->name() == "slice"; });
+                 [&](auto i) { return i->name() == "slice" and m.has_instruction(i); });
     return result;
 }
 
@@ -1673,9 +1674,14 @@ static std::vector<instruction_ref> get_slice_outputs(instruction_ref ins)
  *  checks are skipped, so a contiguous run of slices covering only a sub-range is
  *  also accepted (the gap-free adjacency check still applies).
  */
-static std::vector<instruction_ref> get_splits(instruction_ref ins, bool partial = false)
+static std::vector<instruction_ref>
+get_splits(const module& m, instruction_ref ins, bool partial = false)
 {
-    auto result = get_slice_outputs(ins);
+    // The rewrites insert after ins, so a value of an enclosing module, sliced in a submodule
+    // such as a branch of an `if`, is not split here
+    if(not m.has_instruction(ins))
+        return {};
+    auto result = get_slice_outputs(m, ins);
     if(result.size() < 2)
         return {};
     auto get_slice = [](auto& i) -> auto& { return any_cast<op::slice>(i->get_operator()); };
@@ -2168,7 +2174,7 @@ struct find_splits
     {
         auto ins     = r.result;
         bool partial = false;
-        auto splits  = get_splits(ins);
+        auto splits  = get_splits(m, ins);
         if(splits.empty())
         {
             // The sibling slices only partially tile their tensor, e.g.
@@ -2176,7 +2182,7 @@ struct find_splits
             // Rewrite this as one wide op on the bounding slice with each
             // consumer reading its sub-range back out:
             //     slice{0,2} -> pw -> (slice{0,1}, slice{1,2})
-            splits  = get_splits(ins, /*partial=*/true);
+            splits  = get_splits(m, ins, /*partial=*/true);
             partial = true;
         }
         if(splits.empty())
@@ -2284,7 +2290,7 @@ struct find_split_concat
         // must match the start of the next.
         auto ins = r.result;
 
-        auto splits = get_splits(ins);
+        auto splits = get_splits(m, ins);
         if(splits.empty())
             return;
         // Each slice must output to only one instruction
@@ -2512,7 +2518,13 @@ struct find_conv_dot_horiz_fusion
             m.batch_replace_instruction(replacers);
         };
 
-        auto outputs = ins->outputs();
+        // Only the users in this module are fused: a user in a submodule, such as both branches
+        // of an `if` reading the same input, cannot read a slice of an instruction computed here
+        std::vector<instruction_ref> outputs;
+        std::copy_if(ins->outputs().begin(),
+                     ins->outputs().end(),
+                     std::back_inserter(outputs),
+                     [&](instruction_ref i) { return m.has_instruction(i); });
         group_by(outputs.begin(), outputs.end(), each, pred);
     }
 };
@@ -2934,7 +2946,7 @@ struct find_split_reshape
         auto rsp   = r.instructions["reshape"];
         auto input = slc->inputs().front();
 
-        auto splits = get_splits(input);
+        auto splits = get_splits(m, input);
         if(splits.size() < 2)
             return;
 
@@ -2993,7 +3005,7 @@ struct find_split_transpose
         auto trans = r.instructions["trans"];
 
         auto input         = slc->inputs().front();
-        auto split_outputs = get_splits(input);
+        auto split_outputs = get_splits(m, input);
         if(split_outputs.empty())
         {
             return;

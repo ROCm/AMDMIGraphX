@@ -118,8 +118,8 @@ def _download_image(image, destination):
 
     print(f"Downloading {image.url}")
     try:
-        with urlopen(request, timeout=60) as response, temporary.open(
-                "wb") as output:
+        with urlopen(request,
+                     timeout=60) as response, temporary.open("wb") as output:
             while True:
                 block = response.read(1024 * 1024)
                 if not block:

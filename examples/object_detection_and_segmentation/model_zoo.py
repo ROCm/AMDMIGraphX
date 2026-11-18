@@ -32,9 +32,8 @@ import tarfile
 import tempfile
 from urllib.request import Request, urlopen
 
-MODEL_ZOO_ROOT = (
-    "https://github.com/mitzen/onnx-zoo-models/raw/main/"
-    "vision/object_detection_segmentation")
+MODEL_ZOO_ROOT = ("https://github.com/mitzen/onnx-zoo-models/raw/main/"
+                  "vision/object_detection_segmentation")
 
 
 @dataclass(frozen=True)
@@ -88,8 +87,8 @@ def _download(fixture, destination):
 
     print(f"Downloading {fixture.url}")
     try:
-        with urlopen(request, timeout=60) as response, temporary.open(
-                "wb") as output:
+        with urlopen(request,
+                     timeout=60) as response, temporary.open("wb") as output:
             size_header = response.headers.get("Content-Length")
             expected_size = int(size_header) if size_header else None
             while True:

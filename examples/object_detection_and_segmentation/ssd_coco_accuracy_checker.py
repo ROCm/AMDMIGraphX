@@ -46,8 +46,7 @@ from ssd_accuracy_common import validate_ssd_input
 from ssd_accuracy_common import validate_ssd_outputs
 
 IMAGE_COUNT = 10
-MEAN = np.asarray([0.485, 0.456, 0.406],
-                  dtype=np.float32)[None, :, None, None]
+MEAN = np.asarray([0.485, 0.456, 0.406], dtype=np.float32)[None, :, None, None]
 STDDEV = np.asarray([0.229, 0.224, 0.225],
                     dtype=np.float32)[None, :, None, None]
 SSD_10_FIXTURE = ModelZooFixture(

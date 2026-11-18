@@ -145,7 +145,8 @@ def main():
     validate_ssd_contract(input_names, output_names, inputs, golden_outputs)
 
     print("Running ONNX Runtime reference...")
-    ort_outputs, ort_durations = run_ort(model_path, inputs, output_names, args)
+    ort_outputs, ort_durations = run_ort(model_path, inputs, output_names,
+                                         args)
     ort_box_count = validate_ssd_outputs(ort_outputs)
     print_performance("ONNX Runtime", ort_durations)
     print("Comparing ONNX Runtime with packaged outputs:")

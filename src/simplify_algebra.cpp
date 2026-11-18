@@ -3227,6 +3227,134 @@ struct find_pow2
     }
 };
 
+// Apply a pointwise operator or a reduction to the table before the gather
+// instead of to the gathered rows: f(gather(t, i)) -> gather(f(t), i). This is
+// done when f(t) folds to a constant, or when the table has no more entries
+// than rows are gathered from it.
+struct find_gather_op
+{
+    auto matcher() const
+    {
+        auto gather = match::name("gather")(match::used_once()).bind("gather");
+        return match::all_of(match::any_of[match::inputs()](gather),
+                             match::any_of(match::pointwise(), reduction()));
+    }
+
+    static bool is_gather(instruction_ref ins) { return ins->name() == "gather"; }
+
+    static std::size_t gather_axis(instruction_ref gather)
+    {
+        return gather->normalized_operator().to_value().at("axis").to<std::size_t>();
+    }
+
+    /// Whether the input can be applied to the table: it is gathered the same
+    /// way as the gather, or it is one element broadcast to the gathered shape
+    static bool is_table_input(instruction_ref input, instruction_ref gather)
+    {
+        if(input->get_shape().dynamic())
+            return false;
+        const auto& table = gather->inputs().front()->get_shape();
+        if(is_gather(input))
+            return input->outputs().size() == 1 and
+                   input->get_operator() == gather->get_operator() and
+                   input->inputs().back() == gather->inputs().back() and
+                   input->inputs().front()->get_shape().lens() == table.lens();
+        if(input->name() != "multibroadcast")
+            return false;
+        const auto& source = input->inputs().front()->get_shape();
+        return input->get_shape().lens() == gather->get_shape().lens() and
+               source.elements() == 1 and source.ndim() <= table.ndim();
+    }
+
+    /// The reduction applied to the table, if it does not reduce the gathered axis
+    static optional<operation> table_reduce_op(instruction_ref ins, instruction_ref gather)
+    {
+        auto v = ins->normalized_operator().to_value();
+        if(not v.contains("axes"))
+            return nullopt;
+        std::int64_t first  = gather_axis(gather);
+        std::int64_t nindex = gather->inputs().back()->get_shape().ndim();
+        assert(nindex > 0);
+        auto axes = v.at("axes").to_vector<std::int64_t>();
+        if(std::any_of(axes.begin(), axes.end(), [&](std::int64_t axis) {
+               return axis >= first and axis < first + nindex;
+           }))
+            return nullopt;
+        // The indices take the place of one axis of the table
+        std::transform(axes.begin(), axes.end(), axes.begin(), [&](std::int64_t axis) {
+            return axis < first ? axis : axis - nindex + 1;
+        });
+        v["axes"] = axes;
+        return make_op(ins->name(), v);
+    }
+
+    /// Whether the operator costs no more on the table than on the gathered rows
+    static bool is_profitable(instruction_ref ins,
+                              instruction_ref gather,
+                              const std::vector<instruction_ref>& gathers)
+    {
+        // The gather must not move more data than the gathers it replaces
+        auto gathered_size = transform_accumulate(
+            gathers.begin(), gathers.end(), std::size_t{0}, std::plus<>{}, [](instruction_ref g) {
+                return g->get_shape().type_size();
+            });
+        if(ins->get_shape().type_size() > gathered_size)
+            return false;
+        // Applied to literals that are only gathered here, the operator folds away
+        if(std::all_of(gathers.begin(), gathers.end(), [](instruction_ref g) {
+               auto data = g->inputs().front();
+               return data->name() == "@literal" and data->outputs().size() == 1;
+           }))
+            return true;
+        auto entries = gather->inputs().front()->get_shape().lens()[gather_axis(gather)];
+        return gather->inputs().back()->get_shape().elements() >= entries;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        if(not ins->module_inputs().empty() or ins->get_shape().dynamic())
+            return;
+        const auto& inputs = ins->inputs();
+        auto gather        = r.instructions["gather"];
+        auto indices       = gather->inputs().back();
+        // Scalar indices remove the gathered axis, while table_reduce_op assumes they replace it
+        if(indices->get_shape().dynamic() or indices->get_shape().scalar())
+            return;
+        if(not std::all_of(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+               return is_table_input(input, gather);
+           }))
+            return;
+
+        auto op = ins->get_operator();
+        if(not op.attributes().contains("pointwise"))
+        {
+            if(inputs.size() != 1)
+                return;
+            auto reduce_op = table_reduce_op(ins, gather);
+            if(not reduce_op.has_value())
+                return;
+            op = *reduce_op;
+        }
+        if(not is_profitable(ins, gather, find_all(inputs, &is_gather)))
+            return;
+
+        const auto& table_lens = gather->inputs().front()->get_shape().lens();
+        std::vector<instruction_ref> args;
+        std::transform(
+            inputs.begin(), inputs.end(), std::back_inserter(args), [&](instruction_ref input) {
+                if(is_gather(input))
+                    return input->inputs().front();
+                return m.insert_instruction(ins,
+                                            make_op("multibroadcast", {{"out_lens", table_lens}}),
+                                            input->inputs().front());
+            });
+        auto table = m.insert_instruction(ins, op, args);
+        m.replace_instruction(ins,
+                              m.insert_instruction(ins, gather->get_operator(), table, indices));
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
@@ -3273,7 +3401,8 @@ void simplify_algebra::apply(module& m) const
                             find_splits{},
                             find_split_reshape{},
                             find_split_transpose{},
-                            find_pow2{});
+                            find_pow2{},
+                            find_gather_op{});
 
         dead_code_elimination{}.apply(m);
     });

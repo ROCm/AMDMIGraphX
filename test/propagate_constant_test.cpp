@@ -611,6 +611,32 @@ TEST_CASE(skip_widening_convert_of_broadcast)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(skip_narrowing_convert_of_dequantize_int4)
+{
+    // Folding the convert would unpack and dequantize the weights into the literal
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {2, 5, 2}});
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::uint8_type, {2, 5, 1}}));
+        auto scale =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 5, 2}}));
+        auto zp =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::uint8_type, {2, 5, 2}}));
+        auto wunpack = m1.add_instruction(migraphx::make_op("unpack_int4"), w);
+        auto dq   = m1.add_instruction(migraphx::make_op("dequantizelinear"), wunpack, scale, zp);
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), dq);
+        auto transpose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), conv);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), x, transpose);
+        m1.add_return({dot});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(propagate_narrowing_convert)
 {
     migraphx::module m1;

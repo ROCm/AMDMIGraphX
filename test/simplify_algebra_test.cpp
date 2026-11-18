@@ -7121,4 +7121,274 @@ TEST_CASE(simplify_concat_unsqueeze_scalar)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(gather_op_unary)
+{
+    // With more rows than entries the operator does less work on the table
+    migraphx::module m1;
+    {
+        auto t    = m1.add_parameter("t", {migraphx::shape::float_type, {4, 3}});
+        auto idx  = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto g    = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), g);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto t    = m2.add_parameter("t", {migraphx::shape::float_type, {4, 3}});
+        auto idx  = m2.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), t);
+        auto g    = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), relu, idx);
+        m2.add_return({g});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_op_unary_fewer_rows)
+{
+    // The operator would run on more entries than the rows that are gathered
+    migraphx::module m1;
+    {
+        auto t    = m1.add_parameter("t", {migraphx::shape::float_type, {8, 3}});
+        auto idx  = m1.add_parameter("idx", {migraphx::shape::int32_type, {4}});
+        auto g    = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), g);
+        m1.add_return({relu});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(gather_op_constant_table)
+{
+    // The operator folds into a constant table however few rows are gathered
+    migraphx::module m1;
+    {
+        auto t = m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 3}}));
+        auto idx  = m1.add_parameter("idx", {migraphx::shape::int32_type, {4}});
+        auto g    = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), g);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto t = m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 3}}));
+        auto idx  = m2.add_parameter("idx", {migraphx::shape::int32_type, {4}});
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), t);
+        auto g    = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), relu, idx);
+        m2.add_return({g});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_op_constant_table_shared)
+{
+    // Folding the operator into a table with another use would add a second table
+    migraphx::module m1;
+    {
+        auto t = m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 3}}));
+        auto idx  = m1.add_parameter("idx", {migraphx::shape::int32_type, {4}});
+        auto g    = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), g);
+        m1.add_return({relu, t});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(gather_op_unpacked_table)
+{
+    // The unpacked table is not folded, so the operator would run on all of it
+    migraphx::module m1;
+    {
+        auto w = m1.add_literal(migraphx::generate_literal({migraphx::shape::uint8_type, {8, 3}}));
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {4}});
+        auto t   = m1.add_instruction(migraphx::make_op("unpack_int4"), w);
+        auto g   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto c   = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), g);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(gather_op_binary)
+{
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", {migraphx::shape::float_type, {4, 3}});
+        auto b   = m1.add_parameter("b", {migraphx::shape::float_type, {4, 3}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto ga  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), a, idx);
+        auto gb  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx);
+        auto sub = m1.add_instruction(migraphx::make_op("sub"), ga, gb);
+        m1.add_return({sub});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a   = m2.add_parameter("a", {migraphx::shape::float_type, {4, 3}});
+        auto b   = m2.add_parameter("b", {migraphx::shape::float_type, {4, 3}});
+        auto idx = m2.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto sub = m2.add_instruction(migraphx::make_op("sub"), a, b);
+        auto g   = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), sub, idx);
+        m2.add_return({g});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_op_binary_different_indices)
+{
+    migraphx::module m1;
+    {
+        auto a    = m1.add_parameter("a", {migraphx::shape::float_type, {4, 3}});
+        auto b    = m1.add_parameter("b", {migraphx::shape::float_type, {4, 3}});
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {8}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {8}});
+        auto ga   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), a, idx1);
+        auto gb   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), b, idx2);
+        auto sub  = m1.add_instruction(migraphx::make_op("sub"), ga, gb);
+        m1.add_return({sub});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(gather_op_binary_other_rows)
+{
+    // The other input has its own value for every gathered row
+    migraphx::module m1;
+    {
+        auto t   = m1.add_parameter("t", {migraphx::shape::float_type, {4, 3}});
+        auto y   = m1.add_parameter("y", {migraphx::shape::float_type, {8, 3}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto g   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto sub = m1.add_instruction(migraphx::make_op("sub"), g, y);
+        m1.add_return({sub});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(gather_op_binary_broadcast)
+{
+    // One element broadcast to the gathered rows is broadcast to the table instead
+    migraphx::module m1;
+    {
+        auto t   = m1.add_parameter("t", {migraphx::shape::float_type, {4, 3}});
+        auto s   = m1.add_parameter("s", {migraphx::shape::float_type, {1}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto g   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto sb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 3}}}), s);
+        auto sub = m1.add_instruction(migraphx::make_op("sub"), g, sb);
+        m1.add_return({sub});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto t   = m2.add_parameter("t", {migraphx::shape::float_type, {4, 3}});
+        auto s   = m2.add_parameter("s", {migraphx::shape::float_type, {1}});
+        auto idx = m2.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto sb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), s);
+        auto sub = m2.add_instruction(migraphx::make_op("sub"), t, sb);
+        auto g   = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), sub, idx);
+        m2.add_return({g});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_op_reduce)
+{
+    // The indices take the place of the gathered axis, so the reduced axis moves
+    migraphx::module m1;
+    {
+        auto t   = m1.add_parameter("t", {migraphx::shape::float_type, {4, 3, 5}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {2, 6}});
+        auto g   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), g);
+        m1.add_return({sum});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto t   = m2.add_parameter("t", {migraphx::shape::float_type, {4, 3, 5}});
+        auto idx = m2.add_parameter("idx", {migraphx::shape::int32_type, {2, 6}});
+        auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), t);
+        auto g   = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), sum, idx);
+        m2.add_return({g});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_op_reduce_gathered_axis)
+{
+    // A reduction over the gathered rows depends on which rows were gathered
+    migraphx::module m1;
+    {
+        auto t   = m1.add_parameter("t", {migraphx::shape::float_type, {4, 3}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto g   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), g);
+        m1.add_return({sum});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(gather_op_widening_convert)
+{
+    // The gather would move the wider type
+    migraphx::module m1;
+    {
+        auto t   = m1.add_parameter("t", {migraphx::shape::half_type, {4, 3}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto g   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto c   = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), g);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(gather_op_multiple_uses)
+{
+    // The gathered rows are still needed, so the gather would run twice
+    migraphx::module m1;
+    {
+        auto t    = m1.add_parameter("t", {migraphx::shape::float_type, {4, 3}});
+        auto idx  = m1.add_parameter("idx", {migraphx::shape::int32_type, {8}});
+        auto g    = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), t, idx);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), g);
+        m1.add_return({relu, g});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

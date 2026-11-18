@@ -12,6 +12,8 @@ Full documentation for MIGraphX is available at
 * Added the `split_sym_dim` pass, which specializes bounded symbolic dimensions into static `select_module` submodules (#5123).
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
+* Added the `rewrite_gather_dot` pass, which computes dots whose matrices are gathered per row from a table, such as the expert weights of a `MoE`/`QMoE` layer, as one batched dot over the whole table once there are at least as many rows as table entries. The crossover is the pass's `min_rows_per_entry`, set on GPU with the `gather_dot_min_rows_per_entry` backend option. On GPU, a dequantize followed by a convert now fuses into the MLIR dot kernel.
+* Added a `simplify_algebra` rewrite that applies a pointwise operator or a reduction to a table before it is gathered, instead of to the gathered rows, when the result folds to a constant or the table has no more entries than gathered rows.
 
 ### Changed
 

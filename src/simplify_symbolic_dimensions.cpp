@@ -395,8 +395,27 @@ void simplify_symbolic_dimensions::apply(module& m) const
     std::unordered_map<instruction_ref, instruction_ref> replacements;
     for(auto ins : original)
     {
-        if(contains({"@literal", "@param", "@outline", "@comment"}, ins->name()))
-            replacements.emplace(ins, ins);
+        if(not contains({"@literal", "@param", "@outline", "@comment"}, ins->name()))
+            continue;
+        // A parameter keeps the shape the caller gives it. When one of its dims is a symbol that
+        // is replaced, its users read it through an as_shape to the canonical dims, which name
+        // the same lengths, since the two are equal at run time.
+        const auto& s = ins->get_shape();
+        if(ins->name() == "@param" and s.symbolic())
+        {
+            auto canonical = substitute_shape(s, values);
+            if(canonical != s)
+            {
+                auto read = m.insert_instruction(
+                    std::next(ins),
+                    make_op("as_shape",
+                            {{"shape", to_value(shape{s.type(), canonical.dyn_dims()})}}),
+                    ins);
+                replacements.emplace(ins, read);
+                continue;
+            }
+        }
+        replacements.emplace(ins, ins);
     }
     auto outputs = m.add_instructions(
         original,

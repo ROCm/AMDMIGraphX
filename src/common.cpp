@@ -54,6 +54,25 @@ bool elementwise_dims_match_without_broadcast(const std::vector<shape::dynamic_d
     });
 }
 
+// The common dims for an input, except that an axis where the input has a different non-literal
+// symbol keeps the input's
+std::vector<shape::dynamic_dimension> own_symbolic_dims(const shape& s,
+                                                        std::vector<shape::dynamic_dimension> dims)
+{
+    if(not s.symbolic())
+        return dims;
+    // The common dims broadcast every input, so they have at least the input's rank
+    const auto& in = s.dyn_dims();
+    auto offset    = dims.size() - in.size();
+    for(std::size_t i = 0; i < in.size(); ++i)
+    {
+        auto& d = dims[i + offset];
+        if(in[i] != d and not is_symbolic_literal(in[i]) and not is_symbolic_literal(d))
+            d = in[i];
+    }
+    return dims;
+}
+
 } // namespace
 
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
@@ -225,6 +244,15 @@ std::vector<instruction_ref> insert_common_args(module& m,
                    (s.symbolic() and
                     elementwise_dims_match_without_broadcast(s.dyn_dims(), c_dyn_dims)))
                     return input;
+                // Only the axes of length 1 are broadcast. An axis where the input has another
+                // non-literal symbol keeps it, so the op itself pairs the two symbols, which
+                // simplify_symbolic_dimensions then unifies.
+                auto own_dims = own_symbolic_dims(s, c_dyn_dims);
+                if(own_dims != c_dyn_dims)
+                    return m.insert_instruction(
+                        ins,
+                        make_op("multibroadcast", {{"out_dyn_dims", to_value(own_dims)}}),
+                        input);
                 return m.insert_instruction(
                     ins,
                     make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),

@@ -23,6 +23,10 @@
  */
 
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/common.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/dim_like.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -791,6 +795,70 @@ TEST_CASE(simplify_symbolic_dimensions_maskrcnn_postprocess)
         m2.add_return({merged, nms_slice, topk_values, nonzero_slice});
     }
     EXPECT(m1 == m2);
+}
+
+// A mask of length m added to scores of length n + 1, as in attention: the add requires
+// m == n + 1, so after the pass every shape is in terms of n, and the mask parameter, whose
+// shape the caller gives, is read through an as_shape to n + 1.
+TEST_CASE(simplify_symbolic_dimensions_mask_parameter)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto m = var("m", {2, 9});
+    const auto n = var("n", {1, 8});
+    migraphx::module m1;
+    auto mask = m1.add_parameter(
+        "mask",
+        migraphx::shape{migraphx::shape::float_type,
+                        std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}, {lit(1)}, {m}}});
+    auto scores = m1.add_parameter("scores",
+                                   migraphx::shape{migraphx::shape::float_type,
+                                                   std::vector<migraphx::shape::dynamic_dimension>{
+                                                       {lit(1)}, {lit(12)}, {n + lit(1)}}});
+    auto add = migraphx::insert_common_op(m1, m1.end(), migraphx::make_op("add"), {scores, mask});
+    m1.add_return({add});
+    // Only the axis of length 1 is broadcast; the mask keeps m
+    auto bcast = add->inputs().back();
+    EXPECT(bcast->name() == "multibroadcast");
+    EXPECT(bcast->get_shape().dyn_dims().back() == migraphx::shape::dynamic_dimension{m});
+
+    run_pass(m1);
+    EXPECT(m1.validate() == m1.end());
+    auto ret = std::prev(m1.end())->inputs().front();
+    EXPECT(ret->get_shape().dyn_dims().back() == migraphx::shape::dynamic_dimension{n + lit(1)});
+    for(auto ins : migraphx::iterator_for(m1))
+    {
+        if(ins->name() == "@param" or ins->inputs().empty() or
+           ins->inputs().front()->name() == "@param")
+            continue;
+        for(const auto& d : ins->get_shape().dyn_dims())
+            EXPECT(not migraphx::contains(migraphx::sym::find_variables(d.sym_expr), m));
+    }
+}
+
+// The lengths of two parameters may be 1, such as the query and mask lengths of a decoder
+TEST_CASE(simplify_symbolic_dimensions_parameters_may_be_one)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    const auto a = var("a", {1, 8});
+    const auto b = var("b", {1, 8});
+    migraphx::module m1;
+    auto x = m1.add_parameter(
+        "x",
+        migraphx::shape{migraphx::shape::float_type,
+                        std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}, {a}}});
+    auto y = m1.add_parameter(
+        "y",
+        migraphx::shape{migraphx::shape::float_type,
+                        std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}, {b}}});
+    m1.add_return({m1.add_instruction(migraphx::make_op("add"), x, y)});
+    run_pass(m1);
+    EXPECT(m1.validate() == m1.end());
+    EXPECT(migraphx::any_of(migraphx::iterator_for(m1), [&](auto ins) {
+        return ins->name() == "as_shape" and ins->inputs().front() == y;
+    }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -86,6 +86,12 @@ struct MIGRAPHX_EXPORT program
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     int get_program_file_version() const;
+    int get_min_supported_program_file_version() const;
+
+    /// Validates the `version` field of a serialized program (null if the field is absent)
+    /// against the range of program file versions this build can read. Throws if it is
+    /// missing, not an integer, or outside [min supported, current].
+    static void check_file_version(const value* version_field);
 
     std::size_t total_instructions() const;
 
@@ -182,8 +188,19 @@ struct MIGRAPHX_EXPORT program
     std::unique_ptr<program_impl> impl;
     // program file version is for the data structure or format of the MXR
     // file. Version should be bumped if any changes occur to the format of
-    // the MXR file. This does not apply to changes made to operators.
+    // the MXR file that an older reader cannot parse. This does not apply to
+    // changes made to operators.
+    // Files with a version in [min_supported_program_file_version,
+    // program_file_version] are loaded. Raise the minimum only when support
+    // for an older version is dropped, and only with a test that loads a
+    // real file of the oldest supported version.
+    // The writer must keep `version` as the first key of the serialized
+    // program: the msgpack loader looks for it there first.
     static constexpr int program_file_version = 8;
+    static constexpr int min_supported_program_file_version = 8;
+    static_assert(min_supported_program_file_version >= 1 and
+                      min_supported_program_file_version <= program_file_version,
+                  "supported program file versions must be a valid range");
 };
 
 /// Lets a program be a member of a reflected type, using the same conversion as saving one.

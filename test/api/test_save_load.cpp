@@ -24,6 +24,9 @@
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
 #include "test.hpp"
+#include <cstdio>
+#include <fstream>
+#include <string>
 
 TEST_CASE(load_save_default)
 {
@@ -36,6 +39,16 @@ TEST_CASE(load_save_default)
     EXPECT(s1.size() == s2.size());
     EXPECT(s1.front() == s2.front());
     EXPECT(p1.sort() == p2.sort());
+    std::remove(filename.c_str());
+}
+
+TEST_CASE(load_unsupported_version)
+{
+    // msgpack for {"version": 255}, a program file version that no build supports
+    std::string filename = "migraphx_api_unsupported_version.mxr";
+    std::string bytes    = "\x81\xa7version\xcc\xff";
+    std::ofstream{filename, std::ios::binary}.write(bytes.data(), bytes.size());
+    EXPECT(test::throws([&] { migraphx::load(filename.c_str()); }));
     std::remove(filename.c_str());
 }
 

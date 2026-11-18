@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <string>
+#include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,6 +36,12 @@ MIGRAPHX_EXPORT std::string to_pretty_json_string(const value& val, std::size_t 
 MIGRAPHX_EXPORT std::string to_json_string(const value& val);
 MIGRAPHX_EXPORT value from_json_string(const std::string& str);
 MIGRAPHX_EXPORT value from_json_string(const char* str, std::size_t size);
+/// Parses the string, then calls `check` with the top-level field `field` (if there is one)
+/// before the rest is converted to a value.
+MIGRAPHX_EXPORT value from_json_string(const char* str,
+                                       std::size_t size,
+                                       const std::string& field,
+                                       const std::function<void(const value&)>& check);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

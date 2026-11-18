@@ -26,7 +26,9 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/optional.hpp>
 #include <functional>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,6 +38,13 @@ MIGRAPHX_EXPORT void to_msgpack(const value& v,
 MIGRAPHX_EXPORT std::vector<char> to_msgpack(const value& v);
 MIGRAPHX_EXPORT value from_msgpack(const std::vector<char>& buffer);
 MIGRAPHX_EXPORT value from_msgpack(const char* buffer, std::size_t size);
+
+/// Looks for the top-level map entry `key` and returns its value without decoding the rest of
+/// the buffer. Scalars are returned as values; any other kind (array, map, bin) is returned as an
+/// empty array. Returns nullopt if the key is not found or the buffer cannot be scanned safely,
+/// so callers can fall back to the full decode.
+MIGRAPHX_EXPORT optional<value>
+msgpack_peek_field(const char* buffer, std::size_t size, const std::string& key);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

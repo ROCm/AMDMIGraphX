@@ -45,11 +45,18 @@ program load_buffer(const char* buffer, std::size_t size, const file_options& op
     program p;
     if(options.format == "msgpack")
     {
+        // Reject an unsupported file before the buffer is decoded. A buffer that cannot be
+        // scanned is left to the full decode and the check in from_value.
+        auto version = msgpack_peek_field(buffer, size, "version");
+        if(version)
+            program::check_file_version(&*version);
         p.from_value(from_msgpack(buffer, size));
     }
     else if(options.format == "json")
     {
-        p.from_value(from_json_string(buffer, size));
+        p.from_value(from_json_string(buffer, size, "version", [](const value& version) {
+            program::check_file_version(&version);
+        }));
     }
     else
     {

@@ -167,6 +167,16 @@ migraphx::value from_json_string(const char* str, std::size_t size)
     json j = json::parse(str, str + size);
     return j.get<value>();
 }
+migraphx::value from_json_string(const char* str,
+                                 std::size_t size,
+                                 const std::string& field,
+                                 const std::function<void(const value&)>& check)
+{
+    json j = json::parse(str, str + size);
+    if(j.is_object() and j.contains(field))
+        check(value_from_json(j.at(field)));
+    return j.get<value>();
+}
 migraphx::value from_json_string(const std::string& str)
 {
     json j = json::parse(str);

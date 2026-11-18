@@ -23,6 +23,9 @@
  */
 
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/dim_like.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -791,6 +794,45 @@ TEST_CASE(simplify_symbolic_dimensions_maskrcnn_postprocess)
         m2.add_return({merged, nms_slice, topk_values, nonzero_slice});
     }
     EXPECT(m1 == m2);
+}
+
+// A branch of an if reads x {1, n} and y {1, m} of the main module and adds them, so n == m in
+// the branch only. The branch reads y as the canonical shape, so an expression of its length
+// still resolves from its input.
+TEST_CASE(simplify_symbolic_dimensions_reads_parent_values)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto n = var("n", {1, 8});
+    const auto m = var("m", {1, 8});
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter(
+        "x",
+        migraphx::shape{migraphx::shape::float_type,
+                        std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}, {n}}});
+    auto y = mm->add_parameter(
+        "y",
+        migraphx::shape{migraphx::shape::float_type,
+                        std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}, {m}}});
+    auto* branch = p.create_module("branch");
+    auto sum     = branch->add_instruction(migraphx::make_op("add"), x, y);
+    auto length  = branch->add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{m})}}),
+        y);
+    branch->add_return({sum, length});
+
+    run_pass(*branch);
+    EXPECT(branch->validate() == branch->end());
+    EXPECT(migraphx::any_of(migraphx::iterator_for(*branch), [&](auto ins) {
+        return ins->name() == "as_shape" and ins->inputs().front() == y;
+    }));
+    auto returned = branch->get_returns();
+    EXPECT(returned.front()->get_shape().dyn_dims().back() ==
+           migraphx::shape::dynamic_dimension{n});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

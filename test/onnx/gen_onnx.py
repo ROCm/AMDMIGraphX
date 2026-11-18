@@ -1463,6 +1463,58 @@ def constant_test():
     return ([node], [], [y])
 
 
+# int32_data holds fp8 bit patterns; make_tensor would encode values instead
+@onnx_test()
+def constant_fp8e4m3fn_int32_data_test():
+    y = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FN, [3])
+
+    node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['0'],
+        value=TensorProto(name='const_tensor',
+                          data_type=TensorProto.FLOAT8E4M3FN,
+                          dims=[3],
+                          int32_data=[0x38, 0xB8, 0x01]),
+    )
+
+    return ([node], [], [y])
+
+
+@onnx_test()
+def constant_fp8e5m2_int32_data_test():
+    y = helper.make_tensor_value_info('0', TensorProto.FLOAT8E5M2, [3])
+
+    node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['0'],
+        value=TensorProto(name='const_tensor',
+                          data_type=TensorProto.FLOAT8E5M2,
+                          dims=[3],
+                          int32_data=[0x38, 0xB8, 0x01]),
+    )
+
+    return ([node], [], [y])
+
+
+@onnx_test()
+def constant_fp8e4m3fnuz_int32_data_test():
+    y = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ, [3])
+
+    node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['0'],
+        value=TensorProto(name='const_tensor',
+                          data_type=TensorProto.FLOAT8E4M3FNUZ,
+                          dims=[3],
+                          int32_data=[0x38, 0xB8, 0x01]),
+    )
+
+    return ([node], [], [y])
+
+
 @onnx_test()
 def constant_value_float_test():
 

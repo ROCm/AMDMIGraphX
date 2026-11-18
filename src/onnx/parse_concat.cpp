@@ -96,13 +96,9 @@ struct parse_concat : op_parser<parse_concat>
                                                       axis_expressions.end(),
                                                       sym::lit(int64_t{0}),
                                                       std::plus<sym::expr>{});
-        auto output_dim             = total_expression;
-        if(symbolic_axis_inputs > 1)
-        {
-            const auto total_interval = shape::dynamic_dimension{total_expression}.get_interval();
-            output_dim                = sym::var(parser.symbol_names.allocate(info.name),
-                                                 {total_interval.min, total_interval.max});
-        }
+        // The length is the sum of the input lengths, so that later shapes keep it in terms of
+        // them, such as a causal mask cut to the key length minus the query length
+        const auto& output_dim = total_expression;
         auto starts = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
         return info.add_instruction(
             make_op(

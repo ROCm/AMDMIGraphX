@@ -340,6 +340,13 @@ root_source_info find_root_sources(const module& m)
         if(register_shape_roots(result.symbols, parameter))
             result.ordered.push_back(parameter);
     }
+    // A submodule, such as a branch of an if, reads the values of its parent module directly;
+    // their symbolic dims resolve the roots as parameters do
+    for(auto ins : iterator_for(m))
+        for(auto input : ins->inputs())
+            if(not m.has_instruction(input) and not contains(result.ordered, input) and
+               register_shape_roots(result.symbols, input))
+                result.ordered.push_back(input);
     for(auto ins : iterator_for(m))
         if(ins->name() == "dyn_slice" and is_data_dependent_output_slice(ins))
             if(register_shape_roots(result.symbols, ins))
@@ -521,6 +528,16 @@ collect_roots(const module& m, const std::unordered_map<sym::expr, instruction_r
     {
         const auto& root = entry.first;
         auto source      = entry.second;
+        // A value of the parent module, read by a submodule such as a branch of an if, gives
+        // its dims as a parameter does
+        if(not m.has_instruction(source))
+        {
+            for(const auto& dimension : source->get_shape().dyn_dims())
+                collected.append(dimension);
+            if(not collected.valid())
+                return std::nullopt;
+            continue;
+        }
         if(source->name() == "@param")
             continue;
         const auto& dimensions = source->get_shape().dyn_dims();

@@ -61,13 +61,13 @@ std::vector<shape::dynamic_dimension> own_symbolic_dims(const shape& s,
 {
     if(not s.symbolic())
         return dims;
+    // The common dims broadcast every input, so they have at least the input's rank
     const auto& in = s.dyn_dims();
-    auto offset    = dims.size() - std::min(in.size(), dims.size());
-    for(std::size_t i = 0; i < in.size() and i + offset < dims.size(); ++i)
+    auto offset    = dims.size() - in.size();
+    for(std::size_t i = 0; i < in.size(); ++i)
     {
         auto& d = dims[i + offset];
-        if(in[i] != d and in[i].is_symbolic() and d.is_symbolic() and
-           not is_symbolic_literal(in[i]) and not is_symbolic_literal(d))
+        if(in[i] != d and not is_symbolic_literal(in[i]) and not is_symbolic_literal(d))
             d = in[i];
     }
     return dims;

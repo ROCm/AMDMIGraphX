@@ -5928,6 +5928,27 @@ TEST_CASE(slice_squeeze_clip_broadcasted_scalar)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(slice_squeeze_to_scalar_binary)
+{
+    // The squeeze turns a one-element slice into a scalar of the same rank, so nothing changes
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
+        auto a = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), x);
+        auto b = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), y);
+        b        = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), b);
+        auto sub = m1.add_instruction(migraphx::make_op("sub"), a, b);
+        m1.add_return({sub});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(slice_squeeze_binary_scalar)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 8}};

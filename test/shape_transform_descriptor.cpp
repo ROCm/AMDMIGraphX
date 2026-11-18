@@ -1702,6 +1702,15 @@ TEST_CASE(is_transposed_split)
                .is_transposed());
 }
 
+TEST_CASE(rebase_broadcast_1d_to_higher_rank)
+{
+    // As simplify_reshapes creates it for a slice of a shape vector broadcast to {1, 12, 1, 1},
+    // the descriptor refers to more axes than a 1-D input has, so it cannot be rebased onto one
+    auto desc = shape_transform_descriptor::create(
+        {1}, {make_op("multibroadcast", {{"out_lens", {1, 12, 1, 1}}})});
+    EXPECT(desc.rebase({4}).empty());
+}
+
 TEST_CASE(is_collapsing_basic)
 {
     EXPECT(

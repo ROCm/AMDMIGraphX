@@ -760,10 +760,6 @@ struct find_slice_shape_transforms
         auto opt_ops = new_desc.generate();
         auto y       = insert_ops(m, ins, opt_ops, x);
         y            = m.insert_instruction(ins, make_op("slice", slice_op), y);
-        // A rebase that loses a transform, such as a broadcast of the sliced axis of length 1 to
-        // a higher rank, gives other lens; keep the transforms after the slice then
-        if(y->get_shape().lens() != ins->get_shape().lens())
-            y = insert_ops(m, ins, desc.generate(), slice);
         m.replace_instruction(ins, y);
     }
 };

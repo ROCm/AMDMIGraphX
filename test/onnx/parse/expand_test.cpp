@@ -69,9 +69,18 @@ TEST_CASE(expand_dyn_input_dyn_output_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(expand_dyn_input_static_dims_throw)
+TEST_CASE(expand_dyn_input_static_dims_test)
 {
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s(migraphx::shape::float_type, {{1, 3}, {1, 1}, {1, 1}});
+    auto param = mm->add_parameter("x", s);
+    auto dims  = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {3}}, {3, 4, 4}});
+    auto ret   = mm->add_instruction(migraphx::make_op("broadcast_with_dims"), param, dims);
+    mm->add_return({ret});
+
     migraphx::onnx_options options;
-    options.default_dyn_dim_value = {3, 8};
-    EXPECT(test::throws([&] { read_onnx("expand_dyn_input_static_dims_throw.onnx", options); }));
+    options.default_dyn_dim_value = {1, 3};
+    auto prog                     = read_onnx("expand_dyn_input_static_dims_test.onnx", options);
+    EXPECT(p == prog);
 }

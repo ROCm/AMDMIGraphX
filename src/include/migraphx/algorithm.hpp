@@ -95,6 +95,29 @@ OutputIterator transform_partial_sum(
     return ++d_first;
 }
 
+/// Same as std::transform_exclusive_scan, which is missing from some standard libraries. Each
+/// output is the accumulation of init with the projection of all the elements before it, so the
+/// last element is never included. The output range may be the same as the input range.
+template <class Iterator, class OutputIterator, class T, class BinaryOperation, class UnaryOp>
+OutputIterator transform_exclusive_scan(Iterator first,
+                                        Iterator last,
+                                        OutputIterator d_first,
+                                        T init,
+                                        BinaryOperation binop,
+                                        UnaryOp unaryop)
+{
+    while(first != last)
+    {
+        // Read the element before writing since the output may alias the input
+        T next   = binop(init, unaryop(*first));
+        *d_first = std::move(init);
+        init     = std::move(next);
+        ++first;
+        ++d_first;
+    }
+    return d_first;
+}
+
 /// Like std::unique but removes all duplicates instead of only adjacent ones, so the
 /// input need not be sorted. The order of first appearance is preserved. Returns the
 /// new logical end; elements in [result, last) are left in a moved-from state.

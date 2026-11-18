@@ -1122,7 +1122,8 @@ struct find_dot_axis_linear_ops
             assert(name == "concat");
             const auto& inputs = lin->inputs;
             std::vector<int64_t> starts(inputs.size());
-            std::transform_exclusive_scan(
+            // Qualified since ADL also finds std::transform_exclusive_scan where it exists
+            migraphx::transform_exclusive_scan(
                 inputs.begin(),
                 inputs.end(),
                 starts.begin(),

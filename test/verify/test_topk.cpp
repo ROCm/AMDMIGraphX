@@ -68,6 +68,12 @@ template struct test_topk<migraphx::shape::half_type, 1031, 1033>;
 
 template struct test_topk<migraphx::shape::float_type, 30, 2400>;
 template struct test_topk<migraphx::shape::float_type, 100, 80000>;
+// Run on the host: k = 9000 is more than the lds holds, and with k = 5000 a single wave reads too
+// many elements of each row. k = 8192 does too on wave32 targets (one wave of 32 lanes reading 256
+// elements each) and runs in the kernel on wave64 targets.
+template struct test_topk<migraphx::shape::float_type, 8192, 8192>;
+template struct test_topk<migraphx::shape::float_type, 9000, 9000>;
+template struct test_topk<migraphx::shape::float_type, 5000, 20000>;
 template struct test_topk<migraphx::shape::float_type, 1000, 1875>;
 template struct test_topk<migraphx::shape::float_type, 1000, 120000>;
 // n just above a power of two, with and without the slack of a non power of two k

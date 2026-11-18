@@ -99,6 +99,17 @@ void standardize_module_outputs(module& m)
 
 void auto_contiguous::apply(module& m) const
 {
+    // The submodules are run first, so the outputs of an `if` or `loop` branch can already be
+    // standard while the instruction still has the shape of the views its branches returned
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->module_inputs().empty())
+            continue;
+        if(compute_shape(ins->get_operator(), ins->inputs(), ins->module_inputs()) !=
+           ins->get_shape())
+            m.replace_instruction(ins, ins->get_operator(), ins->inputs(), ins->module_inputs());
+    }
+
     std::string key = "require_std_shape";
     for(auto ins : reverse_iterator_for(m))
     {

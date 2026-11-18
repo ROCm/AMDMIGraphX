@@ -103,7 +103,22 @@ struct test_loop_op
 
     struct test_loop : public migraphx::op::loop::ref_loop
     {
+        // Number of results copied into their output parameters
+        static int& copies()
+        {
+            static int n = 0;
+            return n;
+        }
+
         test_loop(int64_t iter_num) { max_iterations = iter_num; }
+
+        void copy_output(migraphx::context& ctx,
+                         const migraphx::argument& src,
+                         const migraphx::argument& dst) const
+        {
+            copies()++;
+            ref_loop::copy_output(ctx, src, dst);
+        }
 
         std::unordered_map<std::string, int> get_output_params(const migraphx::module& m) const
         {
@@ -160,7 +175,9 @@ struct test_loop_op
     }
 };
 
-static auto create_program(int64_t max_loop_iterations = 10)
+// With write_outputs false, the body returns val without writing it to its output parameter, so
+// run_loop has to copy it there
+static auto create_program(int64_t max_loop_iterations = 10, bool write_outputs = true)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -188,7 +205,7 @@ static auto create_program(int64_t max_loop_iterations = 10)
     auto out0  = body->add_parameter(out_param_prefix + std::to_string(0), neq->get_shape());
     auto r_neq = body->add_instruction(copy_op{}, neq, out0);
     auto out2  = body->add_parameter(out_param_prefix + std::to_string(2), val->get_shape());
-    auto r_val = body->add_instruction(copy_op{}, val, out2);
+    auto r_val = write_outputs ? body->add_instruction(copy_op{}, val, out2) : val;
     body->add_return({r_neq, r_val, r_val});
 
     auto rl =
@@ -263,6 +280,24 @@ TEST_CASE(loop_test4)
     std::vector<int64_t> gold_concat = {5, 9, 14, 20, 0, 0, 0, 0, 0, 0,
                                         0, 0, 0,  0,  0, 0, 0, 0, 0, 0};
     EXPECT(ress.back() == gold_concat);
+}
+
+TEST_CASE(loop_test_result_not_in_output)
+{
+    // The result of each iteration is copied into its output parameter once, also for its
+    // second return
+    test_loop_op::test_loop::copies() = 0;
+    auto ress                         = run_prog(create_program(10, false), 10, true, 1);
+    EXPECT(test_loop_op::test_loop::copies() == 4);
+    std::vector<int64_t> gold_last = {19};
+    EXPECT(ress.front() == gold_last);
+    std::vector<int64_t> gold_concat = {4, 8, 13, 19, 0, 0, 0, 0, 0, 0};
+    EXPECT(ress.back() == gold_concat);
+
+    // A result already in its output parameter is not copied
+    test_loop_op::test_loop::copies() = 0;
+    run_prog(create_program(10, true), 10, true, 1);
+    EXPECT(test_loop_op::test_loop::copies() == 0);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

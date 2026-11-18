@@ -57,6 +57,11 @@ struct gpu_loop
         copy_to_gpu(ctx, arg_src, dst);
     }
 
+    void copy_output(context& ctx, const argument& src, const argument& dst) const
+    {
+        gpu_copy(ctx, src, dst);
+    }
+
     void append(const std::vector<argument>&,
                 const std::vector<argument>&,
                 const std::vector<int64_t>&,

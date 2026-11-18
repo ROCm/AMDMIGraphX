@@ -72,11 +72,22 @@ struct loop
         if(mod_out_shapes.size() < dep_param_num)
             MIGRAPHX_THROW("LOOP: missing output shapes for dependency parameters");
 
+        // A symbolic shape whose dims are all fixed, such as a padded result, has fixed lens. Its
+        // strides can still be symbolic, as for a slice of a symbolic input, so only the lens are
+        // kept.
+        std::transform(
+            mod_out_shapes.begin(), mod_out_shapes.end(), mod_out_shapes.begin(), [](auto s) {
+                if(s.symbolic() and s.is_fixed())
+                    return shape{s.type(), s.max_lens()};
+                return s;
+            });
         std::vector<shape> ins_out_shapes(mod_out_shapes.begin(),
                                           mod_out_shapes.begin() + dep_param_num);
         mod_out_shapes.erase(mod_out_shapes.begin(), mod_out_shapes.begin() + dep_param_num);
         for(const auto& out_s : mod_out_shapes)
         {
+            if(out_s.dynamic())
+                MIGRAPHX_THROW("LOOP: scan outputs must have fixed dims, got " + to_string(out_s));
             auto lens = out_s.lens();
             lens.insert(lens.begin(), max_iterations);
             ins_out_shapes.push_back({out_s.type(), lens});

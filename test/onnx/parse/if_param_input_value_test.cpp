@@ -57,6 +57,16 @@ TEST_CASE(if_param_input_value_else_test)
     EXPECT(p.get_output_shapes().front() == migraphx::shape{migraphx::shape::float_type, {2, 4}});
 }
 
+TEST_CASE(if_param_input_value_overrides_initializer_test)
+{
+    // cond has a default value of true; the given value replaces it
+    migraphx::onnx_options options;
+    options.map_input_values["cond"] = {0};
+    auto p                           = read_onnx("if_param_initializer_cond_test.onnx", options);
+    EXPECT(not has_op(p, "if"));
+    EXPECT(p.get_output_shapes().front() == migraphx::shape{migraphx::shape::float_type, {2, 4}});
+}
+
 TEST_CASE(if_param_input_value_count_error_test)
 {
     migraphx::onnx_options options;

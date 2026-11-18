@@ -7595,6 +7595,28 @@ def if_literal_test():
 
 
 @onnx_test()
+def if_param_initializer_cond_test():
+    # cond is an input with a default value (an initializer); the branches return {2, 3} and
+    # {2, 4}
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 4])
+    cond = helper.make_tensor_value_info('cond', TensorProto.BOOL, [1])
+    cond_default = helper.make_tensor('cond', TensorProto.BOOL, [1], [True])
+
+    def body(name, src, dims):
+        out = helper.make_tensor_value_info(name + '_out', TensorProto.FLOAT,
+                                            dims)
+        node = helper.make_node('Identity', [src], [name + '_out'])
+        return helper.make_graph([node], name, [], [out])
+
+    ret = helper.make_tensor_value_info('ret', TensorProto.FLOAT, [])
+    node = helper.make_node('If', ['cond'], ['ret'],
+                            then_branch=body('then', 'x', [2, 3]),
+                            else_branch=body('else', 'y', [2, 4]))
+    return ([node], [cond, x, y], [ret], [cond_default])
+
+
+@onnx_test()
 def if_param_excp_test():
     then_out = onnx.helper.make_tensor_value_info('then_out',
                                                   onnx.TensorProto.FLOAT,

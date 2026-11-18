@@ -151,7 +151,8 @@ struct parse_layernorm : op_parser<parse_layernorm>
         auto skipped_axes           = x_rank - kdims;
         instruction_ref scale_bcast = scale;
         std::optional<instruction_ref> bias_bcast = bias;
-        if(skipped_axes > 0)
+        // For a dynamic input, add_common_op below broadcasts the scale and bias
+        if(skipped_axes > 0 and not x_shape.dynamic())
         {
             auto x_dims = x_shape.lens();
             if(scale->get_shape().ndim() == 1)

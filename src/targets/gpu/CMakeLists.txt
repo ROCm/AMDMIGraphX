@@ -193,6 +193,18 @@ migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
 
 function(post_verify_targets TARGET)
     string(REPLACE ";" "," _archs_csv "${GPU_TARGETS}")
+    set(_object_files_arg)
+    if(WIN32)
+        set(_obj_paths)
+        foreach(_src ${DEVICE_GPU_SRCS})
+            file(RELATIVE_PATH _rel "${CMAKE_CURRENT_SOURCE_DIR}" "${_src}")
+            string(REPLACE "\\" "/" _rel "${_rel}")
+            list(APPEND _obj_paths
+                "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${TARGET}.dir/${_rel}${CMAKE_CXX_OUTPUT_EXTENSION}")
+        endforeach()
+        string(REPLACE ";" "," _objs_csv "${_obj_paths}")
+        set(_object_files_arg -DOBJECT_FILES=${_objs_csv})
+    endif()
     add_custom_command(TARGET ${TARGET} POST_BUILD
         COMMAND ${CMAKE_COMMAND}
                 -DOBJDUMP=${LLVM_OBJDUMP}
@@ -200,6 +212,7 @@ function(post_verify_targets TARGET)
                 -DBUNDLER=${CLANG_OFFLOAD_BUNDLER}
                 -DREADOBJ=${LLVM_READOBJ}
                 -DTARGET_FILE=$<TARGET_FILE:${TARGET}>
+                ${_object_files_arg}
                 -DARCHS=${_archs_csv}
                 -P ${CMAKE_SOURCE_DIR}/cmake/verify_offload_archs.cmake
         VERBATIM

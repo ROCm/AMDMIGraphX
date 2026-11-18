@@ -129,6 +129,15 @@ add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
 target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fnative-half-arguments-and-returns)
 target_link_options(compile_for_gpu INTERFACE  -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
+option(MIGRAPHX_CLANG_OFFLOAD_COMPRESS "Compress GPU device code with clang --offload-compress" ON)
+message(STATUS "MIGRAPHX_CLANG_OFFLOAD_COMPRESS = ${MIGRAPHX_CLANG_OFFLOAD_COMPRESS}")
+if(MIGRAPHX_CLANG_OFFLOAD_COMPRESS)
+    if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        target_compile_options(compile_for_gpu INTERFACE /clang:--offload-compress)
+    else()
+        target_compile_options(compile_for_gpu INTERFACE --offload-compress)
+    endif()
+endif()
 target_link_libraries(compile_for_gpu INTERFACE hip::device)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
 
@@ -184,6 +193,18 @@ migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
 
 function(post_verify_targets TARGET)
     string(REPLACE ";" "," _archs_csv "${GPU_TARGETS}")
+    set(_object_files_arg)
+    if(WIN32)
+        set(_obj_paths)
+        foreach(_src ${DEVICE_GPU_SRCS})
+            file(RELATIVE_PATH _rel "${CMAKE_CURRENT_SOURCE_DIR}" "${_src}")
+            string(REPLACE "\\" "/" _rel "${_rel}")
+            list(APPEND _obj_paths
+                "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${TARGET}.dir/${_rel}${CMAKE_CXX_OUTPUT_EXTENSION}")
+        endforeach()
+        string(REPLACE ";" "," _objs_csv "${_obj_paths}")
+        set(_object_files_arg -DOBJECT_FILES=${_objs_csv})
+    endif()
     add_custom_command(TARGET ${TARGET} POST_BUILD
         COMMAND ${CMAKE_COMMAND}
                 -DOBJDUMP=${LLVM_OBJDUMP}
@@ -191,6 +212,7 @@ function(post_verify_targets TARGET)
                 -DBUNDLER=${CLANG_OFFLOAD_BUNDLER}
                 -DREADOBJ=${LLVM_READOBJ}
                 -DTARGET_FILE=$<TARGET_FILE:${TARGET}>
+                ${_object_files_arg}
                 -DARCHS=${_archs_csv}
                 -P ${CMAKE_SOURCE_DIR}/cmake/verify_offload_archs.cmake
         VERBATIM

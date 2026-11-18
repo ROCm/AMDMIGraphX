@@ -101,7 +101,9 @@ struct find_reshape : match::supports_dynamic_shapes
                 not reaches_return(m.get_returns(), ins)))
             {
                 m.replace_instruction(
-                    ins, reshape_op, output_buffer ? ins->inputs() : std::vector{input});
+                    ins,
+                    reshape_op,
+                    output_buffer ? ins->inputs() : std::vector<instruction_ref>{input});
                 return;
             }
 

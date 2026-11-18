@@ -134,7 +134,7 @@ struct dyn_concat
             return count;
         });
         std::vector<std::size_t> offsets(n);
-        std::exclusive_scan(counts.begin(), counts.end(), offsets.begin(), std::size_t{0});
+        std::partial_sum(counts.begin(), counts.end() - 1, offsets.begin() + 1);
         const auto output_offset = std::accumulate(counts.begin(), counts.end(), std::size_t{0});
         if(output_offset > output_shapes.front().lens().at(normalized_axis))
             MIGRAPHX_THROW("DYN_CONCAT: counts exceed the output capacity");

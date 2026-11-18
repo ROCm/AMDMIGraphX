@@ -35,6 +35,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+// The nested callbacks mirror the host launch, block scan, and device copy hierarchy.
+// NOLINTNEXTLINE(readability-function-size)
 void dyn_concat(hipStream_t stream,
                 std::int64_t axis,
                 const argument& counts,

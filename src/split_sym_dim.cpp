@@ -272,15 +272,14 @@ struct dependency_cache
 
         std::set<std::size_t> dependencies;
         auto source_block = assignment->find(source);
+        // Root sources are dispatch boundaries; staged dependencies begin at their inputs.
+        const bool is_dispatch_boundary =
+            stop_instructions != nullptr and contains(*stop_instructions, source);
         if(source_block.has_value())
         {
             dependencies.insert(*source_block);
         }
-        else if(stop_instructions != nullptr and contains(*stop_instructions, source))
-        {
-            // Root sources are dispatch boundaries; staged dependencies begin at their inputs.
-        }
-        else
+        else if(not is_dispatch_boundary)
         {
             const auto& inputs = source->inputs();
             auto input_indices = range(inputs.size());
@@ -341,9 +340,9 @@ root_source_info find_root_sources(const module& m)
             result.ordered.push_back(parameter);
     }
     for(auto ins : iterator_for(m))
-        if(ins->name() == "dyn_slice" and is_data_dependent_output_slice(ins))
-            if(register_shape_roots(result.symbols, ins))
-                result.ordered.push_back(ins);
+        if(ins->name() == "dyn_slice" and is_data_dependent_output_slice(ins) and
+           register_shape_roots(result.symbols, ins))
+            result.ordered.push_back(ins);
     return result;
 }
 struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
@@ -1935,7 +1934,7 @@ struct block_frame
         return std::optional<block_frame>{std::move(result)};
     }
 
-    static void staticize_fixed_parameters(module& mod)
+    static void staticize_fixed_parameters(const module& mod)
     {
         auto parameters = mod.get_parameters();
         std::for_each(parameters.begin(), parameters.end(), [](auto parameter) {

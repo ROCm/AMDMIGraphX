@@ -68,11 +68,11 @@ struct dyn_concat_compiler : compiler<dyn_concat_compiler>
         if(inputs.size() < 3)
             MIGRAPHX_THROW("DYN_CONCAT: invalid precompile input list");
         const auto num_inputs = inputs.size() - 2;
-        const auto rank       = inputs.at(1).ndim();
+        const int64_t rank    = inputs.at(1).ndim();
         auto axis_value       = v.at("axis").to<int64_t>();
         if(axis_value < 0)
-            axis_value += static_cast<int64_t>(rank);
-        const auto axis = static_cast<std::size_t>(axis_value);
+            axis_value += rank;
+        const std::size_t axis = axis_value;
 
         hip_compile_options options;
         options.inputs = flatten_tuple_shapes(inputs);
@@ -96,8 +96,8 @@ struct dyn_concat_compiler : compiler<dyn_concat_compiler>
         options.virtual_inputs     = options.inputs;
         options.kernel_name        = "dyn_concat_kernel";
         const auto output_elements = inputs.back().sub_shapes().front().elements();
-        const auto block_size      = compute_block_size(
-            ctx, std::max<std::size_t>(num_inputs, std::max<std::size_t>(1, output_elements)), 256);
+        const auto block_size =
+            compute_block_size(ctx, std::max({num_inputs, std::size_t{1}, output_elements}), 256);
         options.set_launch_params(v, block_size, block_size);
 
         auto src =

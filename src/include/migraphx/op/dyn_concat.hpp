@@ -128,7 +128,7 @@ struct dyn_concat
         std::transform(indices.begin(), indices.end(), counts.begin(), [&](std::size_t i) {
             if(num_elements.at(i) < 0)
                 MIGRAPHX_THROW("DYN_CONCAT: count cannot be negative");
-            const auto count = static_cast<std::size_t>(num_elements.at(i));
+            const std::size_t count = num_elements.at(i);
             if(count > args.at(i + 1).get_shape().lens().at(normalized_axis))
                 MIGRAPHX_THROW("DYN_CONCAT: count exceeds the input dimension");
             return count;

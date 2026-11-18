@@ -125,6 +125,36 @@ TEST_CASE(scalar_broadcast_dyn)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(scalar_add_one_element_literal)
+{
+    // The squeeze is a scalar while the add has rank 1 from the literal, which the unsqueeze
+    // reads, so the literal stays an input of the pointwise module
+    migraphx::shape s{migraphx::shape::int32_type, {1}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), x);
+        auto zero = mm->add_literal(migraphx::literal{s, {0}});
+        auto add  = mm->add_instruction(migraphx::make_op("add"), sq, zero);
+        auto unsq = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), add);
+        mm->add_return({unsq});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto sq   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), x);
+        auto zero = mm->add_literal(migraphx::literal{s, {0}});
+        auto add  = add_pointwise(p2, "main:pointwise0", {sq, zero}, single_pointwise("add"));
+        auto unsq = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), add);
+        mm->add_return({unsq});
+    }
+    EXPECT(p1.get_output_shapes().front() == migraphx::shape{migraphx::shape::int32_type, {1, 1}});
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(double_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

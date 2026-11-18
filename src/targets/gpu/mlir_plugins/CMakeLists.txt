@@ -52,11 +52,9 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
 
     set(_plugin migraphx_${BACKEND_NAME})
     set(rocMLIR_DIR "${ROCMLIR_CONFIG_DIR}")
-    find_package(rocMLIR 1.0.0 CONFIG REQUIRED
-        PATHS "${ROCMLIR_CONFIG_DIR}"
-        NO_DEFAULT_PATH)
+    find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
     message(STATUS
-        "MLIR backend plugin '${BACKEND_NAME}' using rocMLIR from ${rocMLIR_DIR}")
+        "MLIR backend plugin '${BACKEND_NAME}' using rocMLIR from ${ROCMLIR_CONFIG_DIR}")
 
     add_library(${_plugin} MODULE
         ${MIGRAPHX_GPU_DIR}/compile_gen_name.cpp
@@ -118,7 +116,7 @@ function(add_mlir_backend_plugin BACKEND_NAME ROCMLIR_CONFIG_DIR)
     message(STATUS "MLIR backend plugin '${BACKEND_NAME}' rocMLIR id: ${_plugin_id}")
     set_property(GLOBAL APPEND PROPERTY MIGRAPHX_MLIR_PLUGIN_IDS "${BACKEND_NAME}:${_plugin_id}")
 
-    add_dependencies(migraphx_gpu ${_plugin})
+    add_dependencies(${_plugin} migraphx_gpu)
     if(WIN32)
         set(_plugin_install_dir ${CMAKE_INSTALL_BINDIR})
     else()

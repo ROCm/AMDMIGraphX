@@ -30,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/permutation.hpp>
 
 #include <migraphx/dfor.hpp>
 #include <migraphx/tune_axis.hpp>
@@ -164,6 +165,11 @@ struct concat_optimizer
         // they support non-packed inputs
         if(chain.empty())
         {
+            // The other users of the producer would see the new layout, which then
+            // propagates through their outputs to layout-sensitive views like reshape_lazy
+            if(producer->outputs().size() > 1 and
+               find_permutation(producer->get_shape()) != find_permutation(slice_shape))
+                return std::nullopt;
             if(not producer_reports_shape(producer, slice_shape))
                 return std::nullopt;
             return plan{producer, {}, slice_shape};
@@ -207,7 +213,9 @@ struct concat_optimizer
             return input;
         }
         auto copy = m->insert_instruction(std::next(input), make_op(am.copy()), input, slice);
-        m->replace_instruction(input, copy);
+        // Only redirect the other users when the copy has the same layout as the input
+        if(copy->get_shape() == input->get_shape())
+            m->replace_instruction(input, copy);
         return copy;
     }
 

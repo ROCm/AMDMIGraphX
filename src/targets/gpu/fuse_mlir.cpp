@@ -733,8 +733,11 @@ std::vector<instruction_ref> mlir_contiguous(module_pass_manager& mpm,
         inputs.begin(), inputs.end(), std::back_inserter(result), [&](instruction_ref input) {
             if(input->get_shape().packed() or input->get_shape().broadcasted())
                 return input;
-            return mpm.get_module().insert_instruction(
-                std::next(input), make_op("contiguous"), input);
+            // A value of an enclosing module, read by a branch of an if, is made contiguous at
+            // the start of this module
+            auto& m  = mpm.get_module();
+            auto pos = m.has_instruction(input) ? std::next(input) : m.begin();
+            return m.insert_instruction(pos, make_op("contiguous"), input);
         });
     return result;
 }

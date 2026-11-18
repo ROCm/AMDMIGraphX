@@ -32,7 +32,7 @@ Full documentation for MIGraphX is available at
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).
 * Fixed mixed `uint8` and `int8` quantization (#5075).
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
-* Fixed hiprtc kernel compiles on Clang 24, where `-Weverything` enables the experimental lifetime-safety analysis. Its field-origin-escape diagnostic fails the compile under `-Werror`, and suppressing only that diagnostic still makes the compile extremely slow. hiprtc now suppresses the whole `-Wlifetime-safety-experimental` group when the compiler accepts it.
+* Fixed hiprtc kernel compiles on Clang 24, where `-Weverything` enables the experimental lifetime-safety analysis. Its field-origin-escape diagnostic fails the compile under `-Werror`, and suppressing only that diagnostic still makes the compile extremely slow. hiprtc now suppresses the whole `-Wlifetime-safety-experimental` group when the compiler accepts it (#5564).
 
 ### Optimized
 

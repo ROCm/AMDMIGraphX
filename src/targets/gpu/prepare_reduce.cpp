@@ -309,6 +309,15 @@ void rewrite_mul_reduce_sum(module& m)
         auto inputs = find_mul_inputs(pw);
         if(inputs.empty())
             continue;
+        // An input that is broadcast or already at the reduced shape is a value
+        // computed once per output, which cant be read through the slices of
+        // the reduction
+        const auto& rlens = ins->get_shape().lens();
+        if(std::any_of(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+               const auto& s = input->get_shape();
+               return s.broadcasted() or s.lens() == rlens;
+           }))
+            continue;
         auto axes = ins->get_operator().to_value()["axes"].to_vector<std::int64_t>();
         auto mrs  = m.insert_instruction(ins, mul_reduce_sum{std::move(axes)}, inputs);
         m.replace_instruction(ins, mrs);

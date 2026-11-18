@@ -528,7 +528,8 @@ TEST_CASE(mul_reduce_sum_square)
     EXPECT(p1 == p2);
 }
 
-// Only one of the inputs is broadcast, so the broadcast stays in front of the reduction
+// A broadcast input is a value computed once per output, which the reduction
+// cant read through its slices
 TEST_CASE(mul_reduce_sum_broadcast_input)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 8}};
@@ -545,17 +546,29 @@ TEST_CASE(mul_reduce_sum_broadcast_input)
         auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
         mm->add_return({rs});
     }
+    migraphx::program p2 = p1;
     run_program_pass(p1);
 
-    migraphx::program p2;
+    EXPECT(p1 == p2);
+}
+
+// Reducing an axis of one element leaves the inputs at the reduced shape, so
+// they are read as one value per output
+TEST_CASE(mul_reduce_sum_unit_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 1, 8}};
+
+    migraphx::program p1;
     {
-        auto* mm = p2.get_main_module();
+        auto* mm = p1.get_main_module();
         auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", ys);
-        auto yb =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8}}}), y);
-        mm->add_return({add_mul_reduce_sum(*mm, {1}, x, yb)});
+        auto y   = mm->add_parameter("y", s);
+        auto mul = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("mul"));
+        auto rs  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        mm->add_return({rs});
     }
+    migraphx::program p2 = p1;
+    run_program_pass(p1);
 
     EXPECT(p1 == p2);
 }

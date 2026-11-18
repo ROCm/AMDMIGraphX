@@ -7176,4 +7176,36 @@ TEST_CASE(simplify_split_slices_in_if_branches)
     EXPECT(*mm == expected);
 }
 
+TEST_CASE(simplify_split_transpose_of_outer_value_in_if_branches)
+{
+    // Both branches of an if slice x of the main module in two and transpose each part
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto cond   = mm->add_parameter("cond", {migraphx::shape::bool_type, {1}});
+    auto x      = mm->add_parameter("x", {migraphx::shape::float_type, {4, 6}});
+    auto branch = [&](const std::string& name) {
+        auto* sm = p.create_module(name);
+        auto s1  = sm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), x);
+        auto s2 = sm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), x);
+        auto t1 =
+            sm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), s1);
+        auto t2 =
+            sm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), s2);
+        sm->add_return({sm->add_instruction(migraphx::make_op("add"), t1, t2)});
+        return sm;
+    };
+    auto* then_mod = branch("then");
+    auto* else_mod = branch("else");
+    auto r         = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r)});
+
+    auto main_size = mm->size();
+    run_pass(*then_mod);
+    EXPECT(mm->size() == main_size);
+    EXPECT(then_mod->validate() == then_mod->end());
+    EXPECT(mm->validate() == mm->end());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

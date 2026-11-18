@@ -1677,6 +1677,10 @@ static std::vector<instruction_ref> get_slice_outputs(const module& m, instructi
 static std::vector<instruction_ref>
 get_splits(const module& m, instruction_ref ins, bool partial = false)
 {
+    // The rewrites insert after ins, so a value of an enclosing module, sliced in a submodule
+    // such as a branch of an `if`, is not split here
+    if(not m.has_instruction(ins))
+        return {};
     auto result = get_slice_outputs(m, ins);
     if(result.size() < 2)
         return {};

@@ -27,7 +27,6 @@
 
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/env.hpp>
@@ -35,7 +34,6 @@
 #include <algorithm>
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #ifdef MIGRAPHX_MLIR
@@ -79,7 +77,6 @@ static void validate_mlir_backend(const mlir_backend_v3* table, const fs::path& 
     require(table->get_tuning_config_mlir, "get_tuning_config_mlir");
     require(table->dump_mlir_to_mxr, "dump_mlir_to_mxr");
     require(table->mlir_lds_usage_fits_arch, "mlir_lds_usage_fits_arch");
-    require(table->mlir_compile_key, "mlir_compile_key");
     require(table->result_error, "result_error");
     require(table->result_string, "result_string");
     require(table->result_bool, "result_bool");
@@ -88,92 +85,86 @@ static void validate_mlir_backend(const mlir_backend_v3* table, const fs::path& 
     require(table->result_destroy, "result_destroy");
 }
 
-static std::string select_mlir_backend(const std::string& arch)
+static std::vector<std::string> get_mlir_backends()
 {
-    auto backend = string_value_of(MIGRAPHX_MLIR_BACKEND{}, "auto");
+    auto backend = string_value_of(MIGRAPHX_MLIR_BACKEND{}, "legacy");
     if(backend.empty())
-        backend = "auto";
+        backend = "legacy";
     if(backend == "auto")
     {
-        // Route only validated architectures to Triton so new gfx117 variants
-        // stay on the legacy backend until they are explicitly enabled.
-        static const auto triton_archs = {"gfx1170", "gfx1171", "gfx1172"};
-        const auto gfx_name            = get_gfx_name(arch);
-        const auto use_triton =
-            std::any_of(triton_archs.begin(), triton_archs.end(), [&](const auto* supported_arch) {
-                return gfx_name == supported_arch;
-            });
-        return use_triton ? "triton" : "rocmlir";
+        // Preserve the existing default while allowing installations with only
+        // the Triton plugin to select it automatically.
+        return {"legacy", "triton"};
     }
-    if(backend != "rocmlir" and backend != "triton")
+    if(backend != "legacy" and backend != "triton")
         MIGRAPHX_THROW("Invalid MIGRAPHX_MLIR_BACKEND value '" + backend +
-                       "'; expected 'rocmlir', 'triton', or 'auto'");
-    return backend;
+                       "'; expected 'legacy', 'triton', or 'auto'");
+    return {backend};
 }
 
-struct loaded_mlir_backend
+// Load one backend for the process and retain the DLL for as long as its
+// function table can be used.
+static const mlir_backend_v3* load_mlir_backend()
 {
-    dynamic_loader loader;
-    const mlir_backend_v3* vtable = nullptr;
-};
+    static dynamic_loader loader;
+    static const mlir_backend_v3* vtable = []() -> const mlir_backend_v3* {
+        const auto backends = get_mlir_backends();
+        fs::path plugin_dir;
+        try
+        {
+            const auto self = dynamic_loader::path(reinterpret_cast<void*>(&load_mlir_backend));
+            if(self.empty())
+                MIGRAPHX_THROW("Unable to locate migraphx_gpu");
+            plugin_dir = fs::absolute(self).parent_path();
+        }
+        catch(const std::exception& e)
+        {
+            MIGRAPHX_THROW("Failed to locate migraphx_gpu for MLIR backend loading: " +
+                           std::string{e.what()});
+        }
 
-static loaded_mlir_backend load_mlir_backend(const std::string& backend)
-{
-    fs::path plugin_dir;
-    try
-    {
-        const auto self = dynamic_loader::path(reinterpret_cast<void*>(&load_mlir_backend));
-        if(self.empty())
-            MIGRAPHX_THROW("Unable to locate migraphx_gpu");
-        plugin_dir = fs::absolute(self).parent_path();
-    }
-    catch(const std::exception& e)
-    {
-        MIGRAPHX_THROW("Failed to locate migraphx_gpu for MLIR backend loading: " +
-                       std::string{e.what()});
-    }
+        for(const auto& backend : backends)
+        {
+            const auto candidate =
+                plugin_dir / make_shared_object_filename("migraphx_mlir_" + backend);
+            if(not fs::exists(candidate))
+            {
+                if(backends.size() == 1)
+                    MIGRAPHX_THROW("MLIR backend plugin '" + backend + "' was not found at '" +
+                                   candidate.string() + "'");
+                continue;
+            }
 
-    const auto candidate = plugin_dir / make_shared_object_filename("migraphx_" + backend);
-    if(not fs::exists(candidate))
-        MIGRAPHX_THROW("MLIR backend plugin '" + backend + "' was not found at '" +
-                       candidate.string() + "'");
+            try
+            {
+                dynamic_loader loaded{candidate};
+                auto getter = loaded.get_function<const mlir_backend_v3*()>(
+                    MIGRAPHX_GPU_MLIR_BACKEND_FACTORY_NAME);
+                const auto* table = getter();
+                validate_mlir_backend(table, candidate);
+                loader = loaded;
+                if(enabled(MIGRAPHX_TRACE_MLIR{}))
+                    std::cout << "Loaded MLIR backend plugin: " << candidate.string() << std::endl;
+                return table;
+            }
+            catch(const std::exception& e)
+            {
+                MIGRAPHX_THROW("Failed to load MLIR backend '" + backend + "' from '" +
+                               candidate.string() + "': " + e.what());
+            }
+        }
 
-    try
-    {
-        dynamic_loader loader{candidate};
-        auto getter = loader.get_function<const mlir_backend_v3*()>(
-            MIGRAPHX_GPU_MLIR_BACKEND_FACTORY_NAME);
-        const auto* table = getter();
-        validate_mlir_backend(table, candidate);
-        if(enabled(MIGRAPHX_TRACE_MLIR{}))
-            std::cout << "Loaded MLIR backend plugin: " << candidate.string() << std::endl;
-        return {std::move(loader), table};
-    }
-    catch(const std::exception& e)
-    {
-        MIGRAPHX_THROW("Failed to load MLIR backend '" + backend + "' from '" +
-                       candidate.string() + "': " + e.what());
-    }
+        MIGRAPHX_THROW("No MLIR backend plugin was found next to migraphx_gpu at '" +
+                       plugin_dir.string() +
+                       "'; expected migraphx_mlir_legacy or migraphx_mlir_triton");
+    }();
+    return vtable;
 }
 
-static const mlir_backend_v3& mlir_backend(const std::string& arch)
+static const mlir_backend_v3& mlir_backend()
 {
-    const auto backend = select_mlir_backend(arch);
-    if(backend == "legacy")
-    {
-        static const auto loaded = load_mlir_backend(backend);
-        return *loaded.vtable;
-    }
-    static const auto loaded = load_mlir_backend(backend);
-    return *loaded.vtable;
+    return *load_mlir_backend();
 }
-
-static const mlir_backend_v3& mlir_backend(const context& ctx)
-{
-    return mlir_backend(ctx.get_current_device().get_gfx_name());
-}
-
-static const mlir_backend_v3& mlir_backend() { return mlir_backend(get_device_name()); }
 
 struct mlir_backend_result_deleter
 {
@@ -189,9 +180,9 @@ struct mlir_backend_result_deleter
 using mlir_backend_result_ptr =
     std::unique_ptr<mlir_backend_result, mlir_backend_result_deleter>;
 
-static mlir_backend_result_ptr checked_result(mlir_backend_result* result,
-                                              const mlir_backend_v3& backend)
+static mlir_backend_result_ptr checked_result(mlir_backend_result* result)
 {
+    const auto& backend = mlir_backend();
     mlir_backend_result_ptr handle{result, {&backend}};
     if(handle == nullptr)
         MIGRAPHX_THROW("MLIR backend plugin failed to return a result");
@@ -204,11 +195,6 @@ static mlir_backend_result_ptr checked_result(mlir_backend_result* result,
         MIGRAPHX_THROW(std::string{error.data, error.size});
     }
     return handle;
-}
-
-static const mlir_backend_v3& result_backend(const mlir_backend_result_ptr& result)
-{
-    return *result.get_deleter().backend;
 }
 
 static std::string copy_string(mlir_backend_string_view view, const char* name)
@@ -242,7 +228,7 @@ copy_binary(const std::uint8_t* data, std::size_t size, const char* name)
 
 static std::string result_string(const mlir_backend_result_ptr& result)
 {
-    return copy_string(result_backend(result).result_string(result.get()), "string");
+    return copy_string(mlir_backend().result_string(result.get()), "string");
 }
 
 static const std::string& solution_string(const value& solution)
@@ -255,7 +241,7 @@ static const std::string& solution_string(const value& solution)
 
 static mlir_code_object result_code_object(const mlir_backend_result_ptr& result)
 {
-    const auto v = result_backend(result).result_code_object(result.get());
+    const auto v = mlir_backend().result_code_object(result.get());
     if(v.output == nullptr)
         MIGRAPHX_THROW("MLIR backend plugin returned no output shape");
 
@@ -281,7 +267,7 @@ static mlir_code_object result_code_object(const mlir_backend_result_ptr& result
 
 static tuning_config result_tuning_config(const mlir_backend_result_ptr& result)
 {
-    const auto v = result_backend(result).result_tuning_config(result.get());
+    const auto v = mlir_backend().result_tuning_config(result.get());
     tuning_config config;
     config.problem = copy_string(v.problem, "tuning problem");
     const auto solution_views =
@@ -301,14 +287,13 @@ static tuning_config result_tuning_config(const mlir_backend_result_ptr& result)
 std::string dump_mlir(module m, const std::vector<shape>& inputs)
 {
     const auto& backend = mlir_backend();
-    auto result = checked_result(backend.dump_mlir(&m, inputs.data(), inputs.size()), backend);
+    auto result = checked_result(backend.dump_mlir(&m, inputs.data(), inputs.size()));
     return result_string(result);
 }
 
 std::string dump_mlir(module m)
 {
-    const auto& backend = mlir_backend();
-    auto result         = checked_result(backend.dump_mlir(&m, nullptr, 0), backend);
+    auto result = checked_result(mlir_backend().dump_mlir(&m, nullptr, 0));
     return result_string(result);
 }
 
@@ -317,16 +302,15 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     const auto& path    = location.native();
     const auto& backend = mlir_backend();
     checked_result(
-        backend.dump_mlir_to_file(&m, inputs.data(), inputs.size(), path.data(), path.size()),
-        backend);
+        backend.dump_mlir_to_file(&m, inputs.data(), inputs.size(), path.data(), path.size()));
 }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
     const auto& key     = solution_string(solution);
-    const auto& backend = mlir_backend(migraphx_ctx);
-    auto result = checked_result(
-        backend.is_module_fusible(&m, &migraphx_ctx, key.data(), key.size()), backend);
+    const auto& backend = mlir_backend();
+    auto result =
+        checked_result(backend.is_module_fusible(&m, &migraphx_ctx, key.data(), key.size()));
     return backend.result_bool(result.get());
 }
 
@@ -336,11 +320,9 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               const value& solution)
 {
     const auto& key     = solution_string(solution);
-    const auto& backend = mlir_backend(migraphx_ctx);
-    auto result = checked_result(
-        backend.compile_mlir(
-            &migraphx_ctx, &m, in_shapes.data(), in_shapes.size(), key.data(), key.size()),
-        backend);
+    const auto& backend = mlir_backend();
+    auto result         = checked_result(backend.compile_mlir(
+        &migraphx_ctx, &m, in_shapes.data(), in_shapes.size(), key.data(), key.size()));
     return result_code_object(result);
 }
 
@@ -349,10 +331,9 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      const std::vector<shape>& inputs,
                                      bool exhaustive)
 {
-    const auto& backend = mlir_backend(migraphx_ctx);
-    auto result = checked_result(
-        backend.get_tuning_config_mlir(&migraphx_ctx, &m, inputs.data(), inputs.size(), exhaustive),
-        backend);
+    const auto& backend = mlir_backend();
+    auto result         = checked_result(backend.get_tuning_config_mlir(
+        &migraphx_ctx, &m, inputs.data(), inputs.size(), exhaustive));
     return result_tuning_config(result);
 }
 
@@ -363,8 +344,7 @@ void dump_mlir_to_mxr(module m,
     const auto& path    = location.native();
     const auto& backend = mlir_backend();
     checked_result(
-        backend.dump_mlir_to_mxr(&m, inputs.data(), inputs.size(), path.data(), path.size()),
-        backend);
+        backend.dump_mlir_to_mxr(&m, inputs.data(), inputs.size(), path.data(), path.size()));
 }
 
 bool mlir_lds_usage_fits_arch(int64_t gemm_o,
@@ -372,9 +352,9 @@ bool mlir_lds_usage_fits_arch(int64_t gemm_o,
                               shape::type_t elem_type,
                               const module* m)
 {
-    const auto& backend = mlir_backend(arch);
-    auto result = checked_result(
-        backend.mlir_lds_usage_fits_arch(gemm_o, arch.data(), arch.size(), elem_type, m), backend);
+    const auto& backend = mlir_backend();
+    auto result         = checked_result(
+        backend.mlir_lds_usage_fits_arch(gemm_o, arch.data(), arch.size(), elem_type, m));
     return backend.result_bool(result.get());
 }
 
@@ -383,13 +363,7 @@ std::string mlir_compile_key(const context& migraphx_ctx,
                              const std::vector<shape>& in_shapes,
                              const value& solution)
 {
-    const auto& key     = solution_string(solution);
-    const auto& backend = mlir_backend(migraphx_ctx);
-    auto result         = checked_result(
-        backend.mlir_compile_key(
-            &migraphx_ctx, &m, in_shapes.data(), in_shapes.size(), key.data(), key.size()),
-        backend);
-    return result_string(result);
+    return mlir_backend().mlir_compile_key(migraphx_ctx, std::move(m), in_shapes, solution);
 }
 
 #else // MIGRAPHX_MLIR

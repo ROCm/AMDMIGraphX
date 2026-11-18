@@ -2301,7 +2301,19 @@ void staticize_code_after_blocks(module& m)
             continue;
         std::vector<instruction_ref> args;
         std::transform(inputs.begin(), inputs.end(), std::back_inserter(args), [&](auto input) {
-            return contains(mapped, input) ? mapped.at(input) : input;
+            if(contains(mapped, input))
+                return mapped.at(input);
+            // A fixed shape that reads no symbolic value, such as a broadcast weight, was not
+            // re-emitted because none of its inputs changed
+            if(is_fixed_symbolic(input->get_shape()) and
+               none_of(input->inputs(), [](auto x) { return x->get_shape().symbolic(); }))
+            {
+                auto result      = emit_static(m, input, input->inputs());
+                mapped[input]    = result;
+                mapped[result]   = result;
+                return result;
+            }
+            return input;
         });
         auto result    = emit_static(m, ins, std::move(args));
         mapped[ins]    = result;

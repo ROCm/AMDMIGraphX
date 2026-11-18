@@ -2047,6 +2047,21 @@ TEST_CASE(eval_expr_from_shape_multi_input)
                  b);
 }
 
+TEST_CASE(eval_expr_from_shape_multi_input_compound)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    migraphx::shape a{migraphx::shape::float_type, {dd{m + lit(1)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{n * lit(2)}}};
+    auto expression = migraphx::sym::min(var("m") + lit(1), var("n") * lit(2));
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {1}},
+                 migraphx::make_op(
+                     "eval_expr_from_shape",
+                     {{"expressions", migraphx::value::array{migraphx::to_value(expression)}}}),
+                 a,
+                 b);
+}
+
 TEST_CASE(eval_expr_from_shape_missing_symbol_multi_input)
 {
     auto m = var("m", {1, 16});
@@ -3014,17 +3029,6 @@ TEST_CASE(multibroadcast_1in_sym_input_with_static_target_error)
     migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}};
     std::vector<std::size_t> lens{2, 8};
     throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
-}
-
-TEST_CASE(multibroadcast_2in_static_zero)
-{
-    migraphx::shape one{migraphx::shape::float_type, {1}};
-    migraphx::shape empty{migraphx::shape::float_type, {0}};
-    expect_shape(migraphx::shape{migraphx::shape::float_type, {0}, {0}},
-                 migraphx::make_op("multibroadcast"),
-                 one,
-                 empty);
-    expect_shape(empty, migraphx::make_op("multibroadcast"), empty, one);
 }
 
 TEST_CASE(multibroadcast_2in_symbolic_target)

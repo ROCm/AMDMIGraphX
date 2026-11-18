@@ -31,10 +31,10 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/sym_argument.hpp>
+#include <migraphx/symbolic_shape_helpers.hpp>
 #include <migraphx/zip_view.hpp>
 #include <algorithm>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace migraphx {
@@ -58,24 +58,10 @@ struct eval_expr_from_shape
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
 
-        std::unordered_set<sym::expr> missing;
-        for(const auto& expression : expressions)
-        {
-            auto variables = sym::find_variables(expression);
-            missing.merge(variables);
-        }
-
-        for(const auto& input : inputs)
-        {
-            if(not input.symbolic())
-                continue;
-            for(const auto& d : input.dyn_dims())
-                if(d.sym_expr.name() == "variable")
-                    missing.erase(sym::as_symbol(d.sym_expr));
-        }
-        if(not missing.empty())
-            MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Symbol '" + missing.begin()->to_string() +
-                           "' is not a direct input dimension");
+        auto unresolved = find_unresolved_shape_expression(inputs, expressions);
+        if(unresolved.has_value())
+            MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Expression '" + unresolved->to_string() +
+                           "' cannot be resolved from the input dimensions");
 
         return shape{shape::int64_type, {expressions.size()}};
     }
@@ -107,13 +93,13 @@ struct eval_expr_from_shape
             const auto& dims = input_shape.dyn_dims();
             for(auto&& [dim, len] : views::zip(dims, lens))
             {
-                if(dim.sym_expr.name() != "variable")
+                if(not dim.is_symbolic())
                     continue;
-                auto variable = sym::as_symbol(dim.sym_expr);
-                auto result   = values.emplace(variable, len);
-                if(not result.second and result.first->second != len)
-                    MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Repeated symbol has inconsistent runtime "
-                                   "dimensions");
+                auto [iter, inserted] = values.emplace(sym::as_symbol(dim.sym_expr), len);
+                if(not inserted and iter->second != len)
+                    MIGRAPHX_THROW(
+                        "EVAL_EXPR_FROM_SHAPE: Repeated expression has inconsistent runtime "
+                        "dimensions");
             }
         }
 

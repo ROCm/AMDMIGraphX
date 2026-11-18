@@ -62,6 +62,10 @@ foreach(TEST ${TESTS})
     rocm_clang_tidy_check(test_${BASE_NAME})
 endforeach()
 
+set_tests_properties(test_env PROPERTIES
+    ENVIRONMENT "MIGRAPHX_TEST_ENV_SET_VALUE=16;MIGRAPHX_TEST_ENV_SET_STRING=x"
+)
+
 if(MIGRAPHX_ENABLE_GPU)
     # gpu tests
     file(GLOB GPU_TESTS CONFIGURE_DEPENDS gpu/*.cpp)
@@ -87,6 +91,18 @@ if(MIGRAPHX_ENABLE_GPU)
         ENVIRONMENT [=[MIGRAPHX_GPU_HIP_FLAGS=-I"/opt/custom headers" -DNAME=1 -I/opt/third\ headers '-DSTR="a b"' "-DX=\"q\"" ""]=]
     )
     add_subdirectory(gpu/kernels)
+endif()
+
+if(MIGRAPHX_ENABLE_CPU)
+    # cpu tests
+    file(GLOB CPU_TESTS CONFIGURE_DEPENDS cpu/*.cpp)
+
+    foreach(TEST ${CPU_TESTS})
+        get_filename_component(BASE_NAME ${TEST} NAME_WE)
+        rocm_add_test_executable(test_cpu_${BASE_NAME} ${TEST})
+        rocm_clang_tidy_check(test_cpu_${BASE_NAME})
+        target_link_libraries(test_cpu_${BASE_NAME} migraphx_lazy_ref migraphx_cpu)
+    endforeach()
 endif()
 
 if(MIGRAPHX_ENABLE_FPGA)

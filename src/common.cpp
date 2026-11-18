@@ -67,12 +67,13 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
     auto offset = s1.size() - s0.size();
     std::transform(
         s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
-            if(a == b or b == 1)
-                return a;
-            if(a == 1)
-                return b;
-            MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + migraphx::to_string_range(s0) +
-                           "} and {" + migraphx::to_string_range(s1) + "} mismatch!");
+            if(a != b and a != 1 and b != 1)
+            {
+                MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + migraphx::to_string_range(s0) +
+                               "} and {" + migraphx::to_string_range(s1) + "} mismatch!");
+            }
+            // A dimension of 1 broadcasts to the other one, including to 0
+            return a == 1 ? b : a;
         });
     return out_lens;
 }

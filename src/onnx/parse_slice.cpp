@@ -70,10 +70,10 @@ struct parse_slice : op_parser<parse_slice>
     };
 
     /**
-     * Slice a static input by run-time starts and/or ends with dyn_slice. Each run-time bound
-     * becomes a symbol bounded by its axis length, so the result has a symbolic shape rather than
-     * a range-based one; ops such as TopK with a run-time k need a symbolic input. Returns nullopt
-     * when this does not apply: constant bounds, run-time axes, or non-unit steps.
+     * Slice a static or symbolic input by run-time starts and/or ends with dyn_slice. Each run-time
+     * bound becomes a symbol bounded by its axis length, so the result has a symbolic shape rather
+     * than a range-based one; ops such as TopK with a run-time k need a symbolic input. Returns
+     * nullopt when this does not apply: constant bounds, run-time axes, or non-unit steps.
      */
     static std::optional<instruction_ref>
     parse_runtime_bounds(onnx_parser& parser,
@@ -81,7 +81,7 @@ struct parse_slice : op_parser<parse_slice>
                          const std::vector<instruction_ref>& args)
     {
         const auto& data_shape = args[0]->get_shape();
-        if(args.size() < 3 or data_shape.dynamic())
+        if(args.size() < 3 or (data_shape.dynamic() and not data_shape.symbolic()))
             return std::nullopt;
         const auto starts_arg = args[1]->eval();
         const auto ends_arg   = args[2]->eval();
@@ -138,7 +138,7 @@ struct parse_slice : op_parser<parse_slice>
                     continue;
                 }
                 auto axis = tune_axis(data_shape.ndim(), axes[i], "PARSE_SLICE");
-                auto len  = static_cast<int64_t>(data_shape.lens().at(axis));
+                auto len  = static_cast<int64_t>(data_shape.max_lens().at(axis));
                 result.push_back(sym::var(
                     parser.symbol_names.allocate(info.name + "_" + kind + std::to_string(i)),
                     {0, len}));

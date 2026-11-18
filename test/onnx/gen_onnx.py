@@ -18627,6 +18627,26 @@ def slice_var_input_steps_error():
 
 
 @onnx_test()
+def slice_var_ends_twice_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [10, 4])
+    ends = helper.make_tensor_value_info('ends', TensorProto.INT64, [1])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [None, 4])
+    starts = helper.make_tensor('starts', TensorProto.INT64, [1], [0])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+
+    # The second Slice takes the first one's run-time-length output.
+    slice0 = onnx.helper.make_node('Slice',
+                                   inputs=['data', 'starts', 'ends', 'axes'],
+                                   outputs=['sliced'])
+    slice1 = onnx.helper.make_node('Slice',
+                                   inputs=['sliced', 'starts', 'ends', 'axes'],
+                                   outputs=['output'])
+
+    return ([slice0, slice1], [data, ends], [output], [starts, axes])
+
+
+@onnx_test()
 def softmax_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3])

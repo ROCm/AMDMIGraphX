@@ -64,15 +64,16 @@ struct parse_concat : op_parser<parse_concat>
                });
            }))
         {
-            if(any_of(args, [](auto arg) { return arg->get_shape().dynamic(); }))
-                return info.add_instruction(make_op("concat", {{"axis", axis}}), args);
-
-            args.erase(std::remove_if(args.begin(),
-                                      args.end(),
-                                      [](auto arg) { return arg->get_shape().elements() == 0; }),
-                       args.end());
-            if(args.empty())
-                return info.add_instruction(make_op("undefined"));
+            if(none_of(args, [](auto arg) { return arg->get_shape().dynamic(); }))
+            {
+                args.erase(
+                    std::remove_if(args.begin(),
+                                   args.end(),
+                                   [](auto arg) { return arg->get_shape().elements() == 0; }),
+                    args.end());
+                if(args.empty())
+                    return info.add_instruction(make_op("undefined"));
+            }
             return info.add_instruction(make_op("concat", {{"axis", axis}}), args);
         }
 

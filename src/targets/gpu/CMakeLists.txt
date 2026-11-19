@@ -131,7 +131,11 @@ target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -
 target_link_options(compile_for_gpu INTERFACE  -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
 option(MIGRAPHX_CLANG_OFFLOAD_COMPRESS "Compress GPU device code with clang --offload-compress" ON)
 message(STATUS "MIGRAPHX_CLANG_OFFLOAD_COMPRESS = ${MIGRAPHX_CLANG_OFFLOAD_COMPRESS}")
-if(MIGRAPHX_CLANG_OFFLOAD_COMPRESS)
+# clang-offload-bundler before LLVM 24 may lack llvm/llvm-project#182579 and fail to
+# unbundle the concatenated compressed bundles of a linked library
+if(MIGRAPHX_CLANG_OFFLOAD_COMPRESS AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 24)
+    message(STATUS "Clang ${CMAKE_CXX_COMPILER_VERSION} < 24, building without --offload-compress")
+elseif(MIGRAPHX_CLANG_OFFLOAD_COMPRESS)
     if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
         target_compile_options(compile_for_gpu INTERFACE /clang:--offload-compress)
     else()
@@ -193,18 +197,6 @@ migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
 
 function(post_verify_targets TARGET)
     string(REPLACE ";" "," _archs_csv "${GPU_TARGETS}")
-    set(_object_files_arg)
-    if(WIN32)
-        set(_obj_paths)
-        foreach(_src ${DEVICE_GPU_SRCS})
-            file(RELATIVE_PATH _rel "${CMAKE_CURRENT_SOURCE_DIR}" "${_src}")
-            string(REPLACE "\\" "/" _rel "${_rel}")
-            list(APPEND _obj_paths
-                "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${TARGET}.dir/${_rel}${CMAKE_CXX_OUTPUT_EXTENSION}")
-        endforeach()
-        string(REPLACE ";" "," _objs_csv "${_obj_paths}")
-        set(_object_files_arg -DOBJECT_FILES=${_objs_csv})
-    endif()
     add_custom_command(TARGET ${TARGET} POST_BUILD
         COMMAND ${CMAKE_COMMAND}
                 -DOBJDUMP=${LLVM_OBJDUMP}
@@ -212,7 +204,6 @@ function(post_verify_targets TARGET)
                 -DBUNDLER=${CLANG_OFFLOAD_BUNDLER}
                 -DREADOBJ=${LLVM_READOBJ}
                 -DTARGET_FILE=$<TARGET_FILE:${TARGET}>
-                ${_object_files_arg}
                 -DARCHS=${_archs_csv}
                 -P ${CMAKE_SOURCE_DIR}/cmake/verify_offload_archs.cmake
         VERBATIM

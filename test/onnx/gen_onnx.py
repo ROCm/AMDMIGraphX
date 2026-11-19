@@ -8969,6 +8969,60 @@ def linear_attention_linear_fp16_test():
     return ([node], [query, key, value, past_state], [output, present_state])
 
 
+# The state type is independent of the activation type: a float past_state
+# keeps a float state with half activations
+@onnx_test(opset_version=27)
+def linear_attention_linear_fp16_float_state_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT16,
+                                          [1, 4, 8])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT16, [1, 4, 4])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT16,
+                                          [1, 4, 4])
+    past_state = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                               [1, 2, 2, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 4, 8])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT,
+                                                  [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'LinearAttention',
+        inputs=['query', 'key', 'value', 'past_state'],
+        outputs=['output', 'present_state'],
+        q_num_heads=4,
+        kv_num_heads=2,
+        update_rule='linear')
+
+    return ([node], [query, key, value, past_state], [output, present_state])
+
+
+# The scale keeps the scores of the verify test's inputs inside the half
+# range, which the unscaled scores exceed
+@onnx_test(opset_version=27)
+def linear_attention_linear_fp16_large_scores_test():
+    query = helper.make_tensor_value_info('query', TensorProto.FLOAT16,
+                                          [1, 3, 2])
+    key = helper.make_tensor_value_info('key', TensorProto.FLOAT16, [1, 3, 2])
+    value = helper.make_tensor_value_info('value', TensorProto.FLOAT16,
+                                          [1, 3, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [1, 3, 2])
+    present_state = helper.make_tensor_value_info('present_state',
+                                                  TensorProto.FLOAT16,
+                                                  [1, 1, 2, 2])
+
+    node = onnx.helper.make_node('LinearAttention',
+                                 inputs=['query', 'key', 'value'],
+                                 outputs=['output', 'present_state'],
+                                 q_num_heads=1,
+                                 kv_num_heads=1,
+                                 scale=0.00390625,
+                                 update_rule='linear')
+
+    return ([node], [query, key, value], [output, present_state])
+
+
 @onnx_test(opset_version=27)
 def linear_attention_gated_test():
     query = helper.make_tensor_value_info('query', TensorProto.FLOAT,

@@ -81,7 +81,7 @@ TEST_CASE(linear_attention_decode_test)
     EXPECT(p == prog);
 }
 
-// Multi-step linear rule: masked-matmul form O = scale * tril(Q K^T) V,
+// Multi-step linear rule: masked-matmul form O = tril((scale * Q) K^T) V,
 // present = K^T V
 TEST_CASE(linear_attention_linear_test)
 {
@@ -91,7 +91,12 @@ TEST_CASE(linear_attention_linear_test)
     auto key   = mm->add_parameter("key", {migraphx::shape::float_type, {2, 3, 4}});
     auto value = mm->add_parameter("value", {migraphx::shape::float_type, {2, 3, 4}});
 
-    auto q = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 2, 1, 2}}}), query);
+    auto scale = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f / std::sqrt(2.0f)}});
+    scale =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), scale);
+    auto q = mm->add_instruction(migraphx::make_op("mul"), query, scale);
+    q      = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 2, 1, 2}}}), q);
     q = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), q);
     auto k = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 2, 2}}}), key);
     k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), k);
@@ -112,12 +117,6 @@ TEST_CASE(linear_attention_linear_test)
 
     auto v5     = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), v);
     auto output = mm->add_instruction(migraphx::make_op("dot"), scores, v5);
-
-    auto scale = mm->add_literal(migraphx::literal{
-        migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f / std::sqrt(2.0f)}});
-    scale      = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 3, 2}}}), scale);
-    output = mm->add_instruction(migraphx::make_op("mul"), output, scale);
     output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2, 4}}}),
                                  output);
     output = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 4}}}), output);
@@ -127,9 +126,10 @@ TEST_CASE(linear_attention_linear_test)
     EXPECT(p.sort() == prog.sort());
 }
 
-// fp16 GQA with past state: the matmuls run in fp16; the mask stage and the
-// scale/add epilogue accumulate in float (a fused gemm-gemm kernel elides
-// the float->half->float round trip between the two matmuls)
+// fp16 GQA with past state: the matmuls run in fp16 on the query scaled in
+// float; the mask stage and the add epilogue accumulate in float (a fused
+// gemm-gemm kernel elides the float->half->float round trip between the two
+// matmuls)
 TEST_CASE(linear_attention_linear_fp16_test)
 {
     migraphx::program p;
@@ -139,7 +139,15 @@ TEST_CASE(linear_attention_linear_fp16_test)
     auto value = mm->add_parameter("value", {migraphx::shape::half_type, {1, 4, 4}});
     auto past  = mm->add_parameter("past_state", {migraphx::shape::half_type, {1, 2, 2, 2}});
 
-    auto q = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 2, 2, 2}}}), query);
+    auto q     = to_float(*mm, query);
+    auto scale = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f / std::sqrt(2.0f)}});
+    scale =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 8}}}), scale);
+    q = mm->add_instruction(migraphx::make_op("mul"), q, scale);
+    q = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), q);
+    q      = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 2, 2, 2}}}), q);
     q = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), q);
     auto k = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 2, 2}}}), key);
     k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), k);
@@ -175,12 +183,6 @@ TEST_CASE(linear_attention_linear_fp16_test)
     auto init = mm->add_instruction(migraphx::make_op("dot"), q, s05);
     init      = to_float(*mm, init);
     output    = mm->add_instruction(migraphx::make_op("add"), output, init);
-
-    auto scale = mm->add_literal(migraphx::literal{
-        migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f / std::sqrt(2.0f)}});
-    scale      = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 4, 2}}}), scale);
-    output = mm->add_instruction(migraphx::make_op("mul"), output, scale);
     output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2, 4}}}),
                                  output);
     output = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 8}}}), output);
@@ -195,6 +197,76 @@ TEST_CASE(linear_attention_linear_fp16_test)
                         sum);
 
     auto prog = optimize_onnx("linear_attention_linear_fp16_test.onnx");
+    EXPECT(p.sort() == prog.sort());
+}
+
+// A float past_state with fp16 activations: the dots that involve the state
+// run in float on the converted activations, and the state stays float
+TEST_CASE(linear_attention_linear_fp16_float_state_test)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto query = mm->add_parameter("query", {migraphx::shape::half_type, {1, 4, 8}});
+    auto key   = mm->add_parameter("key", {migraphx::shape::half_type, {1, 4, 4}});
+    auto value = mm->add_parameter("value", {migraphx::shape::half_type, {1, 4, 4}});
+    auto past  = mm->add_parameter("past_state", {migraphx::shape::float_type, {1, 2, 2, 2}});
+
+    auto q     = to_float(*mm, query);
+    auto scale = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f / std::sqrt(2.0f)}});
+    scale =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 8}}}), scale);
+    q = mm->add_instruction(migraphx::make_op("mul"), q, scale);
+    q = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), q);
+    q = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 2, 2, 2}}}), q);
+    q = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), q);
+    auto k = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 2, 2}}}), key);
+    k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), k);
+    auto v = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 2, 2}}}), value);
+    v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), v);
+
+    auto k5 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), k);
+    k5 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2, 4}}}),
+                             k5);
+    auto scores = mm->add_instruction(migraphx::make_op("dot"), q, k5);
+    scores      = to_float(*mm, scores);
+
+    std::vector<int8_t> mask_data{0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0};
+    auto mask = mm->add_literal(migraphx::literal{{migraphx::shape::bool_type, {4, 4}}, mask_data});
+    mask = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 4, 4}}}),
+                               mask);
+    auto zero = mm->add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {0.0f}});
+    zero = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 4, 4}}}),
+                               zero);
+    scores = mm->add_instruction(migraphx::make_op("where"), mask, zero, scores);
+    scores = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), scores);
+
+    auto v5 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), v);
+    v5 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 4, 2}}}),
+                             v5);
+    auto output = mm->add_instruction(migraphx::make_op("dot"), scores, v5);
+    output      = to_float(*mm, output);
+
+    auto q_f = to_float(*mm, q);
+    auto s05 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), past);
+    s05 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2, 2}}}),
+                              s05);
+    auto init = mm->add_instruction(migraphx::make_op("dot"), q_f, s05);
+    output    = mm->add_instruction(migraphx::make_op("add"), output, init);
+    output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2, 4}}}),
+                                 output);
+    output = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 8}}}), output);
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                        output);
+
+    auto k_f   = to_float(*mm, k);
+    auto v_f   = to_float(*mm, v);
+    auto state = mm->add_instruction(migraphx::make_op("dot"), k_f, v_f);
+    mm->add_instruction(migraphx::make_op("add"), state, past);
+
+    auto prog = optimize_onnx("linear_attention_linear_fp16_float_state_test.onnx");
     EXPECT(p.sort() == prog.sort());
 }
 

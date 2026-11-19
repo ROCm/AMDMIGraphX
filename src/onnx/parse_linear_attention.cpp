@@ -245,19 +245,17 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         return dims;
     }
 
-    static instruction_ref to_float(const onnx_parser::node_info& info, instruction_ref ins)
-    {
-        if(ins->get_shape().type() == shape::float_type)
-            return ins;
-        return info.add_instruction(make_op("convert", {{"target_type", shape::float_type}}), ins);
-    }
-
     static instruction_ref
-    from_float(const onnx_parser::node_info& info, instruction_ref ins, shape::type_t target_type)
+    to_type(const onnx_parser::node_info& info, instruction_ref ins, shape::type_t target_type)
     {
-        if(target_type == shape::float_type)
+        if(ins->get_shape().type() == target_type)
             return ins;
         return info.add_instruction(make_op("convert", {{"target_type", target_type}}), ins);
+    }
+
+    static instruction_ref to_float(const onnx_parser::node_info& info, instruction_ref ins)
+    {
+        return to_type(info, ins, shape::float_type);
     }
 
     static instruction_ref slice_range(const onnx_parser::node_info& info,
@@ -550,16 +548,22 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             return grouped_op(info, make_op("concat", {{"axis", axis}}), a, b);
         }
 
-        // Scale the float output and pack (B, outer, group, T, dv) back to the
-        // operator's (B, T, max(H_q, H_kv) * dv) layout in the input type
-        instruction_ref scale_and_pack_output(const onnx_parser::node_info& info,
-                                              instruction_ref output) const
+        // Multiply a float tensor by the output scale
+        instruction_ref apply_scale(const onnx_parser::node_info& info, instruction_ref ins) const
         {
+            assert(ins->get_shape().type() == shape::float_type);
             auto scale_val = float_equal(attrs.scale, 0.0f)
                                  ? 1.0f / std::sqrt(static_cast<float>(dims.head_size_k))
                                  : attrs.scale;
             auto scale_lit = info.add_literal(literal{shape{shape::float_type, {1}}, {scale_val}});
-            output         = info.add_common_op("mul", output, scale_lit);
+            return info.add_common_op("mul", ins, scale_lit);
+        }
+
+        // Pack the float (B, outer, group, T, dv) output back to the operator's
+        // (B, T, max(H_q, H_kv) * dv) layout in the input type
+        instruction_ref pack_output(const onnx_parser::node_info& info,
+                                    instruction_ref output) const
+        {
             output = info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2, 4}}}),
                                           output);
             output = info.add_instruction(make_op("reshape",
@@ -568,7 +572,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                                                      dims.sequence_length,
                                                      dims.out_heads() * dims.head_size_v}}}),
                                           output);
-            return from_float(info, output, in_type);
+            return to_type(info, output, in_type);
         }
 
         // Read the state updated by step i with its query. Standard GQA makes
@@ -601,57 +605,63 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                     make_op("slice",
                             {{"axes", {3}}, {"starts", {0}}, {"ends", {dims.sequence_length}}}),
                     output);
-            output             = scale_and_pack_output(info, output);
-            auto present_state = pack_state(info, from_float(info, state, state_type));
+            output             = pack_output(info, apply_scale(info, output));
+            auto present_state = pack_state(info, to_type(info, state, state_type));
             return {output, present_state};
         }
 
         // Parallel emission for the linear rule: two batched matmuls with a
-        // causal mask in between. The matmuls run in the input type with their
-        // results accumulated in float, so the score matrix is rounded to the
-        // input type once between the two (a fused gemm-gemm kernel keeps it in
-        // the accumulation type instead).
+        // causal mask in between, run in the input type. The output scale is
+        // folded into the query so the scores a half matmul rounds already
+        // carry it rather than overflowing ahead of a scale applied at the end
+        // (a fused gemm-gemm kernel keeps them in the accumulation type).
         std::vector<instruction_ref> masked(const onnx_parser::node_info& info,
                                             const std::vector<instruction_ref>& args) const
         {
             const auto t        = dims.sequence_length;
             const bool has_past = has_input(args, 3);
+            // A state of another type than the activations meets them in float
+            const auto state_dot_type = in_type == state_type ? in_type : shape::float_type;
 
-            auto q      = to_rows(info, args.at(0), {t}, query_head_axes());
-            auto k_cols = to_columns(info, args.at(1), state_head_axes(dims.k_heads));
-            auto v      = to_rows(info, args.at(2), {t}, state_head_axes(dims.state_heads));
+            auto q_scaled = to_type(info, apply_scale(info, to_float(info, args.at(0))), in_type);
+            auto q        = to_rows(info, q_scaled, {t}, query_head_axes());
+            auto k_cols   = to_columns(info, args.at(1), state_head_axes(dims.k_heads));
+            auto v        = to_rows(info, args.at(2), {t}, state_head_axes(dims.state_heads));
 
             instruction_ref s0;
             if(has_past)
                 s0 = unpack_state(info, args.at(3));
 
-            // scores tril(Q K^T): (B, .., T, T)
+            // scores scale * tril(Q K^T): (B, .., T, T)
             auto scores = grouped_dot(info, q, k_cols);
             scores      = to_float(info, scores);
             scores      = apply_causal_mask(info, scores, t);
-            scores      = from_float(info, scores, in_type);
+            scores      = to_type(info, scores, in_type);
 
             auto output = grouped_dot(info, scores, v);
             output      = to_float(info, output);
 
-            // initial state contribution Q S_0
+            // initial state contribution scale * Q S_0
             if(has_past)
             {
-                auto init = grouped_dot(info, q, s0);
-                init      = to_float(info, init);
-                output    = info.add_instruction(make_op("add"), output, init);
+                auto q_state  = to_type(info, q, state_dot_type);
+                auto s0_state = to_type(info, s0, state_dot_type);
+                auto init     = to_float(info, grouped_dot(info, q_state, s0_state));
+                output        = info.add_instruction(make_op("add"), output, init);
             }
 
-            output = scale_and_pack_output(info, output);
+            output = pack_output(info, output);
 
             // present state S_0 + K^T V: (B, .., dk, T) x (B, .., T, dv)
-            auto present = grouped_dot(info, k_cols, v);
+            auto k_state = to_type(info, k_cols, state_dot_type);
+            auto v_state = to_type(info, v, state_dot_type);
+            auto present = grouped_dot(info, k_state, v_state);
             if(has_past)
             {
                 auto state_f = to_float(info, present);
                 present      = info.add_instruction(make_op("add"), state_f, to_float(info, s0));
             }
-            return {output, pack_state(info, from_float(info, present, state_type))};
+            return {output, pack_state(info, to_type(info, present, state_type))};
         }
 
         // Chunked emission of the gated and delta rules (gated delta networks,

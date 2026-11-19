@@ -25,7 +25,6 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
-#include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/math.hpp>
 
 namespace migraphx {
@@ -64,9 +63,8 @@ struct triangular_solve_compiler : compiler<triangular_solve_compiler>
         const auto& out_s = inputs.back();
         auto n            = out_s.lens().at(out_s.ndim() - 2);
         auto k            = out_s.lens().back();
-        // Up to 64 rows the column of each lane stays in registers with A in
-        // LDS, one workgroup per batch problem and the lanes over the columns;
-        // beyond that one lane per (batch, column) works through memory
+        // The register kernel unrolls its loops over the rows, so use it only up
+        // to 64 rows; beyond that one thread per (batch, column) works in memory
         const bool registers = n <= 64;
         if(registers)
         {
@@ -78,10 +76,9 @@ struct triangular_solve_compiler : compiler<triangular_solve_compiler>
         {
             options.set_launch_params(v, compute_global_for(ctx, out_s.elements() / n));
         }
-        options.inputs         = inputs;
-        options.output         = out_s;
-        options.virtual_inputs = inputs;
-        options.kernel_name    = "triangular_solve_kernel";
+        options.inputs      = inputs;
+        options.output      = out_s;
+        options.kernel_name = "triangular_solve_kernel";
         auto src =
             interpolate_string(triangular_solve_kernel,
                                {{"lower", v.get("lower", true) ? "true" : "false"},

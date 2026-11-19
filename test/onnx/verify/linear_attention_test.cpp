@@ -55,10 +55,8 @@ TEST_CASE(linear_attention_linear_test)
     pp["value"] = migraphx::literal{value_shape, value_data}.get_argument();
 
     auto outputs = p.eval(pp);
-    std::vector<float> result;
-    outputs.front().visit([&](auto v) { result.assign(v.begin(), v.end()); });
-    std::vector<float> present;
-    outputs.back().visit([&](auto v) { present.assign(v.begin(), v.end()); });
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
 
     std::vector<float> gold = {-0.006589744, 0.017886449,  0.10314851,   0.17406312,   -0.049044095,
                                0.063820444,  0.2767153,    0.15368156,   0.0127532985, -0.06896708,
@@ -145,10 +143,8 @@ TEST_CASE(linear_attention_gated_test)
     pp["decay"]                   = migraphx::literal{decay_shape, decay_data}.get_argument();
 
     auto outputs = p.eval(pp);
-    std::vector<float> result;
-    outputs.front().visit([&](auto v) { result.assign(v.begin(), v.end()); });
-    std::vector<float> present;
-    outputs.back().visit([&](auto v) { present.assign(v.begin(), v.end()); });
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
 
     std::vector<float> gold       = {-0.0204247,
                                      -0.034041166,
@@ -213,10 +209,8 @@ TEST_CASE(linear_attention_gated_channel_test)
     pp["decay"] = migraphx::literal{decay_shape, decay_data}.get_argument();
 
     auto outputs = p.eval(pp);
-    std::vector<float> result;
-    outputs.front().visit([&](auto v) { result.assign(v.begin(), v.end()); });
-    std::vector<float> present;
-    outputs.back().visit([&](auto v) { present.assign(v.begin(), v.end()); });
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
 
     std::vector<float> gold       = {0.070696734,
                                      0.20955633,
@@ -292,10 +286,8 @@ TEST_CASE(linear_attention_delta_test)
     pp["beta"]                   = migraphx::literal{beta_shape, beta_data}.get_argument();
 
     auto outputs = p.eval(pp);
-    std::vector<float> result;
-    outputs.front().visit([&](auto v) { result.assign(v.begin(), v.end()); });
-    std::vector<float> present;
-    outputs.back().visit([&](auto v) { present.assign(v.begin(), v.end()); });
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
 
     std::vector<float> gold       = {0.1422365,
                                      -0.13994236,
@@ -374,10 +366,8 @@ TEST_CASE(linear_attention_gated_delta_test)
     pp["beta"]                   = migraphx::literal{beta_shape, beta_data}.get_argument();
 
     auto outputs = p.eval(pp);
-    std::vector<float> result;
-    outputs.front().visit([&](auto v) { result.assign(v.begin(), v.end()); });
-    std::vector<float> present;
-    outputs.back().visit([&](auto v) { present.assign(v.begin(), v.end()); });
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
 
     std::vector<float> gold = {-0.39335006,  -0.20313817,  0.45446423,   0.045018137, -0.15808795,
                                0.28214252,   0.27349812,   0.0302478,    0.10289108,  0.15859754,
@@ -417,10 +407,8 @@ TEST_CASE(linear_attention_decode_test)
     pp["past_state"] = migraphx::literal{past_state_shape, past_state_data}.get_argument();
 
     auto outputs = p.eval(pp);
-    std::vector<float> result;
-    outputs.front().visit([&](auto v) { result.assign(v.begin(), v.end()); });
-    std::vector<float> present;
-    outputs.back().visit([&](auto v) { present.assign(v.begin(), v.end()); });
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
 
     std::vector<float> gold       = {-0.27661133, 0.3527832, -0.26342773, 0.34057617};
     std::vector<float> gold_state = {0.01953125, -0.04296875, -0.57470703, 0.7495117};
@@ -483,10 +471,8 @@ TEST_CASE(linear_attention_linear_fp16_test)
     pp["past_state"] = migraphx::literal{past_state_shape, past_state_data}.get_argument();
 
     auto outputs = p.eval(pp);
-    std::vector<float> result;
-    outputs.front().visit([&](auto v) { result.assign(v.begin(), v.end()); });
-    std::vector<float> present;
-    outputs.back().visit([&](auto v) { present.assign(v.begin(), v.end()); });
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
 
     std::vector<float> gold = {0.039367676, 0.050231934,  0.46679688,   0.04626465,  -0.37841797,
                                -0.25561523, -0.46435547,  -0.044006348, -0.4091797,  0.018127441,
@@ -572,10 +558,8 @@ TEST_CASE(linear_attention_linear_fp16_float_state_test)
     auto outputs = p.eval(pp);
     EXPECT(outputs.front().get_shape().type() == migraphx::shape::half_type);
     EXPECT(outputs.back().get_shape().type() == migraphx::shape::float_type);
-    std::vector<float> result;
-    outputs.front().visit([&](auto v) { result.assign(v.begin(), v.end()); });
-    std::vector<float> present;
-    outputs.back().visit([&](auto v) { present.assign(v.begin(), v.end()); });
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
 
     std::vector<float> gold = {
         0.039215088, 0.050750732, 0.46655273,  0.046844482, -0.37841797,  -0.25585938, -0.46435547,
@@ -614,10 +598,8 @@ TEST_CASE(linear_attention_linear_fp16_large_scores_test)
     pp["value"]                   = migraphx::literal{s, value_data}.get_argument();
 
     auto outputs = p.eval(pp);
-    std::vector<float> result;
-    outputs.front().visit([&](auto v) { result.assign(v.begin(), v.end()); });
-    std::vector<float> present;
-    outputs.back().visit([&](auto v) { present.assign(v.begin(), v.end()); });
+    auto result  = outputs.front().to_vector<float>();
+    auto present = outputs.back().to_vector<float>();
 
     std::vector<float> gold       = {156.25, -78.125, -258.75, -273.5, 380.75, 317.5};
     std::vector<float> gold_state = {412.5, 25, -187.5, -262.5};

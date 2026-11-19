@@ -29,6 +29,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/math.hpp>
 #include <migraphx/shape_for_each.hpp>
+#include <migraphx/stringutils.hpp>
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -39,16 +40,14 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-// Unified linear attention (ai.onnx opset 27, com.microsoft opset 1). The
-// recurrence
+// LinearAttention. The recurrence
 //   S~ = exp(g_t) * S_{t-1};  S_t = S~ + k_t (x) beta_t * (v_t - S~^T k_t)
 //   o_t = scale * q_t^T S_t
-// is accumulated in float as the onnx reference implementation prescribes.
-// The linear rule has the closed form
+// has, for the linear rule, the closed form
 //   O = scale * (tril(Q K^T) V + Q S_0),  present = S_0 + K^T V
-// emitted as batched matmuls with a causal mask in between so the backends
-// can fuse it like attention; the gated and delta rules run chunkwise, and
-// single-step decode or a vector decay unrolls the recurrence step by step.
+// emitted as two matmuls around a causal mask so the backends can fuse it
+// like attention. The gated and delta rules run chunkwise in float; a single
+// step or a per-key-dimension decay unrolls the recurrence in float.
 struct parse_linear_attention : op_parser<parse_linear_attention>
 {
     std::vector<op_desc> operators() const { return {{"LinearAttention"}}; }
@@ -81,8 +80,8 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         }
         auto q_heads  = parser.parse_value(info.attributes.at("q_num_heads")).at<std::int64_t>();
         auto kv_heads = parser.parse_value(info.attributes.at("kv_num_heads")).at<std::int64_t>();
-        // Standard GQA groups query heads onto one state head, inverse GQA
-        // (Qwen3.5 gated delta nets) groups state heads onto one query head
+        // Standard GQA groups query heads onto one state head; inverse GQA groups
+        // state heads onto one query head
         if(q_heads <= 0 or kv_heads <= 0 or (q_heads % kv_heads != 0 and kv_heads % q_heads != 0))
         {
             MIGRAPHX_THROW("LinearAttention: q_num_heads (" + std::to_string(q_heads) +
@@ -99,7 +98,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         if(not contains(rules, attrs.update_rule))
         {
             MIGRAPHX_THROW("LinearAttention: unsupported update_rule '" + attrs.update_rule +
-                           "', expected one of: linear, gated, delta, gated_delta");
+                           "', expected one of: " + join_strings(rules, ", "));
         }
         // chunk_size is a tuning hint: it changes the prefill blocking, not the result
         if(contains(info.attributes, "chunk_size"))
@@ -110,8 +109,6 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                                std::to_string(chunk));
             attrs.chunk_size = chunk;
         }
-        // A state window makes both state tensors (W, B, H_kv, d_k, d_v) windows
-        // of the last W per-token states instead of the final one
         if(contains(info.attributes, "state_window") and
            parser.parse_value(info.attributes.at("state_window")).at<std::int64_t>() != 0)
         {
@@ -120,10 +117,9 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         return attrs;
     }
 
-    // Head bookkeeping. Standard GQA shares one state head among group_size()
-    // query heads; inverse GQA (kv_num_heads > q_num_heads) shares one query
-    // head among group_size() state heads. Either way the emitted layouts carry
-    // the head axes as an (outer, group) pair, with one output head per pair.
+    // group_size() query heads share a state head, or under inverse GQA
+    // group_size() state heads share a query head. The emitted layouts carry the
+    // head axes as an (outer, group) pair, with one output head per pair.
     struct linear_attention_dims
     {
         std::size_t batch_size      = 0;
@@ -142,19 +138,19 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         std::size_t group_size() const { return out_heads() / outer_heads(); }
     };
 
-    static void check_rank3(const shape& s, const std::string& name)
+    static std::string rank3_error(const std::string& name)
     {
-        if(s.ndim() != 3)
-            MIGRAPHX_THROW("LinearAttention: " + name +
-                           " must be rank 3 (batch, sequence, channels)");
+        return "LinearAttention: " + name + " must be rank 3 (batch, sequence, channels)";
     }
 
-    static void
-    check_batch_seq(const shape& s, const linear_attention_dims& dims, const std::string& name)
+    static std::string batch_seq_error(const std::string& name)
     {
-        if(s.lens().at(0) != dims.batch_size or s.lens().at(1) != dims.sequence_length)
-            MIGRAPHX_THROW("LinearAttention: " + name +
-                           " batch and sequence dims must match query");
+        return "LinearAttention: " + name + " batch and sequence dims must match query";
+    }
+
+    static bool same_batch_seq(const shape& s, const linear_attention_dims& dims)
+    {
+        return s.lens().at(0) == dims.batch_size and s.lens().at(1) == dims.sequence_length;
     }
 
     static linear_attention_dims validate_inputs(const std::vector<instruction_ref>& args,
@@ -163,13 +159,15 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         if(args.size() < 3 or args.size() > 6)
             MIGRAPHX_THROW("LinearAttention: expected 3 to 6 inputs, got " +
                            std::to_string(args.size()));
-        if(std::any_of(args.begin(), args.end(), [](auto arg) {
-               return not arg->is_undefined() and arg->get_shape().dynamic();
-           }))
+        if(any_of(args,
+                  [](auto arg) { return not arg->is_undefined() and arg->get_shape().dynamic(); }))
             MIGRAPHX_THROW("LinearAttention: dynamic shapes are not supported");
-        check_rank3(args.at(0)->get_shape(), "query");
-        check_rank3(args.at(1)->get_shape(), "key");
-        check_rank3(args.at(2)->get_shape(), "value");
+        if(args.at(0)->get_shape().ndim() != 3)
+            MIGRAPHX_THROW(rank3_error("query"));
+        if(args.at(1)->get_shape().ndim() != 3)
+            MIGRAPHX_THROW(rank3_error("key"));
+        if(args.at(2)->get_shape().ndim() != 3)
+            MIGRAPHX_THROW(rank3_error("value"));
         const auto& q_lens = args.at(0)->get_shape().lens();
         const auto& k_lens = args.at(1)->get_shape().lens();
         const auto& v_lens = args.at(2)->get_shape().lens();
@@ -188,16 +186,18 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         dims.head_size_k = q_lens.at(2) / dims.q_heads;
         dims.head_size_v = v_lens.at(2) / dims.state_heads;
 
-        check_batch_seq(args.at(1)->get_shape(), dims, "key");
-        check_batch_seq(args.at(2)->get_shape(), dims, "value");
+        if(not same_batch_seq(args.at(1)->get_shape(), dims))
+            MIGRAPHX_THROW(batch_seq_error("key"));
+        if(not same_batch_seq(args.at(2)->get_shape(), dims))
+            MIGRAPHX_THROW(batch_seq_error("value"));
         // The key head size comes from the query; its head count is read back
         // from the hidden size since the key may follow either head count
         if(k_lens.at(2) % dims.head_size_k != 0)
             MIGRAPHX_THROW("LinearAttention: key hidden size must be a multiple of the query head "
                            "size");
         dims.k_heads = k_lens.at(2) / dims.head_size_k;
-        // The keys are read either per state head or once per query head group,
-        // so any other count would need the head axis itself broadcast
+        // Keys come per state head or, under inverse GQA, per query head; any other
+        // count cannot be broadcast onto the state heads
         if(dims.k_heads != dims.outer_heads() and dims.k_heads != dims.state_heads)
             MIGRAPHX_THROW("LinearAttention: key head count (" + std::to_string(dims.k_heads) +
                            ") must be kv_num_heads (" + std::to_string(dims.state_heads) +
@@ -225,8 +225,10 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         if(has_input(args, 4))
         {
             const auto& decay_shape = args.at(4)->get_shape();
-            check_rank3(decay_shape, "decay");
-            check_batch_seq(decay_shape, dims, "decay");
+            if(decay_shape.ndim() != 3)
+                MIGRAPHX_THROW(rank3_error("decay"));
+            if(not same_batch_seq(decay_shape, dims))
+                MIGRAPHX_THROW(batch_seq_error("decay"));
             if(decay_shape.lens().at(2) != dims.state_heads and
                decay_shape.lens().at(2) != dims.state_heads * dims.head_size_k)
                 MIGRAPHX_THROW("LinearAttention: decay last dim must be kv_num_heads or "
@@ -236,8 +238,10 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         if(has_input(args, 5))
         {
             const auto& beta_shape = args.at(5)->get_shape();
-            check_rank3(beta_shape, "beta");
-            check_batch_seq(beta_shape, dims, "beta");
+            if(beta_shape.ndim() != 3)
+                MIGRAPHX_THROW(rank3_error("beta"));
+            if(not same_batch_seq(beta_shape, dims))
+                MIGRAPHX_THROW(batch_seq_error("beta"));
             if(beta_shape.lens().at(2) != dims.state_heads and beta_shape.lens().at(2) != 1)
                 MIGRAPHX_THROW("LinearAttention: beta last dim must be kv_num_heads or 1");
             dims.beta_heads = beta_shape.lens().at(2);
@@ -260,17 +264,18 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
 
     static instruction_ref slice_range(const onnx_parser::node_info& info,
                                        instruction_ref ins,
-                                       std::int64_t axis,
+                                       std::size_t axis,
                                        std::size_t start,
                                        std::size_t end)
     {
+        assert(start < end and end <= ins->get_shape().lens().at(axis));
         return info.add_instruction(
             make_op("slice", {{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}}), ins);
     }
 
     static instruction_ref slice_step(const onnx_parser::node_info& info,
                                       instruction_ref ins,
-                                      std::int64_t axis,
+                                      std::size_t axis,
                                       std::size_t i)
     {
         return slice_range(info, ins, axis, i, i + 1);
@@ -281,6 +286,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
     static instruction_ref
     slice_column(const onnx_parser::node_info& info, instruction_ref ins, std::size_t i)
     {
+        assert(ins->get_shape().ndim() >= 1);
         return slice_step(info, ins, ins->get_shape().ndim() - 1, i);
     }
 
@@ -291,7 +297,6 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         return slice_step(info, ins, ins->get_shape().ndim() - 2, i);
     }
 
-    // Swap the trailing matrix axes, leaving the batch and head axes in place
     static instruction_ref transpose_matrix(const onnx_parser::node_info& info, instruction_ref ins)
     {
         assert(ins->get_shape().ndim() >= 2);
@@ -309,7 +314,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         return info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), ins);
     }
 
-    // (B, H, x, y) -> (B, H, group, x, y): broadcast a tensor shared by a head
+    // (B, H, ...) -> (B, H, group, ...): broadcast a tensor shared by a head
     // group so the batched dots see every (outer, group) pair
     static instruction_ref
     broadcast_group(const onnx_parser::node_info& info, instruction_ref ins, std::size_t group)
@@ -349,8 +354,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         return info.add_literal(literal{mask_shape, upper});
     }
 
-    // where(mask, 0, x) over the trailing axes of x, the select form attention
-    // causal masks canonicalize to
+    // where(mask, 0, x), the select form the gpu backend lowers as a causal mask
     static instruction_ref
     zero_where(const onnx_parser::node_info& info, instruction_ref mask, instruction_ref x)
     {
@@ -361,7 +365,6 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                                        {/*common_type=*/false, /*common_lens=*/true});
     }
 
-    // Zero the score entries where the key position is ahead of the query
     static instruction_ref
     apply_causal_mask(const onnx_parser::node_info& info, instruction_ref scores, std::size_t t)
     {
@@ -386,22 +389,25 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
     slice_chunk(const onnx_parser::node_info& info, instruction_ref ins, std::size_t i)
     {
         assert(ins->get_shape().ndim() >= 3);
-        std::int64_t axis = ins->get_shape().ndim() - 3;
+        auto axis = ins->get_shape().ndim() - 3;
         if(ins->get_shape().lens().at(axis) > 1)
             ins = slice_step(info, ins, axis, i);
         return info.add_instruction(make_op("squeeze", {{"axes", {axis}}}), ins);
     }
 
-    // Emits one node's program. Value members only; the node info is passed to
-    // each method.
     struct emitter
     {
         linear_attention_attributes attrs;
         linear_attention_dims dims;
         shape::type_t in_type    = shape::float_type;
         shape::type_t state_type = shape::float_type;
-        std::size_t chunk_len    = 0; // min(chunk_size, T)
-        std::size_t chunks       = 0; // ceil(T / chunk_len)
+
+        std::size_t chunk_len() const { return std::min(attrs.chunk_size, dims.sequence_length); }
+
+        std::size_t chunks() const
+        {
+            return integer_divide_ceil(dims.sequence_length, chunk_len());
+        }
 
         // Inverse GQA splits a per-state-head axis into the (outer, group) pair;
         // the group's state heads are adjacent, so the split is a plain reshape
@@ -483,8 +489,8 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                                    instruction_ref ins,
                                    const std::vector<std::size_t>& heads) const
         {
-            auto padded = pad_sequence(info, to_float(info, ins), chunks * chunk_len);
-            return to_rows(info, padded, {chunks, chunk_len}, heads);
+            auto padded = pad_sequence(info, to_float(info, ins), chunks() * chunk_len());
+            return to_rows(info, padded, {chunks(), chunk_len()}, heads);
         }
 
         // The state keeps its (B, H_kv, d_k, d_v) layout at the operator
@@ -548,7 +554,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             return grouped_op(info, make_op("concat", {{"axis", axis}}), a, b);
         }
 
-        // Multiply a float tensor by the output scale
+        // scale == 0 selects the default 1 / sqrt(d_k)
         instruction_ref apply_scale(const onnx_parser::node_info& info, instruction_ref ins) const
         {
             assert(ins->get_shape().type() == shape::float_type);
@@ -591,36 +597,31 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             return info.add_instruction(make_op("unsqueeze", {{"axes", {3}}}), o_t);
         }
 
-        // Join the per-step (B, outer, group, .., dv) outputs, drop any chunk
-        // padding, and return the packed output with the present state
+        // Join the (B, outer, group, .., dv) outputs along the sequence and drop
+        // any chunk padding
         std::vector<instruction_ref> finish(const onnx_parser::node_info& info,
                                             const std::vector<instruction_ref>& outputs,
                                             instruction_ref state) const
         {
+            assert(not outputs.empty());
             auto output = outputs.size() == 1
                               ? outputs.front()
                               : info.add_instruction(make_op("concat", {{"axis", 3}}), outputs);
             if(output->get_shape().lens().at(3) != dims.sequence_length)
-                output = info.add_instruction(
-                    make_op("slice",
-                            {{"axes", {3}}, {"starts", {0}}, {"ends", {dims.sequence_length}}}),
-                    output);
+                output = slice_range(info, output, 3, 0, dims.sequence_length);
             output             = pack_output(info, apply_scale(info, output));
             auto present_state = pack_state(info, to_type(info, state, state_type));
             return {output, present_state};
         }
 
-        // Parallel emission for the linear rule: two batched matmuls with a
-        // causal mask in between, run in the input type. The output scale is
-        // folded into the query so the scores a half matmul rounds already
-        // carry it rather than overflowing ahead of a scale applied at the end
-        // (a fused gemm-gemm kernel keeps them in the accumulation type).
+        // Closed form of the linear rule, run in the input type. The scale is
+        // applied to the query first so half scores do not overflow before it.
         std::vector<instruction_ref> masked(const onnx_parser::node_info& info,
                                             const std::vector<instruction_ref>& args) const
         {
             const auto t        = dims.sequence_length;
             const bool has_past = has_input(args, 3);
-            // A state of another type than the activations meets them in float
+            // When the state and input types differ, the dots with the state run in float
             const auto state_dot_type = in_type == state_type ? in_type : shape::float_type;
 
             auto q_scaled = to_type(info, apply_scale(info, to_float(info, args.at(0))), in_type);
@@ -632,8 +633,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             if(has_past)
                 s0 = unpack_state(info, args.at(3));
 
-            // scores scale * tril(Q K^T): (B, .., T, T)
-            auto scores = grouped_dot(info, q, k_cols);
+            auto scores = grouped_dot(info, q, k_cols); // (B, .., T, T)
             scores      = to_float(info, scores);
             scores      = apply_causal_mask(info, scores, t);
             scores      = to_type(info, scores, in_type);
@@ -641,7 +641,6 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             auto output = grouped_dot(info, scores, v);
             output      = to_float(info, output);
 
-            // initial state contribution scale * Q S_0
             if(has_past)
             {
                 auto q_state  = to_type(info, q, state_dot_type);
@@ -652,7 +651,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
 
             output = pack_output(info, output);
 
-            // present state S_0 + K^T V: (B, .., dk, T) x (B, .., T, dv)
+            // (B, .., dk, T) x (B, .., T, dv)
             auto k_state = to_type(info, k_cols, state_dot_type);
             auto v_state = to_type(info, v, state_dot_type);
             auto present = grouped_dot(info, k_state, v_state);
@@ -679,7 +678,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
         std::vector<instruction_ref> chunked(const onnx_parser::node_info& info,
                                              const std::vector<instruction_ref>& args) const
         {
-            const auto c = chunk_len;
+            const auto c = chunk_len();
 
             auto q  = chunk_rows(info, args.at(0), query_head_axes());
             auto k  = chunk_rows(info, args.at(1), state_head_axes(dims.k_heads));
@@ -688,9 +687,6 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
 
             auto scores = grouped_dot(info, q, kt); // Q K^T: (B, .., n, c, c)
 
-            // Decay factors: exp(gc) on q and on the k that reads the incoming
-            // state (W), the decay to the chunk end on the k that writes it, and
-            // D on the pair matrices
             instruction_ref exp_gc; // (B, .., n, c, 1)
             instruction_ref gamma;  // exp(gc_c): (B, .., n, 1, 1)
             instruction_ref decay;  // D, causal
@@ -708,8 +704,8 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                 to_end      = info.add_instruction(make_op("exp"), to_end);
                 q_gated     = group_common_op(info, "mul", q, exp_gc);
                 k_to_end    = group_common_op(info, "mul", k, to_end);
-                // the upper triangle holds the decays' negatives, which exp could
-                // overflow, so it is zeroed before as well as after
+                // above the diagonal gc_t - gc_s is a negated log decay that exp can
+                // overflow; zero it before exp, then zero the resulting ones
                 auto pair = info.add_common_op("sub", gc, transpose_matrix(info, gc));
                 auto mask = causal_mask(info, c);
                 pair      = zero_where(info, mask, pair);
@@ -721,8 +717,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                 scores = apply_causal_mask(info, scores, c);
             }
 
-            // Delta rule: pseudo values U_0 = (I + M)^-1 beta V and W; the plain
-            // gated rule writes V as is
+            // without the delta rule U is V itself
             auto u0 = v;
             instruction_ref w;
             if(attrs.delta())
@@ -744,14 +739,13 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                                        make_op("triangular_solve", {{"unit_diagonal", true}}),
                                        m,
                                        stack_columns(info, ubar, wbar));
-                std::int64_t col_axis = uw->get_shape().ndim() - 1;
-                u0                    = slice_range(info, uw, col_axis, 0, dims.head_size_v);
-                w                     = slice_range(
+                auto col_axis = uw->get_shape().ndim() - 1;
+                u0            = slice_range(info, uw, col_axis, 0, dims.head_size_v);
+                w             = slice_range(
                     info, uw, col_axis, dims.head_size_v, dims.head_size_v + dims.head_size_k);
             }
 
-            // Intra-chunk output and the query that reads the incoming state,
-            // with P = Q K^T D the masked scores: O = P U_0 + (Q exp(gc) - P W) S_0
+            // with P the masked scores: O = P U_0 + (Q exp(gc) - P W) S_0
             auto pu0     = grouped_dot(info, scores, u0);
             auto q_state = q_gated;
             if(attrs.delta())
@@ -769,8 +763,8 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                 state = to_float(info, unpack_state(info, args.at(3)));
 
             std::vector<instruction_ref> outputs;
-            outputs.reserve(chunks);
-            for(std::size_t i = 0; i < chunks; i++)
+            outputs.reserve(chunks());
+            for(std::size_t i = 0; i < chunks(); i++)
             {
                 auto o_i = slice_chunk(info, pu0, i); // (B, outer, group, c, dv)
                 instruction_ref update;               // K^T U: (B, .., dk, dv)
@@ -806,7 +800,6 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             return finish(info, outputs, state);
         }
 
-        // Step-by-step emission of the recurrence
         std::vector<instruction_ref> stepwise(const onnx_parser::node_info& info,
                                               const std::vector<instruction_ref>& args) const
         {
@@ -826,7 +819,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             if(has_state)
                 state = to_float(info, unpack_state(info, args.at(3)));
 
-            // decay: (B, T, Hkv) or (B, T, Hkv*dk) -> exp(g) as (B, .., c, T)
+            // decay: (B, T, Hkv) or (B, T, Hkv*dk) -> exp(g) as (B, .., 1 or dk, T)
             instruction_ref decay_cols;
             if(attrs.gated())
             {
@@ -851,7 +844,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
 
                 if(attrs.gated() and has_state)
                 {
-                    auto e_t = slice_column(info, decay_cols, i); // (B, .., c, 1)
+                    auto e_t = slice_column(info, decay_cols, i); // (B, .., 1 or dk, 1)
                     state    = group_common_op(info, "mul", state, e_t);
                 }
                 if(attrs.delta())
@@ -867,7 +860,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
                     v_t      = group_common_op(info, "mul", b_t, v_t);
                 }
 
-                // outer product k_t (x) v_t: (B, .., dk, 1) x (B, .., 1, dv)
+                // (B, .., dk, 1) x (B, .., 1, dv)
                 auto outer = grouped_dot(info, k_col, v_t);
                 state      = has_state ? info.add_instruction(make_op("add"), state, outer) : outer;
                 has_state  = true;
@@ -888,18 +881,10 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
 
         const auto in_type    = args.at(0)->get_shape().type();
         const auto state_type = has_input(args, 3) ? args.at(3)->get_shape().type() : in_type;
-        const auto chunk_len  = std::min(attrs.chunk_size, dims.sequence_length);
-        emitter e{attrs,
-                  dims,
-                  in_type,
-                  state_type,
-                  chunk_len,
-                  integer_divide_ceil(dims.sequence_length, chunk_len)};
+        emitter e{attrs, dims, in_type, state_type};
 
         if(dims.sequence_length > 1)
         {
-            // the linear rule's recurrence has a closed form over the whole
-            // sequence
             if(attrs.update_rule == "linear")
                 return e.masked(info, args);
             // A per-key-dimension decay makes the chunk decay a vector per token
@@ -907,7 +892,7 @@ struct parse_linear_attention : op_parser<parse_linear_attention>
             if(not attrs.gated() or dims.decay_channels == 1)
                 return e.chunked(info, args);
         }
-        // a single step is cheapest as one state update
+        // a single step, or a per-key-dimension decay: unroll the recurrence
         return e.stepwise(info, args);
     }
 };

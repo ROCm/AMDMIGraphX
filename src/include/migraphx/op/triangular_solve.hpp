@@ -26,7 +26,6 @@
 #define MIGRAPHX_GUARD_OPERATORS_TRIANGULAR_SOLVE_HPP
 
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/dyn_output.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
@@ -54,12 +53,10 @@ struct triangular_solve
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type().same_ndims();
+        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(2);
         const auto& a = inputs.front();
         const auto& b = inputs.back();
-        if(a.ndim() < 2)
-            MIGRAPHX_THROW("TRIANGULAR_SOLVE: inputs must be at least rank 2");
-        auto n = a.lens().at(a.ndim() - 2);
+        auto n        = a.lens().at(a.ndim() - 2);
         if(a.lens().back() != n)
             MIGRAPHX_THROW("TRIANGULAR_SOLVE: A must be square in its last two dims");
         if(b.lens().at(b.ndim() - 2) != n)
@@ -69,9 +66,9 @@ struct triangular_solve
         return {b.type(), b.lens()};
     }
 
-    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+    argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        argument result{dyn_out.computed_shape};
+        argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto x, auto a, auto b) {
             const auto& lens = x.get_shape().lens();
             auto ndim        = lens.size();
@@ -83,6 +80,7 @@ struct triangular_solve
             par_for(lanes.elements(), [&](auto i) {
                 auto xi = lanes.multi(i); // (batch..., 0, col)
                 auto ai = xi;             // (batch..., t, s)
+                auto xs = xi;             // (batch..., s, col)
                 for(std::size_t step = 0; step < n; step++)
                 {
                     auto t       = lower ? step : n - 1 - step;
@@ -93,7 +91,6 @@ struct triangular_solve
                     {
                         auto s       = lower ? j : n - 1 - j;
                         ai[ndim - 1] = s;
-                        auto xs      = xi;
                         xs[ndim - 2] = s;
                         acc -= a(ai.begin(), ai.end()) * x(xs.begin(), xs.end());
                     }

@@ -9342,9 +9342,8 @@ def linear_attention_decode_test():
     return ([node], [query, key, value, past_state], [output, present_state])
 
 
-# The com.microsoft spec also allows inverse GQA, where the state heads
-# outnumber the query heads and each query head is shared by a group of states
-# (Qwen3.5 gated delta nets). The output then has one head per state head.
+# Inverse GQA: the state heads outnumber the query heads, each query head is
+# shared by a group of state heads, and the output has one head per state head
 @onnx_test(opset_version=27)
 def linear_attention_inverse_gated_delta_test():
     query = helper.make_tensor_value_info('query', TensorProto.FLOAT,
@@ -9424,8 +9423,7 @@ def linear_attention_inverse_linear_shared_key_test():
     return ([node], [query, key, value], [output, present_state])
 
 
-# Two whole chunks (chunk_size=2, T=4); the chunked tests below also pad the
-# last chunk
+# Two whole chunks (chunk_size=2, T=4)
 @onnx_test(opset_version=27)
 def linear_attention_chunked_gated_delta_test():
     query = helper.make_tensor_value_info('query', TensorProto.FLOAT,

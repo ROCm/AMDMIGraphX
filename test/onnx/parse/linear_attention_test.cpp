@@ -127,9 +127,7 @@ TEST_CASE(linear_attention_linear_test)
 }
 
 // fp16 GQA with past state: the matmuls run in fp16 on the query scaled in
-// float; the mask stage and the add epilogue accumulate in float (a fused
-// gemm-gemm kernel elides the float->half->float round trip between the two
-// matmuls)
+// float; the mask stage and the add of the initial state run in float
 TEST_CASE(linear_attention_linear_fp16_test)
 {
     migraphx::program p;

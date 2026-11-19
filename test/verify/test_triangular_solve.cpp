@@ -24,21 +24,18 @@
 
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_triangular_solve : verify_program<test_triangular_solve<DType>>
+struct test_triangular_solve : verify_program<test_triangular_solve>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto a   = mm->add_parameter("a", migraphx::shape{DType, {2, 4, 8, 8}});
-        auto b   = mm->add_parameter("b", migraphx::shape{DType, {2, 4, 8, 16}});
+        auto a = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {2, 4, 8, 8}});
+        auto b =
+            mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {2, 4, 8, 16}});
         mm->add_instruction(migraphx::make_op("triangular_solve", {{"unit_diagonal", true}}), a, b);
         return p;
     }
 };
-
-template struct test_triangular_solve<migraphx::shape::float_type>;

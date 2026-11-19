@@ -36,6 +36,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 #include <reduce.hpp>
+#include "make_triangle_literal.hpp"
 #include <algorithm>
 #include <utility>
 
@@ -2231,21 +2232,9 @@ TEST_CASE(dot_add_dot_abc_fp16)
     EXPECT(program_str.find("geg") != std::string::npos);
 }
 
-// Square mask literal with `above` strictly above the diagonal and `other`
-// everywhere else
-static migraphx::literal make_triangle_literal(const migraphx::shape& s, float above, float other)
-{
-    std::vector<float> data(s.elements());
-    migraphx::shape_for_each(
-        s, [&](const auto& idx, std::size_t i) { data[i] = idx[1] > idx[0] ? above : other; });
-    return migraphx::literal{s, data};
-}
-
 TEST_CASE(dot_causal_mask_dot)
-// Attention-shaped masked gemm-gemm: the causal mask literal between the two
-// gemms is inlined into the geg module instead of passed as a kernel input;
-// prepare_mlir rewrites it into the index compare the backend lowers as the
-// fused kernel's causal mode
+// The causal mask literal between the two gemms is inlined into the geg
+// module instead of passed as a kernel input
 {
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;
@@ -2310,10 +2299,8 @@ TEST_CASE(dot_causal_mask_dot)
 }
 
 TEST_CASE(dot_mul_mask_dot)
-// Multiplicative causal mask: the 0/1 lower-triangle literal is inlined into
-// the geg module instead of passed as a kernel input; prepare_mlir rewrites
-// it to where(compare, 0, 1) and folds the mul into the select so the
-// backend lowers it as the fused kernel's causal mode
+// A multiplicative 0/1 lower-triangle mask literal is likewise inlined into
+// the geg module
 {
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;

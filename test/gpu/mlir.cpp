@@ -42,6 +42,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
 #include <test.hpp>
+#include "make_triangle_literal.hpp"
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 
@@ -720,21 +721,9 @@ module {
     EXPECT(verify_mlir(m));
 }
 
-// Square mask literal with `above` strictly above the diagonal and `other`
-// everywhere else
-static migraphx::literal make_triangle_literal(const migraphx::shape& s, float above, float other)
-{
-    std::vector<float> data(s.elements());
-    migraphx::shape_for_each(
-        s, [&](const auto& idx, std::size_t i) { data[i] = idx[1] > idx[0] ? above : other; });
-    return migraphx::literal{s, data};
-}
-
 TEST_CASE(dot_causal_mask_dot)
-// The fused causal mask is an inlined boolean triangle literal; prepare_mlir
-// must rewrite it into a compare of index iotas and push the mask's broadcast
-// onto the compare's operands so the select predicate is a direct compare of
-// constant ranges, which rocMLIR lowers as the fused kernel's causal mode
+// prepare_mlir rewrites the inlined bool triangle literal into a compare of
+// index iotas broadcast at the select, the form rocMLIR lowers as causal
 {
     std::string mlir_output = R"__migraphx__(
 module {
@@ -786,11 +775,8 @@ module {
 }
 
 TEST_CASE(dot_mul_mask_dot)
-// A multiplicative causal mask is an inlined 0/1 lower-triangle literal;
-// prepare_mlir must rewrite it to where(compare, 0, 1), fold the mul into the
-// select and push the broadcast onto the compare's operands so the select
-// predicate is a direct compare of constant ranges, which rocMLIR lowers as
-// the fused kernel's causal mode
+// prepare_mlir rewrites the inlined 0/1 triangle literal to
+// where(compare, 0, 1) and folds the mul into the select
 {
     std::string mlir_output = R"__migraphx__(
 module {

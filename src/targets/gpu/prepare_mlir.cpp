@@ -262,9 +262,8 @@ struct find_kv_cache_plain_q
 };
 
 // True when the square literal holds `above` strictly above the diagonal and
-// `other` elsewhere. Scans contiguous rows so a non-mask literal (e.g. a
-// square weight matrix) exits on the first mismatch; this runs on every
-// literal input at mlir fusion sites, so the cheap exit matters.
+// `other` elsewhere. This runs on every literal input at mlir fusion sites,
+// so it scans row by row and exits on the first mismatch.
 bool is_triangle_mask(const literal& lit, double above, double other)
 {
     const auto& s = lit.get_shape();
@@ -275,9 +274,7 @@ bool is_triangle_mask(const literal& lit, double above, double other)
         return false;
     bool result = false;
     lit.visit([&](auto v) {
-        std::vector<std::size_t> rows(t);
-        std::iota(rows.begin(), rows.end(), 0);
-        result = std::all_of(rows.begin(), rows.end(), [&](std::size_t r) {
+        result = all_of(range(t), [&](std::size_t r) {
             auto row  = v.begin() + r * t;
             auto diag = row + r + 1;
             return std::all_of(row, diag, [&](auto x) { return float_equal(x, other); }) and
@@ -287,8 +284,7 @@ bool is_triangle_mask(const literal& lit, double above, double other)
     return result;
 }
 
-// True when the literal is a square boolean mask with ones strictly above
-// the diagonal (the causal mask emitted by e.g. the linear attention parser)
+// Boolean form: ones strictly above the diagonal mark the entries to zero
 bool is_upper_triangle_mask(const literal& lit)
 {
     return lit.get_shape().type() == shape::bool_type and is_triangle_mask(lit, 1, 0);
@@ -314,10 +310,9 @@ instruction_ref insert_causal_mask_pred(module& m, instruction_ref pos, std::siz
     return m.insert_instruction(pos, make_op("convert", {{"target_type", shape::bool_type}}), gt);
 }
 
-// A causal mask literal (inlined by fuse_mlir) is opaque data once it reaches
-// rocMLIR: replace it with an equivalent compare of index iotas — a
-// bool zero-mask becomes the predicate itself, a multiplicative 0/1 mask
-// becomes where(predicate, 0, 1) for the mul fold below to consume.
+// A causal mask literal is opaque data to rocMLIR, so replace it with a
+// compare of index iotas: a bool mask becomes the predicate itself, a 0/1
+// multiplicative mask becomes where(predicate, 0, 1) for find_masked_mul.
 struct find_causal_mask_literal
 {
     auto matcher() const { return match::name("@literal"); }
@@ -337,15 +332,14 @@ struct find_causal_mask_literal
             m.replace_instruction(ins, pred);
             return;
         }
-        const auto& mask_lens = ins->get_shape().lens();
-        auto type             = ins->get_shape().type();
-        auto zero             = m.add_literal(literal{shape{type, {1}}, {0.0}});
+        auto type = ins->get_shape().type();
+        auto zero = m.add_literal(literal{shape{type, {1}}, {0.0}});
         auto one  = m.add_literal(literal{shape{type, {1}}, {1.0}});
-        auto zero_b =
-            m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", mask_lens}}), zero);
-        auto one_b =
-            m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", mask_lens}}), one);
-        auto mask = m.insert_instruction(pos, make_op("where"), {pred, zero_b, one_b});
+        auto mask = insert_common_op(m,
+                                     pos,
+                                     make_op("where"),
+                                     {pred, zero, one},
+                                     {/*common_type=*/false, /*common_lens=*/true});
         m.replace_instruction(ins, mask);
     }
 };
@@ -369,24 +363,22 @@ struct find_masked_mul
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins         = r.result;
-        auto mask        = r.instructions["mask"];
-        auto x           = r.instructions["x"];
-        const auto& lens = ins->get_shape().lens();
-        auto pred        = m.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", lens}}), mask->inputs().front());
-        auto zero = m.add_literal(literal{{ins->get_shape().type(), {1}}, {0.0}});
-        auto zero_b =
-            m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), zero);
-        m.replace_instruction(ins, make_op("where"), {pred, zero_b, x});
+        auto ins   = r.result;
+        auto mask  = r.instructions["mask"];
+        auto x     = r.instructions["x"];
+        auto zero  = m.add_literal(literal{{ins->get_shape().type(), {1}}, {0.0}});
+        auto where = insert_common_op(m,
+                                      ins,
+                                      make_op("where"),
+                                      {mask->inputs().front(), zero, x},
+                                      {/*common_type=*/false, /*common_lens=*/true});
+        m.replace_instruction(ins, where);
     }
 };
 
-// rocMLIR recognizes a causal mask structurally as a select whose predicate
-// is a direct compare of constant index ranges, but a mask computed at its
-// own shape reaches the select through a broadcast that hides the compare.
-// Push the broadcast through the compare (and its convert) onto its
-// operands, re-broadcasting them to the outer shape.
+// rocMLIR recognizes a causal mask only when the select predicate is a
+// direct compare of constant index ranges, so push a broadcast of the
+// compare (and of its convert) onto the compare's operands.
 struct find_broadcast_of_compare
 {
     auto matcher() const
@@ -510,9 +502,9 @@ void prepare_mlir::apply(module& m) const
     match::find_matches(m, find_reduce{}, find_leaky_relu{}, find_kv_cache_mask_seq_len{});
     // Matches the same where as find_kv_cache_mask_seq_len, so it needs its own pass
     match::find_matches(m, find_kv_cache_plain_q{});
-    // Literals precede their consumers, so the mask rewrite is visible to the
-    // mul fold in the same pass; both run before the broadcast sink so the
-    // compares they create are canonicalized by the next pass
+    // Literals precede their consumers, so find_masked_mul sees the rewritten
+    // mask in the same traversal; find_broadcast_of_compare runs afterwards on
+    // the compares both create
     match::find_matches(m, find_causal_mask_literal{}, find_masked_mul{});
     match::find_matches(m,
                         find_broadcast_of_compare{},

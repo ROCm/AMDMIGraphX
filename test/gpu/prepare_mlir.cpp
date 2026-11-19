@@ -32,8 +32,8 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/shape_for_each.hpp>
 #include <test.hpp>
+#include "make_triangle_literal.hpp"
 
 static void run_pass(migraphx::module& m)
 {
@@ -401,16 +401,6 @@ TEST_CASE(kv_cache_plain_q_single_head)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Square mask literal with `above` strictly above the diagonal and `other`
-// everywhere else
-static migraphx::literal make_triangle_literal(const migraphx::shape& s, float above, float other)
-{
-    std::vector<float> data(s.elements());
-    migraphx::shape_for_each(
-        s, [&](const auto& idx, std::size_t i) { data[i] = idx[1] > idx[0] ? above : other; });
-    return migraphx::literal{s, data};
-}
-
 static migraphx::literal make_iota_literal(std::size_t n)
 {
     std::vector<std::int32_t> iota_vals(n);
@@ -481,8 +471,8 @@ TEST_CASE(causal_mask_literal_where)
     EXPECT(m1 == m2);
 }
 
-// An inlined multiplicative triangle mask feeding a mul becomes the
-// where-zero-above select over a compare of index iotas
+// An inlined multiplicative triangle mask feeding a mul becomes
+// where(compare, 0, x) over a compare of index iotas
 TEST_CASE(causal_mask_literal_mul)
 {
     migraphx::module m1;

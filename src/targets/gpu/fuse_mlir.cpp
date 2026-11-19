@@ -391,8 +391,7 @@ enum class mlir_mode
 };
 
 // Profitability band for attention-shaped gemm-gemm (GEG) fusion, shared by
-// check_heuristic and the large-k exemption in is_mlir_dot. See the measured
-// table in check_heuristic.
+// check_heuristic and the large-k exemption in is_mlir_dot
 constexpr std::int64_t geg_attn_k_max  = 256;
 constexpr std::int64_t geg_attn_g_max  = 256;
 constexpr std::int64_t geg_attn_mn_min = 32;
@@ -408,26 +407,21 @@ bool is_geg_band_first_gemm(instruction_ref ins)
 }
 
 // True when ins is the second gemm of an attention-shaped gemm-gemm chain:
-// its A operand, through layout ops and the elementwise stage (a pointwise
-// module, or an mlir_op this pass formed already), is produced by a dot that
-// fits the GEG band. For these chains the second gemm's k is the sequence
-// length, so the large-k rejection in is_mlir_dot would block exactly the
-// shapes where fusing saves the most (the m x n roundtrip is quadratic in it).
+// its A operand comes, through layout ops and a pointwise or mlir_op stage,
+// from a dot within the GEG band
 bool is_geg_second_gemm(instruction_ref ins)
 {
+    assert(contains({"dot", "quant_dot"}, ins->name()));
     if(enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return false;
     const auto& a_lens = ins->inputs().front()->get_shape().lens();
     std::int64_t m     = a_lens[a_lens.size() - 2];
-    std::int64_t g = ins->inputs().back()->get_shape().lens().back();
+    std::int64_t g     = ins->inputs().back()->get_shape().lens().back();
     if(g > geg_attn_g_max or m < geg_attn_mn_min)
         return false;
     auto prev = strip_layout_ops(ins->inputs().front());
     if(prev->name() == "pointwise")
-    {
-        const auto& inputs = prev->inputs();
-        return std::any_of(inputs.begin(), inputs.end(), &is_geg_band_first_gemm);
-    }
+        return any_of(prev->inputs(), &is_geg_band_first_gemm);
     if(prev->name() == "gpu::mlir_op")
     {
         auto* pm = prev->module_inputs().front();
@@ -463,13 +457,13 @@ auto is_mlir_dot(mlir_mode mode)
         auto m = a.lens()[a.lens().size() - 2];
         auto n = b.lens().back();
         auto k = a.lens().back();
+        // The second gemm of a GEG chain contracts over the sequence length;
+        // it must become an mlir_op for the GEG fusion to claim it
+        if(k >= 1024 and is_geg_second_gemm(ins))
+            return true;
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // TODO: Investigate a more precise strategy
-        // Exempt the second gemm of a GEG chain, where k is the sequence
-        // length; it must become an mlir_op for the GEG fusion to claim it.
-        if(k >= 1024 and is_geg_second_gemm(ins))
-            return true;
         if(k > 1535)
             return false;
         if(k < 1024)
@@ -1062,28 +1056,10 @@ struct find_mlir_fused_geg_ops
         if(m >= dlrm_m_min and n >= dlrm_n_min and k <= dlrm_k_max and g <= dlrm_g_max)
             return true;
 
-        // Attention-shaped masked gemm-gemm (e.g. linear attention): m and n
-        // are the sequence length, k and g are head dims. Fusing avoids the
-        // (m x n) score matrix DRAM roundtrip, which grows quadratically with
-        // the sequence while every other operand is linear in it.
-        //
-        // Measured with tools/bench_geg_attention.py (causal, median
-        // fused/unfused ratio).
-        // gfx1201 fp16: fusing wins at every T in 32..4096 for d <= 256
-        // (0.10-0.97, improving with T) and loses everywhere at d = 512
-        // (1.4-1.6, the same head-dim cliff as attention):
-        //       T:     32    64   128   256   512  1024  2048  4096
-        //   d=32..64  0.6   0.4   0.3   0.3   0.3   0.3   0.2   0.1
-        //   d=128     0.6   0.5   0.4   0.4   0.5   0.4   0.3   0.3
-        //   d=256      -    0.6   0.5   0.5   0.9   0.6   0.5   0.5
-        //   d=512      -     -     -    1.5    -    1.6    -    1.4
-        // gfx942 fp16 and fp32: wins at every swept shape for d <= 256 in
-        // T 64..4096 (0.15-0.95, improving with T; T >= 1024 reaches this
-        // heuristic through the GEG exemption in is_mlir_dot since the second
-        // gemm's k is the sequence length), except a reproducible low-batch pocket
-        // at H=8, d=256, T 128..512 (1.0-1.3; the absolute loss is a few us
-        // at the kernel-launch floor, and gfx1201 wins those shapes, so it
-        // is not carved out).
+        // Attention-shaped masked gemm-gemm: m and n are the sequence length, k
+        // and g are head dims. Fusing avoids the (m x n) score matrix DRAM
+        // roundtrip; measured on gfx1201 and gfx942 it wins for sequence
+        // lengths 32..4096 at head dims up to 256 and loses 1.4-1.6x at 512.
         return k <= geg_attn_k_max and g <= geg_attn_g_max and m >= geg_attn_mn_min and
                n >= geg_attn_mn_min;
     }
@@ -1099,9 +1075,8 @@ struct find_mlir_fused_geg_ops
     {
         auto mlir_fusible_geg_op = is_mlir_fusible_geg_op();
         auto first_mlir_op       = mlir_fusible_geg_op.bind("first_gemm_based_op");
-        // the first gemm may feed any input position of the second mlir_op
-        // (prologue input fusion reorders them); apply() verifies the chain
-        // reaches the second gemm's A operand
+        // the first gemm may feed any input of the second mlir_op; apply()
+        // checks that it reaches the second gemm's A operand
         return mlir_fusible_geg_op(match::any_of[match::inputs()](first_mlir_op))
             .bind("second_gemm_op");
     }
@@ -1128,20 +1103,6 @@ struct find_mlir_fused_geg_ops
         if(not is_gemm_supported(first_gemm) or not is_gemm_supported(second_gemm, true))
             return;
 
-        // the fused kernel applies the first gemm's chain to the second
-        // gemm's A operand; reject chains that reach the B operand
-        auto pmap = second_submod->get_ins_param_map(second_gemm_ins->inputs());
-        auto pit  = pmap.find(first_gemm_ins);
-        if(pit == pmap.end())
-            return;
-        auto chain_param = pit->second;
-        auto a_in        = second_gemm->inputs().front();
-        auto b_in        = second_gemm->inputs().at(1);
-        if(reaches(chain_param, b_in))
-            return;
-        if(not reaches(chain_param, a_in))
-            return;
-
         if(not single_chain_input_to_second_gemm(first_gemm_ins, second_gemm_ins->inputs()))
             return;
 
@@ -1156,6 +1117,14 @@ struct find_mlir_fused_geg_ops
 
         // the first mlir_op must have a single user in the parent module
         if(first_gemm_ins->outputs().size() > 1)
+            return;
+
+        // the fused kernel applies the first gemm's chain to the second
+        // gemm's A operand; reject chains that reach the B operand
+        auto chain_param =
+            second_submod->get_ins_param_map(second_gemm_ins->inputs()).at(first_gemm_ins);
+        if(reaches(chain_param, second_gemm_inputs.at(1)) or
+           not reaches(chain_param, second_gemm_inputs.front()))
             return;
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;

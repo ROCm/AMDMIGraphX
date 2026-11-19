@@ -52,6 +52,7 @@ struct analyze_topk : analyzer<analyze_topk>
         auto result = analyze_axes(
             ins,
             output.sub_shapes().front(),
+            {},
             [](std::size_t) { return true; },
             [axis = *axis, topk_fill](std::size_t input, std::size_t current_axis) {
                 if(current_axis != axis)

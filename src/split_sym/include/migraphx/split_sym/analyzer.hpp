@@ -281,15 +281,6 @@ analyze_axes(instruction_ref ins, const OutputRule& output_rule, const InputRule
     return analyze_axes(ins, std::vector<std::size_t>{}, output_rule, input_rule);
 }
 
-template <class OutputRule, class InputRule>
-symbolic_op_info analyze_axes(instruction_ref ins,
-                              const shape& output_shape,
-                              const OutputRule& output_rule,
-                              const InputRule& input_rule)
-{
-    return analyze_axes(ins, output_shape, {}, output_rule, input_rule);
-}
-
 template <class InputRule>
 symbolic_op_info analyze_axes(instruction_ref ins, const InputRule& input_rule)
 {

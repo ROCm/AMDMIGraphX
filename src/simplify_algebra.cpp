@@ -1899,7 +1899,9 @@ struct find_splits
     }
 
     /**
-     * Check if any split group depends on instructions from another split group.
+     * Check if any split group depends on instructions from another split group, or a member of a
+     * group on another member of the same group. Fusing such a group would make the fused
+     * instruction read a slice of its own result.
      * m : module containing instructions
      * root : "root" instruction that has contiguous slice instructions as outputs
      * groups : split groups from get_split_groups
@@ -1911,6 +1913,14 @@ struct find_splits
         for(int i = 0; i < groups.size(); ++i)
         {
             const auto& group_i = groups.at(i);
+            if(std::any_of(group_i.begin(), group_i.end(), [&](auto ins_a) {
+                   return std::any_of(group_i.begin(), group_i.end(), [&](auto ins_b) {
+                       return ins_a != ins_b and is_dependent(m, root, ins_a, ins_b);
+                   });
+               }))
+            {
+                return true;
+            }
             std::vector<std::vector<instruction_ref>> groups_less_i(groups.size() - 1);
             std::copy(groups.cbegin(), groups.cbegin() + i, groups_less_i.begin());
             std::copy(groups.cbegin() + i + 1, groups.cend(), groups_less_i.begin() + i);

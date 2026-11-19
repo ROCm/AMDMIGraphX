@@ -2272,8 +2272,8 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     // Determine each block's boundary slices, padding, masks, and target-substituted output shapes.
     graph.prepare_clone_infos(plans, *roots);
 
-    // Materialize one clone for each target combination, dispatch through select_module, expose
-    // runtime output extents, and rewire uses outside each block.
+    // Materialize one clone for each target combination, dispatch through select_module, which
+    // trims outputs to their runtime extents, and rewire uses outside each block.
     specialize_blocks(mpm, graph, plans, root_sources);
     run_passes(m, {dead_code_elimination{}});
 }

@@ -82,34 +82,6 @@ struct analyze_topk : analyzer<analyze_topk>
     }
 };
 
-struct analyze_topk_get_tuple_elem : analyzer<analyze_topk_get_tuple_elem>
-{
-    bool matches(const operation& op) const { return op.name() == "get_tuple_elem"; }
-
-    symbolic_op_info analyze(instruction_ref ins) const
-    {
-        const auto& inputs = ins->inputs();
-        if(inputs.size() != 1 or inputs.front()->name() != "topk")
-            return symbolic_op_info{ins};
-        auto result    = analyze_axes(ins);
-        result.freezer = freeze;
-        return result;
-    }
-
-    static instruction_ref freeze(module& m,
-                                  instruction_ref source,
-                                  const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>& values)
-    {
-        auto result   = m.add_instruction(source->get_operator(), args);
-        const auto& s = source->get_shape();
-        if(s.symbolic())
-            instruction::replace(
-                result, result->get_operator(), s.to_static(values), result->inputs());
-        return result;
-    }
-};
-
 } // namespace
 } // namespace split_sym
 } // namespace MIGRAPHX_INLINE_NS

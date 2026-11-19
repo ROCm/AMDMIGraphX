@@ -367,13 +367,11 @@ struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
             return;
         if(expression_sources->empty())
         {
-            std::vector<int64_t> values;
+            std::vector<std::size_t> values;
             std::transform(expressions.begin(),
                            expressions.end(),
                            std::back_inserter(values),
-                           [](const auto& expression) {
-                               return static_cast<int64_t>(expression.eval_uint({}));
-                           });
+                           [](const auto& expression) { return expression.eval_uint({}); });
             m.replace_instruction(
                 ins, m.add_literal(literal{shape{shape::int64_type, {values.size()}}, values}));
         }
@@ -499,8 +497,8 @@ struct root_collection
 
 // Collect the independent symbols that enter through module parameters or data-dependent slices.
 // Each symbol's min, optimals, and max partition its runtime interval into specialization buckets.
-std::optional<std::vector<root_spec>>
-collect_roots(const module& m, const std::unordered_map<sym::expr, instruction_ref>& root_sources)
+std::optional<std::vector<root_spec>> collect_roots(const module& m,
+                                                    const symbol_source_map& root_sources)
 {
     root_collection collected;
     for(auto parameter : m.get_parameters())
@@ -515,17 +513,16 @@ collect_roots(const module& m, const std::unordered_map<sym::expr, instruction_r
         if(not collected.valid())
             return std::nullopt;
     }
-    for(const auto& entry : root_sources)
+    for(const auto& [root, source] : root_sources)
     {
-        const auto& root = entry.first;
-        auto source      = entry.second;
         if(source->name() == "@param")
             continue;
         const auto& dimensions = source->get_shape().dyn_dims();
-        auto found = std::find_if(dimensions.begin(), dimensions.end(), [&](const auto& d) {
-            return d.is_symbolic() and d.sym_expr.name() == "variable" and
-                   sym::as_symbol(d.sym_expr) == root;
-        });
+        auto found =
+            std::find_if(dimensions.begin(), dimensions.end(), [&, &root = root](const auto& d) {
+                return d.is_symbolic() and d.sym_expr.name() == "variable" and
+                       sym::as_symbol(d.sym_expr) == root;
+            });
         if(found == dimensions.end())
             return std::nullopt;
         collected.append(*found);
@@ -1387,12 +1384,8 @@ shape dispatch_shape_for_clones(const shape& planned,
             if(represents_clone_outputs(actual_layout, clone_outputs, output_index))
                 return actual_layout;
             const auto& output = clone_output.outputs.at(output_index);
-            std::vector<sym::expr> exact_strides(output.ndim());
-            std::transform(output.strides().begin(),
-                           output.strides().end(),
-                           exact_strides.begin(),
-                           [](auto stride) { return sym::lit(stride); });
-            shape exact_layout{planned.type(), planned.dyn_dims(), std::move(exact_strides)};
+            shape exact_layout{
+                planned.type(), planned.dyn_dims(), output.to_symbolic().dyn_strides()};
             if(represents_clone_outputs(exact_layout, clone_outputs, output_index))
                 return exact_layout;
         }
@@ -2036,8 +2029,8 @@ struct block_frame
                        clone_outputs.end(),
                        std::back_inserter(output_shapes),
                        [](instruction_ref output) { return output->get_shape(); });
-        // Keep fixed parameters symbolic when an eval_expr_from_shape still reads them or
-        // converting them would change an output layout.
+        // Keep fixed parameters symbolic when an eval_expr_from_shape still reads them. Otherwise
+        // make them static unless that changes an output layout, which is an error when forced.
         bool live_shape_eval = any_of(clone_module, [](const auto& ins) {
             return ins.name() == "eval_expr_from_shape" and not ins.outputs().empty();
         });

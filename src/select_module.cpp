@@ -339,12 +339,11 @@ argument select_module::reshape_output(const argument& arg, const shape& output_
     if(sub_args.size() != output_shape.sub_shapes().size())
         MIGRAPHX_THROW("SELECT_MODULE: output tuple does not match declared output");
     std::vector<argument> result;
-    migraphx::for_each(sub_args.begin(),
-                       sub_args.end(),
-                       output_shape.sub_shapes().begin(),
-                       [&](const argument& sub_arg, const shape& sub_shape) {
-                           result.push_back(reshape_output(sub_arg, sub_shape));
-                       });
+    std::transform(sub_args.begin(),
+                   sub_args.end(),
+                   output_shape.sub_shapes().begin(),
+                   std::back_inserter(result),
+                   &reshape_output);
     return argument{result};
 }
 

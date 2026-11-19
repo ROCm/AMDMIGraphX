@@ -68,6 +68,7 @@ __device__ void dyn_concat(Counts counts, Output output, Total total, Inputs... 
 
     auto idx = make_index();
     MIGRAPHX_ASSERT(idx.nglobal() == idx.nlocal());
+    MIGRAPHX_ASSERT(idx.nglobal() == idx.nlocal());
     __shared__ uninitialized_buffer<index_int, ninputs> valid_counts;
     __shared__ uninitialized_buffer<index_int, ninputs> offsets;
     auto get_count = [&](auto i) {

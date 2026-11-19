@@ -16,6 +16,7 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
+* Changed the reported version from `2.19.0.<git describe>` to `2.19.0-g<sha>`, appending `-dirty` when tracked files have local modifications. `git describe` cannot name the release being built, because that tag is created only after the build finishes, so a build of `release/rocm-rel-10.2` would still display `rocm-10.1`.
 * Changed the ONNX `NonMaxSuppression` parser to trim its zero-padded indices output down to the number of selected boxes with a `dyn_slice`, so a parsed model now returns the ONNX specification's `[num_selected_indices, 3]` output instead of a fixed padded size. This removes the `MIGRAPHX_USE_DYNAMIC_NMS` environment variable that previously gated the trim (#5150).
 * Changed `fixed_pad` to accept a configurable padding value (#5123).
 * Changed lowered `select_module` instructions to use one caller-provided output buffer per result (#5123).

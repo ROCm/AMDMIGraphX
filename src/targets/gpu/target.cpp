@@ -33,6 +33,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
@@ -360,12 +361,14 @@ struct pipeline_factory
 
     // Requesting "attention" (env var or mlir_use_specific_ops) fuses every attention block,
     // bypassing the profitability gate; otherwise the gate picks fused or separate per block.
+    // fp8 dots are never fused into attention because rocMLIR does not support fp8 attention.
     fuse_attention make_fuse_attention() const
     {
         if(mlir_attention_requested(backend_opts.mlir_use_specific_ops))
             return {.attn_enabled           = true,
                     .attn_max_head_dim      = std::numeric_limits<std::size_t>::max(),
                     .attn_min_q_rows        = 1,
+                    .unsupported_types      = fp8_types{}.get(),
                     .flash_decoding_enabled = mlir_flash_decoding_enabled()};
         const auto& ctx = *get_context();
         return {.attn_enabled = mlir_attention_enabled(backend_opts.mlir_use_specific_ops),
@@ -375,6 +378,7 @@ struct pipeline_factory
                     option_or(backend_opts.attn_min_q_rows, default_attn_min_q_rows(ctx)),
                 .attn_wide_head_kv_len  = option_or(backend_opts.attn_wide_head_kv_len,
                                                     default_attn_wide_head_kv_len(ctx)),
+                .unsupported_types      = fp8_types{}.get(),
                 .flash_decoding_enabled = mlir_flash_decoding_enabled()};
     }
 

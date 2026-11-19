@@ -388,10 +388,9 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(ins->get_shape().dynamic())
             return true;
-        // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS/hipBLASLt should
-        // have the support for it.
-        if(contains(fp8_types{}.get(), ins->get_shape().type()))
-            return false;
+        // fp8 GEMMs always go to MLIR instead of hipBLASLt
+        if(contains(fp8_types{}.get(), ins->inputs().front()->get_shape().type()))
+            return true;
         // MX types quantization has 4 inputs
         // having all MX GEMM go to MLIR
         if(ins->inputs().size() == 4)

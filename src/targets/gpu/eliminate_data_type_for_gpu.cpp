@@ -73,12 +73,6 @@ static eliminate_data_type for_fp8fnuz(const context* ctx)
 {
     std::set<std::string> unsupported_ops = {};
 
-    if(not hipblaslt_supported(*ctx))
-    {
-        unsupported_ops.insert("dot");
-        unsupported_ops.insert("quant_dot");
-    }
-
     insert_miopen_pooling(unsupported_ops);
 
     if(not gfx_has_fp8fnuz_intrinsics(*ctx))
@@ -92,12 +86,6 @@ static eliminate_data_type for_fp8fnuz(const context* ctx)
 static eliminate_data_type for_fp8ocp(const context* ctx)
 {
     std::set<std::string> unsupported_ops = {};
-
-    if(not hipblaslt_supported(*ctx))
-    {
-        unsupported_ops.insert("dot");
-        unsupported_ops.insert("quant_dot");
-    }
 
     insert_miopen_pooling(unsupported_ops);
 

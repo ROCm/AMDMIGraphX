@@ -74,16 +74,8 @@ TEST_CASE(reduce_unit_axis)
         auto all = m1.add_instruction(migraphx::make_op("reduce_all", {{"axes", {4}}}), x);
         m1.add_return({max, any, all});
     }
+    migraphx::module m2 = m1;
     run_pass(m1);
-
-    migraphx::module m2;
-    {
-        auto x   = m2.add_parameter("x", s);
-        auto max = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), x);
-        auto any = m2.add_instruction(migraphx::make_op("reduce_any", {{"axes", {4}}}), x);
-        auto all = m2.add_instruction(migraphx::make_op("reduce_all", {{"axes", {4}}}), x);
-        m2.add_return({max, any, all});
-    }
 
     EXPECT(m1.sort() == m2.sort());
 }

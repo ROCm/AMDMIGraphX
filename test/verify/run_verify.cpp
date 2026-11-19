@@ -227,9 +227,9 @@ void run_verify::verify(const program_info& pi) const
                 m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
             }
         }
-        for(auto&& input : pi.get_inputs())
+        for(auto&& [param_name, arg] : pi.get_inputs())
         {
-            m[input.first] = input.second;
+            m[param_name] = arg;
         }
         const migraphx::compile_options& c_opts = pi.compile_options;
         // Each init-capture below deep-copies m on this thread, before the task that

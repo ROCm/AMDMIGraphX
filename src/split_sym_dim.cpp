@@ -655,7 +655,6 @@ struct block_plan
 {
     std::vector<const symbolic_op_plan*> ops;
     std::vector<const root_spec*> roots;
-    std::vector<sym::expr> data_root_signature{};
 
     std::unordered_set<instruction_ref> instructions() const
     {
@@ -831,14 +830,20 @@ struct block_dependency_graph
 
     bool is_planned(instruction_ref ins) const { return assignment.is_assigned(ins); }
 
-    void add(block_plan block)
+    std::vector<sym::expr> data_root_signature(const block_plan& block) const
     {
+        std::vector<sym::expr> result;
         transform_if(
             block.roots.begin(),
             block.roots.end(),
-            std::back_inserter(block.data_root_signature),
+            std::back_inserter(result),
             [&](const auto* root) { return contains(data_roots, root->root); },
             [](const auto* root) { return root->root; });
+        return result;
+    }
+
+    void add(block_plan block)
+    {
         auto block_index = blocks.size();
         for(const auto* plan : block.ops)
             assignment.insert(plan->info.ins, block_index);
@@ -1012,14 +1017,13 @@ struct block_dependency_graph
         const auto source = std::max(x, y);
         if(target == source or blocks.at(target).ops.empty() or blocks.at(source).ops.empty())
             return std::nullopt;
-        if(blocks.at(target).data_root_signature != blocks.at(source).data_root_signature)
+        if(data_root_signature(blocks.at(target)) != data_root_signature(blocks.at(source)))
             return std::nullopt;
 
         auto merged_block =
             blocks.at(target).merged_with(blocks.at(source), plans, assignment, max_clones);
         if(not merged_block.has_value())
             return std::nullopt;
-        merged_block->data_root_signature = blocks.at(target).data_root_signature;
         auto candidate              = *this;
         candidate.blocks.at(target) = *merged_block;
         candidate.blocks.at(source).ops.clear();

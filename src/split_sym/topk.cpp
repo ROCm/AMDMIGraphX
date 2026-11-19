@@ -71,6 +71,7 @@ struct analyze_topk : analyzer<analyze_topk>
                                   const std::vector<instruction_ref>& args,
                                   const std::unordered_map<sym::expr, std::size_t>&)
     {
+        assert(not args.empty());
         auto padded_args = args;
         auto largest     = source->get_operator().to_value().at("largest").to<bool>();
         auto fill        = largest ? fill_kind::lowest : fill_kind::highest;

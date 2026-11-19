@@ -129,6 +129,15 @@ add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
 target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fnative-half-arguments-and-returns)
 target_link_options(compile_for_gpu INTERFACE  -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
+option(MIGRAPHX_CLANG_OFFLOAD_COMPRESS "Compress GPU device code with clang --offload-compress" ON)
+message(STATUS "MIGRAPHX_CLANG_OFFLOAD_COMPRESS = ${MIGRAPHX_CLANG_OFFLOAD_COMPRESS}")
+if(MIGRAPHX_CLANG_OFFLOAD_COMPRESS)
+    if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        target_compile_options(compile_for_gpu INTERFACE /clang:--offload-compress)
+    else()
+        target_compile_options(compile_for_gpu INTERFACE --offload-compress)
+    endif()
+endif()
 target_link_libraries(compile_for_gpu INTERFACE hip::device)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
 
@@ -184,6 +193,18 @@ migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
 
 function(post_verify_targets TARGET)
     string(REPLACE ";" "," _archs_csv "${GPU_TARGETS}")
+    set(_object_files_arg)
+    if(WIN32)
+        set(_obj_paths)
+        foreach(_src ${DEVICE_GPU_SRCS})
+            file(RELATIVE_PATH _rel "${CMAKE_CURRENT_SOURCE_DIR}" "${_src}")
+            string(REPLACE "\\" "/" _rel "${_rel}")
+            list(APPEND _obj_paths
+                "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${TARGET}.dir/${_rel}${CMAKE_CXX_OUTPUT_EXTENSION}")
+        endforeach()
+        string(REPLACE ";" "," _objs_csv "${_obj_paths}")
+        set(_object_files_arg -DOBJECT_FILES=${_objs_csv})
+    endif()
     add_custom_command(TARGET ${TARGET} POST_BUILD
         COMMAND ${CMAKE_COMMAND}
                 -DOBJDUMP=${LLVM_OBJDUMP}
@@ -191,6 +212,7 @@ function(post_verify_targets TARGET)
                 -DBUNDLER=${CLANG_OFFLOAD_BUNDLER}
                 -DREADOBJ=${LLVM_READOBJ}
                 -DTARGET_FILE=$<TARGET_FILE:${TARGET}>
+                ${_object_files_arg}
                 -DARCHS=${_archs_csv}
                 -P ${CMAKE_SOURCE_DIR}/cmake/verify_offload_archs.cmake
         VERBATIM
@@ -258,11 +280,11 @@ add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
     binary_cache.cpp
+    check_recompiled_memory.cpp
     code_object_op.cpp
     compiled_code.cpp
     compile_ops.cpp
     compile_gen.cpp
-    compile_gen_name.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
     compile_hipblaslt.cpp
@@ -273,6 +295,7 @@ add_library(migraphx_gpu
     device_name.cpp
     eliminate_data_type_for_gpu.cpp
     eliminate_device_copy.cpp
+    eliminate_recompile_anchors.cpp
     file_binary_cache.cpp
     fixed_pad.cpp
     fuse_ck.cpp
@@ -288,7 +311,6 @@ add_library(migraphx_gpu
     hip_graph.cpp
     hipgraphify.cpp
     hsa_chiplet.cpp
-    insert_mlir.cpp
     json_problem_cache.cpp
     kernel.cpp
     lower_device_ops.cpp
@@ -296,8 +318,7 @@ add_library(migraphx_gpu
     lowering.cpp
     loop.cpp
     lrn.cpp
-    mlir_backend_loader.cpp
-    mlir_common.cpp
+    mlir.cpp
     nms_ops.cpp
     no_device.cpp
     pack_args.cpp
@@ -306,6 +327,8 @@ add_library(migraphx_gpu
     prepare_reduce.cpp
     pooling.cpp
     problem_cache.cpp
+    record_compiled_for.cpp
+    restore_recipes.cpp
     rocblas.cpp
     schedule_model.cpp
     sqlite_binary_cache.cpp
@@ -380,9 +403,42 @@ rocm_clang_tidy_check(migraphx_gpu)
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
 
 if(MIGRAPHX_ENABLE_MLIR)
-    # rocMLIR is linked into runtime-loadable backend plugins rather than
-    # directly into migraphx_gpu.
+    # Find package rocMLIR
+    find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
+    message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
+
+    # Identify the rocMLIR build for the binary cache by hashing the libraries that get linked.
+    # That covers a locally built or substituted rocMLIR, which a recorded version or commit
+    # would not.
+    get_target_property(MIGRAPHX_ROCKCOMPILER_LIBS rocMLIR::rockCompiler IMPORTED_LOCATION)
+    if(NOT MIGRAPHX_ROCKCOMPILER_LIBS)
+        # rockCompiler is an interface target that names its archives as link dependencies:
+        # the fat librockCompiler.a on Linux, many smaller archives on Windows.
+        get_target_property(MIGRAPHX_ROCKCOMPILER_LIBS rocMLIR::rockCompiler
+                            INTERFACE_LINK_LIBRARIES)
+    endif()
+    # Only rocMLIR's own archives identify the build, so skip the upstream LLVM/MLIR archives
+    # also linked on Windows. Match the file name alone since paths can contain these names.
+    set(MIGRAPHX_ROCMLIR_LIBS "")
+    foreach(MIGRAPHX_ROCKCOMPILER_LIB IN LISTS MIGRAPHX_ROCKCOMPILER_LIBS)
+        get_filename_component(MIGRAPHX_ROCKCOMPILER_LIB_NAME "${MIGRAPHX_ROCKCOMPILER_LIB}"
+                               NAME)
+        string(TOLOWER "${MIGRAPHX_ROCKCOMPILER_LIB_NAME}" MIGRAPHX_ROCKCOMPILER_LIB_NAME)
+        if(MIGRAPHX_ROCKCOMPILER_LIB_NAME MATCHES "rock|roctarget|rocmlir|migraphx|mhal")
+            list(APPEND MIGRAPHX_ROCMLIR_LIBS "${MIGRAPHX_ROCKCOMPILER_LIB}")
+        endif()
+    endforeach()
+    migraphx_hash_libraries("${MIGRAPHX_ROCMLIR_LIBS}" MIGRAPHX_ROCMLIR_ID)
+    message(STATUS "rocMLIR binary cache id: ${MIGRAPHX_ROCMLIR_ID}")
+    target_compile_definitions(migraphx_gpu
+                               PRIVATE "-DMIGRAPHX_ROCMLIR_ID=\"${MIGRAPHX_ROCMLIR_ID}\"")
+    # Make this private to avoid multiple inclusions of LLVM symbols.
+    target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
+    # Hide LLVM internals that come from rocMLIR.
+    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
+        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
+    endif()
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
@@ -543,21 +599,6 @@ if(MIGRAPHX_USE_AMDMLSS)
         install(FILES "$<PATH:REPLACE_EXTENSION,LAST_ONLY,$<TARGET_FILE:amdmlss::amdmlss>,.pdb>"
              DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
     endif()
-endif()
-
-if(MIGRAPHX_ENABLE_MLIR)
-    set(MIGRAPHX_GPU_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-    set(MIGRAPHX_GPU_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
-    add_subdirectory(mlir_plugins)
-
-    # The binary cache must not share entries between plugins or rocMLIR builds, so key it on
-    # every plugin's id.
-    get_property(MIGRAPHX_MLIR_PLUGIN_IDS GLOBAL PROPERTY MIGRAPHX_MLIR_PLUGIN_IDS)
-    string(MD5 MIGRAPHX_ROCMLIR_ID "${MIGRAPHX_MLIR_PLUGIN_IDS}")
-    string(SUBSTRING "${MIGRAPHX_ROCMLIR_ID}" 0 12 MIGRAPHX_ROCMLIR_ID)
-    message(STATUS "rocMLIR binary cache id: ${MIGRAPHX_ROCMLIR_ID}")
-    target_compile_definitions(migraphx_gpu
-                               PRIVATE "-DMIGRAPHX_ROCMLIR_ID=\"${MIGRAPHX_ROCMLIR_ID}\"")
 endif()
 
 add_subdirectory(driver)

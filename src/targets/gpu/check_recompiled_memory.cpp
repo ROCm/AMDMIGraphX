@@ -21,53 +21,46 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/gpu/check_recompiled_memory.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
+#include <algorithm>
+#include <iterator>
+#include <string>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-namespace gen {
 
-namespace {
-std::vector<std::string> get_op_names(const module& m)
+static std::string describe(instruction_ref ins)
 {
-    std::vector<std::string> result;
-    for(auto& ins : m)
+    if(ins->name() == "gpu::code_object")
+        return ins->name() + "[" + any_cast<code_object_op>(ins->get_operator()).symbol_name + "]";
+    return ins->name();
+}
+
+void check_recompiled_memory::apply(const module& m) const
+{
+    std::vector<std::string> users;
+    for(const auto& ins : m)
     {
-        if(starts_with(ins.name(), "@"))
+        if(ins.name() != "hip::allocate")
             continue;
-        if(contains({"multibroadcast", "contiguous", "identity", "get_tuple_elem"}, ins.name()))
-            continue;
-        if(ins.name() == "pointwise")
-        {
-            auto names = get_op_names(*ins.module_inputs().front());
-            result.insert(result.end(), names.begin(), names.end());
-        }
-        else
-        {
-            result.push_back(ins.name());
-        }
+        std::transform(ins.outputs().begin(),
+                       ins.outputs().end(),
+                       std::back_inserter(users),
+                       [](instruction_ref out) { return describe(out); });
     }
-    return result;
-}
-} // namespace
-
-std::string generate_name_from_ops(const module& m, const std::string& postname)
-{
-    auto op_names = get_op_names(m);
-    if(not postname.empty())
-        op_names.push_back(postname);
-    if(op_names.empty())
-        return "noop";
-    return join_strings(op_names, "_");
+    if(not users.empty())
+        MIGRAPHX_THROW("recompile: the recompiled kernels need memory that the compiled program "
+                       "does not have (used by " +
+                       join_strings(users, ", ") + "); compile the model again");
 }
 
-} // namespace gen
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

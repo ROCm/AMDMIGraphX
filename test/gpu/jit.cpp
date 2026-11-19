@@ -222,6 +222,19 @@ TEST_CASE(simple_compile_hip)
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
 }
 
+TEST_CASE(concurrent_compile_hip_processes)
+{
+    constexpr std::size_t n = 8;
+    std::vector<std::vector<std::vector<char>>> binaries(n);
+    // Distinct flags keep the eight requests from being byte-identical.
+    migraphx::par_for(n, 1, [&](std::size_t i) {
+        binaries[i] = migraphx::gpu::compile_hip_src({make_src_file("main.cpp", write_2s)},
+                                                     {"-DMIGRAPHX_TEST_ID=" + std::to_string(i)},
+                                                     migraphx::gpu::get_device_name());
+    });
+    EXPECT(migraphx::all_of(binaries, [](const auto& result) { return result.size() == 1; }));
+}
+
 // The compiled write_2s code object
 static std::vector<char> compile_write_2s()
 {
@@ -303,7 +316,8 @@ TEST_CASE(compile_target)
 TEST_CASE(cross_compile_gpu_target_gfx1101)
 {
     // Verify a cross-compile gpu::context produces a code object for the requested arch.
-    migraphx::gpu::context ctx{migraphx::gpu::device_description{"gfx1101", 60, 1}};
+    migraphx::gpu::context ctx{
+        migraphx::gpu::device_description{.arch = "gfx1101", .num_cu = 60, .num_chiplets = 1}};
     auto binaries = migraphx::gpu::compile_hip_src(
         {make_src_file("main.cpp", add_2s_binary)}, {}, ctx.get_current_device().get_device_name());
     EXPECT(binaries.size() == 1);
@@ -314,7 +328,7 @@ TEST_CASE(cross_compile_gpu_target_gfx1101)
 TEST_CASE(cross_compile_wavefront_size)
 {
     auto wavefront_size = [](const std::string& arch, std::size_t ws = 0) {
-        migraphx::gpu::device_description desc{arch, 1};
+        migraphx::gpu::device_description desc{.arch = arch, .num_cu = 1};
         desc.wavefront_size = ws;
         desc.normalize();
         return desc.wavefront_size;

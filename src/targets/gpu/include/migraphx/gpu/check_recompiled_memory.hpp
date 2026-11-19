@@ -21,27 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_GPU_CHECK_RECOMPILED_MEMORY_HPP
+#define MIGRAPHX_GUARD_GPU_CHECK_RECOMPILED_MEMORY_HPP
 
-#include <migraphx/gpu/mlir.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/module.hpp>
+#include <migraphx/gpu/config.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+
 namespace gpu {
 
-instruction_ref insert_mlir(module& m,
-                            instruction_ref ins,
-                            code_object_op co,
-                            const std::vector<instruction_ref>& inputs)
+/// Throw when compile_ops added an allocation while recompiling, since the memory plan of the
+/// compiled program has no room for it
+struct MIGRAPHX_GPU_EXPORT check_recompiled_memory
 {
-    auto refs          = inputs;
-    co.expected_inputs = to_shapes(refs);
-    co.output_arg      = refs.size() - 1;
-    return m.insert_instruction(ins, co, refs);
-}
+    std::string name() const { return "gpu::check_recompiled_memory"; }
+    void apply(const module& m) const;
+};
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_CHECK_RECOMPILED_MEMORY_HPP

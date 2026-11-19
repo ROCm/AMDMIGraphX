@@ -463,24 +463,12 @@ struct miopen_apply
     {
         apply_map.emplace("dyn_concat", [=](instruction_ref ins) {
             auto inputs = ins->inputs();
-            bool fixed_strides =
-                all_of(range(inputs.begin() + 1, inputs.end()), [](instruction_ref input) {
-                    return input->get_shape().has_fixed_strides();
-                });
-            instruction_ref result;
-            if(fixed_strides)
-            {
-                result = insert_precompile_op(ins);
-            }
-            else
-            {
-                auto output = insert_allocation(ins, ins->get_shape());
-                inputs.push_back(output);
-                result = mod->replace_instruction(
-                    ins, make_op("gpu::dyn_concat", ins->get_operator().to_value()), inputs);
-            }
-            insert_fill(result, 0);
-            return result;
+            if(all_of(range(inputs.begin() + 1, inputs.end()),
+                      [](instruction_ref input) { return input->get_shape().has_fixed_strides(); }))
+                return insert_precompile_op(ins);
+            inputs.push_back(insert_allocation(ins, ins->get_shape()));
+            return mod->replace_instruction(
+                ins, make_op("gpu::dyn_concat", ins->get_operator().to_value()), inputs);
         });
     }
 

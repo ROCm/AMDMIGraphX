@@ -67,6 +67,9 @@ struct dyn_concat
 
     std::string name() const { return "dyn_concat"; }
 
+    // Kernels only write the valid extents, so targets zero the output buffer first.
+    value attributes() const { return {{"prefill", 0}}; }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.size() < 2)

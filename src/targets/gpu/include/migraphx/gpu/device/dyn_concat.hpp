@@ -27,7 +27,6 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/config.hpp>
 #include <hip/hip_runtime_api.h>
-#include <cstdint>
 #include <vector>
 
 namespace migraphx {
@@ -36,7 +35,7 @@ namespace gpu {
 namespace device {
 
 void MIGRAPHX_DEVICE_EXPORT dyn_concat(hipStream_t stream,
-                                       std::int64_t axis,
+                                       std::size_t axis,
                                        const argument& counts,
                                        const std::vector<argument>& inputs,
                                        const argument& output,

@@ -38,7 +38,7 @@ namespace device {
 // The nested callbacks mirror the host launch, block scan, and device copy hierarchy.
 // NOLINTNEXTLINE(readability-function-size)
 void dyn_concat(hipStream_t stream,
-                std::int64_t axis,
+                std::size_t axis,
                 const argument& counts,
                 const std::vector<argument>& inputs,
                 const argument& output,
@@ -47,14 +47,10 @@ void dyn_concat(hipStream_t stream,
     assert(not inputs.empty());
     // The kernel indexes the counts and the total through raw pointers.
     assert(counts.get_shape().standard() and total.get_shape().standard());
-    const std::int64_t rank = inputs.front().get_shape().ndim();
-    if(axis < 0)
-        axis += rank;
-    assert(axis >= 0 and axis < rank);
-    const index_int normalized_axis = axis;
-    const index_int ninputs         = inputs.size();
-    constexpr index_int block_size  = 256;
-    const index_int n_aligned       = ceil_mul_of(ninputs, block_size);
+    assert(axis < inputs.front().get_shape().ndim());
+    const index_int ninputs        = inputs.size();
+    constexpr index_int block_size = 256;
+    const index_int n_aligned      = ceil_mul_of(ninputs, block_size);
 
     hip_pointer_visit_all(counts, total)([&](auto counts_ptr, auto total_ptr) {
         for(std::size_t input_index = 0; input_index < inputs.size(); ++input_index)
@@ -87,10 +83,10 @@ void dyn_concat(hipStream_t stream,
                         return;
                     idx.global_stride(elements, [&](auto i) {
                         auto input_pos = input_view.get_shape().multi(i);
-                        if(input_pos[normalized_axis] >= count)
+                        if(input_pos[axis] >= count)
                             return;
                         auto output_pos = input_pos;
-                        output_pos[normalized_axis] += offset;
+                        output_pos[axis] += offset;
                         output_view[output_pos] = input_view[input_pos];
                     });
                 });

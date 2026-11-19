@@ -24,6 +24,7 @@
 #include <migraphx/gpu/dyn_concat.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/dyn_concat.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,8 +47,9 @@ hip_dyn_concat::compute(context& ctx, const shape&, const std::vector<argument>&
     const auto& output = args.back();
     auto outputs       = output.get_sub_objects();
     assert(outputs.size() == 2);
+    const std::size_t axis = tune_axis(inputs.front().get_shape().ndim(), op.axis, op.name());
     device::dyn_concat(
-        ctx.get_stream().get(), op.axis, counts, inputs, outputs.front(), outputs.back());
+        ctx.get_stream().get(), axis, counts, inputs, outputs.front(), outputs.back());
     return output;
 }
 

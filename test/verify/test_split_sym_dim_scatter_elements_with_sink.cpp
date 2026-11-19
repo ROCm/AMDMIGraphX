@@ -57,9 +57,9 @@ struct test_split_sym_dim_scatter_elements_with_sink
                                                update_nonzero);
         update_indices   = mm->add_instruction(
             migraphx::make_op("dyn_slice",
-                                {{"axes", {1}},
-                                 {"starts", {0}},
-                                 {"ends", migraphx::value::array{migraphx::to_value(update_count)}}}),
+                              {{"axes", {1}},
+                               {"starts", {0}},
+                               {"ends", migraphx::value::array{migraphx::to_value(update_count)}}}),
             update_indices,
             starts,
             update_size);

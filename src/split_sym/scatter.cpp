@@ -27,7 +27,6 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
 #include <algorithm>
-#include <limits>
 #include <numeric>
 
 namespace migraphx {
@@ -127,8 +126,6 @@ struct analyze_scatter : analyzer<analyze_scatter>
                                    data->get_shape().ndim());
         assert(axis.has_value());
         auto data_lens = data->get_shape().lens();
-        if(data_lens.at(*axis) == std::numeric_limits<std::size_t>::max())
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: scatter sink dimension overflows");
 
         // Zero-padded tail indices would overwrite a valid element zero. Append a disposable sink
         // element and redirect every tail update there instead.

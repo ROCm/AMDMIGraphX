@@ -135,9 +135,8 @@ TEST_CASE(lower_symbolic_output_buffer_reshape)
 TEST_CASE(output_buffer_layout_mismatch_reshape_is_not_lowered)
 {
     migraphx::module m1;
-    auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
-    auto output =
-        m1.add_parameter("output", {migraphx::shape::float_type, {6, 4}, {1, 6}});
+    auto x      = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+    auto output = m1.add_parameter("output", {migraphx::shape::float_type, {6, 4}, {1, 6}});
     auto r      = m1.add_instruction(migraphx::make_op("reshape"), x, output);
     m1.add_return({r});
 
@@ -149,8 +148,7 @@ TEST_CASE(output_buffer_layout_mismatch_reshape_is_not_lowered)
 TEST_CASE(output_buffer_nonpacked_input_reshape_is_not_lowered)
 {
     migraphx::module m1;
-    auto x =
-        m1.add_parameter("x", {migraphx::shape::float_type, {3, 2, 4}, {4, 12, 1}});
+    auto x      = m1.add_parameter("x", {migraphx::shape::float_type, {3, 2, 4}, {4, 12, 1}});
     auto output = m1.add_parameter("output", {migraphx::shape::float_type, {6, 4}});
     auto r      = m1.add_instruction(migraphx::make_op("reshape"), x, output);
     m1.add_return({r});

@@ -66,9 +66,9 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
                 if(max_per_class > 0)
                 {
                     const std::size_t per_class = max_per_class;
-                    auto scores_max = scores_shape.max_lens();
-                    auto batch      = scores_max.at(0);
-                    auto classes    = scores_max.at(1);
+                    auto scores_max             = scores_shape.max_lens();
+                    auto batch                  = scores_max.at(0);
+                    auto classes                = scores_max.at(1);
                     max_selected = std::min(max_selected, mul_sat(batch, classes, per_class));
                 }
             }

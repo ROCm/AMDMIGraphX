@@ -80,7 +80,7 @@ struct find_reshape : match::supports_dynamic_shapes
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins           = r.result;
+        auto ins                 = r.result;
         const bool output_buffer = ins->inputs().size() == 2;
         auto reshape_op =
             output_buffer

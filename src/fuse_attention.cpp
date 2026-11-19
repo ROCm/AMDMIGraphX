@@ -276,12 +276,12 @@ struct flash_decoding_split
         auto split       = ins;
         if(lens.size() == 1)
         {
-            split = insert_ops(
-                mm,
-                insert_before,
-                {make_op("reshape", {{"dims", {num_groups, lens.back() / num_groups}}}),
-                 make_op("unsqueeze", {{"axes", {1}}})},
-                ins);
+            split =
+                insert_ops(mm,
+                           insert_before,
+                           {make_op("reshape", {{"dims", {num_groups, lens.back() / num_groups}}}),
+                            make_op("unsqueeze", {{"axes", {1}}})},
+                           ins);
         }
         else
         {
@@ -481,8 +481,8 @@ struct flash_decoding_split
 
         const auto gemm1 = first_dot(source_mod);
         target_mod.add_instructions(source_mod.begin(), gemm1, &map_old_to_new, rewrite);
-        auto& query = map_old_to_new.at(gemm1->inputs().front());
-        query       = insert_ops(target_mod, target_mod.end(), q_ops, query);
+        auto& query  = map_old_to_new.at(gemm1->inputs().front());
+        query        = insert_ops(target_mod, target_mod.end(), q_ops, query);
         auto outputs = target_mod.add_instructions(gemm1, last, &map_old_to_new, rewrite);
 
         assert(outputs.size() == 1 and "Attention submodule must have a single output");
@@ -506,9 +506,8 @@ struct flash_decoding_split
                             const std::vector<operation>& output_views) const
     {
         const auto g_axis = static_cast<int64_t>(scores_lens.size() - 2);
-        auto o_prime =
-            mm.insert_instruction(pos, make_op("get_tuple_elem", {{"index", 0}}), group);
-        auto lse = mm.insert_instruction(pos, make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto o_prime = mm.insert_instruction(pos, make_op("get_tuple_elem", {{"index", 0}}), group);
+        auto lse     = mm.insert_instruction(pos, make_op("get_tuple_elem", {{"index", 1}}), group);
 
         // find max LSE across groups for numerical stability
         auto lse_max = mm.insert_instruction(pos, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
@@ -1697,9 +1696,8 @@ struct find_kv_cache_flash_decoding
         // A packed cache is split on its sequence axis before the head repeat.
         // A K or V parameter keeps the generic split. The query is split while the
         // softmax body is copied. An unrecognized K or V view drops this module.
-        for(const auto& input :
-            {dot_input_split{operands->k, transform.k_ops, transform.k_shape},
-             dot_input_split{operands->v, transform.v_ops, transform.v_shape}})
+        for(const auto& input : {dot_input_split{operands->k, transform.k_ops, transform.k_shape},
+                                 dot_input_split{operands->v, transform.v_ops, transform.v_shape}})
         {
             if(not built.place(input))
                 return;
@@ -1733,8 +1731,7 @@ struct find_kv_cache_flash_decoding
                                                make_op("group", {{"tag", "kv_cache_attention"}}),
                                                attn_group_ins->inputs(),
                                                {flash_mod});
-        auto combined =
-            decoding.combine(mm, attn_group_ins, new_group, operands->output_views);
+        auto combined  = decoding.combine(mm, attn_group_ins, new_group, operands->output_views);
         assert(combined->get_shape().lens() == attn_group_ins->get_shape().lens() and
                combined->get_shape().type() == attn_group_ins->get_shape().type());
         mm.replace_instruction(attn_group_ins, combined);
@@ -1784,9 +1781,7 @@ void fuse_attention::apply(module_pass_manager& mpm) const
                                            .threshold      = flash_decoding_threshold,
                                            .max_splits     = flash_decoding_max_splits,
                                            .min_chunk_size = flash_decoding_min_chunk_size};
-        match::find_matches(mpm,
-                            find_flash_decoding{config},
-                            find_kv_cache_flash_decoding{config});
+        match::find_matches(mpm, find_flash_decoding{config}, find_kv_cache_flash_decoding{config});
         mpm.run_pass(dead_code_elimination{});
     }
 }

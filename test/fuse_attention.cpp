@@ -1107,16 +1107,14 @@ TEST_CASE(kv_flash_decoding_ambiguous_cache_axis)
             [=](auto* gm, const auto& inputs) {
                 auto ninf = gm->add_literal(
                     migraphx::literal{s_half, {-std::numeric_limits<float>::infinity()}});
-                auto scale = gm->add_literal(migraphx::literal{s_half, {0.5}});
-                auto range = gm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3}});
+                auto scale   = gm->add_literal(migraphx::literal{s_half, {0.5}});
+                auto range   = gm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3}});
                 auto k_split = gm->add_instruction(
                     migraphx::make_op("reshape", {{"dims", {1, 2, 1, 2, 2, 4}}}), inputs.at(2));
                 auto k_tsp = gm->add_instruction(
-                    migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 3, 5, 4}}}),
-                    k_split);
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 3, 5, 4}}}), k_split);
                 auto k_bc = gm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2, 4, 2}}}),
-                    k_tsp);
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2, 4, 2}}}), k_tsp);
                 auto k = gm->add_instruction(
                     migraphx::make_op("reshape", {{"dims", {1, 4, 2, 4, 2}}}), k_bc);
                 auto v_split = gm->add_instruction(
@@ -5334,8 +5332,7 @@ TEST_CASE(kv_flash_decoding_packed_gqa)
                 auto k_split = gm->add_instruction(
                     migraphx::make_op("reshape", {{"dims", {1, 2, 1, 2, 4, 4}}}), inputs.at(2));
                 auto k_tsp = gm->add_instruction(
-                    migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 3, 5, 4}}}),
-                    k_split);
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 3, 5, 4}}}), k_split);
                 auto k_bc = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2, 4, 4}}}), k_tsp);
                 auto k = gm->add_instruction(

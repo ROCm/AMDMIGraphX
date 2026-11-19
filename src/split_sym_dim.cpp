@@ -1331,35 +1331,12 @@ struct clone_output_case
 {
     std::unordered_map<sym::expr, std::size_t> freeze;
     std::vector<shape> outputs;
-    std::vector<std::size_t> output_indices;
 };
 
-struct block_output_alias_map
+bool all_distinct(const std::vector<instruction_ref>& instructions)
 {
-    std::vector<instruction_ref> physical_outputs;
-    std::vector<std::size_t> logical_to_physical;
-    std::vector<std::size_t> physical_to_representative;
-};
-
-block_output_alias_map make_block_output_alias_map(const std::vector<instruction_ref>& outputs)
-{
-    block_output_alias_map result;
-    std::unordered_map<instruction_ref, std::size_t> physical_indices;
-    std::transform(outputs.begin(),
-                   outputs.end(),
-                   std::back_inserter(result.logical_to_physical),
-                   [&](instruction_ref output) {
-                       auto [found, inserted] =
-                           physical_indices.emplace(output, result.physical_outputs.size());
-                       if(inserted)
-                       {
-                           result.physical_outputs.push_back(output);
-                           result.physical_to_representative.push_back(
-                               result.logical_to_physical.size());
-                       }
-                       return found->second;
-                   });
-    return result;
+    std::unordered_set<instruction_ref> unique(instructions.begin(), instructions.end());
+    return unique.size() == instructions.size();
 }
 
 bool represents_clone_outputs(const shape& candidate,
@@ -2025,8 +2002,7 @@ struct block_frame
                        outputs.end(),
                        std::back_inserter(clone_outputs),
                        [&](const sliced_value& output) { return values.at(output.source); });
-        auto output_aliases = make_block_output_alias_map(clone_outputs);
-        clone_module.add_return(output_aliases.physical_outputs);
+        clone_module.add_return(clone_outputs);
         run_passes(clone_module, {dead_code_elimination{}});
         clone_outputs = clone_module.get_returns();
         auto dynamic_output =
@@ -2063,8 +2039,7 @@ struct block_frame
                     clone_module = std::move(static_clone);
             }
         }
-        return {std::move(clone_module),
-                {freeze, std::move(output_shapes), std::move(output_aliases.logical_to_physical)}};
+        return {std::move(clone_module), {freeze, std::move(output_shapes)}};
     }
 
     void
@@ -2086,42 +2061,26 @@ struct block_frame
                        outputs.end(),
                        std::back_inserter(output_sources),
                        [](const auto& output) { return output.source; });
-        auto output_aliases = make_block_output_alias_map(output_sources);
-        if(any_of(clone_outputs, [&](const auto& output) {
-               return output.output_indices != output_aliases.logical_to_physical;
-           }))
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: clone output aliases are inconsistent");
-        auto logical_indices = range(output_aliases.logical_to_physical.size());
-        if(output_aliases.logical_to_physical.size() != output_aliases.physical_outputs.size() or
-           not std::equal(output_aliases.logical_to_physical.begin(),
-                          output_aliases.logical_to_physical.end(),
-                          logical_indices.begin()))
+        if(not all_distinct(output_sources))
             MIGRAPHX_THROW(
                 "SPLIT_SYM_DIM: multiple logical views of one physical output are unsupported");
+        if(any_of(clones,
+                  [](const module& clone) { return not all_distinct(clone.get_returns()); }))
+            MIGRAPHX_THROW("SPLIT_SYM_DIM: clone output aliases are inconsistent");
 
-        std::vector<shape> dispatch_output_shapes;
-        auto physical_output_indices = range(output_aliases.physical_outputs.size());
-        std::transform(physical_output_indices.begin(),
-                       physical_output_indices.end(),
-                       std::back_inserter(dispatch_output_shapes),
-                       [&](auto physical_output_index) {
-                           auto logical_output =
-                               output_aliases.physical_to_representative.at(physical_output_index);
-                           auto source = outputs.at(logical_output).source;
-                           return dispatch_shape_for_clones(plans.at(source).dispatch_output,
-                                                            clone_outputs,
-                                                            physical_output_index);
-                       });
         std::vector<shape> selected_output_shapes;
-        auto logical_output_indices = range(outputs.size());
-        std::for_each(
-            logical_output_indices.begin(), logical_output_indices.end(), [&](auto output_index) {
-                auto physical_output_index = output_aliases.logical_to_physical.at(output_index);
-                const auto& output         = outputs.at(output_index);
-                selected_output_shapes.push_back(
-                    make_select_output_shape(dispatch_output_shapes.at(physical_output_index),
-                                             output,
-                                             plans.at(output.source).info));
+        auto output_indices = range(outputs.size());
+        std::transform(
+            output_indices.begin(),
+            output_indices.end(),
+            std::back_inserter(selected_output_shapes),
+            [&](auto output_index) {
+                const auto& output = outputs.at(output_index);
+                const auto& plan   = plans.at(output.source);
+                return make_select_output_shape(
+                    dispatch_shape_for_clones(plan.dispatch_output, clone_outputs, output_index),
+                    output,
+                    plan.info);
             });
         auto selected_outputs = insert_select_module(
             mpm, m, selection_inputs, std::move(clones), selected_output_shapes);

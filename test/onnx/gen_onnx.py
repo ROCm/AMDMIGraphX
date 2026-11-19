@@ -1207,6 +1207,168 @@ def castlike_error_test():
 
 
 @onnx_test()
+def causal_conv_with_state_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 2, 4])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 1, 3])
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         [1, 2, 2])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2, 4])
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            [1, 2, 2])
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        activation='silu',
+        domain='com.microsoft')
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_no_state_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 2, 4])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 1, 3])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2, 4])
+
+    node = onnx.helper.make_node('CausalConvWithState',
+                                 inputs=['input', 'weight'],
+                                 outputs=['output'],
+                                 domain='com.microsoft')
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def causal_conv_with_state_dilation_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT16, [1, 2, 6])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT16, [2, 1, 3])
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [2])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT16,
+                                         [1, 2, 4])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT16, [1, 2, 6])
+    present = helper.make_tensor_value_info('present_state',
+                                            TensorProto.FLOAT16, [1, 2, 4])
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        activation='none',
+        dilation=2,
+        domain='com.microsoft')
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_channels_last_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 3, 2, 2])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [4, 1, 3])
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [4])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         [1, 2, 2, 2])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                      [1, 3, 2, 2])
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        activation='swish',
+        channels_last=1,
+        domain='com.microsoft')
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_window_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 2, 2])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 1, 3])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         [3, 1, 2, 2])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2, 2])
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            [3, 1, 2, 2])
+
+    node = onnx.helper.make_node('CausalConvWithState',
+                                 inputs=['input', 'weight', '', 'past_state'],
+                                 outputs=['output', 'present_state'],
+                                 state_window=3,
+                                 domain='com.microsoft')
+
+    return ([node], [x, w, past], [y, present])
+
+
+def causal_conv_with_state_error_model(input_dims=[1, 2, 4],
+                                       weight_dims=[2, 1, 3],
+                                       bias_dims=[2],
+                                       past_dims=[1, 2, 2],
+                                       **attrs):
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_dims)
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, weight_dims)
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT, bias_dims)
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         past_dims)
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, input_dims)
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            past_dims)
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        domain='com.microsoft',
+        **attrs)
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_activation_error_test():
+    return causal_conv_with_state_error_model(activation='relu')
+
+
+@onnx_test()
+def causal_conv_with_state_ndim_error_test():
+    return causal_conv_with_state_error_model(input_dims=[1, 2, 4, 4],
+                                              weight_dims=[2, 1, 3, 3],
+                                              past_dims=[1, 2, 4, 2],
+                                              ndim=2)
+
+
+@onnx_test()
+def causal_conv_with_state_dilation_error_test():
+    return causal_conv_with_state_error_model(dilation=0)
+
+
+@onnx_test()
+def causal_conv_with_state_window_error_test():
+    return causal_conv_with_state_error_model(past_dims=[9, 1, 2, 2],
+                                              state_window=9)
+
+
+@onnx_test()
+def causal_conv_with_state_weight_error_test():
+    return causal_conv_with_state_error_model(weight_dims=[2, 2, 3])
+
+
+@onnx_test()
+def causal_conv_with_state_bias_error_test():
+    return causal_conv_with_state_error_model(bias_dims=[3])
+
+
+@onnx_test()
+def causal_conv_with_state_past_state_error_test():
+    return causal_conv_with_state_error_model(past_dims=[1, 2, 3])
+
+
+@onnx_test()
 def ceil_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])

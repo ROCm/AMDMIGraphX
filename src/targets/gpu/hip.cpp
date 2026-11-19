@@ -137,8 +137,6 @@ static std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
 template <class T>
 static std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 {
-    if(sz == 0)
-        return {};
     gpu_sync();
     std::vector<T> result(sz);
     assert(not is_device_ptr(result.data()));

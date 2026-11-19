@@ -465,11 +465,7 @@ struct miopen_apply
             auto inputs = ins->inputs();
             bool fixed_strides =
                 all_of(range(inputs.begin() + 1, inputs.end()), [](instruction_ref input) {
-                    const auto& s = input->get_shape();
-                    return not s.dynamic() or
-                           (s.symbolic() and all_of(s.dyn_strides(), [](const auto& stride) {
-                                return sym::fixed_value(stride).has_value();
-                            }));
+                    return input->get_shape().has_fixed_strides();
                 });
             instruction_ref result;
             if(fixed_strides)

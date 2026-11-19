@@ -141,7 +141,7 @@ struct symbolic_op_info
     // Inputs that only carry shape metadata, such as allocate dims; they are not operands.
     std::vector<std::size_t> shape_input_indices;
     bool supported = false;
-    // Isolated specializations avoid duplicating large producer blocks across independent roots.
+    // False keeps the operation in its own block so producers are not cloned per root combination.
     bool allow_block_merge = true;
     // Static parameter shapes are required for operations whose output layout depends on them.
     bool force_static_parameters = false;
@@ -270,9 +270,8 @@ symbolic_op_info analyze_axes(instruction_ref ins,
                               const OutputRule& output_rule,
                               const InputRule& input_rule)
 {
-    symbolic_op_info info{ins};
     return analyze_axes(
-        ins, info.get_output_shape(), std::move(shape_input_indices), output_rule, input_rule);
+        ins, ins->get_shape(), std::move(shape_input_indices), output_rule, input_rule);
 }
 
 template <class OutputRule, class InputRule>

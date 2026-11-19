@@ -25,6 +25,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `MIGRAPHX_SHARE_LITERALS` keeping every pooled weight in device and host memory until the process exited; a pooled weight is now freed with the last program that uses it (#5566).
 * Fixed GPU kernel compilation aborting on HIP toolchains whose clang emits the experimental `-Wlifetime-safety-experimental-field-origin-escape` warning, which is treated as an error under the `-Weverything -Werror` flags used for JIT kernel compilation and is a false positive on `tensor_view`'s non-owning pointer accessors (ROCM-34291).
 * Fixed `compute_broadcasted_lens` broadcasting a dimension of 1 to 1 instead of 0 when the other dimension is 0, which made `broadcast_with_dims` produce one element for an empty target dimension (#5529).
 * Fixed the GPU `rewrite_reduce` pass's `mean(x^2) - mean(x)^2` rewrite of `LayerNormalization`-style variance reductions producing `NaN` outputs from catastrophic cancellation at large input magnitude, by clamping the computed variance to zero before it reaches `rsqrt` (AIMIGRAPHX-1376).

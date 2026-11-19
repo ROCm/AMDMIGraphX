@@ -4799,11 +4799,11 @@ TEST_CASE(split_sym_dim_data_dependent_nonzero_root)
     auto target_count = var("split_sym_dim_nonzero_count_target", {0, 4}, {1, 4});
     auto select       = expected_main.add_instruction(
         migraphx::make_op("select_module",
-                                {{"output_dyn_shapes",
-                                  migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
+                          {{"output_dyn_shapes",
+                            migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{
                                 migraphx::shape{migraphx::shape::float_type,
-                                                      {dd{lit(2)}, dd{count}},
-                                                      {target_count, lit(1)}}}})}}),
+                                                {dd{lit(2)}, dd{count}},
+                                                {target_count, lit(1)}}}})}}),
         std::vector<migraphx::instruction_ref>{expected_selected},
         modules);
     auto expected_output =

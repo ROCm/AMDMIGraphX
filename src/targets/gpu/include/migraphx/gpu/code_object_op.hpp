@@ -28,6 +28,8 @@
 #include <migraphx/value.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/module_ref.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 #include <map>
@@ -51,6 +53,9 @@ struct code_object_op
     value annotations = value::object{};
 
     std::map<std::size_t, kernel_argument_value> kernel_args{};
+    // Assigned by compile_ops: code objects with the same module_id hold the same binary and
+    // share one loaded module through the context; -1 loads a private module.
+    std::int64_t module_id = -1;
     // Pre-packed kernarg buffer built in finalize(); not reflected.
     std::vector<char> packed_kernargs{};
     // (runtime arg index, byte offset) pairs for pointer patching in compute().
@@ -69,7 +74,8 @@ struct code_object_op
                     f(self.output, "output"),
                     f(self.output_arg, "output_arg"),
                     f(self.annotations, "annotations"),
-                    f(self.kernel_args, "kernel_args"));
+                    f(self.kernel_args, "kernel_args"),
+                    f(self.module_id, "module_id"));
     }
 
     value attributes() const
@@ -84,6 +90,10 @@ struct code_object_op
 
     std::string name() const { return "gpu::code_object"; }
     shape compute_shape(std::vector<shape> inputs) const;
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
+    {
+        return compute_shape(inputs);
+    }
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     void finalize(context&, const shape&, const std::vector<shape>&);
@@ -107,6 +117,8 @@ struct code_object_op
             os << "output_arg=" << op.output_arg << ",";
         if(not op.annotations.empty())
             os << "annotations=" << op.annotations << ",";
+        if(op.module_id != -1)
+            os << "module_id=" << op.module_id << ",";
         os << "]";
         return os;
     }

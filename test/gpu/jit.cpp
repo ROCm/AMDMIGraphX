@@ -32,6 +32,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/kernel.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
@@ -221,6 +222,71 @@ TEST_CASE(simple_compile_hip)
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
 }
 
+// The compiled write_2s code object
+static std::vector<char> compile_write_2s()
+{
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, {}, migraphx::gpu::get_device_name());
+    EXPECT(binaries.size() == 1);
+    return binaries.front();
+}
+
+TEST_CASE(kernels_share_module)
+{
+    auto binary = compile_write_2s();
+    migraphx::gpu::code_module m{binary};
+    // Both resolve to the same function handle in the one module, and it still runs
+    migraphx::gpu::kernel k1{m, "write"};
+    migraphx::gpu::kernel k2{m, "write"};
+    EXPECT(k1.get_function() == k2.get_function());
+    // A kernel loaded from the image on its own gets a module of its own
+    migraphx::gpu::kernel k3{binary, "write"};
+    EXPECT(k3.get_function() != k1.get_function());
+
+    migraphx::argument input{{migraphx::shape::int8_type, {5}}};
+    auto ginput = migraphx::gpu::to_gpu(input);
+    k2.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int8_t>());
+    auto output = migraphx::gpu::from_gpu(ginput);
+    auto data   = output.get<std::int8_t>();
+    EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+// Function handle of a write-kernel code object with the given module_id after finalizing in ctx
+static hipFunction_t finalize_write_kernel(migraphx::context& ctx,
+                                           const std::vector<char>& binary,
+                                           std::int64_t module_id)
+{
+    migraphx::shape input{migraphx::shape::int8_type, {5}};
+    auto op = migraphx::make_op(
+        "gpu::code_object",
+        {{"code_object", migraphx::value::binary{binary}},
+         {"symbol_name", "write"},
+         {"global", input.elements()},
+         {"local", 1024},
+         {"expected_inputs", migraphx::to_value(std::vector<migraphx::shape>{input})},
+         {"output", migraphx::to_value(input)},
+         {"module_id", module_id}});
+    op.finalize(ctx, input, {input});
+    return migraphx::any_cast<migraphx::gpu::code_object_op>(op).k.get_function();
+}
+
+TEST_CASE(code_objects_with_module_id_share_module)
+{
+    auto binary           = compile_write_2s();
+    migraphx::context ctx = migraphx::gpu::context{};
+
+    hipFunction_t shared1 = finalize_write_kernel(ctx, binary, 0);
+    hipFunction_t shared2 = finalize_write_kernel(ctx, binary, 0);
+    EXPECT(shared1 == shared2);
+
+    // A different id or no id loads a module of its own
+    hipFunction_t other = finalize_write_kernel(ctx, binary, 1);
+    EXPECT(other != shared1);
+    hipFunction_t unshared = finalize_write_kernel(ctx, binary, -1);
+    EXPECT(unshared != shared1);
+    EXPECT(unshared != other);
+}
+
 static auto check_target(const std::string& arch)
 {
     auto define  = "__" + arch + "__";
@@ -237,7 +303,8 @@ TEST_CASE(compile_target)
 TEST_CASE(cross_compile_gpu_target_gfx1101)
 {
     // Verify a cross-compile gpu::context produces a code object for the requested arch.
-    migraphx::gpu::context ctx{migraphx::gpu::device_description{"gfx1101", 60, 1}};
+    migraphx::gpu::context ctx{
+        migraphx::gpu::device_description{.arch = "gfx1101", .num_cu = 60, .num_chiplets = 1}};
     auto binaries = migraphx::gpu::compile_hip_src(
         {make_src_file("main.cpp", add_2s_binary)}, {}, ctx.get_current_device().get_device_name());
     EXPECT(binaries.size() == 1);
@@ -248,7 +315,7 @@ TEST_CASE(cross_compile_gpu_target_gfx1101)
 TEST_CASE(cross_compile_wavefront_size)
 {
     auto wavefront_size = [](const std::string& arch, std::size_t ws = 0) {
-        migraphx::gpu::device_description desc{arch, 1};
+        migraphx::gpu::device_description desc{.arch = arch, .num_cu = 1};
         desc.wavefront_size = ws;
         desc.normalize();
         return desc.wavefront_size;

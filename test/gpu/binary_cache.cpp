@@ -45,7 +45,9 @@
 #include <migraphx/gpu/compiled_code.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
@@ -321,16 +323,63 @@ TEST_CASE(duplicate_kernels_compile_once_without_a_directory)
 
     auto p1 = two_identical_pointwise();
     migraphx::run_passes(*p1.get_main_module(),
-                         {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::compile_ops{&ctx}});
+                         {migraphx::gpu::lowering{&ctx, false},
+                          migraphx::gpu::eliminate_device_copy{},
+                          migraphx::gpu::compile_ops{&ctx}});
     EXPECT(count_code_objects(*p1.get_main_module()) == 2);
     EXPECT(cache->get_stats().compiled == 1);
 
     auto p2 = two_identical_pointwise();
     migraphx::run_passes(*p2.get_main_module(),
-                         {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::compile_ops{&ctx}});
+                         {migraphx::gpu::lowering{&ctx, false},
+                          migraphx::gpu::eliminate_device_copy{},
+                          migraphx::gpu::compile_ops{&ctx}});
     EXPECT(count_code_objects(*p2.get_main_module()) == 2);
     EXPECT(cache->get_stats().compiled == 1);
     EXPECT(cache->get_stats().reused == 1);
+}
+
+// module_id of every code object in m, in instruction order
+static std::vector<std::int64_t> module_ids(const migraphx::module& m)
+{
+    std::vector<std::int64_t> ids;
+    migraphx::transform_if(
+        m.begin(),
+        m.end(),
+        std::back_inserter(ids),
+        [](const auto& ins) { return ins.name() == "gpu::code_object"; },
+        [](const auto& ins) {
+            return migraphx::any_cast<migraphx::gpu::code_object_op>(ins.get_operator()).module_id;
+        });
+    return ids;
+}
+
+TEST_CASE(identical_kernels_get_the_same_module_id)
+{
+    migraphx::gpu::context ctx{0, 1};
+    auto p = two_identical_pointwise();
+    migraphx::run_passes(p,
+                         {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::compile_ops{&ctx}});
+    EXPECT(module_ids(*p.get_main_module()) == std::vector<std::int64_t>{0, 0});
+
+    // Rerunning keeps the numbering
+    migraphx::run_passes(p, {migraphx::gpu::compile_ops{&ctx}});
+    EXPECT(module_ids(*p.get_main_module()) == std::vector<std::int64_t>{0, 0});
+}
+
+TEST_CASE(different_kernels_get_different_module_ids)
+{
+    migraphx::gpu::context ctx{0, 1};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    auto x   = mm->add_parameter("x", s);
+    auto add = add_pointwise(p, "main:pointwise0", {x, x}, single_pointwise("add"));
+    auto mul = add_pointwise(p, "main:pointwise1", {add, x}, single_pointwise("mul"));
+    mm->add_return({mul});
+    migraphx::run_passes(p,
+                         {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::compile_ops{&ctx}});
+    EXPECT(module_ids(*mm) == std::vector<std::int64_t>{0, 1});
 }
 
 static migraphx::program same_pointwise_in_two_submodules()
@@ -366,11 +415,16 @@ TEST_CASE(same_kernel_in_two_submodules_compiles_once)
 
     auto p = same_pointwise_in_two_submodules();
     migraphx::run_passes(p,
-                         {migraphx::gpu::lowering{&ctx, false}, migraphx::gpu::compile_ops{&ctx}});
+                         {migraphx::gpu::lowering{&ctx, false},
+                          migraphx::gpu::eliminate_device_copy{},
+                          migraphx::gpu::compile_ops{&ctx}});
     EXPECT(count_code_objects(*p.get_module("If_0_if")) == 1);
     EXPECT(count_code_objects(*p.get_module("If_0_else")) == 1);
     EXPECT(cache->get_stats().compiled == 1);
     EXPECT(cache->get_stats().reused == 0);
+    // Both submodules share the module too
+    EXPECT(module_ids(*p.get_module("If_0_if")) == std::vector<std::int64_t>{0});
+    EXPECT(module_ids(*p.get_module("If_0_else")) == std::vector<std::int64_t>{0});
 }
 
 // Compiling twice against the same cache has to leave entries behind and keep producing the
@@ -436,6 +490,38 @@ static void verified_reuse_matches_fresh_compiles()
 
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<directory_backend>);
 TEST_CASE_REGISTER(verified_reuse_matches_fresh_compiles<database_backend>);
+
+// Benchmarking compiles every candidate solution, but when the problem cache saves the choice a
+// later compile only ever needs the winner, so only winners are stored.
+template <class Backend>
+static void persisted_problem_cache_stores_only_winners()
+{
+    migraphx::tmp_dir all_td{"binary-cache"};
+    migraphx::tmp_dir winners_td{"binary-cache"};
+    migraphx::tmp_dir problems_td{"problem-cache"};
+    auto all_path        = Backend::path(all_td);
+    auto winners_path    = Backend::path(winners_td);
+    auto winners_options = cache_options(winners_path);
+    migraphx::set_backend_options(
+        winners_options,
+        {{"problem_cache_files",
+          migraphx::value::array{(problems_td.path / "problems.json").string()}}});
+
+    // Large enough that the block reduction offers two block sizes to benchmark.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {2, 4096}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x)});
+    auto p_winners = p;
+
+    p.compile(migraphx::make_target("gpu"), cache_options(all_path));
+    p_winners.compile(migraphx::make_target("gpu"), winners_options);
+
+    EXPECT(Backend::stored(winners_path) > 0);
+    EXPECT(Backend::stored(winners_path) < Backend::stored(all_path));
+}
+TEST_CASE_REGISTER(persisted_problem_cache_stores_only_winners<directory_backend>);
+TEST_CASE_REGISTER(persisted_problem_cache_stores_only_winners<database_backend>);
 
 // The extension of the path picks the backend and nothing else does, so the only way to see the
 // choice from outside is the artifact it leaves: a database file, or a directory tree.

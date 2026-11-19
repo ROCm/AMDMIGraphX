@@ -151,19 +151,19 @@ static void expect_nms_result(const migraphx::program& p)
 static bool has_out_of_scope_kernel(const migraphx::program& p)
 {
     static const std::vector<std::string> out_of_scope = {"gpu::gemm",
-                                                           "gpu::quant_gemm",
-                                                           "gpu::hip_gemm",
-                                                           "gpu::hip_quant_gemm",
-                                                           "gpu::hipblaslt_op",
-                                                           "gpu::convolution",
-                                                           "gpu::quant_convolution",
-                                                           "gpu::convolution_backwards",
-                                                           "gpu::miopen_op",
-                                                           "gpu::miopen_fusion",
-                                                           "gpu::conv_bias",
-                                                           "gpu::conv_bias_relu",
-                                                           "gpu::lrn",
-                                                           "gpu::mlss_conv"};
+                                                          "gpu::quant_gemm",
+                                                          "gpu::hip_gemm",
+                                                          "gpu::hip_quant_gemm",
+                                                          "gpu::hipblaslt_op",
+                                                          "gpu::convolution",
+                                                          "gpu::quant_convolution",
+                                                          "gpu::convolution_backwards",
+                                                          "gpu::miopen_op",
+                                                          "gpu::miopen_fusion",
+                                                          "gpu::conv_bias",
+                                                          "gpu::conv_bias_relu",
+                                                          "gpu::lrn",
+                                                          "gpu::mlss_conv"};
     for(const auto* mod : p.get_modules())
     {
         for(auto ins : migraphx::iterator_for(*mod))
@@ -696,7 +696,7 @@ TEST_CASE(recompilable_avoids_out_of_scope_kernels)
     // channels_first keeps the convolution out of is_mlir_conv's "always use mlir for NHWC"
     // shortcut, so its square, 3-divisible 3x3 kernel exercises the same fast-mode profitability
     // check (false by default) that the forcing bypasses.
-    auto options                              = recipe_options();
+    auto options                                  = recipe_options();
     options.backend_options["convolution_layout"] = "channels_first";
     p.compile(cross_target("gfx942"), options);
 

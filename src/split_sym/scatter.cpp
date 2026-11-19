@@ -114,11 +114,7 @@ struct analyze_scatter : analyzer<analyze_scatter>
         if(not updates->get_shape().standard())
             updates = m.add_instruction(make_op("contiguous"), updates);
 
-        std::vector<std::pair<std::size_t, sym::expr>> prefix_axes;
-        if(original_indices.symbolic())
-            for(std::size_t axis = 0; axis < original_indices.ndim(); ++axis)
-                if(is_variable_axis(original_indices.dyn_dims().at(axis)))
-                    prefix_axes.emplace_back(axis, original_indices.dyn_dims().at(axis).sym_expr);
+        auto prefix_axes = variable_prefix_axes(original_indices, original_indices.ndim());
 
         if(prefix_axes.empty())
         {

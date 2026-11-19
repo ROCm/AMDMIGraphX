@@ -187,6 +187,9 @@ std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank);
 
 bool has_nonnegative_values(instruction_ref ins);
 
+std::vector<std::pair<std::size_t, sym::expr>> variable_prefix_axes(const shape& s,
+                                                                    std::size_t naxes);
+
 instruction_ref make_prefix_mask(module& m,
                                  const std::vector<std::size_t>& prefix_lens,
                                  const std::vector<std::pair<std::size_t, sym::expr>>& prefix_axes);

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/split_sym/analyzer.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <limits>
@@ -131,6 +132,23 @@ bool has_nonnegative_values(instruction_ref ins)
     }
     return (source->name() == "topk" and index == 1) or
            (contains({"nonzero", "nonmaxsuppression"}, source->name()) and index == 0);
+}
+
+std::vector<std::pair<std::size_t, sym::expr>> variable_prefix_axes(const shape& s,
+                                                                    std::size_t naxes)
+{
+    std::vector<std::pair<std::size_t, sym::expr>> result;
+    if(not s.symbolic())
+        return result;
+    const auto& dims = s.dyn_dims();
+    auto axes        = range(naxes);
+    transform_if(
+        axes.begin(),
+        axes.end(),
+        std::back_inserter(result),
+        [&](auto axis) { return is_variable_axis(dims.at(axis)); },
+        [&](auto axis) { return std::make_pair(axis, dims.at(axis).sym_expr); });
+    return result;
 }
 
 instruction_ref make_prefix_mask(module& m,

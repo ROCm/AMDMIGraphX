@@ -145,16 +145,19 @@ TEST_CASE(output_buffer_layout_mismatch_reshape_is_not_lowered)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(output_buffer_nonpacked_input_reshape_is_not_lowered)
+TEST_CASE(output_buffer_nonpacked_reshape_unchanged)
 {
     migraphx::module m1;
-    auto x      = m1.add_parameter("x", {migraphx::shape::float_type, {3, 2, 4}, {4, 12, 1}});
-    auto output = m1.add_parameter("output", {migraphx::shape::float_type, {6, 4}});
-    auto r      = m1.add_instruction(migraphx::make_op("reshape"), x, output);
-    m1.add_return({r});
-
-    auto m2 = m1;
+    {
+        migraphx::shape input_shape{migraphx::shape::float_type, {3, 2, 4}, {4, 12, 1}};
+        auto x      = m1.add_parameter("x", input_shape);
+        auto output = m1.add_parameter("output", {migraphx::shape::float_type, {6, 4}});
+        auto r      = m1.add_instruction(migraphx::make_op("reshape"), x, output);
+        m1.add_return({r});
+    }
+    migraphx::module m2 = m1;
     run_pass(m1);
+
     EXPECT(m1 == m2);
 }
 

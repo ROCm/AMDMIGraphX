@@ -282,9 +282,7 @@ struct dependency_cache
         else if(not is_dispatch_boundary)
         {
             const auto& inputs = source->inputs();
-            auto input_indices = range(inputs.size());
-            std::for_each(input_indices.begin(), input_indices.end(), [&](auto input_index) {
-                auto input = inputs.at(input_index);
+            std::for_each(inputs.begin(), inputs.end(), [&](instruction_ref input) {
                 discover(input);
                 const auto& found = at(input);
                 dependencies.insert(found.begin(), found.end());

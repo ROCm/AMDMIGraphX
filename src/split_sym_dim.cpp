@@ -294,22 +294,6 @@ struct dependency_cache
     const std::set<std::size_t>& at(instruction_ref source) const { return values.at(source); }
 };
 
-bool register_shape_roots(std::unordered_map<sym::expr, instruction_ref>& result,
-                          instruction_ref source)
-{
-    const auto& s = source->get_shape();
-    if(not s.symbolic())
-        return false;
-    bool inserted = false;
-    for(const auto& d : s.dyn_dims())
-    {
-        if(not d.is_symbolic() or d.sym_expr.name() != "variable")
-            continue;
-        inserted = result.emplace(sym::as_symbol(d.sym_expr), source).second or inserted;
-    }
-    return inserted;
-}
-
 bool is_data_dependent_output_slice(instruction_ref slice)
 {
     const auto& inputs = slice->inputs();
@@ -326,21 +310,47 @@ struct root_source_info
 {
     symbol_source_map symbols;
     std::vector<instruction_ref> ordered;
+
+    // The roots that data-dependent slices introduce, and those slices.
+    std::unordered_set<sym::expr> data_roots;
+    std::unordered_set<instruction_ref> data_sources;
+
+    // Register the variable dimensions of the source that no earlier source provides.
+    std::vector<sym::expr> add(instruction_ref source)
+    {
+        std::vector<sym::expr> roots;
+        const auto& s = source->get_shape();
+        if(not s.symbolic())
+            return roots;
+        for(const auto& d : s.dyn_dims())
+        {
+            if(not d.is_symbolic() or d.sym_expr.name() != "variable")
+                continue;
+            auto root = sym::as_symbol(d.sym_expr);
+            if(symbols.emplace(root, source).second)
+                roots.push_back(root);
+        }
+        if(not roots.empty())
+            ordered.push_back(source);
+        return roots;
+    }
 };
 
 root_source_info find_root_sources(const module& m)
 {
     root_source_info result;
     for(const auto& name : m.get_parameter_names())
-    {
-        auto parameter = m.get_parameter(name);
-        if(register_shape_roots(result.symbols, parameter))
-            result.ordered.push_back(parameter);
-    }
+        result.add(m.get_parameter(name));
     for(auto ins : iterator_for(m))
-        if(ins->name() == "dyn_slice" and is_data_dependent_output_slice(ins) and
-           register_shape_roots(result.symbols, ins))
-            result.ordered.push_back(ins);
+    {
+        if(ins->name() != "dyn_slice" or not is_data_dependent_output_slice(ins))
+            continue;
+        auto roots = result.add(ins);
+        if(roots.empty())
+            continue;
+        result.data_sources.insert(ins);
+        result.data_roots.insert(roots.begin(), roots.end());
+    }
     return result;
 }
 struct resolve_symbolic_dimensions_of_match : match::supports_dynamic_shapes
@@ -2234,20 +2244,13 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     if(symbolic_instructions.empty())
         return;
 
-    std::unordered_set<instruction_ref> root_boundaries;
-    for(const auto& entry : root_sources)
-    {
-        auto source = entry.second;
-        if(source->name() != "@param")
-            root_boundaries.insert(source);
-    }
     symbolic_op_plans plans;
     transform_if(
         symbolic_instructions.begin(),
         symbolic_instructions.end(),
         std::back_inserter(plans.values),
         [&](instruction_ref ins) {
-            return not starts_with(ins->name(), "@") and not contains(root_boundaries, ins);
+            return not starts_with(ins->name(), "@") and not contains(root_info.data_sources, ins);
         },
         [](instruction_ref ins) { return symbolic_op_plan{.info = analyze_instruction(ins)}; });
     plans.build_index();
@@ -2255,14 +2258,8 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
 
     // Seed blocks with operations that require specialization, then coalesce compatible connected
     // and independent blocks while preserving closed dependencies and the clone limit.
-    std::unordered_set<sym::expr> data_roots;
-    transform_if(
-        root_sources.begin(),
-        root_sources.end(),
-        std::inserter(data_roots, data_roots.end()),
-        [](const auto& entry) { return entry.second->name() != "@param"; },
-        [](const auto& entry) { return entry.first; });
-    auto graph = block_dependency_graph::discover(plans, *roots, std::move(data_roots), max_clones);
+    auto graph = block_dependency_graph::discover(
+        plans, *roots, std::move(root_info.data_roots), max_clones);
     if(graph.blocks.empty())
         return;
     graph.order_for_staged_roots(plans, root_sources);

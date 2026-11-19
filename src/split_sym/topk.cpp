@@ -58,7 +58,7 @@ struct analyze_topk : analyzer<analyze_topk>
                 if(current_axis != axis)
                     return parallel_axis();
                 return input == 0 ? contracted_axis(topk_fill)
-                                  : contracted_axis(fill_kind::dont_care);
+                                  : contracted_axis(fill_kind::highest);
             });
         // Tuple elements own the externally visible symbolic outputs. Keep TopK deferred so it is
         // absorbed into those blocks rather than routed as an unsupported tuple block output.

@@ -137,8 +137,8 @@ struct parse_slice : op_parser<parse_slice>
                     result.push_back(sym::lit(values[i]));
                     continue;
                 }
-                auto axis = tune_axis(data_shape.ndim(), axes[i], "PARSE_SLICE");
-                auto len  = static_cast<int64_t>(data_shape.max_lens().at(axis));
+                auto axis   = tune_axis(data_shape.ndim(), axes[i], "PARSE_SLICE");
+                int64_t len = data_shape.max_lens().at(axis);
                 result.push_back(sym::var(
                     parser.symbol_names.allocate(info.name + "_" + kind + std::to_string(i)),
                     {0, len}));

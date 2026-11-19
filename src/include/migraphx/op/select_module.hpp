@@ -141,15 +141,15 @@ struct select_module
         input_shapes.assign(inputs.begin(), inputs.begin() + input_count);
         symbol_bindings.clear();
         auto input_indices = range(input_shapes.size());
-        migraphx::for_each(
-            input_shapes.begin(),
-            input_shapes.end(),
-            input_indices.begin(),
-            [&](const shape& input, std::size_t input_index) {
-                if(not input.symbolic())
-                    return;
-                auto axes = range(input.ndim());
-                migraphx::for_each(input.dyn_dims().begin(),
+        migraphx::for_each(input_shapes.begin(),
+                           input_shapes.end(),
+                           input_indices.begin(),
+                           [&](const shape& input, std::size_t input_index) {
+                               if(not input.symbolic())
+                                   return;
+                               auto axes = range(input.ndim());
+                               migraphx::for_each(
+                                   input.dyn_dims().begin(),
                                    input.dyn_dims().end(),
                                    axes.begin(),
                                    [&](const auto& dim, std::size_t axis) {
@@ -158,7 +158,7 @@ struct select_module
                                        symbol_bindings.push_back(
                                            {input_index, axis, sym::as_symbol(dim.sym_expr)});
                                    });
-            });
+                           });
     }
 
     std::vector<std::string> get_input_parameter_names(const_module_ref mod) const

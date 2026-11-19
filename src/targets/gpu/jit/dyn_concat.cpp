@@ -27,6 +27,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/tune_axis.hpp>
 
 #include <algorithm>
 
@@ -67,11 +68,7 @@ struct dyn_concat_compiler : compiler<dyn_concat_compiler>
         // The inputs are the counts, the data inputs and the output tuple.
         assert(inputs.size() >= 3);
         const auto num_inputs = inputs.size() - 2;
-        const int64_t rank    = inputs.at(1).ndim();
-        auto axis_value       = v.at("axis").to<int64_t>();
-        if(axis_value < 0)
-            axis_value += rank;
-        const std::size_t axis = axis_value;
+        const auto axis = tune_axis(inputs.at(1).ndim(), v.at("axis").to<int64_t>(), "dyn_concat");
 
         hip_compile_options options;
         options.inputs = flatten_tuple_shapes(inputs);

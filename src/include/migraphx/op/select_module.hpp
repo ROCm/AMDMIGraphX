@@ -26,13 +26,11 @@
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/context.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/sym.hpp>
 #include <algorithm>
 #include <cassert>
@@ -48,7 +46,7 @@ namespace op {
 struct select_module
 {
     shape output_dyn_shapes;
-    // Captures symbolic input expressions used to evaluate output dimensions at runtime.
+    // Input shapes saved by finalize; their symbolic dims bind runtime lens to resolve outputs.
     std::vector<shape> input_shapes;
 
     struct output_location
@@ -106,7 +104,7 @@ struct select_module
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
-        if(not input_shapes.empty() and input_shapes.size() > inputs.size())
+        if(input_shapes.size() > inputs.size())
             MIGRAPHX_THROW("SELECT_MODULE: symbolic input shapes were not captured");
         return shape{output_dyn_shapes};
     }

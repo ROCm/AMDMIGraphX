@@ -28,7 +28,6 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/par.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/tune_axis.hpp>
@@ -47,7 +46,7 @@ namespace op {
 
 /**
  * Concatenate inputs over a symbolic dimension.
- * Originally created to handle the concatenation of mutiple region proposals in MaskRCNN.
+ * Used to concatenate multiple region proposals in Mask R-CNN.
  *
  * Inputs are ordered as:
  *   num_elements, data_0, ..., data_n
@@ -111,16 +110,14 @@ struct dyn_concat
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        const auto n               = args.size() - 1;
-        const auto& output_shapes  = output_shape.sub_shapes();
+        assert(args.size() >= 2);
+        const auto n              = args.size() - 1;
+        const auto& output_shapes = output_shape.sub_shapes();
+        assert(output_shapes.size() == 2);
         const auto normalized_axis = tune_axis(output_shapes.front().ndim(), axis, name());
+        // A new argument is zero-initialized, which provides the zero padding.
         argument output{output_shapes.front()};
         argument total_output{output_shapes.back()};
-
-        output.visit([](auto values) {
-            using value_type = typename decltype(values)::value_type;
-            std::fill(values.begin(), values.end(), value_type{0});
-        });
 
         auto indices            = range(n);
         const auto num_elements = args.front().to_vector<int64_t>();
@@ -162,9 +159,7 @@ struct dyn_concat
                     std::copy(input_slice.begin(), input_slice.end(), output_slice.begin());
                 });
             });
-        total_output.visit([&](auto total) {
-            total.front() = static_cast<typename decltype(total)::value_type>(output_offset);
-        });
+        total_output.get<int64_t>().front() = output_offset;
         return {{output, total_output}};
     }
 };

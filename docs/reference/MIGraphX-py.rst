@@ -474,6 +474,7 @@ parse_onnx
     :param str print_program_on_error: Print program if an error occurs.
     :param int max_loop_iterations: Maximum iteration number for the loop operator if trip count is not set.
     :param int limit_max_iterations: Maximum iteration limit for the loop operator.
+    :param bool reuse_external_data: Map external data files instead of copying them, and keep a reference to the file in each literal.
     :rtype: program
 
 parse_tf
@@ -493,23 +494,28 @@ parse_tf
 load
 ----
 
-.. py:function:: load(filename, format='msgpack')
+.. py:function:: load(filename, format='msgpack', external_data_path='', verify_external_weights=False)
 
     Loads a MIGraphX program.
 
     :param str filename: Path to file.
     :param str format: Format of file. Valid options are msgpack or json.
+    :param str external_data_path: Directory that relative references to external weights resolve against. Defaults to the directory of the file.
+    :param bool verify_external_weights: Check the MD5 checksum of each externally stored literal.
 
     :rtype: program
 
 save
 ----
 
-.. py:function:: save(p, filename, format='msgpack')
+.. py:function:: save(p, filename, format='msgpack', external_weights=None, external_weights_file='', reuse_external_data=False)
 
     Saves a MIGraphX program.
 
     :param program p: Program to save.
     :param str filename: Path to file.
     :param str format: Format of file. Valid options are msgpack or json.
+    :param int external_weights: Save literals of at least this many bytes to a separate weights file, at 64-byte aligned offsets. None stores every literal in the program file.
+    :param str external_weights_file: Weights file to write. Defaults to the file name with ``.data`` appended.
+    :param bool reuse_external_data: Save a reference to the file each literal was read from instead of its data.
 

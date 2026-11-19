@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,9 @@ MIGRAPHX_EXPORT std::string read_string(const fs::path& filename);
 MIGRAPHX_EXPORT void write_string(const fs::path& filename, const std::string& buffer);
 MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const char* buffer, std::size_t size);
 MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const std::vector<char>& buffer);
+
+/// Publish by rename so a reader never sees a half-written file
+MIGRAPHX_EXPORT void write_atomically(const fs::path& dest, const std::vector<char>& content);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

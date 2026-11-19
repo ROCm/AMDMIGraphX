@@ -23,10 +23,16 @@
  */
 
 #include <migraphx/literal.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/mapped_file.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <algorithm>
+#include <cstdint>
+#include <memory>
 #include <sstream>
 #include <string>
+#include <vector>
 #include "test.hpp"
 
 TEST_CASE(literal_test)
@@ -309,6 +315,78 @@ TEST_CASE(literal_to_string_float_precision)
 {
     migraphx::literal x{126.99993142003703f};
     EXPECT(x.to_string() != "127");
+}
+
+TEST_CASE(literal_from_mapped_file)
+{
+    migraphx::tmp_dir td{"literal"};
+    auto p = td.path / "weights.data";
+    std::vector<int32_t> values{1, 2, 3, 4, 5, 6, 7, 8};
+    auto* bytes        = reinterpret_cast<const char*>(values.data());
+    std::size_t nbytes = values.size() * sizeof(int32_t);
+    // values at offset 4, aligned for int32, and again at the unaligned offset 37
+    std::vector<char> content(4, 0);
+    content.insert(content.end(), bytes, bytes + nbytes);
+    content.push_back(0);
+    content.insert(content.end(), bytes, bytes + nbytes);
+    migraphx::write_buffer(p, content);
+
+    auto file = std::make_shared<migraphx::mapped_file>(p);
+    migraphx::shape s{migraphx::shape::int32_type, {8}};
+    {
+        auto l = migraphx::literal::from_mapped_file(s, file, {p.string(), 4, s.bytes(), ""});
+        EXPECT(l.data() == file->data() + 4);
+        EXPECT(l.to_vector<int32_t>() == values);
+        EXPECT(l.is_external());
+        EXPECT(l.get_external_data()->offset == 4);
+        EXPECT(l.get_mapped_file() == file);
+
+        migraphx::literal copy = l; // NOLINT
+        EXPECT(copy.is_external());
+        EXPECT(copy.data() == l.data());
+    }
+    {
+        auto l = migraphx::literal::from_mapped_file(s, file, {p.string(), 37, s.bytes(), ""});
+        EXPECT(l.data() != file->data() + 37);
+        EXPECT(l.to_vector<int32_t>() == values);
+        EXPECT(l.is_external());
+        EXPECT(l.get_external_data()->offset == 37);
+        EXPECT(l.get_mapped_file() == file);
+    }
+}
+
+TEST_CASE(literal_from_mapped_file_invalid)
+{
+    migraphx::tmp_dir td{"literal"};
+    auto p = td.path / "weights.data";
+    migraphx::write_buffer(p, std::vector<char>(16, 1));
+    auto file = std::make_shared<migraphx::mapped_file>(p);
+    migraphx::shape s{migraphx::shape::int32_type, {2}};
+    EXPECT(test::throws(
+        [&] { migraphx::literal::from_mapped_file(s, nullptr, {p.string(), 0, s.bytes(), ""}); }));
+    EXPECT(test::throws(
+        [&] { migraphx::literal::from_mapped_file(s, file, {p.string(), 0, 4, ""}); }));
+    EXPECT(test::throws(
+        [&] { migraphx::literal::from_mapped_file(s, file, {p.string(), 12, s.bytes(), ""}); }));
+}
+
+TEST_CASE(literal_from_mapped_file_serializes_inline)
+{
+    migraphx::tmp_dir td{"literal"};
+    auto p = td.path / "weights.data";
+    std::vector<float> values{1.5f, 2.5f};
+    auto* bytes = reinterpret_cast<const char*>(values.data());
+    migraphx::write_buffer(p, bytes, values.size() * sizeof(float));
+    auto file = std::make_shared<migraphx::mapped_file>(p);
+    migraphx::shape s{migraphx::shape::float_type, {2}};
+    auto l = migraphx::literal::from_mapped_file(s, file, {p.string(), 0, s.bytes(), ""});
+
+    auto v = migraphx::to_value(l);
+    EXPECT(v.contains("data"));
+    EXPECT(not v.contains("external"));
+    auto l2 = migraphx::from_value<migraphx::literal>(v);
+    EXPECT(l2 == l);
+    EXPECT(not l2.is_external());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

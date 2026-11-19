@@ -24,8 +24,11 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/md5.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <fstream>
 #include <iostream>
+#include <system_error>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -83,6 +86,26 @@ void write_buffer(const fs::path& filename, const char* buffer, std::size_t size
 void write_buffer(const fs::path& filename, const std::vector<char>& buffer)
 {
     write_buffer(filename, buffer.data(), buffer.size());
+}
+
+// The temporary stays beside the destination since the rename is only atomic within one
+// filesystem. Its short random suffix keeps concurrent writers apart without lengthening an
+// already deep path, which on Windows must stay under MAX_PATH for std::ofstream to open it.
+void write_atomically(const fs::path& dest, const std::vector<char>& content)
+{
+    auto suffix = md5(unique_string("atomic")).substr(0, 16);
+    auto tmp    = dest.parent_path() / (dest.stem().string() + "." + suffix + ".tmp");
+    try
+    {
+        write_buffer(tmp, content);
+        fs::rename(tmp, dest);
+    }
+    catch(...)
+    {
+        std::error_code ec;
+        fs::remove(tmp, ec);
+        throw;
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

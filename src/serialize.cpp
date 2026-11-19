@@ -25,9 +25,18 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/context.hpp>
+#include <migraphx/external_data.hpp>
+#include <migraphx/mapped_file.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+static const std::optional<external_data>& original_external_data(const literal& l)
+{
+    return l.get_external_data();
+}
+
+static std::optional<external_data> original_external_data(const argument&) { return std::nullopt; }
 
 template <class RawData>
 static void raw_data_to_value(value& v, const RawData& rd)
@@ -35,9 +44,20 @@ static void raw_data_to_value(value& v, const RawData& rd)
     value result;
     result["shape"] = migraphx::to_value(rd.get_shape());
     if(rd.get_shape().type() == shape::tuple_type)
+    {
         result["sub"] = migraphx::to_value(rd.get_sub_objects());
+    }
     else if(not rd.empty())
-        result["data"] = migraphx::value::binary(rd.data(), rd.get_shape().bytes());
+    {
+        // While saving with external weights the data may go to a file instead of the value
+        std::optional<external_data> ext;
+        if(auto* writer = scoped_external_data_writer::active())
+            ext = writer->write(rd.data(), rd.get_shape().bytes(), original_external_data(rd));
+        if(ext.has_value())
+            result["external"] = migraphx::to_value(*ext);
+        else
+            result["data"] = migraphx::value::binary(rd.data(), rd.get_shape().bytes());
+    }
     v = result;
 }
 
@@ -53,6 +73,11 @@ void migraphx_from_value(const value& v, literal& l)
                            " does not match shape bytes " + std::to_string(s.bytes()));
         l = literal::from_raw_buffer(s, data.data());
     }
+    else if(v.contains("external"))
+    {
+        auto [file, ext] = map_external_data(from_value<external_data>(v.at("external")));
+        l                = literal::from_mapped_file(s, std::move(file), std::move(ext));
+    }
     else
     {
         l = literal{s.type()};
@@ -62,7 +87,7 @@ void migraphx_from_value(const value& v, literal& l)
 void migraphx_to_value(value& v, const argument& a) { raw_data_to_value(v, a); }
 void migraphx_from_value(const value& v, argument& a)
 {
-    if(v.contains("data"))
+    if(v.contains("data") or v.contains("external"))
     {
         literal l = migraphx::from_value<literal>(v);
         a         = l.get_argument();

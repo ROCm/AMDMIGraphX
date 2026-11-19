@@ -734,6 +734,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
     migraphx_onnx_options_t onnx_options, const char* external_data_path);
 
 MIGRAPHX_C_EXPORT migraphx_status
+migraphx_onnx_options_set_reuse_external_data(migraphx_onnx_options_t onnx_options, bool value);
+
+MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_dim_param(
@@ -759,6 +762,22 @@ migraphx_file_options_create(migraphx_file_options_t* file_options);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_set_file_format(migraphx_file_options_t file_options, const char* format);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_file_options_set_external_weights_threshold(
+    migraphx_file_options_t file_options, size_t value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_file_options_set_external_weights_file(
+    migraphx_file_options_t file_options, const char* path);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_file_options_set_reuse_external_data(migraphx_file_options_t file_options, bool value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_file_options_set_external_data_path(
+    migraphx_file_options_t file_options, const char* path);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_file_options_set_verify_external_weights(migraphx_file_options_t file_options,
+                                                  bool value);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_compile_options_destroy(migraphx_compile_options_t compile_options);

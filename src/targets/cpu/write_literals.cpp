@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/cpu/write_literals.hpp>
+#include <migraphx/cpu/context.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -33,7 +34,11 @@ namespace cpu {
 
 struct cpu_literal
 {
-    argument data;
+    // A literal rather than an argument so an external reference survives lowering; both
+    // serialize to the same value
+    literal data;
+
+    argument host{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -45,7 +50,12 @@ struct cpu_literal
 
     shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
 
-    argument compute(const shape&, const std::vector<argument>&) const { return data; }
+    argument compute(const shape&, const std::vector<argument>&) const { return host; }
+
+    void finalize(context&, const shape&, const std::vector<shape>&)
+    {
+        host = data.get_argument();
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const cpu_literal& x)
     {
@@ -61,7 +71,7 @@ void write_literals::apply(module& m) const
     {
         if(ins->name() != "@literal")
             continue;
-        m.replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
+        m.replace_instruction(ins, cpu_literal{ins->get_literal()});
     }
 }
 

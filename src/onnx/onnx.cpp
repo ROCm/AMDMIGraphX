@@ -34,6 +34,7 @@
 
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/external_data.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,6 +44,7 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx::onnx_parser parser;
     parser.external_data_path  = options.external_data_path;
+    parser.reuse_external_data = options.reuse_external_data;
     parser.map_input_dims      = options.map_input_dims;
     parser.dim_params          = options.dim_params;
     parser.map_dyn_input_dims  = options.map_dyn_input_dims;
@@ -74,6 +76,9 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     parser.skip_unknown_operators = options.skip_unknown_operators;
     parser.max_loop_iterations    = options.max_loop_iterations;
     parser.limit_max_iterations   = options.limit_max_iterations;
+
+    // Tensors stored in the same external file share one mapping
+    scoped_external_data_reader reader{external_data_load_options{}};
 
     if(options.print_program_on_error)
     {

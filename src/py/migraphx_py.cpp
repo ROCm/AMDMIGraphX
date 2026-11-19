@@ -903,7 +903,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            bool print_program_on_error,
            int64_t max_loop_iterations,
            int64_t limit_max_iterations,
-           bool use_debug_symbols) {
+           bool use_debug_symbols,
+           bool reuse_external_data) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -915,6 +916,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.max_loop_iterations    = max_loop_iterations;
             options.limit_max_iterations   = limit_max_iterations;
             options.use_debug_symbols      = use_debug_symbols;
+            options.reuse_external_data    = reuse_external_data;
             return migraphx::parse_onnx(filename, options);
         },
         "Parse onnx file",
@@ -930,7 +932,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("print_program_on_error") = false,
         py::arg("max_loop_iterations")    = 10,
         py::arg("limit_max_iterations")   = std::numeric_limits<uint16_t>::max(),
-        py::arg("use_debug_symbols")      = false);
+        py::arg("use_debug_symbols")      = false,
+        py::arg("reuse_external_data")    = false);
 
     m.def(
         "parse_onnx_buffer",
@@ -944,7 +947,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            bool skip_unknown_operators,
            bool print_program_on_error,
            const std::string& external_data_path,
-           bool use_debug_symbols) {
+           bool use_debug_symbols,
+           bool reuse_external_data) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -955,6 +959,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.print_program_on_error = print_program_on_error;
             options.external_data_path     = external_data_path;
             options.use_debug_symbols      = use_debug_symbols;
+            options.reuse_external_data    = reuse_external_data;
             return migraphx::parse_onnx_buffer(onnx_buffer, options);
         },
         "Parse onnx file",
@@ -969,31 +974,50 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("skip_unknown_operators") = false,
         py::arg("print_program_on_error") = false,
         py::arg("external_data_path")     = "",
-        py::arg("use_debug_symbols")      = false);
+        py::arg("use_debug_symbols")      = false,
+        py::arg("reuse_external_data")    = false);
 #endif
 
     m.def(
         "load",
-        [](const std::string& name, const std::string& format) {
+        [](const std::string& name,
+           const std::string& format,
+           const std::string& external_data_path,
+           bool verify_external_weights) {
             migraphx::file_options options;
-            options.format = format;
+            options.format                  = format;
+            options.external_data_path      = external_data_path;
+            options.verify_external_weights = verify_external_weights;
             return migraphx::load(name, options);
         },
         "Load MIGraphX program",
         py::arg("filename"),
-        py::arg("format") = "msgpack");
+        py::arg("format")                  = "msgpack",
+        py::arg("external_data_path")      = "",
+        py::arg("verify_external_weights") = false);
 
     m.def(
         "save",
-        [](const migraphx::program& p, const std::string& name, const std::string& format) {
+        [](const migraphx::program& p,
+           const std::string& name,
+           const std::string& format,
+           std::optional<std::size_t> external_weights,
+           const std::string& external_weights_file,
+           bool reuse_external_data) {
             migraphx::file_options options;
-            options.format = format;
+            options.format                     = format;
+            options.external_weights_threshold = external_weights;
+            options.external_weights_file      = external_weights_file;
+            options.reuse_external_data        = reuse_external_data;
             return migraphx::save(p, name, options);
         },
         "Save MIGraphX program",
         py::arg("p"),
         py::arg("filename"),
-        py::arg("format") = "msgpack");
+        py::arg("format")                = "msgpack",
+        py::arg("external_weights")      = std::nullopt,
+        py::arg("external_weights_file") = "",
+        py::arg("reuse_external_data")   = false);
 
     m.def(
         "save_buffer",

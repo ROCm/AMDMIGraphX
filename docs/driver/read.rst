@@ -114,3 +114,35 @@ Print out program using python API.
 
 Output to file.
 
+.. option::  --external-weights [size] (Default: 128K)
+
+Save literals of at least ``size`` bytes to a separate weights file instead of inside the program
+file. ``size`` accepts ``K``, ``M`` and ``G`` suffixes (powers of 1024). Each literal starts at an
+offset aligned to 64 bytes and is recorded with its offset, size and MD5 checksum. This requires
+``--binary`` or ``--json`` output to a file with ``--output``. A program saved this way uses the
+next program file version, so older MIGraphX releases reject it instead of misreading it.
+
+Without ``size``, follow the flag with another flag or put it last, since a value right after it
+is taken as the size. For example::
+
+    migraphx-driver compile model.onnx --gpu --binary -o model.mxr --external-weights 1M
+    migraphx-driver compile --external-weights --gpu --binary -o model.mxr model.onnx
+
+.. option::  --external-weights-file [std::string] (Default: <output>.data)
+
+Weights file used by ``--external-weights``. References to it are stored relative to the program
+file's directory when it is inside that directory, so the two files can be moved together.
+
+.. option::  --reuse-external-data
+
+When parsing ONNX, map the model's external data files instead of copying them into memory. When
+saving, store a reference to the file each literal was read from instead of its data, so the
+program file points at the original ONNX data (or at the weights file of a loaded MIGraphX
+program). Weights that compilation changes, such as by a layout change or quantization, are saved
+inline, or to the weights file when ``--external-weights`` is also given.
+
+.. option::  --verify-external-weights
+
+When loading a MIGraphX program, check the MD5 checksum of each externally stored literal and fail
+on a mismatch. Without it only the offsets and sizes are checked against the file size.
+

@@ -44,6 +44,7 @@
 #include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/external_data.hpp>
 
 #include <iostream>
 #include <queue>
@@ -855,7 +856,9 @@ static std::string get_migraphx_version()
 value program::to_value() const
 {
     value result;
-    result["version"]          = get_program_file_version();
+    result["version"] = scoped_external_data_writer::active() == nullptr
+                            ? get_program_file_version()
+                            : program_file_version_external_data;
     result["migraphx_version"] = get_migraphx_version();
     result["targets"]          = migraphx::to_value(this->impl->targets);
     result["contexts"]         = migraphx::to_value(this->impl->contexts);
@@ -991,7 +994,7 @@ void program::from_value(const value& v) { this->from_value(v, true); }
 void program::from_value(const value& v, bool finalize)
 {
     auto version = v.at("version").to<int>();
-    if(version != program_file_version)
+    if(version != program_file_version and version != program_file_version_external_data)
     {
         MIGRAPHX_THROW(
             "Error: Program version mismatch. MXR file was created using program file version: " +

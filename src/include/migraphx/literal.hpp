@@ -31,10 +31,12 @@
 #include <migraphx/raw_data.hpp>
 #include <migraphx/make_shared_array.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/external_data.hpp>
 #include <migraphx/config.hpp>
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -119,6 +121,12 @@ struct literal : raw_data<literal>
         return result;
     }
 
+    /// The literal whose data is ext.size bytes at ext.offset of file, in the layout described by
+    /// s's strides. The data aliases the mapping when the offset is aligned for the element type,
+    /// otherwise it is copied; either way the literal keeps the reference and the mapping.
+    MIGRAPHX_EXPORT static literal
+    from_mapped_file(const shape& s, std::shared_ptr<mapped_file> file, external_data ext);
+
     /// Whether data is available
     bool empty() const { return this->buffer == nullptr; }
 
@@ -126,6 +134,14 @@ struct literal : raw_data<literal>
     const char* data() const { return this->buffer.get(); }
 
     const shape& get_shape() const { return this->m_shape; }
+
+    /// Whether the data was read from an external file
+    bool is_external() const { return this->m_external.has_value(); }
+
+    /// Where the data is stored outside the program file, if anywhere
+    const std::optional<external_data>& get_external_data() const { return this->m_external; }
+
+    const std::shared_ptr<mapped_file>& get_mapped_file() const { return this->m_file; }
 
     std::vector<literal> get_sub_objects() const { return {}; }
 
@@ -139,6 +155,8 @@ struct literal : raw_data<literal>
     private:
     std::shared_ptr<char> buffer;
     shape m_shape;
+    std::optional<external_data> m_external = std::nullopt;
+    std::shared_ptr<mapped_file> m_file     = nullptr;
 
     // Keeps the same data ordering as the given container. Fewer values than the shape's
     // elements fills only the leading elements; the rest remain zero.

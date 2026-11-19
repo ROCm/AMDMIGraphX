@@ -264,6 +264,31 @@ static void set_backend_options(compile_options& options, const char* options_js
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
 
+static void set_external_weights_threshold(file_options& options, size_t value)
+{
+    options.external_weights_threshold = value;
+}
+
+static void set_external_weights_file(file_options& options, const char* path)
+{
+    options.external_weights_file = std::string(path);
+}
+
+static void set_reuse_external_data(file_options& options, bool value)
+{
+    options.reuse_external_data = value;
+}
+
+static void set_external_data_path(file_options& options, const char* path)
+{
+    options.external_data_path = std::string(path);
+}
+
+static void set_verify_external_weights(file_options& options, bool value)
+{
+    options.verify_external_weights = value;
+}
+
 // Parse an expression string and bind each provided symbol name to the bounds/optimals
 // carried by its range dynamic_dimension, producing a symbolic dynamic_dimension.
 static shape::dynamic_dimension make_symbolic_dynamic_dimension(
@@ -327,6 +352,11 @@ static void set_external_data_path(onnx_options& options, const char* external_d
 static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 {
     options.limit_max_iterations = value;
+}
+
+static void set_reuse_external_data(onnx_options& options, bool value)
+{
+    options.reuse_external_data = value;
 }
 
 static void set_use_debug_symbols(onnx_options& options, bool value)

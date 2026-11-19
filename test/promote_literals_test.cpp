@@ -31,6 +31,12 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/mapped_file.hpp>
+#include <migraphx/tmp_dir.hpp>
+#include <algorithm>
+#include <memory>
+#include <vector>
 #include <test.hpp>
 
 static void run_promote(migraphx::program& p)
@@ -314,6 +320,49 @@ TEST_CASE(promote_and_ecs1)
     }
 
     EXPECT(p0 == p1);
+}
+
+TEST_CASE(promote_keeps_external_reference)
+{
+    migraphx::tmp_dir td{"promote-literals"};
+    auto path = td.path / "weights.data";
+    std::vector<float> values{1, 2, 3, 4};
+    auto* bytes = reinterpret_cast<const char*>(values.data());
+    migraphx::write_buffer(path, bytes, values.size() * sizeof(float));
+    auto file = std::make_shared<migraphx::mapped_file>(path);
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    auto c   = mm->add_parameter("c", {migraphx::shape::bool_type, {1}});
+
+    auto* then_mod = p.create_module("then");
+    auto l         = then_mod->add_literal(
+        migraphx::literal::from_mapped_file(s, file, {path.string(), 0, s.bytes(), ""}));
+    then_mod->add_return({then_mod->add_instruction(migraphx::make_op("add"), x, l)});
+
+    auto* else_mod = p.create_module("else");
+    else_mod->add_return({else_mod->add_instruction(migraphx::make_op("neg"), x)});
+
+    auto r = mm->add_instruction(migraphx::make_op("if"), {c}, {then_mod, else_mod});
+    mm->add_return({mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r)});
+
+    run_promote(p);
+
+    EXPECT(std::none_of(then_mod->begin(), then_mod->end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "@literal";
+    }));
+    auto promoted = std::find_if(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "@literal";
+    });
+    EXPECT(promoted != mm->end());
+    const auto& lit = promoted->get_literal();
+    EXPECT(lit.is_external());
+    EXPECT(lit.get_external_data()->file_path == path.string());
+    EXPECT(lit.get_external_data()->offset == 0);
+    EXPECT(lit.get_mapped_file() == file);
+    EXPECT(lit.to_vector<float>() == values);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

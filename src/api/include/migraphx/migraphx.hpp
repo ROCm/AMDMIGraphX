@@ -1647,6 +1647,38 @@ struct file_options : MIGRAPHX_HANDLE_BASE(file_options)
     {
         call(&migraphx_file_options_set_file_format, this->get_handle_ptr(), format);
     }
+
+    /// Save literals of at least value bytes to an external weights file
+    void set_external_weights_threshold(size_t value)
+    {
+        call(&migraphx_file_options_set_external_weights_threshold, this->get_handle_ptr(), value);
+    }
+
+    /// Weights file to save to; by default the program file name with ".data" appended
+    void set_external_weights_file(const std::string& path)
+    {
+        call(&migraphx_file_options_set_external_weights_file,
+             this->get_handle_ptr(),
+             path.c_str());
+    }
+
+    /// Save references to the files literals were read from instead of their data
+    void set_reuse_external_data(bool value = true)
+    {
+        call(&migraphx_file_options_set_reuse_external_data, this->get_handle_ptr(), value);
+    }
+
+    /// Directory relative external references resolve against when loading
+    void set_external_data_path(const std::string& path)
+    {
+        call(&migraphx_file_options_set_external_data_path, this->get_handle_ptr(), path.c_str());
+    }
+
+    /// Check the checksum of each external literal when loading
+    void set_verify_external_weights(bool value = true)
+    {
+        call(&migraphx_file_options_set_verify_external_weights, this->get_handle_ptr(), value);
+    }
 };
 
 /// Load a saved migraphx program from a file
@@ -1734,6 +1766,12 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
         call(&migraphx_onnx_options_set_external_data_path,
              this->get_handle_ptr(),
              external_data_path.c_str());
+    }
+
+    /// Map external data files and keep a reference to them in each literal
+    void set_reuse_external_data(bool value = true)
+    {
+        call(&migraphx_onnx_options_set_reuse_external_data, this->get_handle_ptr(), value);
     }
 
     /// Enable debug symbols from ONNX node names

@@ -26,6 +26,7 @@
 
 #include <migraphx/argument.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/checked_ops.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
@@ -35,7 +36,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <limits>
 #include <numeric>
 #include <string>
 #include <vector>
@@ -100,10 +100,7 @@ struct dyn_concat
         auto output_lens                = inputs.at(1).max_lens();
         output_lens.at(normalized_axis) = std::accumulate(
             inputs.begin() + 1, inputs.end(), std::size_t{0}, [&](auto total, const shape& s) {
-                const auto length = s.max_lens().at(normalized_axis);
-                if(length > std::numeric_limits<std::size_t>::max() - total)
-                    MIGRAPHX_THROW("DYN_CONCAT: maximum output dimension overflow");
-                return total + length;
+                return checked_add(total, s.max_lens().at(normalized_axis));
             });
         return shape{{shape{inputs.at(1).type(), output_lens}, shape{shape::int64_type, {1}}}};
     }

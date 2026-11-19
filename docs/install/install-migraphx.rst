@@ -39,7 +39,7 @@ MIGraphX |MIGRAPHX_VERSION| is currently supported on:
 
 * ``gfx90a`` AMD Instinct MI250X, MI250, and MI210
 
-* ``gfx1200``, ``gfx1201``, ``gfx1100``, ``gfx1101``, and ``gfx1102`` Radeon GPUs.
+* ``gfx1200``, ``gfx1201``, ``gfx1100``, ``gfx1101``, ``gfx1102``, and ``gfx1103`` Radeon GPUs.
 
 * ``gfx1153``, ``gfx1152``, ``gfx1151``, and ``gfx1150`` Ryzen AI processors.
 
@@ -128,23 +128,29 @@ environment.
       .. selector:: RHEL version
          :key: rhel-ver
 
+         .. selector-option:: 10.3
+            :width: 3
+
          .. selector-option:: 10.2
-            :width: 2
+            :width: 3
 
          .. selector-option:: 10.0
-            :width: 2
+            :width: 3
+
+         .. selector-option:: 9.9
+            :width: 3
 
          .. selector-option:: 9.8
-            :width: 2
+            :width: 3
 
          .. selector-option:: 9.6
-            :width: 2
+            :width: 3
 
          .. selector-option:: 9.4
-            :width: 2
+            :width: 3
 
          .. selector-option:: 8.10
-            :width: 2
+            :width: 3
 
    .. selected:: os=oracle-linux
 
@@ -294,7 +300,7 @@ environment.
 
       .. selected:: os=rhel
 
-         .. selected:: rhel-ver=10.2 rhel-ver=10.0
+         .. selected:: rhel-ver=10.3 rhel-ver=10.2 rhel-ver=10.0
 
             .. code-block:: bash
 
@@ -309,7 +315,7 @@ environment.
                EOF
                sudo dnf clean all
 
-         .. selected:: rhel-ver=9.8 rhel-ver=9.6 rhel-ver=9.4
+         .. selected:: rhel-ver=9.9 rhel-ver=9.8 rhel-ver=9.6 rhel-ver=9.4
 
             .. code-block:: bash
 
@@ -998,6 +1004,13 @@ environment.
       .. code-block:: bash
 
          migraphx-driver --version
+
+      You should see MIGraphX |MIGRAPHX_VERSION| in the output:
+
+      .. code-block:: text
+         :substitutions:
+
+         MIGraphX Version: |MIGRAPHX_VERSION|
 
       .. tip::
 

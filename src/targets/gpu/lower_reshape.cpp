@@ -81,7 +81,7 @@ struct find_reshape : match::supports_dynamic_shapes
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins           = r.result;
-        bool output_buffer = ins->inputs().size() == 2;
+        const bool output_buffer = ins->inputs().size() == 2;
         auto reshape_op =
             output_buffer
                 ? make_op("reshape_lazy")
@@ -97,8 +97,9 @@ struct find_reshape : match::supports_dynamic_shapes
             // eliminate_contiguous already kept the copies that make program outputs standard;
             // only alias here if that does not change the layout of a program output.
             if(reshaped and sym::same_symbol(reshaped->sym_elements(), expected.sym_elements()) and
-               (reshaped->standard() or *reshaped == expected or
-                not reaches_return(m.get_returns(), ins)))
+               (output_buffer ? *reshaped == expected
+                              : (reshaped->standard() or *reshaped == expected or
+                                 not reaches_return(m.get_returns(), ins))))
             {
                 m.replace_instruction(
                     ins,
@@ -138,14 +139,7 @@ struct find_reshape : match::supports_dynamic_shapes
 };
 } // namespace
 
-void lower_reshape::apply(module& m) const
-{
-    match::find_matches(m, find_reshape{});
-    if(std::any_of(m.begin(), m.end(), [](const auto& ins) {
-           return ins.name() == "reshape" and ins.inputs().size() == 2;
-       }))
-        MIGRAPHX_THROW("gpu::lower_reshape: two-input reshape cannot be lowered");
-}
+void lower_reshape::apply(module& m) const { match::find_matches(m, find_reshape{}); }
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

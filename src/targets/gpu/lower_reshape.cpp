@@ -101,10 +101,10 @@ struct find_reshape : match::supports_dynamic_shapes
                               : (reshaped->standard() or *reshaped == expected or
                                  not reaches_return(m.get_returns(), ins))))
             {
-                m.replace_instruction(
-                    ins,
-                    reshape_op,
-                    output_buffer ? ins->inputs() : std::vector<instruction_ref>{input});
+                m.replace_instruction(ins,
+                                      reshape_op,
+                                      output_buffer ? ins->inputs()
+                                                    : std::vector<instruction_ref>{input});
                 return;
             }
 

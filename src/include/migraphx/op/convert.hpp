@@ -73,7 +73,7 @@ struct convert : unary<convert>
         if(args.size() != 1 or output_shape.type() != target_type)
             return false;
         return contains({shape::int32_type, shape::int64_type}, args.front().get_shape().type()) and
-               contains({shape::bool_type, shape::int32_type, shape::int64_type}, target_type); 
+               contains({shape::bool_type, shape::int32_type, shape::int64_type}, target_type);
     }
 
     auto apply() const

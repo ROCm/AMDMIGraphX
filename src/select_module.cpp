@@ -368,8 +368,8 @@ select_module::runtime_symbol_values(const std::vector<argument>& args) const
     return values;
 }
 
-std::vector<shape> select_module::resolve_output_shapes(
-    const std::unordered_map<sym::expr, std::size_t>& values) const
+std::vector<shape>
+select_module::resolve_output_shapes(const std::unordered_map<sym::expr, std::size_t>& values) const
 {
     if(input_shapes.empty())
         return {};
@@ -381,9 +381,9 @@ std::vector<shape> select_module::resolve_output_shapes(
     return result;
 }
 
-std::vector<argument> select_module::reshape_outputs(
-    const std::vector<argument>& results,
-    const std::unordered_map<sym::expr, std::size_t>& values) const
+std::vector<argument>
+select_module::reshape_outputs(const std::vector<argument>& results,
+                               const std::unordered_map<sym::expr, std::size_t>& values) const
 {
     if(results.size() != num_outputs())
         MIGRAPHX_THROW("SELECT_MODULE: candidate returned the wrong number of outputs");
@@ -424,11 +424,10 @@ argument select_module::short_circuit_outputs(const std::vector<argument>& args,
                            if(s.type() != shape::tuple_type)
                                return argument{s, nullptr};
                            std::vector<argument> sub_objects;
-                           std::transform(
-                               s.sub_shapes().begin(),
-                               s.sub_shapes().end(),
-                               std::back_inserter(sub_objects),
-                               [&](const shape& sub_shape) { return self(sub_shape); });
+                           std::transform(s.sub_shapes().begin(),
+                                          s.sub_shapes().end(),
+                                          std::back_inserter(sub_objects),
+                                          [&](const shape& sub_shape) { return self(sub_shape); });
                            return argument{sub_objects};
                        }));
     }

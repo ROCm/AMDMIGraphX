@@ -467,19 +467,57 @@ TEST_CASE(retarget_cross_compile_same_generation)
     EXPECT(compiled_arch(p) == "gfx1100");
 }
 
-TEST_CASE(retarget_older_generation_refused)
+TEST_CASE(retarget_cross_compile_older_generation)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {4, 256}};
-    auto x = mm->add_parameter("x", s);
-    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x)});
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto relu = mm->add_instruction(migraphx::make_op("relu"), add);
+    auto sum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
+    mm->add_return({relu, sum});
+    // gfx11 to gfx9
     p.compile(cross_target("gfx1151"), recipe_options());
-
-    EXPECT(test::throws<migraphx::exception>([&] { p.recompile(cross_target("gfx942")); },
-                                             "older generation"));
-    // The program is unchanged
     EXPECT(compiled_arch(p) == "gfx1151");
+
+    auto before = get_kernels(p);
+    p.recompile(cross_target("gfx942"));
+    EXPECT(compiled_arch(p) == "gfx942");
+    auto after = get_kernels(p);
+    EXPECT(before.size() == after.size());
+    EXPECT(all_have_recipes(p));
+    for(std::size_t i = 0; i < before.size(); i++)
+    {
+        EXPECT(before[i].code_object != after[i].code_object);
+        EXPECT(before[i].expected_inputs == after[i].expected_inputs);
+    }
+    // The retargeted program round trips through a file
+    EXPECT(compiled_arch(reload(p)) == "gfx942");
+}
+
+// Each hop keeps its recipes, so a program can go to an older generation and back to a newer one
+TEST_CASE(retarget_older_and_newer_round_trip)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto relu = mm->add_instruction(migraphx::make_op("relu"), add);
+    mm->add_return({relu});
+    p.compile(cross_target("gfx1201"), recipe_options());
+    EXPECT(compiled_arch(p) == "gfx1201");
+
+    // gfx12 -> gfx11 -> gfx9 -> gfx11
+    for(const std::string arch : {"gfx1100", "gfx942", "gfx1151"})
+    {
+        p.recompile(cross_target(arch));
+        EXPECT(compiled_arch(p) == arch);
+        EXPECT(all_have_recipes(p));
+    }
 }
 
 TEST_CASE(retarget_without_recipes_refused)
@@ -549,6 +587,11 @@ TEST_CASE(retarget_kernel_with_lowering_fill)
 
     p.recompile(cross_target("gfx1100"));
     EXPECT(compiled_arch(p) == "gfx1100");
+    EXPECT(has_kernel(p, "nms_compact_kernel"));
+
+    // Also to an older generation, where the wavefront size is 64
+    p.recompile(cross_target("gfx942"));
+    EXPECT(compiled_arch(p) == "gfx942");
     EXPECT(has_kernel(p, "nms_compact_kernel"));
 }
 

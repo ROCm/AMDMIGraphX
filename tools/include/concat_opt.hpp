@@ -58,6 +58,9 @@ struct concat_optimization
     bool supports_output_shape(instruction_ref ins, const shape& s) const;
     /// Update the instruction so it reports `s` as its output shape
     void set_output_shape(instruction_ref ins, const shape& s) const;
+    /// Return true if the instruction copies its first input unchanged into
+    /// the allocation it takes as its last input
+    bool is_copy(instruction_ref ins) const;
 };
 
 #else
@@ -88,6 +91,7 @@ struct concat_optimization
                 s       = 'const shape&',
                 returns = 'void',
                 const   = True),
+        virtual('is_copy', ins = 'instruction_ref', returns = 'bool', const = True),
         virtual('allocation', returns = 'allocation_model', const = True))
 %>
 

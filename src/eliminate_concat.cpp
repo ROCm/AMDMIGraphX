@@ -30,6 +30,8 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/instruction_traversal.hpp>
+#include <migraphx/algorithm.hpp>
 
 #include <migraphx/dfor.hpp>
 #include <migraphx/tune_axis.hpp>
@@ -90,21 +92,19 @@ const std::unordered_set<std::string>& invertible_view_names()
     return names;
 }
 
+bool is_invertible_view(instruction_ref ins)
+{
+    return contains(invertible_view_names(), ins->name()) and ins->inputs().size() == 1;
+}
+
 // Walk up from a concat input through single-use invertible view ops to the
 // instruction that actually writes the data. Returns the producer and the
 // view ops in producer-to-input order.
 std::pair<instruction_ref, std::vector<operation>> get_view_chain(instruction_ref input)
 {
-    std::vector<operation> ops;
-    auto producer = input;
-    while(contains(invertible_view_names(), producer->name()) and producer->inputs().size() == 1 and
-          producer->outputs().size() == 1)
-    {
-        ops.push_back(producer->get_operator());
-        producer = producer->inputs().front();
-    }
-    std::reverse(ops.begin(), ops.end());
-    return {producer, ops};
+    return get_input_ops_if(input, [](instruction_ref ins) {
+        return is_invertible_view(ins) and ins->outputs().size() == 1;
+    });
 }
 
 struct concat_optimizer
@@ -188,6 +188,69 @@ struct concat_optimizer
         return opt->supports_output_shape(producer, view_shape);
     }
 
+    // A copy that consumes the concat through single-use view ops: its
+    // allocation becomes the super buffer, viewed through the inverse ops, so
+    // the producers write the copy's layout directly
+    struct sink
+    {
+        instruction_ref copy;
+        std::vector<operation> view_ops;
+        shape super_shape;
+    };
+    static std::optional<shape> apply_views(const std::vector<operation>& ops, const shape& s)
+    {
+        try
+        {
+            return std::accumulate(
+                ops.begin(), ops.end(), s, [](const shape& acc, const operation& op) {
+                    return op.compute_shape({acc});
+                });
+        }
+        catch(const migraphx::exception&)
+        {
+            return std::nullopt;
+        }
+    }
+    std::optional<sink> plan_sink(instruction_ref ins) const
+    {
+        // The concat and the views must be single-use, but the copy need not be
+        auto path = get_output_path(ins);
+        auto it   = std::find_if_not(path.begin(), path.end(), [&](instruction_ref x) {
+            return x == ins or is_invertible_view(x);
+        });
+        if(it == path.end())
+            return std::nullopt;
+        auto out = *it;
+        std::vector<instruction_ref> views(path.begin(), it);
+        if(not opt->is_copy(out) or out->inputs().front() != views.back() or
+           not is_allocation(out->inputs().back()))
+            return std::nullopt;
+        // The view ops are inserted on the allocation, so it must have the
+        // shape the chain was inverted over
+        assert(out->inputs().back()->get_shape() == out->get_shape());
+        std::vector<operation> chain;
+        std::transform(std::next(views.begin()),
+                       views.end(),
+                       std::back_inserter(chain),
+                       [](instruction_ref x) { return x->get_operator(); });
+        auto inverse = invert_view_chain(chain, ins->get_shape(), out->get_shape());
+        if(not inverse.has_value())
+            return std::nullopt;
+        // invert_view_chain only matches lens; the strides must match the
+        // copy's buffer too
+        if(apply_views(chain, inverse->second) != out->get_shape())
+            return std::nullopt;
+        return sink{out, std::move(inverse->first), std::move(inverse->second)};
+    }
+
+    // Thread a chain of view ops after ins, returning the last view
+    instruction_ref insert_views(instruction_ref ins, const std::vector<operation>& ops) const
+    {
+        return std::accumulate(
+            ops.begin(), ops.end(), ins, [&](instruction_ref view, const operation& op) {
+                return m->insert_instruction(std::next(view), op, view);
+            });
+    }
     instruction_ref insert_copy(const operation& op,
                                 instruction_ref input,
                                 instruction_ref super,
@@ -200,10 +263,7 @@ struct concat_optimizer
             // producer never reports a shape out of sync with its buffer
             if(p->producer->get_shape() != p->view_shape)
                 opt->set_output_shape(p->producer, p->view_shape);
-            auto view = slice;
-            for(const auto& vop : p->view_ops)
-                view = m->insert_instruction(std::next(view), vop, view);
-            m->replace_instruction(get_output_alias(p->producer), view);
+            m->replace_instruction(get_output_alias(p->producer), insert_views(slice, p->view_ops));
             return input;
         }
         auto copy = m->insert_instruction(std::next(input), make_op(am.copy()), input, slice);
@@ -217,12 +277,17 @@ struct concat_optimizer
         return shape{super_shape.type(), input_shape.lens(), super_shape.strides()};
     }
 
-    void replace_concat(instruction_ref ins, std::size_t axis) const
+    void replace_concat(instruction_ref ins, std::size_t axis, const std::optional<sink>& sk) const
     {
         // Last input should be an allocation
         auto last = ins->inputs().back();
         if(not is_allocation(last))
             return;
+        if(sk.has_value())
+        {
+            last = sk->copy->inputs().back();
+            assert(is_allocation(last));
+        }
         // Where are the allocations for the tensors to be concatenated?
         std::vector<instruction_ref> allocations;
 
@@ -244,19 +309,30 @@ struct concat_optimizer
                       return std::distance(m->begin(), x) < std::distance(m->begin(), y);
                   });
         // Move "super" allocation to the front
-        auto first                        = sorted_allocations.front();
-        auto super                        = m->move_instruction(last, first);
+        auto first = sorted_allocations.front();
+        auto super = m->move_instruction(last, first);
+        if(sk.has_value())
+            super = insert_views(super, sk->view_ops);
+        // Replace the concat before rewiring its producers, so it never reports
+        // a shape its allocation does not match; a copied input is swapped into
+        // the identity by insert_copy
+        std::vector<instruction_ref> inputs(ins->inputs().begin(), std::prev(ins->inputs().end()));
         std::vector<instruction_ref> args = {super};
-        std::size_t start                 = 0;
-        std::transform(ins->inputs().begin(),
-                       ins->inputs().end() - 1,
-                       std::back_inserter(args),
-                       [&](instruction_ref input) {
-                           auto x = insert_copy(make_slice(input, axis, start), input, super, axis);
-                           start += x->get_shape().lens()[axis];
-                           return x;
-                       });
+        args.insert(args.end(), inputs.begin(), inputs.end());
         m->replace_instruction(ins, migraphx::make_op("identity"), args);
+        // Each input's slice starts where the previous inputs end along the axis
+        std::vector<std::size_t> starts(inputs.size());
+        std::transform(inputs.begin(), inputs.end(), starts.begin(), [&](instruction_ref input) {
+            return input->get_shape().lens()[axis];
+        });
+        migraphx::exclusive_scan(starts.begin(), starts.end(), starts.begin(), std::size_t{0});
+        migraphx::for_each(
+            inputs.begin(), inputs.end(), starts.begin(), [&](instruction_ref input, auto start) {
+                insert_copy(make_slice(input, axis, start), input, super, axis);
+            });
+        // The producers wrote the copy's buffer, so its input already is the result
+        if(sk.has_value())
+            m->replace_instruction(sk->copy, sk->copy->inputs().front());
     }
 };
 
@@ -280,10 +356,12 @@ void eliminate_concat::apply(module& m) const
             continue;
         auto lens        = ins->inputs().front()->get_shape().lens();
         std::size_t axis = tune_axis(lens.size(), concat_op->axis, concat_op->name());
+        auto sk          = co.plan_sink(ins);
+        auto super_shape = sk.has_value() ? sk->super_shape : ins->get_shape();
         auto ncopies     = std::count_if(
             ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
                 auto slice_shape =
-                    concat_optimizer::slice_shape_for(ins->get_shape(), input->get_shape());
+                    concat_optimizer::slice_shape_for(super_shape, input->get_shape());
                 return not co.plan_copy_elision(input, slice_shape, axis).has_value();
             });
         if(ncopies > 1)
@@ -294,7 +372,7 @@ void eliminate_concat::apply(module& m) const
                    if(input->outputs().size() < 2)
                        return false;
                    auto slice_shape =
-                       concat_optimizer::slice_shape_for(ins->get_shape(), input->get_shape());
+                       concat_optimizer::slice_shape_for(super_shape, input->get_shape());
                    if(is_packed(slice_shape, axis))
                        return false;
                    return std::any_of(input->outputs().begin(),
@@ -307,7 +385,7 @@ void eliminate_concat::apply(module& m) const
                                       });
                }))
             continue;
-        co.replace_concat(ins, axis);
+        co.replace_concat(ins, axis, sk);
     }
 }
 } // namespace MIGRAPHX_INLINE_NS

@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/dyn_concat.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device/dyn_concat.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -33,7 +34,7 @@ shape hip_dyn_concat::compute_shape(std::vector<shape> inputs) const
     if(inputs.size() < 3)
         MIGRAPHX_THROW("GPU_DYN_CONCAT: invalid input list");
     inputs.pop_back();
-    return op.normalize_compute_shape(inputs);
+    return op.compute_shape(inputs);
 }
 
 argument

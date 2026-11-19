@@ -67,7 +67,7 @@ struct dyn_concat
 
     std::string name() const { return "dyn_concat"; }
 
-    shape normalize_compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.size() < 2)
             MIGRAPHX_THROW("DYN_CONCAT: expected a count tensor followed by data inputs");

@@ -1606,6 +1606,71 @@ def concat_dyn_test():
 
 
 @onnx_test()
+def concat_symbolic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['a', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['b', 4])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, ['c', 4])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['x', 'y'],
+        axis=0,
+        outputs=['z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def concat_single_symbolic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['a', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 4])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, ['c', 4])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['x', 'y'],
+        axis=0,
+        outputs=['z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def concat_symbolic_non_axis_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['b', 'n', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['b', 'm', 4])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, ['b', 'c', 4])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['x', 'y'],
+        axis=1,
+        outputs=['z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def concat_symbol_collision_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      ['main_Concat_2', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['b', 4])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, ['c', 4])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['x', 'y'],
+        axis=0,
+        outputs=['z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def constant_test():
     x = np.array([0, 1, 2])
     y = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
@@ -20617,6 +20682,34 @@ def topk_var_k_test():
                                  axis=1)
     # `k` is a graph input (not an initializer), so it stays a runtime value
     return ([node], [x, k], [val, ind])
+
+
+@onnx_test()
+def topk_var_k_nonzero_range_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 8])
+    mask = helper.make_tensor_value_info('mask', TensorProto.BOOL, [8])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, None])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [2, None])
+    count_index = from_array(np.asarray([1], dtype=np.int64),
+                             name='count_index')
+
+    nonzero = helper.make_node('NonZero',
+                               inputs=['mask'],
+                               outputs=['nonzero_indices'])
+    shape = helper.make_node('Shape',
+                             inputs=['nonzero_indices'],
+                             outputs=['nonzero_shape'])
+    count = helper.make_node('Gather',
+                             inputs=['nonzero_shape', 'count_index'],
+                             outputs=['k'],
+                             axis=0)
+    topk = helper.make_node('TopK',
+                            inputs=['data', 'k'],
+                            outputs=['val', 'indices'],
+                            axis=1)
+    return ([nonzero, shape, count, topk], [data, mask], [val,
+                                                          ind], [count_index])
 
 
 def transpose_default_perm_test():

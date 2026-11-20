@@ -37,6 +37,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/sym.hpp>
 
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
@@ -95,7 +96,6 @@ struct miopen_apply
 
         add_extend_op("fixed_pad");
         add_generic_op("contiguous");
-        add_two_input_reshape_op();
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
@@ -111,6 +111,7 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_lrn_op();
+        add_dyn_concat_op();
         add_nms_op();
         add_nonzero_op();
         add_convolution_backwards_op();
@@ -179,6 +180,12 @@ struct miopen_apply
             }
             else if(has_compiler_for(it->name()))
             {
+                if(not s.dynamic() and s.type() != shape::tuple_type and s.elements() == 0)
+                {
+                    auto output = insert_allocation(it, s);
+                    check_shape(s, mod->replace_instruction(it, output));
+                    continue;
+                }
                 check_shape(s, insert_precompile_op(it));
                 check_shape(s, insert_dynamic_code_object_op(it));
             }
@@ -335,16 +342,6 @@ struct miopen_apply
         });
     }
 
-    void add_two_input_reshape_op()
-    {
-        apply_map.emplace("reshape", [=](instruction_ref ins) {
-            if(ins->inputs().size() == 2)
-                MIGRAPHX_THROW(
-                    "gpu::lowering: two-input reshape must be eliminated before lowering");
-            return ins;
-        });
-    }
-
     void add_extend_op(const std::string& name) { add_extend_op(name, "gpu::" + name); }
 
     void add_extend_op(const std::string& op_name, const std::string& gpu_name)
@@ -461,6 +458,19 @@ struct miopen_apply
 
             return mod->replace_instruction(
                 ins, make_op("gpu::loop", ins->get_operator().to_value()), inputs, mod_args);
+        });
+    }
+
+    void add_dyn_concat_op()
+    {
+        apply_map.emplace("dyn_concat", [=](instruction_ref ins) {
+            auto inputs = ins->inputs();
+            if(all_of(range(inputs.begin() + 1, inputs.end()),
+                      [](instruction_ref input) { return input->get_shape().has_fixed_strides(); }))
+                return insert_precompile_op(ins);
+            inputs.push_back(insert_allocation(ins, ins->get_shape()));
+            return mod->replace_instruction(
+                ins, make_op("gpu::dyn_concat", ins->get_operator().to_value()), inputs);
         });
     }
 

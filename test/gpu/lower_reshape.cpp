@@ -85,24 +85,95 @@ TEST_CASE(lower_standard_reshape)
     EXPECT(m1 == m2);
 }
 
-// The 2 input form carries its target shape on the output buffer, which no GPU copy op can
-// honor for a rank changing reshape. The matcher does not accept it, so it survives the
-// pass untouched rather than being lowered to a copy that reports the input shape.
-TEST_CASE(output_buffer_reshape_is_not_lowered)
+TEST_CASE(lower_output_buffer_reshape)
 {
-    auto build = [](migraphx::module& m) {
-        auto x      = m.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
-        auto output = m.add_parameter("output", {migraphx::shape::float_type, {6, 4}});
-        auto r      = m.add_instruction(migraphx::make_op("reshape"), x, output);
-        m.add_return({r});
-    };
-
     migraphx::module m1;
-    build(m1);
+    {
+        auto x      = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+        auto output = m1.add_parameter("output", {migraphx::shape::float_type, {6, 4}});
+        auto r      = m1.add_instruction(migraphx::make_op("reshape"), x, output);
+        m1.add_return({r});
+    }
     run_pass(m1);
 
     migraphx::module m2;
-    build(m2);
+    {
+        auto x      = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+        auto output = m2.add_parameter("output", {migraphx::shape::float_type, {6, 4}});
+        auto r      = m2.add_instruction(migraphx::make_op("reshape_lazy"), x, output);
+        m2.add_return({r});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(lower_symbolic_output_buffer_reshape)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    auto k   = migraphx::sym::var("K", {0, 1000});
+    migraphx::shape input_shape{migraphx::shape::float_type, {dd{k}, dd{migraphx::sym::lit(81)}}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {dd{migraphx::sym::lit(81) * k}}};
+
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", input_shape);
+        auto output = m1.add_parameter("output", output_shape);
+        auto r      = m1.add_instruction(migraphx::make_op("reshape"), x, output);
+        m1.add_return({r});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", input_shape);
+        auto output = m2.add_parameter("output", output_shape);
+        auto r      = m2.add_instruction(migraphx::make_op("reshape_lazy"), x, output);
+        m2.add_return({r});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(output_buffer_layout_mismatch_reshape_is_not_lowered)
+{
+    migraphx::module m1;
+    auto x      = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+    auto output = m1.add_parameter("output", {migraphx::shape::float_type, {6, 4}, {1, 6}});
+    auto r      = m1.add_instruction(migraphx::make_op("reshape"), x, output);
+    m1.add_return({r});
+
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(output_buffer_nonpacked_reshape_unchanged)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape input_shape{migraphx::shape::float_type, {3, 2, 4}, {4, 12, 1}};
+        auto x      = m1.add_parameter("x", input_shape);
+        auto output = m1.add_parameter("output", {migraphx::shape::float_type, {6, 4}});
+        auto r      = m1.add_instruction(migraphx::make_op("reshape"), x, output);
+        m1.add_return({r});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(output_buffer_range_dynamic_reshape_is_not_lowered)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape input_shape{migraphx::shape::float_type, {dd{1, 4}, dd{24, 24}}};
+
+    migraphx::module m1;
+    auto x      = m1.add_parameter("x", input_shape);
+    auto output = m1.add_parameter("output", input_shape);
+    auto r      = m1.add_instruction(migraphx::make_op("reshape"), x, output);
+    m1.add_return({r});
+
+    auto m2 = m1;
+    run_pass(m1);
     EXPECT(m1 == m2);
 }
 

@@ -71,10 +71,10 @@ namespace gpu {
  * dynamic inputs, which have none; those always take case 3. Static inputs are lifted
  * to symbolic literals so static and symbolic shapes share one code path.
  *
- * The 2 input form of `reshape` (`reshape(data, output_buffer)`, where the target shape
- * is carried by a runtime-sized output buffer) is not matched and passes through
- * un-lowered. No GPU copy op can express it: they all derive their kernel from an index
- * space shared by source and destination, which a rank-changing copy does not have.
+ * The 2 input form of `reshape` (`reshape(data, output_buffer)`, where the target shape is carried
+ * by a runtime-sized output buffer) is lowered only when it can alias the input directly. No GPU
+ * copy op can express the fallback: they all derive their kernel from an index space shared by
+ * source and destination, which a rank-changing copy does not have.
  */
 struct MIGRAPHX_GPU_EXPORT lower_reshape
 {

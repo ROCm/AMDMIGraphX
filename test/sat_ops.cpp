@@ -127,6 +127,14 @@ TEST_CASE(mul_sat_no_overflow)
     EXPECT(mul_sat(uint32_t{6}, uint32_t{7}) == 42u);
 }
 
+TEST_CASE(mul_sat_variadic)
+{
+    EXPECT(mul_sat(int32_t{2}, int32_t{3}, int32_t{4}) == 24);
+    EXPECT(mul_sat(uint32_t{2}, uint32_t{3}, uint32_t{4}, uint32_t{5}) == 120u);
+    EXPECT(mul_sat(tmax<uint32_t>(), uint32_t{2}, uint32_t{3}) == tmax<uint32_t>());
+    EXPECT(mul_sat(tmax<uint32_t>(), uint32_t{0}, uint32_t{3}) == 0u);
+}
+
 TEST_CASE(mul_sat_signed_positive_overflow)
 {
     // (+ * +) and (- * -) overflow toward max.
@@ -163,6 +171,8 @@ TEST_CASE(sat_ops_are_constexpr)
     static_assert(add_sat(tmax<int32_t>(), int32_t{1}) == tmax<int32_t>(), "add_sat constexpr");
     static_assert(sub_sat(uint32_t{0}, uint32_t{1}) == 0u, "sub_sat constexpr");
     static_assert(mul_sat(tmax<int32_t>(), int32_t{2}) == tmax<int32_t>(), "mul_sat constexpr");
+    static_assert(mul_sat(uint32_t{2}, uint32_t{3}, uint32_t{4}, uint32_t{5}) == 120u,
+                  "variadic mul_sat constexpr");
     EXPECT(true);
 }
 

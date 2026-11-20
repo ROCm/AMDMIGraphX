@@ -36,6 +36,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/type_traits.hpp>
+#include <migraphx/sym.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -107,14 +108,13 @@ struct convolution_backwards
                            to_string(group) + ")");
         }
 
-        if(x_shape.dynamic() or w_shape.dynamic())
-        {
+        const bool any_range_based = (x_shape.dynamic() and not x_shape.symbolic()) or
+                                     (w_shape.dynamic() and not w_shape.symbolic());
+        if(any_range_based)
             return dynamic_compute_shape(x_shape, w_shape);
-        }
-        else
-        {
-            return static_compute_shape(x_shape, w_shape);
-        }
+        if(x_shape.symbolic() or w_shape.symbolic())
+            return symbolic_compute_shape(x_shape, w_shape);
+        return static_compute_shape(x_shape, w_shape);
     }
 
     std::vector<std::size_t> calc_spatial_lens(std::vector<std::size_t> x_lens,
@@ -148,6 +148,28 @@ struct convolution_backwards
             output_dyn_dims.push_back(
                 shape::dynamic_dimension{min_spatial_dims[i], max_spatial_dims[i], {}});
         }
+        return shape{x_shape.type(), output_dyn_dims};
+    }
+
+    shape symbolic_compute_shape(shape x_shape, shape w_shape) const
+    {
+        const auto x_dyn                                      = x_shape.to_symbolic().dyn_dims();
+        const auto w_dyn                                      = w_shape.to_symbolic().dyn_dims();
+        std::vector<shape::dynamic_dimension> output_dyn_dims = {x_dyn.at(0), w_dyn.at(1) * group};
+        std::size_t i                                         = 0;
+        std::transform(x_dyn.begin() + 2,
+                       x_dyn.end(),
+                       w_dyn.begin() + 2,
+                       std::back_inserter(output_dyn_dims),
+                       [&](const auto& x, const auto& w) {
+                           const auto stride_value   = sym::lit(stride[i]);
+                           const auto dilation_value = sym::lit(dilation[i]);
+                           const auto padding_value  = sym::lit(2 * padding[i]);
+                           i++;
+                           auto output = stride_value * (x.sym_expr - 1) +
+                                         dilation_value * (w.sym_expr - 1) + 1 - padding_value;
+                           return shape::dynamic_dimension{sym::resolve_max(sym::lit(1), output)};
+                       });
         return shape{x_shape.type(), output_dyn_dims};
     }
 

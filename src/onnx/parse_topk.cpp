@@ -31,6 +31,7 @@
 #include <migraphx/sym.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/value.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -90,29 +91,45 @@ struct parse_topk : op_parser<parse_topk>
             int64_t k = arg_k.at<int>();
             return add_topk_and_gets(info, args, k, axis, largest);
         }
-        // Variable (data-dependent) `k`: run topk over the whole axis dimension, then slice the
-        // outputs down to the runtime `k` using a symbolic dimension.
-        auto input_shape = args.at(0)->get_shape();
+        // Variable `k` is supported only for static or symbolic data. Run TopK at the largest
+        // possible `k`, then slice both outputs to the runtime `k`.
+        const auto& input_shape = args.at(0)->get_shape();
         if(input_shape.dynamic() and not input_shape.symbolic())
-        {
             MIGRAPHX_THROW("PARSE_TOPK: a runtime `k` needs a static or symbolic data shape; "
                            "parse with symbolic shapes enabled");
-        }
-        // Normalize axis because we need the interval maximum on that dimension.
-        int64_t norm_axis = tune_axis(input_shape.ndim(), axis, "TopK");
-        int64_t max_k     = input_shape.max_lens().at(norm_axis);
-        auto outs         = add_topk_and_gets(info, args, max_k, norm_axis, largest);
 
-        // `k` is only known at run time, so it becomes a symbol bounded by the axis it slices.
-        auto k_var      = sym::var(info.name, {0, max_k});
-        auto starts_lit = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
-        auto dyn_slice  = make_op(
+        auto norm_axis = tune_axis(input_shape.ndim(), axis, "TopK");
+        int64_t max_k  = input_shape.max_lens().at(norm_axis);
+        sym::expr k_end;
+        auto symbolic_k = k_ins->sym_eval();
+        if(not symbolic_k.empty() and symbolic_k.get_shape().elements() == 1 and
+           shape::is_integral(symbolic_k.get_shape().type()))
+        {
+            const auto expression = symbolic_k.get()[0];
+            auto interval         = expression.eval_interval_default();
+            if(interval.valid())
+            {
+                auto min_k          = sym::to<int64_t>(interval.min);
+                auto max_symbolic_k = sym::to<int64_t>(interval.max);
+                if(min_k >= 0 and max_symbolic_k > 0)
+                {
+                    max_k = std::min(max_k, max_symbolic_k);
+                    k_end = max_symbolic_k > max_k ? sym::resolve_min(expression, sym::lit(max_k))
+                                                   : expression;
+                }
+            }
+        }
+        if(k_end.empty())
+            k_end = sym::var(info.name, {0, max_k});
+        auto outputs = add_topk_and_gets(info, args, max_k, norm_axis, largest);
+        auto starts  = info.add_literal(literal{{shape::int64_type, {1}}, {0}});
+        auto slice   = make_op(
             "dyn_slice",
-            {{"axes", {norm_axis}}, {"starts", {0}}, {"ends", value::array{to_value(k_var)}}});
-        std::transform(outs.begin(), outs.end(), outs.begin(), [&](auto out) {
-            return info.add_instruction(dyn_slice, out, starts_lit, k_ins);
+            {{"axes", {norm_axis}}, {"starts", {0}}, {"ends", value::array{to_value(k_end)}}});
+        std::transform(outputs.begin(), outputs.end(), outputs.begin(), [&](auto output) {
+            return info.add_instruction(slice, output, starts, k_ins);
         });
-        return outs;
+        return outputs;
     }
 };
 

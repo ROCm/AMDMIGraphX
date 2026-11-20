@@ -59,7 +59,7 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
 
 #ifdef MIGRAPHX_NGROUP
 // If global is divisible by local then local can be a const
-#if(MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL == 0) || (MIGRAPHX_NGROUP == 1)
+#if (MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL == 0) || (MIGRAPHX_NGROUP == 1)
 #define MIGRAPHX_HAS_CONST_LOCAL 1
 #endif
 #endif

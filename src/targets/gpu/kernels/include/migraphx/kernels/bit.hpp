@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,8 @@ constexpr bool get_bit(uint32_t x, uint32_t i) noexcept
     MIGRAPHX_ASSERT(i < 32);
     return ((x >> i) & 1u) != 0;
 }
+
+constexpr bool is_power_of_2(unsigned int x) { return x > 0 and (x & (x - 1)) == 0u; }
 
 constexpr uint64_t bit_ceil(uint64_t x) noexcept
 {

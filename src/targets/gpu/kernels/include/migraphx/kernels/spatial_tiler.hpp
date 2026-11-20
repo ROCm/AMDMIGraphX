@@ -32,6 +32,7 @@
 #include <migraphx/kernels/permutation.hpp>
 #include <migraphx/kernels/uninitialized_buffer.hpp>
 #include <migraphx/kernels/vec.hpp>
+#include <migraphx/kernels/bit.hpp>
 
 namespace migraphx {
 
@@ -58,11 +59,12 @@ constexpr auto spatial_steps(Spatial)
 }
 
 // Whether V consecutive channels form one naturally aligned vector: the channel dim is
-// contiguous and every other stride keeps vector alignment
+// contiguous and every other stride keeps vector alignment. Only power-of-two widths have
+// a vector type as wide as its alignment.
 template <index_int V, class Shape>
 constexpr bool channel_vector_aligned(Shape s)
 {
-    if constexpr(V == 1)
+    if constexpr(V == 1 or not is_power_of_2(V))
         return false;
     else
     {
@@ -143,8 +145,6 @@ template <index_int NTiles,
           class Reach           = index_ints<1>>
 struct spatial_tiler
 {
-    static_assert(OutputShape{}.lens[1] % ChannelTile == 0,
-                  "Channel tile must divide the output channels");
     static_assert(ChannelTile % ChannelVec == 0, "Channel vector must divide the channel tile");
     static_assert(NRows == 1 or TileLens{}.size() > 1,
                   "Row runs need a spatial dim before the column dim");
@@ -196,7 +196,16 @@ struct spatial_tiler
     }
 
     static constexpr index_int tiles_total() { return tiles_per_dim().product(); }
-    static constexpr index_int channel_tiles() { return OutputShape{}.lens[1] / ChannelTile; }
+    // Blocks along the channels; the last one is partial when ChannelTile does not divide
+    // the channels, and kernels must skip its missing channels
+    static constexpr index_int channel_tiles()
+    {
+        return (OutputShape{}.lens[1] + ChannelTile - 1) / ChannelTile;
+    }
+    static constexpr bool partial_channel_tile()
+    {
+        return OutputShape{}.lens[1] % ChannelTile != 0;
+    }
     static constexpr auto ndim() { return out_spatial_lens().size(); }
 
     // Memory order of the output; lanes are assigned in this order
@@ -271,22 +280,22 @@ struct spatial_tiler
     }
 
     // Halo lens for a given input shape: the output tile stepped by the stride plus the
-    // reach of its last output
-    template <class InputShape>
+    // reach of its last output, over Channels input channels
+    template <class InputShape, index_int Channels = input_channel_tile<InputShape>()>
     static constexpr auto halo_lens_for()
     {
         return return_array_c([] {
             auto result = (output_lens() - 1) * get_stride() + get_reach();
-            result[1]   = input_channel_tile<InputShape>();
+            result[1]   = Channels;
             return result;
         });
     }
 
     // Shared-memory halo layout: packed in the input's memory order
-    template <class InputShape>
+    template <class InputShape, index_int Channels = input_channel_tile<InputShape>()>
     static constexpr auto halo_shape_for()
     {
-        return make_shape_from_permutation(halo_lens_for<InputShape>(),
+        return make_shape_from_permutation(halo_lens_for<InputShape, Channels>(),
                                            find_permutation(InputShape{}));
     }
 
@@ -309,11 +318,11 @@ struct spatial_tiler
     }
 
     // A halo dim is fully covered when every block reads its whole input extent
-    template <class InputShape>
+    template <class InputShape, index_int Channels = input_channel_tile<InputShape>()>
     static constexpr auto halo_covered_for()
     {
         return generate_const_array<index_int>(ndim(), [](auto d) {
-            constexpr auto hl        = halo_lens_for<InputShape>();
+            constexpr auto hl        = halo_lens_for<InputShape, Channels>();
             constexpr bool whole     = hl[d] == InputShape{}.lens[d];
             constexpr bool spatial   = d >= 2;
             constexpr bool untiled   = tiles_per_dim()[d] == 1 and total_padding()[d] == 0;
@@ -324,13 +333,13 @@ struct spatial_tiler
 
     // Contiguous input elements per halo row: the fastest memory-order dims merge while
     // dense in the input and fully covered, plus the first partially covered one.
-    template <class InputShape>
+    template <class InputShape, index_int Channels = input_channel_tile<InputShape>()>
     static constexpr index_int halo_span_for()
     {
         constexpr auto perm    = find_permutation(InputShape{});
-        constexpr auto lens    = reorder_dims(halo_lens_for<InputShape>(), perm);
+        constexpr auto lens    = reorder_dims(halo_lens_for<InputShape, Channels>(), perm);
         constexpr auto strides = reorder_dims(InputShape{}.strides, perm);
-        constexpr auto covered = reorder_dims(halo_covered_for<InputShape>(), perm);
+        constexpr auto covered = reorder_dims(halo_covered_for<InputShape, Channels>(), perm);
         index_int span         = 1;
         index_int expected     = 1;
         for(diff_int d = lens.size() - 1; d >= 0; d--)
@@ -346,13 +355,13 @@ struct spatial_tiler
     }
 
     // Halo lens outside the contiguous span (span dims are 1)
-    template <class InputShape>
+    template <class InputShape, index_int Channels = input_channel_tile<InputShape>()>
     static constexpr auto halo_row_lens_for()
     {
         return return_array_c([] {
             constexpr auto perm = find_permutation(InputShape{});
-            auto lens           = reorder_dims(halo_lens_for<InputShape>(), perm).base();
-            index_int span      = halo_span_for<InputShape>();
+            auto lens           = reorder_dims(halo_lens_for<InputShape, Channels>(), perm).base();
+            index_int span      = halo_span_for<InputShape, Channels>();
             for(diff_int d = lens.size() - 1; d >= 0 and span > 1; d--)
             {
                 span /= lens[d];
@@ -363,12 +372,12 @@ struct spatial_tiler
     }
 
     // Logical dim that bounds the span: the only span dim that can be out of bounds
-    template <class InputShape>
+    template <class InputShape, index_int Channels = input_channel_tile<InputShape>()>
     static constexpr index_int halo_span_dim_for()
     {
         constexpr auto perm     = find_permutation(InputShape{});
-        constexpr auto lens     = reorder_dims(halo_lens_for<InputShape>(), perm);
-        constexpr auto row_lens = reorder_dims(halo_row_lens_for<InputShape>(), perm);
+        constexpr auto lens     = reorder_dims(halo_lens_for<InputShape, Channels>(), perm);
+        constexpr auto row_lens = reorder_dims(halo_row_lens_for<InputShape, Channels>(), perm);
         // The span consumes a suffix of the memory-order dims, but a singleton inside it
         // keeps row_lens == lens, so take the outermost dim the span reduced
         for(index_int d = 0; d < lens.size(); d++)
@@ -387,17 +396,17 @@ struct spatial_tiler
     array<index_int, ndim()> lane;        // this lane's position within the tile
 
     // Type for shared memory allocation
-    template <class Input>
+    template <class Input, index_int Channels = input_channel_tile<get_shape_c<Input>>()>
     __device__ auto shared_allocate() const
     {
         using type        = typename Input::type;
-        constexpr auto hl = halo_lens_for<get_shape_c<Input>>();
+        constexpr auto hl = halo_lens_for<get_shape_c<Input>, Channels>();
         return uninitialized_buffer<type, hl.product(), 16>{};
     }
 
-    // View of an (N, C, spatial...) tensor over this block's batch and channel group
-    template <index_int TC, class Tensor>
-    __device__ auto slice_channels(Tensor t) const
+    // View of an (N, C, spatial...) tensor over one batch and TC channels from start
+    template <index_int TC, class Tensor, class Start>
+    static __device__ auto channel_view(Tensor t, Start start)
     {
         constexpr auto s    = get_shape_c<Tensor>{};
         constexpr auto lens = return_array_c([] {
@@ -406,13 +415,20 @@ struct spatial_tiler
             result[1]   = TC;
             return result;
         });
+        return make_tensor_view(t.data() + s.index(start), make_shape(lens, s.strides));
+    }
+
+    // View of an (N, C, spatial...) tensor over this block's batch and channel group
+    template <index_int TC, class Tensor>
+    __device__ auto slice_channels(Tensor t) const
+    {
         // Channel origin scaled for tensors with fewer channels (channel multiplier)
         constexpr auto scale = return_array_c([] {
             auto result = transform(get_shape_c<Tensor>{}.lens, [](auto) { return index_c<1>; });
             result[1]   = channel_multiplier<get_shape_c<Tensor>>();
             return result;
         });
-        return make_tensor_view(t.data() + s.index(origin / scale), make_shape(lens, s.strides));
+        return channel_view<TC>(t, origin / scale);
     }
 
     // View of an output-shaped tensor over this block: (1, ChannelTile, spatial...)
@@ -426,6 +442,7 @@ struct spatial_tiler
     template <class Tensor>
     __device__ auto slice_weights(Tensor w) const
     {
+        static_assert(not partial_channel_tile(), "Weights of a partial channel tile");
         constexpr auto s    = get_shape_c<Tensor>{};
         constexpr auto lens = return_array_c([] {
             auto result = make_slice(get_shape_c<Tensor>{}, keep_spatial()).lens;
@@ -454,23 +471,97 @@ struct spatial_tiler
             return 1;
     }
 
+    // Widest vector of at most MaxVec channels a halo copy of Channels input channels can
+    // move: the channels are contiguous and the vectors tile the contiguous span
+    template <class InputShape, index_int Channels, index_int MaxVec>
+    static constexpr index_int halo_channel_vector()
+    {
+        if constexpr(MaxVec < 2)
+            return 1;
+        else if constexpr(channel_vector_aligned<MaxVec>(InputShape{}) and
+                          halo_span_for<InputShape, Channels>() % MaxVec == 0)
+            return MaxVec;
+        else
+            return halo_channel_vector<InputShape, Channels, MaxVec / 2>();
+    }
+
     // Copy input halo tile into shared memory, return tensor_view over smem
     template <class Input, class Smem>
     __device__ auto copy(Input input, Smem& smem) const
     {
-        using type                = typename Input::type;
-        using input_shape         = get_shape_c<Input>;
-        constexpr auto hl         = halo_lens_for<input_shape>();
-        constexpr auto perm       = find_permutation(input_shape{});
-        constexpr index_int span  = halo_span_for<input_shape>();
-        constexpr index_int step  = halo_vector_for<input_shape>();
-        constexpr auto row_lens   = halo_row_lens_for<input_shape>();
+        static_assert(not partial_channel_tile(), "Halo of a partial channel tile");
+        using input_shape            = get_shape_c<Input>;
+        constexpr index_int channels = input_channel_tile<input_shape>();
+        copy_halo<input_shape, channels, halo_vector_for<input_shape>()>(
+            slice_channels<channels>(input), smem);
+        return make_tensor_view(smem.data(), halo_view_shape_for<input_shape>());
+    }
+
+    // Copy the halo of input channels [channel, channel + Channels) of the block's batch into
+    // shared memory as HaloShape (the input's memory order by default), Vec channels per
+    // load, and return the halo view, whose elements are vectors when HaloShape packs channels.
+    template <index_int Channels,
+              index_int Vec = 1,
+              class Input,
+              class Smem,
+              class HaloShape = decltype(halo_shape_for<get_shape_c<Input>, Channels>())>
+    __device__ auto copy_channels(Input input, Smem& smem, index_int channel, HaloShape = {}) const
+    {
+        using input_shape        = get_shape_c<Input>;
+        constexpr index_int pack = Channels / HaloShape{}.lens[1];
+        static_assert(HaloShape{}.element_space() * pack * sizeof(typename Input::type) <=
+                          sizeof(Smem),
+                      "Halo layout must fit in shared memory");
+        MIGRAPHX_ASSERT(channel % Vec == 0 and channel + Channels <= input_shape{}.lens[1]);
+        auto start = origin;
+        start[1]   = channel;
+        copy_halo<input_shape, Channels, Vec>(
+            channel_view<Channels>(input, start), smem, HaloShape{});
+        return make_tensor_view(as_vec<pack>(smem.data()), HaloShape{});
+    }
+
+    // Shared-memory offset of a halo element in a HaloShape whose elements each hold Pack
+    // consecutive channels
+    template <index_int Pack, class HaloShape, class Multi>
+    static constexpr index_int packed_halo_index(HaloShape, Multi multi)
+    {
+        constexpr auto group_shape = make_shape(index_ints<HaloShape{}.lens[1], Pack>{});
+        auto group                 = group_shape.multi(multi[1]);
+        multi[1]                   = group[0];
+        return HaloShape{}.index(multi) * Pack + group[1];
+    }
+
+    // Copy the halo of a view over this block's batch and Channels input channels into
+    // shared memory laid out as HaloShape, moving Step elements at a time. A HaloShape over
+    // fewer channels packs each group of consecutive channels into one element.
+    template <class InputShape,
+              index_int Channels,
+              index_int Step,
+              class View,
+              class Smem,
+              class HaloShape = decltype(halo_shape_for<InputShape, Channels>())>
+    __device__ void copy_halo(View in_ch, Smem& smem, HaloShape = {}) const
+    {
+        using type                = typename View::type;
+        constexpr auto hl         = halo_lens_for<InputShape, Channels>();
+        constexpr auto perm       = find_permutation(InputShape{});
+        constexpr index_int span  = halo_span_for<InputShape, Channels>();
+        constexpr index_int step  = Step;
+        constexpr auto row_lens   = halo_row_lens_for<InputShape, Channels>();
         constexpr auto row_shape  = make_shape(index_ints<hl.product() / span, span / step>{});
-        constexpr index_int outer = halo_span_dim_for<input_shape>();
+        constexpr index_int outer = halo_span_dim_for<InputShape, Channels>();
         constexpr index_int inner = span / hl[outer];
         constexpr auto row_mask   = transform(row_lens, hl, [](auto r, auto h) { return r == h; });
+        // Lens of the dims the span runs over, decomposed in the input's memory order
+        constexpr auto span_lens =
+            transform(row_lens, hl, [](auto r, auto h) { return r == h ? 1 : h; });
+        constexpr bool input_order = HaloShape{} == halo_shape_for<InputShape, Channels>();
+        static_assert(Channels % HaloShape{}.lens[1] == 0, "Channels must pack evenly");
+        constexpr index_int pack = Channels / HaloShape{}.lens[1];
+        static_assert(span % step == 0, "Copy vectors must tile the contiguous span");
+        static_assert(HaloShape{}.lens == halo_lens_for<InputShape, Channels / pack>(),
+                      "Shared-memory layout must cover the halo");
 
-        auto in_ch = slice_channels<input_channel_tile<input_shape>()>(input);
         // The tile's origin in the padded input: spatial dims step by the stride
         auto in_origin   = tile_origin * get_stride();
         auto halo_origin = in_origin - left_padding();
@@ -486,9 +577,10 @@ struct spatial_tiler
             col_end         = (avail < hl[outer] ? avail : hl[outer]) * inner;
         }
 
-        // The halo is packed in the order rows are decomposed, so the linear index is
-        // already the shared-memory offset. Column bounds are multiples of the vector
-        // size, so a whole vector is either inside or outside the input.
+        // In the input's order the linear index is already the shared-memory offset;
+        // another layout places each element by its halo position. Column bounds are
+        // multiples of the vector size, so a whole vector is either inside or outside the
+        // input.
         idx.local_stride(_c<hl.product() / step>, [&](auto i) {
             auto rc        = row_shape.multi(i);
             auto col       = rc[1] * step;
@@ -502,7 +594,24 @@ struct spatial_tiler
                 if constexpr(row_mask[outer] == 0)
                     valid = valid and col >= col_begin and col < col_end;
             }
-            if constexpr(step > 1)
+            if constexpr(not input_order)
+            {
+                array<type, step> values{};
+                if constexpr(step > 1)
+                {
+                    if(valid)
+                        *as_vec<step>(values.begin()) = *as_vec<step>(in_ch.data() + offset);
+                }
+                else if(valid)
+                {
+                    values[0] = in_ch.data()[offset];
+                }
+                repeat(_c<step>, [&](auto v) {
+                    auto multi = row_multi + multi_from_permutation(span_lens, perm, col + v);
+                    smem[packed_halo_index<pack>(HaloShape{}, multi)] = values[v];
+                });
+            }
+            else if constexpr(step > 1)
             {
                 vec<type, step> value{};
                 if(valid)
@@ -514,25 +623,33 @@ struct spatial_tiler
                 smem[i] = valid ? type{in_ch.data()[offset]} : type{0};
             }
         });
-
-        return make_tensor_view(smem.data(), halo_view_shape_for<input_shape>());
     }
 
-    // Whether an output position lies inside the block's region (partial tiles)
+    // Whether an output position lies inside the block's region (partial tiles) and, for a
+    // partial channel tile, inside the output channels
     __device__ bool contains(const array<index_int, ndim()>& pos) const
     {
+        if constexpr(partial_channel_tile())
+        {
+            if(origin[1] + pos[1] >= OutputShape{}.lens[1])
+                return false;
+        }
         return in_bounds(pos, region_lens());
     }
 
-    // Iterate over the first row of each run of NRows consecutive rows this lane owns.
-    // Runs step by a constant along the last spatial dim so offsets fold into immediates.
+    // Whether some output positions of a lane fall outside contains()
+    static constexpr bool needs_bounds_check() { return is_padded() or partial_channel_tile(); }
+
+    // Iterate over the first row of each run of NRows consecutive rows this lane owns, with
+    // the index of its column tile. Runs step by a constant along the last spatial dim so
+    // offsets fold into immediates.
     template <class F>
     __device__ void for_each_run(F f) const
     {
         repeat(_c<NTiles>, [&](auto k) {
             auto out_multi = lane;
             out_multi[ndim() - 1] += k * TileLens{}.back();
-            f(tile_origin + out_multi, out_multi);
+            f(tile_origin + out_multi, out_multi, k);
         });
     }
 
@@ -540,7 +657,7 @@ struct spatial_tiler
     template <class F>
     __device__ void for_each(F f) const
     {
-        for_each_run([&](auto out_pos, auto out_multi) {
+        for_each_run([&](auto out_pos, auto out_multi, auto) {
             repeat(_c<NRows * ChannelVec>, [&](auto k) {
                 auto rv    = make_shape(index_ints<NRows, ChannelVec>{}).multi(k);
                 auto pos   = out_pos;
@@ -549,7 +666,7 @@ struct spatial_tiler
                 multi[1] += rv[1];
                 pos[2] += rv[0];
                 multi[2] += rv[0];
-                if constexpr(is_padded())
+                if constexpr(needs_bounds_check())
                 {
                     if(not contains(pos))
                         return;

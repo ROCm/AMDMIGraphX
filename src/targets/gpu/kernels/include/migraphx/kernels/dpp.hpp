@@ -27,10 +27,9 @@
 #include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/debug.hpp>
+#include <migraphx/kernels/bit.hpp>
 
 namespace migraphx {
-
-constexpr bool is_power_of_2(unsigned int x) { return x > 0 and (x & (x - 1)) == 0u; }
 
 #ifndef MIGRAPHX_HAS_DPP
 #define MIGRAPHX_HAS_DPP 1

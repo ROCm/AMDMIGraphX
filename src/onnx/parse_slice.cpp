@@ -57,6 +57,13 @@ struct parse_slice : op_parser<parse_slice>
             migraphx::argument arg_value = arg->eval();
             if(arg_value.empty())
             {
+                // The values can still be fixed, for example a dimension read through a gather
+                const auto sym_value = arg->sym_eval();
+                if(not sym_value.empty())
+                {
+                    if(auto fixed = sym::fixed_values<int64_t>(sym_value.get()))
+                        return *fixed;
+                }
                 op_args.insert(op_args.begin(), arg);
             }
             else

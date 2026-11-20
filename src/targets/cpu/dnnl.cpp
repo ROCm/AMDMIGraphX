@@ -22,7 +22,11 @@
  * THE SOFTWARE.
  */
 #include <migraphx/cpu/dnnl.hpp>
+#include <algorithm>
+#include <numeric>
 #include <optional>
+#include <tuple>
+#include <vector>
 
 #if defined(__GNUC__) && __GNUC__ <= 5
 namespace std {
@@ -78,6 +82,29 @@ static std::optional<dnnl::memory::data_type> find_dnnl_memory_data_type(shape::
 #endif
 
 bool is_dnnl_supported_type(shape::type_t t) { return find_dnnl_memory_data_type(t).has_value(); }
+
+bool is_dnnl_supported_layout(const shape& s)
+{
+    if(s.dynamic())
+        return true;
+    auto ns             = s.normalize_standard();
+    const auto& lens    = ns.lens();
+    const auto& strides = ns.strides();
+    std::vector<std::size_t> axes(ns.ndim());
+    std::iota(axes.begin(), axes.end(), 0);
+    // Broadcast and unit dimensions never step to another element, as in oneDNN's check
+    axes.erase(std::remove_if(axes.begin(),
+                              axes.end(),
+                              [&](auto i) { return strides[i] == 0 or lens[i] == 1; }),
+               axes.end());
+    std::sort(axes.begin(), axes.end(), [&](auto i, auto j) {
+        return std::tie(strides[i], lens[i]) < std::tie(strides[j], lens[j]);
+    });
+    // Each stride has to step past every element reached by the smaller strides
+    return std::adjacent_find(axes.begin(), axes.end(), [&](auto i, auto j) {
+               return strides[j] < strides[i] * lens[i];
+           }) == axes.end();
+}
 
 dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
 {
@@ -135,11 +162,9 @@ dnnl::memory to_dnnl_memory(const argument& a)
         m(eltwise_sqrt) \
         m(eltwise_swish) \
         m(eltwise_linear) \
-        m(eltwise_bounded_relu) \
         m(eltwise_soft_relu) \
         m(eltwise_logistic) \
         m(eltwise_exp) \
-        m(eltwise_gelu) \
         m(eltwise_gelu_tanh) \
         m(eltwise_gelu_erf) \
         m(eltwise_log) \
@@ -155,7 +180,6 @@ dnnl::memory to_dnnl_memory(const argument& a)
         m(lrn_across_channels) \
         m(lrn_within_channel) \
         m(pooling_max) \
-        m(pooling_avg) \
         m(pooling_avg_include_padding) \
         m(pooling_avg_exclude_padding) \
         m(vanilla_rnn) \

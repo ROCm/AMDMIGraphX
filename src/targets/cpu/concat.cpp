@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +41,7 @@ struct dnnl_concat : dnnl_extend_op<dnnl_concat, dnnl::concat, op::concat>
     struct desc
     {
         dnnl::memory::desc dst;
-        std::size_t axis = 1;
+        int axis = 1;
         std::vector<dnnl::memory::desc> srcs;
     };
     desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
@@ -53,12 +53,12 @@ struct dnnl_concat : dnnl_extend_op<dnnl_concat, dnnl::concat, op::concat>
         {
             srcs.push_back(m.at(MIGRAPHX_DNNL_PREFIX(ARG_MULTIPLE_SRC) + i));
         }
-        return {m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)), std::size_t(op.axis), srcs};
+        return {m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)), static_cast<int>(op.axis), srcs};
     }
 
     auto get_primitive_desc(const desc& d, const dnnl::primitive_attr& attr) const
     {
-        return dnnl::concat::primitive_desc(d.dst, d.axis, d.srcs, get_dnnl_context().engine, attr);
+        return dnnl::concat::primitive_desc(get_dnnl_context().engine, d.dst, d.axis, d.srcs, attr);
     }
 };
 

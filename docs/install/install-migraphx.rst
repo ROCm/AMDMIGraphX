@@ -13,12 +13,7 @@ Installing MIGraphX using prebuilt packages is sufficient for most users
 who want to use the MIGraphX API. If you plan to develop for MIGraphX or
 contribute to the source code, see `Developing for MIGraphX <../dev/contributing-to-migraphx.html>`_.
 
-.. selector:: Installation method
-   :key: i
-
-   .. selector-option:: pip
-      :value: pip
-      :width: 12
+MIGraphX |MIGRAPHX_VERSION| is installed using pip.
 
 Prerequisites
 =============
@@ -28,9 +23,7 @@ MI355X and MI350X data center GPUs and ``gfx942`` MI325X and MI300X GPUs.
 
 See the |ROCM_COMPAT_DOC| for more information.
 
-.. selected:: i=pip
-
-   * Ensure your system has Python 3.12 installed and accessible.
+* Ensure your system has Python 3.12 installed and accessible.
 
 .. _migraphx-package-install:
 
@@ -46,186 +39,183 @@ For instructions, see |ROCM_INSTALL_DOC|. Use the selector
 panel on that page to view instructions appropriate for your system
 environment.
 
-.. selected:: i=pip
-   :heading: Install MIGraphX using pip
-   :heading-level: 3
+Install MIGraphX using pip
+---------------------------
 
-   After installing ROCm, install MIGraphX. This method installs MIGraphX |MIGRAPHX_VERSION| into
-   a Python virtual environment.
+After installing ROCm, install MIGraphX. This method installs MIGraphX |MIGRAPHX_VERSION| into
+a Python virtual environment.
 
-   1. Create and activate a virtual environment or activate an existing ROCm
-      |ROCM_VERSION| environment.
+1. Create and activate a virtual environment or activate an existing ROCm
+   |ROCM_VERSION| environment.
 
-      .. code-block:: bash
+   .. code-block:: bash
 
-         python3.12 -m venv .venv
-         source .venv/bin/activate
+      python3.12 -m venv .venv
+      source .venv/bin/activate
 
-   2. Install the MIGraphX and ``migraphx-libs`` wheels.
+2. Install the MIGraphX and ``migraphx-libs`` wheels.
 
-      .. code-block:: bash
-         :substitutions:
+   .. code-block:: bash
+      :substitutions:
 
-         python -m pip install --index-url |WHL_PKG_REPO| \
-             "migraphx==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|" \
-             |WHL_LIBS_URL|
+      python -m pip install --index-url |WHL_PKG_REPO| \
+          "migraphx==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|" \
+          |WHL_LIBS_URL|
 
-   3. **If you installed ROCm using your Linux distribution's package
-      manager** instead of pip, importing MIGraphX fails with
-      ``libhsa-runtime64.so.1: cannot open shared object file``. As
-      a workaround, update ``LD_LIBRARY_PATH`` to link to the required ROCm
-      libraries in your installation path:
+3. **If you installed ROCm using your Linux distribution's package
+   manager** instead of pip, importing MIGraphX fails with
+   ``libhsa-runtime64.so.1: cannot open shared object file``. As
+   a workaround, update ``LD_LIBRARY_PATH`` to link to the required ROCm
+   libraries in your installation path:
 
-      .. tab-set::
+   .. tab-set::
 
-         .. tab-item:: Active session
-            :sync: active
+      .. tab-item:: Active session
+         :sync: active
 
-            Set the environment variable for the current shell session
-            only. To keep this setting across sessions, use System-wide
-            setup or User setup.
+         Set the environment variable for the current shell session
+         only. To keep this setting across sessions, use System-wide
+         setup or User setup.
 
-            .. code-block:: bash
-               :substitutions:
+         .. code-block:: bash
+            :substitutions:
 
-               # MIGraphX Environment Setup
-               export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-               export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+            # MIGraphX Environment Setup
+            export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+            export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
 
-         .. tab-item:: System-wide setup
-            :sync: system
+      .. tab-item:: System-wide setup
+         :sync: system
 
-            Create a profile script so that all users inherit the
-            MIGraphX environment variables when they start a shell
-            session.
+         Create a profile script so that all users inherit the
+         MIGraphX environment variables when they start a shell
+         session.
 
-            .. code-block:: bash
-               :substitutions:
+         .. code-block:: bash
+            :substitutions:
 
-               # MIGraphX Environment Setup
-               sudo tee /etc/profile.d/set-migraphx-env.sh << 'EOF'
-               export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-               export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-               EOF
+            # MIGraphX Environment Setup
+            sudo tee /etc/profile.d/set-migraphx-env.sh << 'EOF'
+            export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+            export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+            EOF
 
-               sudo chmod +x /etc/profile.d/set-migraphx-env.sh
-               source /etc/profile.d/set-migraphx-env.sh
+            sudo chmod +x /etc/profile.d/set-migraphx-env.sh
+            source /etc/profile.d/set-migraphx-env.sh
 
-         .. tab-item:: User setup
-            :sync: user
+      .. tab-item:: User setup
+         :sync: user
 
-            Configure the MIGraphX environment for your user by updating
-            your shell startup configuration file.
+         Configure the MIGraphX environment for your user by updating
+         your shell startup configuration file.
 
-            .. tab-set::
+         .. tab-set::
 
-               .. tab-item:: .bashrc
-                  :sync: bashrc
+            .. tab-item:: .bashrc
+               :sync: bashrc
 
-                  .. code-block:: bash
-                     :substitutions:
+               .. code-block:: bash
+                  :substitutions:
 
-                     # MIGraphX Environment Setup
-                     tee --append ~/.bashrc << 'EOF'
-                     # BEGIN MIGraphX environment configuration
-                     export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-                     export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-                     # END MIGraphX environment configuration
-                     EOF
+                  # MIGraphX Environment Setup
+                  tee --append ~/.bashrc << 'EOF'
+                  # BEGIN MIGraphX environment configuration
+                  export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+                  export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+                  # END MIGraphX environment configuration
+                  EOF
 
-                     source ~/.bashrc
+                  source ~/.bashrc
 
-               .. tab-item:: .profile
-                  :sync: profile
+            .. tab-item:: .profile
+               :sync: profile
 
-                  .. code-block:: bash
-                     :substitutions:
+               .. code-block:: bash
+                  :substitutions:
 
-                     # MIGraphX Environment Setup
-                     tee --append ~/.profile << 'EOF'
-                     # BEGIN MIGraphX environment configuration
-                     export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-                     export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-                     # END MIGraphX environment configuration
-                     EOF
+                  # MIGraphX Environment Setup
+                  tee --append ~/.profile << 'EOF'
+                  # BEGIN MIGraphX environment configuration
+                  export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+                  export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+                  # END MIGraphX environment configuration
+                  EOF
 
-                     source ~/.profile
+                  source ~/.profile
 
-   4. Verify your installation.
+4. Verify your installation.
 
-      Confirm that ``migraphx-driver`` and the ``migraphx`` Python module are
-      available in your virtual environment and report the expected version.
+   Confirm that ``migraphx-driver`` and the ``migraphx`` Python module are
+   available in your virtual environment and report the expected version.
 
-      .. code-block:: bash
+   .. code-block:: bash
 
-         migraphx-driver --version
-         python -c "import migraphx; print(migraphx.__version__)"
+      migraphx-driver --version
+      python -c "import migraphx; print(migraphx.__version__)"
 
-      You should see MIGraphX |MIGRAPHX_VERSION| in the output:
+   You should see MIGraphX |MIGRAPHX_VERSION| in the output:
 
-      .. code-block:: text
-         :substitutions:
+   .. code-block:: text
+      :substitutions:
 
-         MIGraphX Version: |MIGRAPHX_VERSION|
-         |MIGRAPHX_VERSION|+rocm|ROCM_VERSION|
+      MIGraphX Version: |MIGRAPHX_VERSION|
+      |MIGRAPHX_VERSION|+rocm|ROCM_VERSION|
 
-   .. seealso::
+.. seealso::
 
-      ONNX Runtime with ``onnxruntime-ep-migraphx`` accelerates machine
-      learning inference using the MIGraphX execution provider on
-      ROCm-supported GPUs. See the `ONNX Runtime installation guide`_.
+   ONNX Runtime with ``onnxruntime-ep-migraphx`` accelerates machine
+   learning inference using the MIGraphX execution provider on
+   ROCm-supported GPUs. See the `ONNX Runtime installation guide`_.
 
 .. _ONNX Runtime installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html
 
-.. selected:: i=pip
-   :heading: Uninstall MIGraphX
-   :heading-level: 3
+Uninstall MIGraphX
+-------------------
 
-   1. Remove the virtual environment containing MIGraphX.
+1. Remove the virtual environment containing MIGraphX.
 
-      .. code-block:: bash
+   .. code-block:: bash
 
-         deactivate
-         rm -rf .venv
+      deactivate
+      rm -rf .venv
 
-   2. Remove the MIGraphX environment configuration.
+2. Remove the MIGraphX environment configuration.
 
-      If you added the ``LD_LIBRARY_PATH`` workaround as part of the
-      installation, remove it.
+   If you added the ``LD_LIBRARY_PATH`` workaround as part of the
+   installation, remove it.
 
-      .. tab-set::
+   .. tab-set::
 
-         .. tab-item:: System-wide setup
-            :sync: system
+      .. tab-item:: System-wide setup
+         :sync: system
 
-            If you opted for a system-wide setup during the installation
-            process, remove the MIGraphX environment variables.
+         If you opted for a system-wide setup during the installation
+         process, remove the MIGraphX environment variables.
 
-            .. code-block:: bash
+         .. code-block:: bash
 
-               sudo rm -f /etc/profile.d/set-migraphx-env.sh
+            sudo rm -f /etc/profile.d/set-migraphx-env.sh
 
-         .. tab-item:: User setup
-            :sync: user
+      .. tab-item:: User setup
+         :sync: user
 
-            .. tab-set::
+         .. tab-set::
 
-               .. tab-item:: .bashrc
-                  :sync: bashrc
+            .. tab-item:: .bashrc
+               :sync: bashrc
 
-                  If you opted for a user-specific setup during the installation
-                  process, remove the MIGraphX environment configuration block --
-                  the lines between the ``BEGIN`` and ``END`` markers -- from
-                  ``~/.bashrc``.
+               If you opted for a user-specific setup during the installation
+               process, remove the MIGraphX environment configuration block --
+               the lines between the ``BEGIN`` and ``END`` markers -- from
+               ``~/.bashrc``.
 
-               .. tab-item:: .profile
-                  :sync: profile
+            .. tab-item:: .profile
+               :sync: profile
 
-                  If you opted for a user-specific setup during the installation
-                  process, remove the MIGraphX environment configuration block --
-                  the lines between the ``BEGIN`` and ``END`` markers -- from
-                  ``~/.profile``.
-
+               If you opted for a user-specific setup during the installation
+               process, remove the MIGraphX environment configuration block --
+               the lines between the ``BEGIN`` and ``END`` markers -- from
+               ``~/.profile``.
 
 .. _build-from-source:
 

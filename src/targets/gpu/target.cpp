@@ -82,6 +82,7 @@
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/fuse_chunk_split.hpp>
 #include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
@@ -387,6 +388,8 @@ struct pipeline_factory
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
             get_fuse_pointwise_reduce(),
+            dead_code_elimination{},
+            fuse_chunk_split{},
             dead_code_elimination{},
 #ifndef _WIN32
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),

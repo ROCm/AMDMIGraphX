@@ -121,6 +121,9 @@ compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size
 MIGRAPHX_GPU_EXPORT std::size_t
 compute_topk_block_size(const context& ctx, std::size_t k, std::size_t n);
 
+/// Divisors of `n` up to `max_value`, ascending
+MIGRAPHX_GPU_EXPORT std::vector<std::size_t> divisors_up_to(std::size_t n, std::size_t max_value);
+
 template <class T>
 std::string generate_index_ints(const std::vector<T>& v)
 {

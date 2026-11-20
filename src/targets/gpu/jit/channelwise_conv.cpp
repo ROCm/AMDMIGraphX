@@ -66,18 +66,6 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
-// Divisors of `n` up to `max_value`, ascending
-static std::vector<std::size_t> divisors_up_to(std::size_t n, std::size_t max_value)
-{
-    std::vector<std::size_t> candidates(std::min(n, max_value));
-    std::iota(candidates.begin(), candidates.end(), std::size_t{1});
-    std::vector<std::size_t> result;
-    std::copy_if(candidates.begin(), candidates.end(), std::back_inserter(result), [&](auto d) {
-        return n % d == 0;
-    });
-    return result;
-}
-
 // Conv padding as (begin..., end...); a single value per spatial dim pads both ends
 static std::vector<std::size_t> begin_end_padding(std::vector<std::size_t> padding,
                                                   std::size_t num_spatial)

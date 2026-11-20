@@ -31,6 +31,8 @@
 #include <migraphx/msgpack.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/compression.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/md5.hpp>
@@ -130,15 +132,15 @@ static std::size_t row_count(const std::string& path)
 /// The full key of every stored entry, keyed by the key hash that addresses it.
 using stored_entries = std::map<std::string, std::string>;
 
-/// Every entry a cache directory holds. Each file is named by its key hash and holds the msgpack
-/// of the whole entry.
+/// Every entry a cache directory holds. Each file is named by its key hash and holds a zstd frame
+/// of the msgpack of the whole entry.
 static stored_entries dir_entries(const migraphx::fs::path& dir)
 {
     stored_entries result;
     auto files = entry_files(dir);
     std::transform(
         files.begin(), files.end(), std::inserter(result, result.end()), [](const auto& f) {
-            auto v = migraphx::from_msgpack(migraphx::read_buffer(f));
+            auto v = migraphx::from_msgpack(migraphx::zstd_decompress(migraphx::read_buffer(f)));
             return std::make_pair(f.stem().string(), v.at("key").get_string());
         });
     return result;
@@ -179,6 +181,26 @@ struct directory_backend
             migraphx::write_buffer(file, std::vector<char>(8, 0));
         });
     }
+    /// What is stored for each entry: the whole file.
+    static std::vector<std::vector<char>> frames(const std::string& p)
+    {
+        auto files = entry_files(p);
+        std::vector<std::vector<char>> result(files.size());
+        std::transform(files.begin(), files.end(), result.begin(), [](const auto& file) {
+            return migraphx::read_buffer(file);
+        });
+        return result;
+    }
+    /// Flip a byte in the middle of every stored entry, which leaves it a zstd frame.
+    static void flip(const std::string& p)
+    {
+        auto files = entry_files(p);
+        std::for_each(files.begin(), files.end(), [](const auto& file) {
+            auto frame = migraphx::read_buffer(file);
+            frame[frame.size() / 2] ^= '\xff';
+            migraphx::write_buffer(file, frame);
+        });
+    }
 };
 
 struct database_backend
@@ -190,6 +212,39 @@ struct database_backend
     {
         // 0xc1 is never used in msgpack, so the code cannot be decoded.
         migraphx::sqlite::write(p).execute("UPDATE cache_v1 SET code = X'c1c1c1c1';");
+    }
+    /// What is stored for each entry: the code column.
+    static std::vector<std::vector<char>> frames(const std::string& p)
+    {
+        auto select = migraphx::sqlite::read(p).prepare("SELECT code FROM cache_v1;");
+        auto rows   = select();
+        std::vector<std::vector<char>> result;
+        std::transform(rows.begin(), rows.end(), std::back_inserter(result), [](auto row) {
+            const auto& code = row.at("code").get_binary();
+            return std::vector<char>(code.begin(), code.end());
+        });
+        return result;
+    }
+    /// Flip a byte in the middle of every stored entry's code, which leaves it a zstd frame.
+    static void flip(const std::string& p)
+    {
+        auto db = migraphx::sqlite::write(p);
+        std::vector<std::pair<std::string, std::vector<char>>> codes;
+        {
+            auto select = db.prepare("SELECT key_hash, code FROM cache_v1;");
+            auto rows   = select();
+            std::transform(rows.begin(), rows.end(), std::back_inserter(codes), [](auto row) {
+                const auto& code = row.at("code").get_binary();
+                return std::make_pair(row.at("key_hash").get_string(),
+                                      std::vector<char>(code.begin(), code.end()));
+            });
+        }
+        auto update = db.prepare("UPDATE cache_v1 SET code = ?2 WHERE key_hash = ?1;");
+        for(auto& [key_hash, frame] : codes)
+        {
+            frame[frame.size() / 2] ^= '\xff';
+            update(key_hash, frame);
+        }
     }
 };
 
@@ -1017,6 +1072,55 @@ TEST_CASE(key_covers_more_than_the_source)
     changed_views.options.virtual_inputs = {{migraphx::shape::float_type, {32}},
                                             {migraphx::shape::float_type, {32}}};
     EXPECT(migraphx::gpu::hip_compile_key(ctx, changed_views) != base);
+}
+
+// Every entry is stored as a zstd frame of what was stored before compression: the msgpack of
+// the whole entry in a file, of the code in a database row.
+template <class Backend>
+static void stored_entries_are_zstd_frames()
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto path = Backend::path(td);
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
+    cache.insert(ctx, {make_entry("framed")});
+
+    auto frames = Backend::frames(path);
+    EXPECT(frames.size() == 1);
+    const auto& frame = frames.front();
+    EXPECT(migraphx::is_zstd_frame(frame.data(), frame.size()));
+    EXPECT(not migraphx::from_msgpack(migraphx::zstd_decompress(frame)).empty());
+}
+TEST_CASE_REGISTER(stored_entries_are_zstd_frames<directory_backend>);
+TEST_CASE_REGISTER(stored_entries_are_zstd_frames<database_backend>);
+
+// Damage that leaves a well-formed frame is caught by the decoder or the checksum, so it costs a
+// recompile rather than loading a wrong kernel.
+template <class Backend>
+static void damaged_frame_is_a_miss()
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto path = Backend::path(td);
+    migraphx::gpu::binary_cache_settings settings{path, false};
+
+    migraphx::gpu::binary_cache writer{settings};
+    writer.insert(ctx, {make_entry("flipped")});
+    Backend::flip(path);
+
+    migraphx::gpu::binary_cache reader{settings};
+    EXPECT(not reader.get(ctx, "flipped").has_value());
+    EXPECT(reader.get_stats().misses == 1);
+}
+TEST_CASE_REGISTER(damaged_frame_is_a_miss<directory_backend>);
+TEST_CASE_REGISTER(damaged_frame_is_a_miss<database_backend>);
+
+// Entries of the uncompressed v1 format are never looked up, since the version they are stored
+// under names the format.
+TEST_CASE(version_id_carries_the_format)
+{
+    EXPECT(migraphx::starts_with(migraphx::gpu::binary_cache::version_id(true), "v2-"));
+    EXPECT(migraphx::starts_with(migraphx::gpu::binary_cache::version_id(false), "v2-"));
 }
 
 TEST_CASE(version_id_is_stable)

@@ -24,6 +24,7 @@
  */
 #include <migraphx/gpu/sqlite_binary_cache.hpp>
 #include <migraphx/gpu/binary_cache_backend.hpp>
+#include <migraphx/compression.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/logger.hpp>
@@ -61,6 +62,9 @@ constexpr int busy_timeout_ms = 5000;
 // The primary key leads with version so that dropping everything belonging to a superseded
 // toolchain is a range scan rather than a full table scan. Point lookups bind all three and do
 // not care about the order.
+//
+// The code column holds a zstd frame of the msgpack of the compiled code. The other columns are
+// left as text, so that the cache can still be inspected and queried with SQL.
 constexpr const char* schema_sql = R"__migraphx__(
 CREATE TABLE IF NOT EXISTS cache_v1 (
   version   TEXT    NOT NULL,
@@ -173,8 +177,9 @@ optional<binary_cache_entry> sqlite_binary_cache::load(const std::string& versio
         e.problem        = from_json_string(row.at("problem").get_string());
         e.solution       = from_json_string(row.at("solution").get_string());
         const auto& code = row.at("code").get_binary();
-        migraphx::from_value(from_msgpack(reinterpret_cast<const char*>(code.data()), code.size()),
-                             e.code);
+        migraphx::from_value(
+            from_msgpack(zstd_decompress(reinterpret_cast<const char*>(code.data()), code.size())),
+            e.code);
         return e;
     }
     catch(const std::exception& ex)
@@ -206,7 +211,7 @@ void sqlite_binary_cache::store(const std::string& version,
                        e.op_name,
                        to_json_string(e.problem),
                        to_json_string(e.solution),
-                       to_msgpack(migraphx::to_value(e.code)));
+                       zstd_compress(to_msgpack(migraphx::to_value(e.code))));
         }
         db.execute(commit_sql);
     }

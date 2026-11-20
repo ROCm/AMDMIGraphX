@@ -49,6 +49,7 @@ The following is a list of prerequisites for building MIGraphX.
 * [JSON](https://github.com/nlohmann/json) for model serialization to json string format
 * [MessagePack](https://msgpack.org/index.html) for model serialization to binary format
 * [SQLite3](https://www.sqlite.org/index.html) to create database of kernels' tuning information or run queries on existing database
+* [zstd](https://github.com/facebook/zstd) to compress the cache of compiled GPU kernels
 
 ### Installing the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 

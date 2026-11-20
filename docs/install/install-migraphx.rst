@@ -85,83 +85,17 @@ a Python virtual environment.
 
          ROCm's pip wheels place their shared libraries inside your
          virtual environment's ``site-packages`` instead of
-         ``/opt/rocm``. Run these commands with the virtual environment
-         active, so the paths resolve correctly.
+         ``/opt/rocm``. Set the environment variable for the current
+         shell session with the virtual environment active, so the
+         paths resolve correctly. Run this command again in each new
+         shell session after activating the virtual environment.
 
-         .. tab-set::
+         .. code-block:: bash
 
-            .. tab-item:: Active session
-               :sync: active
-
-               Set the environment variable for the current shell
-               session only. To keep this setting across sessions, use
-               System-wide setup or User setup.
-
-               .. code-block:: bash
-
-                  # MIGraphX Environment Setup
-                  ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
-                  ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
-                  export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:$LD_LIBRARY_PATH
-
-            .. tab-item:: System-wide setup
-               :sync: system
-
-               Create a profile script so that all users inherit the
-               MIGraphX environment variables when they start a shell
-               session.
-
-               .. code-block:: bash
-
-                  # MIGraphX Environment Setup
-                  ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
-                  ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
-                  sudo tee /etc/profile.d/set-migraphx-env.sh << EOF
-                  export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:\$LD_LIBRARY_PATH
-                  EOF
-
-                  sudo chmod +x /etc/profile.d/set-migraphx-env.sh
-                  source /etc/profile.d/set-migraphx-env.sh
-
-            .. tab-item:: User setup
-               :sync: user
-
-               Configure the MIGraphX environment for your user by
-               updating your shell startup configuration file.
-
-               .. tab-set::
-
-                  .. tab-item:: .bashrc
-                     :sync: bashrc
-
-                     .. code-block:: bash
-
-                        # MIGraphX Environment Setup
-                        ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
-                        ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
-                        tee --append ~/.bashrc << EOF
-                        # BEGIN MIGraphX environment configuration
-                        export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:\$LD_LIBRARY_PATH
-                        # END MIGraphX environment configuration
-                        EOF
-
-                        source ~/.bashrc
-
-                  .. tab-item:: .profile
-                     :sync: profile
-
-                     .. code-block:: bash
-
-                        # MIGraphX Environment Setup
-                        ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
-                        ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
-                        tee --append ~/.profile << EOF
-                        # BEGIN MIGraphX environment configuration
-                        export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:\$LD_LIBRARY_PATH
-                        # END MIGraphX environment configuration
-                        EOF
-
-                        source ~/.profile
+            # MIGraphX Environment Setup
+            ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
+            ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
+            export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:$LD_LIBRARY_PATH
 
       .. tab-item:: Installed ROCm using a package manager
          :sync: rocm-pkgman

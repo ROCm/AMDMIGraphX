@@ -33,6 +33,22 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+// Do not CSE-merge instructions whose (single-output) result is very large. Merging
+// structurally-identical large buffers -- notably the per-layer INT4 weight
+// dequant tiles in deep LLMs -- makes their outputs share one producer and stay
+// co-live, defeating per-layer scratch reuse in memory_coloring and blowing up
+// peak GPU memory (O(num_layers) scratch). Small common ops are unaffected, so
+// normal CSE benefit is preserved.
+static bool cse_output_too_large(instruction_ref ins)
+{
+    static const std::size_t threshold = 64UL * 1024 * 1024; // 64 MB
+    const auto& s = ins->get_shape();
+    // Only consider standard (non-tuple) shapes; tuple/sub-shape ops are left to CSE.
+    if(not s.sub_shapes().empty())
+        return false;
+    return s.bytes() > threshold;
+}
+
 template <class Range>
 static void cse_range(module& m, Range&& r)
 {
@@ -42,6 +58,12 @@ static void cse_range(module& m, Range&& r)
     {
         // Skip dead instructions
         if(ins->outputs().empty())
+            continue;
+
+        // Skip merging very large buffers (see cse_output_too_large): prevents the
+        // per-layer weight-dequant tiles from being co-materialized, which would
+        // otherwise cause an O(depth) scratch blow-up / GPU OOM on deep models.
+        if(cse_output_too_large(ins))
             continue;
 
         // Find instruction with the same name

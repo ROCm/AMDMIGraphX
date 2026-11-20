@@ -189,10 +189,10 @@ with the ``sqlite3`` shell. Deleting rows does not shrink the file until it is v
    sqlite3 $HOME/.cache/migraphx/kernels.db \
        "DELETE FROM cache_v1 WHERE version GLOB 'v2-hip22.0.*'; VACUUM;"
 
-Every entry is compressed with `zstd <https://github.com/facebook/zstd>`_, which makes a cache
-about half the size, or under 40% of it for a database, at a cost of microseconds per kernel.
-Each ``.mxr`` file, and the ``code`` column of each database row, is a standard zstd frame that
-``zstd -d`` decodes to the msgpack MIGraphX wrote. The ``key`` column of a database row is a
+Every entry is compressed with `zstd <https://github.com/facebook/zstd>`_, which makes a
+directory cache about half the size and a database about 40% of it, at a cost of microseconds
+per kernel. Each ``.mxr`` file, and the ``code`` column of each database row, is a standard zstd
+frame that ``zstd -dc`` decodes to the msgpack MIGraphX wrote. The ``key`` column of a database row is a
 zstd frame of the full compile key, in plain text once decoded. Every frame carries a checksum of
 its content, so a damaged entry is a cache miss rather than a wrong kernel.
 

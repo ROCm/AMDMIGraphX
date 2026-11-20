@@ -25,7 +25,9 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_COMPRESSION_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/requires.hpp>
 #include <cstddef>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -42,9 +44,11 @@ constexpr std::size_t default_zstd_max_size = std::size_t{256} << 20u;
 /// Compress into one zstd frame, at zstd's default level.
 MIGRAPHX_EXPORT std::vector<char> zstd_compress(const char* data, std::size_t size);
 
-inline std::vector<char> zstd_compress(const std::vector<char>& data)
+/// Any contiguous container of bytes, such as std::vector<char>, std::string or value::binary.
+template <class Bytes, MIGRAPHX_REQUIRES(sizeof(*std::declval<const Bytes&>().data()) == 1)>
+std::vector<char> zstd_compress(const Bytes& data)
 {
-    return zstd_compress(data.data(), data.size());
+    return zstd_compress(reinterpret_cast<const char*>(data.data()), data.size());
 }
 
 /// Decompress exactly one zstd frame that records its content size, at most max_size bytes.
@@ -52,10 +56,10 @@ inline std::vector<char> zstd_compress(const std::vector<char>& data)
 MIGRAPHX_EXPORT std::vector<char>
 zstd_decompress(const char* data, std::size_t size, std::size_t max_size = default_zstd_max_size);
 
-inline std::vector<char> zstd_decompress(const std::vector<char>& data,
-                                         std::size_t max_size = default_zstd_max_size)
+template <class Bytes, MIGRAPHX_REQUIRES(sizeof(*std::declval<const Bytes&>().data()) == 1)>
+std::vector<char> zstd_decompress(const Bytes& data, std::size_t max_size = default_zstd_max_size)
 {
-    return zstd_decompress(data.data(), data.size(), max_size);
+    return zstd_decompress(reinterpret_cast<const char*>(data.data()), data.size(), max_size);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

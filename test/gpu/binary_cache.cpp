@@ -152,8 +152,7 @@ static stored_entries db_entries(const std::string& path)
     auto select = migraphx::sqlite::read(path).prepare("SELECT key_hash, key FROM cache_v1;");
     auto rows   = select();
     std::transform(rows.begin(), rows.end(), std::inserter(result, result.end()), [](auto row) {
-        const auto& frame = row.at("key").get_binary();
-        auto key = migraphx::zstd_decompress(std::vector<char>(frame.begin(), frame.end()));
+        auto key = migraphx::zstd_decompress(row.at("key").get_binary());
         return std::make_pair(row.at("key_hash").get_string(), std::string(key.begin(), key.end()));
     });
     return result;
@@ -206,7 +205,7 @@ struct directory_backend
         });
         return result;
     }
-    /// Flip a byte in the middle of every stored entry, which leaves it a zstd frame.
+    /// Flip a byte in the middle of every stored entry, which keeps its zstd magic number.
     static void flip(const std::string& p)
     {
         auto files = entry_files(p);
@@ -238,7 +237,7 @@ struct database_backend
         });
         return result;
     }
-    /// Flip a byte in the middle of every stored entry's code, which leaves it a zstd frame.
+    /// Flip a byte in the middle of every stored entry's code, which keeps its zstd magic number.
     static void flip(const std::string& p)
     {
         auto db     = migraphx::sqlite::write(p);
@@ -819,7 +818,7 @@ TEST_CASE(sqlite_records_the_full_version_id)
 }
 
 // Each field of an entry has its own column, so a cache can be inspected with SQL. The key is
-// the one field kept as a zstd frame besides the code, since it is most of what a row holds.
+// compressed, so it is read back through db_entries.
 TEST_CASE(sqlite_records_what_each_entry_was_compiled_for)
 {
     migraphx::tmp_dir td{"binary-cache"};
@@ -1002,14 +1001,12 @@ TEST_CASE(sqlite_mismatched_key_is_a_miss)
     EXPECT(db->load("v", "dev", "k").has_value());
 
     // A well-formed frame of a different key, so the load reaches the comparison.
-    std::string another = "another";
-    auto writer         = migraphx::sqlite::write(path);
-    auto update         = writer.prepare("UPDATE cache_v1 SET key = ?1;");
-    update(migraphx::zstd_compress(another.data(), another.size()));
+    auto writer = migraphx::sqlite::write(path);
+    auto update = writer.prepare("UPDATE cache_v1 SET key = ?1;");
+    update(migraphx::zstd_compress(std::string{"another"}));
     EXPECT(not db->load("v", "dev", "k").has_value());
 }
 
-// The key column holds a zstd frame of the key, not its text.
 TEST_CASE(sqlite_key_is_a_zstd_frame)
 {
     migraphx::tmp_dir td{"binary-cache"};
@@ -1019,20 +1016,14 @@ TEST_CASE(sqlite_key_is_a_zstd_frame)
     auto e = make_entry("framed key");
     db->store("v", "dev", {e});
 
-    auto select =
-        migraphx::sqlite::read(path).prepare("SELECT typeof(key) AS t, key FROM cache_v1;");
-    auto rows = select();
-    auto it   = rows.begin();
-    EXPECT(it != rows.end());
-    auto row = *it;
-    EXPECT(row.at("t").get_string() == "blob");
-    const auto& frame = row.at("key").get_binary();
-    auto key          = migraphx::zstd_decompress(std::vector<char>(frame.begin(), frame.end()));
-    EXPECT(std::string(key.begin(), key.end()) == e.key);
+    auto rows = migraphx::sqlite::read(path).execute("SELECT typeof(key) AS t FROM cache_v1;");
+    EXPECT(rows.size() == 1);
+    EXPECT(rows.front().at("t") == "blob");
+    EXPECT(db_entries(path) == stored_entries{{migraphx::md5(e.key), e.key}});
 }
 
-// A key that is not a frame, as a build storing the key as text would leave, or a frame damaged
-// in place, is a miss rather than a crash or a wrong kernel.
+// A key that is not a zstd frame, or a frame damaged in place, is a miss rather than a crash or a
+// wrong kernel.
 TEST_CASE(sqlite_undecodable_key_is_a_miss)
 {
     migraphx::tmp_dir td{"binary-cache"};
@@ -1046,7 +1037,7 @@ TEST_CASE(sqlite_undecodable_key_is_a_miss)
     migraphx::sqlite::write(path).execute("UPDATE cache_v1 SET key = 'k';");
     EXPECT(not db->load("v", "dev", "k").has_value());
 
-    auto frame = migraphx::zstd_compress(e.key.data(), e.key.size());
+    auto frame = migraphx::zstd_compress(e.key);
     frame[frame.size() / 2] ^= '\xff';
     auto writer = migraphx::sqlite::write(path);
     auto update = writer.prepare("UPDATE cache_v1 SET key = ?1;");
@@ -1144,7 +1135,7 @@ static void stored_entries_are_zstd_frames()
 TEST_CASE_REGISTER(stored_entries_are_zstd_frames<directory_backend>);
 TEST_CASE_REGISTER(stored_entries_are_zstd_frames<database_backend>);
 
-// Damage that leaves a well-formed frame is caught by the decoder or the checksum, so it costs a
+// Damage past the frame's magic number is caught by the decoder or the checksum, so it costs a
 // recompile rather than loading a wrong kernel.
 template <class Backend>
 static void damaged_frame_is_a_miss()

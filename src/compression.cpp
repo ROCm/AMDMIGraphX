@@ -27,6 +27,7 @@
 #include <zstd.h>
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <string>
 
 namespace migraphx {
@@ -35,7 +36,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 
 using cctx_ptr = MIGRAPHX_MANAGE_PTR(ZSTD_CCtx*, ZSTD_freeCCtx);
-using dctx_ptr = MIGRAPHX_MANAGE_PTR(ZSTD_DCtx*, ZSTD_freeDCtx);
 
 /// The result of a zstd call, or an exception naming what failed.
 std::size_t check(std::size_t r, const char* what)
@@ -48,7 +48,8 @@ std::size_t check(std::size_t r, const char* what)
 // The magic number that opens every zstd frame (RFC 8878 section 3.1.1), little endian.
 constexpr std::array<char, 4> frame_magic = {'\x28', '\xb5', '\x2f', '\xfd'};
 
-// Skippable frames have a different magic number, and ZSTD_findFrameCompressedSize accepts them.
+// Rejects skippable frames, which ZSTD_findFrameCompressedSize accepts and which would decode as
+// empty.
 bool is_zstd_frame(const char* data, std::size_t size)
 {
     return size >= frame_magic.size() and std::equal(frame_magic.begin(), frame_magic.end(), data);
@@ -78,20 +79,20 @@ std::vector<char> zstd_decompress(const char* data, std::size_t size, std::size_
     // and anything trailing it is a sign of damage.
     if(check(ZSTD_findFrameCompressedSize(data, size), "frame size") != size)
         MIGRAPHX_THROW("zstd: unexpected data after the frame");
+    // The header was validated above, so the only failure left is a size that was not recorded.
     auto content = ZSTD_getFrameContentSize(data, size);
-    if(content == ZSTD_CONTENTSIZE_ERROR or content == ZSTD_CONTENTSIZE_UNKNOWN)
+    if(content == ZSTD_CONTENTSIZE_UNKNOWN)
         MIGRAPHX_THROW("zstd: the frame does not record its content size");
     if(content > max_size)
         MIGRAPHX_THROW("zstd: content of " + std::to_string(content) + " bytes exceeds the " +
                        std::to_string(max_size) + " byte limit");
 
-    dctx_ptr dctx{ZSTD_createDCtx()};
-    if(dctx == nullptr)
-        MIGRAPHX_THROW("zstd: cannot create a decompression context");
     // zstd itself rejects a frame that needs a dictionary or decodes to other than its recorded
-    // size, so out is exactly filled when this succeeds.
+    // size.
     std::vector<char> out(content);
-    check(ZSTD_decompressDCtx(dctx.get(), out.data(), out.size(), data, size), "decompress");
+    auto n = check(ZSTD_decompress(out.data(), out.size(), data, size), "decompress");
+    assert(n == out.size());
+    (void)n;
     return out;
 }
 

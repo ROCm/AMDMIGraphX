@@ -40,7 +40,7 @@ namespace gpu {
 // Bump when the shape of a stored fragment changes, which happens when a compiler changes the
 // instructions it replaces with or when a serialized operator gains or loses a field. Such a
 // change is invisible to the key, since the source handed to the backend is unaffected. Also
-// bump it when the backends change how they encode an entry (v2: zstd frames).
+// bump it when a backend changes how it encodes an entry.
 static constexpr const char* binary_cache_format = "v2";
 
 #ifdef MIGRAPHX_ROCMLIR_ID

@@ -126,8 +126,8 @@ struct mul_reduce_sum
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2);
-        auto s    = inputs.front();
-        auto lens = s.lens();
+        const auto& s = inputs.front();
+        auto lens     = s.lens();
         for(auto a : axes)
             lens[a] = 1;
         return s.with_lens(lens);

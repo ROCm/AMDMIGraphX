@@ -148,6 +148,38 @@ include(ROCMSetupVersion)
 option(BUILD_DEV "Build for development purpose only" OFF)
 
 rocm_setup_version(VERSION 2.19.0)
+
+# git describe names an older tag: the release tag is created only after the
+# build it labels has finished. Record the commit that was configured.
+find_program(GIT NAMES git)
+set(PROJECT_VERSION_TWEAK "")
+if(GIT)
+    execute_process(
+        COMMAND ${GIT} rev-parse --short HEAD
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        OUTPUT_VARIABLE _migraphx_git_sha
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE _migraphx_git_result
+        ERROR_QUIET)
+    if(_migraphx_git_result EQUAL 0 AND NOT _migraphx_git_sha STREQUAL "")
+        set(PROJECT_VERSION_TWEAK "g${_migraphx_git_sha}")
+        # Same dirty check as git describe --dirty: modifications to tracked files.
+        execute_process(
+            COMMAND ${GIT} update-index -q --refresh
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            ERROR_QUIET)
+        execute_process(
+            COMMAND ${GIT} diff-index --quiet HEAD --
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            RESULT_VARIABLE _migraphx_git_dirty
+            ERROR_QUIET)
+        if(_migraphx_git_dirty EQUAL 1)
+            string(APPEND PROJECT_VERSION_TWEAK "-dirty")
+        endif()
+    endif()
+endif()
+set(migraphx_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}")
+
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 

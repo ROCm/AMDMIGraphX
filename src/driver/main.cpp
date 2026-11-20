@@ -186,9 +186,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 inline static std::string get_version()
 {
-    return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
-           std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
-           "." MIGRAPHX_VERSION_TWEAK;
+    std::string version = std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
+                          std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
+                          std::to_string(MIGRAPHX_VERSION_PATCH);
+    std::string tweak(MIGRAPHX_VERSION_TWEAK);
+    if(not tweak.empty())
+    {
+        version += "-" + tweak;
+    }
+    return "MIGraphX Version: " + version;
 }
 
 struct loader

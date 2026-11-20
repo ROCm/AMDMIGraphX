@@ -1009,9 +1009,11 @@ std::vector<std::size_t> concat_offsets(const std::vector<instruction_ref>& inpu
     return result;
 }
 
-// Forward a slice that reads exactly one segment of a concat through the view
-// ops in between, so the concat can be removed entirely. This shows up when a
-// model repacks tensors (such as qkv) that an op decomposition then re-slices.
+// Forward a slice that reads whole segments of a concat through the view ops
+// in between. A slice of one segment reads that input directly. A slice of a
+// run of segments reads a concat of just those inputs, but only when that
+// leaves the full concat unused. This shows up when a model repacks tensors
+// (such as qkv) that an op decomposition then re-slices.
 struct find_slice_reshaped_concat
 {
     static const auto& view_ops()
@@ -1029,25 +1031,30 @@ struct find_slice_reshaped_concat
                                         match::name("concat").bind("concat"))));
     }
 
-    void apply(module& m, const match::matcher_result& mr) const
+    // The concat inputs [first, last) that a slice reads, and the shape
+    // transform from those inputs to the slice output
+    struct segment_run
     {
-        auto slice_ins  = mr.result;
-        auto concat_ins = mr.instructions["concat"];
-        if(concat_ins->get_shape().dynamic())
-            return;
-        std::vector<operation> ops;
-        auto x = slice_ins->inputs().front();
-        while(x != concat_ins)
-        {
-            if(not contains(view_ops(), x->name()))
-                return;
-            ops.push_back(x->get_operator());
-            x = x->inputs().front();
-        }
+        std::ptrdiff_t first = 0;
+        std::ptrdiff_t last  = 0;
+        shape_transform_descriptor desc;
+
+        std::ptrdiff_t size() const { return last - first; }
+    };
+
+    static std::optional<segment_run> find_run(instruction_ref concat_ins, instruction_ref ins)
+    {
+        assert(not concat_ins->get_shape().dynamic());
+        if(ins->name() != "slice" or ins->inputs().size() != 1)
+            return std::nullopt;
+        auto [source, ops] = get_input_ops_if(ins->inputs().front(), [](instruction_ref x) {
+            return contains(view_ops(), x->name());
+        });
+        if(source != concat_ins)
+            return std::nullopt;
         // A direct slice of a concat is handled by find_concat_slice
         if(ops.empty())
-            return;
-        std::reverse(ops.begin(), ops.end());
+            return std::nullopt;
 
         const auto& clens = concat_ins->get_shape().lens();
         std::size_t axis  = any_cast<op::concat>(concat_ins->normalized_operator()).axis;
@@ -1056,33 +1063,77 @@ struct find_slice_reshaped_concat
         // Track the element mapping of the view chain with a descriptor
         auto desc = shape_transform_descriptor::create(clens, ops);
         if(desc.empty())
-            return;
+            return std::nullopt;
 
         // Restrict the concat axis to the range of elements the slice selects
-        auto slice_val = slice_ins->normalized_operator().to_value();
+        auto slice_val = ins->normalized_operator().to_value();
         auto selected  = desc.slice_axis(axis,
                                          slice_val["axes"].to_vector<std::size_t>(),
                                          slice_val["starts"].to_vector<std::size_t>(),
                                          slice_val["ends"].to_vector<std::size_t>());
         if(not selected.has_value())
-            return;
+            return std::nullopt;
         auto [lo, hi] = *selected;
 
-        // The selected range must be exactly one segment of the concat
-        const auto& inputs = concat_ins->inputs();
-        auto prefix        = concat_offsets(inputs, axis);
-        auto it            = std::find(prefix.begin(), std::prev(prefix.end()), lo);
-        if(it == std::prev(prefix.end()))
-            return;
-        auto idx = std::distance(prefix.begin(), it);
-        if(prefix[idx + 1] != hi)
-            return;
-        auto seg = inputs[idx];
+        // The selected range must start and end on segment boundaries
+        auto prefix = concat_offsets(concat_ins->inputs(), axis);
+        auto first  = std::find(prefix.begin(), std::prev(prefix.end()), lo);
+        if(first == std::prev(prefix.end()))
+            return std::nullopt;
+        auto last = std::find(std::next(first), prefix.end(), hi);
+        if(last == prefix.end())
+            return std::nullopt;
 
-        if(desc.lens() != slice_ins->get_shape().lens())
+        if(desc.lens() != ins->get_shape().lens())
+            return std::nullopt;
+        return segment_run{std::distance(prefix.begin(), first),
+                           std::distance(prefix.begin(), last),
+                           std::move(desc)};
+    }
+
+    // A run is forwarded as a new concat of its inputs, which is an extra copy
+    // unless the full concat becomes unused. So every reader of ins, looking
+    // through the view ops, must be a slice this matcher can forward, and
+    // readers of several segments must all read the same run.
+    static bool
+    can_forward_run(instruction_ref concat_ins, const segment_run& run, instruction_ref ins)
+    {
+        const auto& outputs = ins->outputs();
+        return std::all_of(outputs.begin(), outputs.end(), [&](instruction_ref output) {
+            // A view without outputs can be the result of the module
+            if(contains(view_ops(), output->name()) and not output->outputs().empty())
+                return can_forward_run(concat_ins, run, output);
+            auto r = find_run(concat_ins, output);
+            if(not r.has_value())
+                return false;
+            // Readers of the same run share one concat after common
+            // subexpression elimination
+            return r->size() == 1 or std::tie(r->first, r->last) == std::tie(run.first, run.last);
+        });
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto slice_ins  = mr.result;
+        auto concat_ins = mr.instructions["concat"];
+        if(concat_ins->get_shape().dynamic())
             return;
-        desc.simplify();
-        auto y = insert_ops(m, slice_ins, desc.generate(), seg);
+        auto run = find_run(concat_ins, slice_ins);
+        if(not run.has_value())
+            return;
+        const auto& inputs = concat_ins->inputs();
+        auto seg           = inputs[run->first];
+        if(run->size() > 1)
+        {
+            if(not can_forward_run(concat_ins, *run, concat_ins))
+                return;
+            seg = m.insert_instruction(slice_ins,
+                                       concat_ins->get_operator(),
+                                       std::vector<instruction_ref>(inputs.begin() + run->first,
+                                                                    inputs.begin() + run->last));
+        }
+        run->desc.simplify();
+        auto y = insert_ops(m, slice_ins, run->desc.generate(), seg);
         m.replace_instruction(slice_ins, y);
     }
 };

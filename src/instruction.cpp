@@ -390,19 +390,45 @@ bool instruction::can_eval() const
 #else
     pmr::unordered_map<const instruction*, bool> cache;
 #endif
-    return fix<bool>([&](auto self, const instruction& ins) -> bool {
-        auto it = cache.find(&ins);
-        if(it != cache.end())
-            return it->second;
-        bool evaluable = false;
-        if(ins.name() == "@literal")
-            evaluable = true;
-        else if(is_context_free(ins.get_operator()) and not has_finalize(ins.get_operator()))
-            evaluable = std::all_of(
-                ins.inputs().begin(), ins.inputs().end(), [&](auto arg) { return self(*arg); });
-        cache.emplace(&ins, evaluable);
-        return evaluable;
-    })(*this);
+    // Explicit worklist: recursion depth would equal graph depth, which overflows the stack on
+    // large models. Like all_of, this stops at the first non-evaluable input.
+    std::vector<const instruction*> worklist{this};
+    while(not worklist.empty())
+    {
+        const auto* ins = worklist.back();
+        if(contains(cache, ins))
+        {
+            worklist.pop_back();
+            continue;
+        }
+        bool is_literal = ins->name() == "@literal";
+        if(is_literal or not is_context_free(ins->get_operator()) or
+           has_finalize(ins->get_operator()))
+        {
+            cache.emplace(ins, is_literal);
+            worklist.pop_back();
+            continue;
+        }
+        auto pending = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto arg) {
+            auto it = cache.find(&*arg);
+            return it == cache.end() or not it->second;
+        });
+        if(pending == ins->inputs().end())
+        {
+            cache.emplace(ins, true);
+            worklist.pop_back();
+        }
+        else if(contains(cache, &**pending))
+        {
+            cache.emplace(ins, false);
+            worklist.pop_back();
+        }
+        else
+        {
+            worklist.push_back(&**pending);
+        }
+    }
+    return cache.at(this);
 }
 
 argument instruction::eval(bool check_eval) const
@@ -864,32 +890,36 @@ std::unordered_set<instruction_ref>
 find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m)
 {
     assert(reaches(start, end, m));
-    std::unordered_set<instruction_ref> result;
+    // Only instructions between start and end can lie on a start -> end path. Graph depth can
+    // reach thousands of instructions, so walk with worklists rather than recursion.
     std::unordered_set<instruction_ref> inss;
+    std::vector<instruction_ref> worklist{end};
+    track_visits(start, end, [&](auto stop) {
+        while(not worklist.empty())
+        {
+            auto ins = worklist.back();
+            worklist.pop_back();
+            if(not m->has_instruction(ins) or ins->inputs().empty() or stop(ins))
+                continue;
+            inss.insert(ins);
+            worklist.insert(worklist.end(), ins->inputs().begin(), ins->inputs().end());
+        }
+    });
 
-    fix<void>([&](auto self, auto ins) {
-        if(not m->has_instruction(ins))
-            return;
-        if(ins->inputs().empty())
-            return;
-        if(not inss.insert(ins).second)
-            return;
-        if(ins == start)
-            return;
-        for(auto input : ins->inputs())
-            self(input);
-    })(end);
-
-    fix<void>([&](auto self, auto ins) {
+    std::unordered_set<instruction_ref> result;
+    worklist = {start};
+    while(not worklist.empty())
+    {
+        auto ins = worklist.back();
+        worklist.pop_back();
         if(ins == end)
-            return;
+            continue;
         if(ins != start and not contains(inss, ins))
-            return;
+            continue;
         if(not result.insert(ins).second)
-            return;
-        for(auto output : ins->outputs())
-            self(output);
-    })(start);
+            continue;
+        worklist.insert(worklist.end(), ins->outputs().begin(), ins->outputs().end());
+    }
     result.insert(end);
     return result;
 }

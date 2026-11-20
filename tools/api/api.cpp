@@ -324,6 +324,14 @@ static void set_external_data_path(onnx_options& options, const char* external_d
     options.external_data_path = std::string(external_data_path);
 }
 
+static void
+set_external_initializer(onnx_options& options, const char* name, const void* data, size_t size)
+{
+    if(name == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter name: Null pointer");
+    options.external_initializers[name] = {data, size};
+}
+
 static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 {
     options.limit_max_iterations = value;

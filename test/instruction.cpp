@@ -641,6 +641,35 @@ TEST_CASE(find_instructions_between_complex)
     EXPECT(result.count(add2) == 0);
 }
 
+//
+// Deep side input positioned before start:
+//
+//   x --> relu --> ... (100000 relus) --> deep
+//   y --> tanh (start)
+//   add(start, deep) (end)
+//
+// The walk must stay within the start..end range and not descend into the deep chain.
+//
+TEST_CASE(find_instructions_between_deep_side_input)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+    auto x    = m.add_parameter("x", s);
+    auto deep = x;
+    for(int i = 0; i < 100000; ++i)
+        deep = m.add_instruction(migraphx::make_op("relu"), deep);
+    auto y     = m.add_parameter("y", s);
+    auto start = m.add_instruction(migraphx::make_op("tanh"), y);
+    auto end   = m.add_instruction(migraphx::make_op("add"), start, deep);
+
+    auto result = migraphx::find_instructions_between(start, end, &m);
+
+    EXPECT(result.count(start) == 1);
+    EXPECT(result.count(end) == 1);
+    EXPECT(result.count(deep) == 0);
+    EXPECT(result.size() == 2);
+}
+
 // Verify that replacing a @literal instruction clears the literal data.
 // This ensures host memory from parsed weights is freed after compilation
 // replaces @literal with gpu_literal via instruction::replace().

@@ -1940,26 +1940,40 @@ module& module::sort()
     copy_if(iterator_for(*this), std::back_inserter(lasts), [&](auto last) {
         return last->outputs().empty();
     });
+    // Post-order DFS with an explicit stack: recursion depth would equal graph depth, which
+    // overflows the stack on large models.
+    struct frame
+    {
+        instruction_ref ins;
+        std::vector<instruction_ref> inputs;
+        std::size_t next = 0;
+    };
+    std::vector<frame> stack;
+    auto visit = [&](instruction_ref ins) {
+        if(not visited.insert(ins).second)
+            return;
+        auto ins_inputs = ins->inputs();
+        auto deps       = implicit_deps.find(ins);
+        if(deps != implicit_deps.end())
+            ins_inputs.insert(ins_inputs.end(), deps->second.begin(), deps->second.end());
+        stack.push_back({ins, std::move(ins_inputs)});
+    };
     for(auto last : lasts)
     {
-        fix([&](auto self, auto ins) {
-            if(visited.insert(ins).second == false)
-                return;
-            auto ins_inputs = ins->inputs();
-            if(implicit_deps.find(ins) != implicit_deps.end())
+        visit(last);
+        while(not stack.empty())
+        {
+            auto& top = stack.back();
+            if(top.next < top.inputs.size())
             {
-                auto ins_implict_inputs = implicit_deps.at(ins);
-                ins_inputs.insert(
-                    ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
+                auto child = top.inputs[top.next++];
+                if(this->has_instruction(child))
+                    visit(child);
+                continue;
             }
-            for(auto child : ins_inputs)
-            {
-                if(not contains(this->impl->instructions, child))
-                    continue;
-                self(child);
-            }
-            this->move_instruction(ins, this->end());
-        })(last);
+            this->move_instruction(top.ins, this->end());
+            stack.pop_back();
+        }
     }
     assert(this->validate() == this->end());
     return *this;

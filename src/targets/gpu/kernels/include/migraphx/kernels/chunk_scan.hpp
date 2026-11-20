@@ -63,17 +63,17 @@ __device__ auto column(View m, index_int c)
 
 // Walk the chunks of a linear recurrence with the state tile of one problem
 // and one dv block resident in LDS, one workgroup per (problem, dv block).
-// Each chunk reads the state with q_i (and w_i under the read module), keeps
-// u in LDS, then updates the state with kt_i u (or the precomputed update)
-// through the step module. The products are wave-level matmuls, half and
-// bf16 accumulating in float. Arguments are found by the role indices in
-// Settings; see gpu::chunk_scan for the roles.
+// Each chunk reads the state with its output matrix (and its read matrix
+// under the read module), keeps u in LDS, then updates the state with its
+// update matrix times u (or the precomputed update) through the step module. The products are
+// wave-level matmuls, half and bf16 accumulating in float. Arguments are found by the role indices
+// in Settings; see gpu::chunk_scan for the roles.
 template <class Settings, class Step, class Read, class Out, class Args>
 struct chunk_scanner
 {
     template <index_int I>
     using arg_t                       = decltype(declval<Args>()(arg_c<I>()));
-    using value_type                  = typename arg_t<Settings::q::index>::type;
+    using value_type                  = typename arg_t<Settings::output_matrix::index>::type;
     using acc_t                       = typename acc_type<value_type>::type;
     static constexpr index_int chunks = Settings::chunks;
     static constexpr index_int rows   = Settings::rows;
@@ -87,10 +87,10 @@ struct chunk_scanner
     static constexpr index_int bm = rows % 16 == 0 ? 16 : rows;
     static constexpr index_int bn = dvb % 16 == 0 ? 16 : dvb;
     static constexpr index_int bd = dk % 32 == 0 ? 32 : (dk % 16 == 0 ? 16 : dk);
-    // Under the read module the q and w blocks stack as one operand sharing
-    // the state tile: groups of g rows alternate between them, the q block
-    // then the w block under a matrix instruction, else single rows so a
-    // lane's tile holds a q row and its w row
+    // Under the read module the output and read matrix blocks stack as one
+    // operand sharing the state tile: groups of g rows alternate between
+    // them, the output block then the read block under a matrix instruction,
+    // else single rows so a lane's tile holds an output row and its read row
     static constexpr index_int stacked = Settings::has_read ? 2 * bm : bm;
     static constexpr index_int g       = matmul_block<value_type, stacked, bn, dk>() > 0 ? bm : 1;
     // the leading axes index the problems; multi() of this shape gives the
@@ -141,10 +141,10 @@ struct chunk_scanner
         return matrix_slice(args(arg_c<Family::index>()), at);
     }
 
-    // a stacked row as (group, q or w, row within the group)
+    // a stacked row as (group, output or read matrix, row within the group)
     static constexpr auto stack =
         make_shape(index_ints<Settings::has_read ? stacked / (2 * g) : 1, 2, g>{});
-    __device__ static bool is_w(index_int r) { return stack.multi(r)[1] == 1; }
+    __device__ static bool is_read_row(index_int r) { return stack.multi(r)[1] == 1; }
     __device__ static index_int src_row(index_int r)
     {
         if constexpr(Settings::has_read)
@@ -179,39 +179,40 @@ struct chunk_scanner
         });
     }
 
-    // chunk 0 of a zero start reads nothing: u = u0, o = pu0 (zero without
-    // an out module)
+    // chunk 0 of a zero start reads nothing: u = update_input, o = output_base
+    // (zero without an out module)
     __device__ void copy_chunk(index_int i) const
     {
-        auto u0i  = chunk<typename Settings::u0>(i);
-        auto pu0i = chunk<typename Settings::pu0>(i);
-        auto outm = mat<Settings::output_index>();
+        auto update_input = chunk<typename Settings::update_input>(i);
+        auto output_base  = chunk<typename Settings::output_base>(i);
+        auto output       = mat<Settings::output_index>();
         idx.local_stride(u_tile.elements(), [&](auto e) {
             auto t       = u_tile.multi(e);
             const auto r = t[0];
             const auto c = col0 + t[1];
             if constexpr(Settings::has_update_dot)
-                u[t] = row(u0i, r)[c];
+                u[t] = row(update_input, r)[c];
             acc_t ov = 0;
             if constexpr(Settings::has_out)
-                ov = row(pu0i, r)[c];
-            row(outm, i * rows + r)[c] = ov;
+                ov = row(output_base, r)[c];
+            row(output, i * rows + r)[c] = ov;
         });
     }
 
-    // o_i = out(pu0_i, q_i S) and u = read(u0_i, w_i S) for chunk i
+    // o_i = out(output_base_i, output_matrix_i S) and
+    // u = read(update_input_i, read_matrix_i S) for chunk i
     __device__ void read_chunk(index_int i) const
     {
-        auto wi   = chunk<typename Settings::w>(i);
-        auto qi   = chunk<typename Settings::q>(i);
-        auto u0i  = chunk<typename Settings::u0>(i);
-        auto pu0i = chunk<typename Settings::pu0>(i);
-        auto outm = mat<Settings::output_index>();
+        auto read_matrix   = chunk<typename Settings::read_matrix>(i);
+        auto output_matrix = chunk<typename Settings::output_matrix>(i);
+        auto update_input  = chunk<typename Settings::update_input>(i);
+        auto output_base   = chunk<typename Settings::output_base>(i);
+        auto output        = mat<Settings::output_index>();
         if constexpr(Settings::has_update_dot and not Settings::has_read)
         {
             idx.local_stride(u_tile.elements(), [&](auto e) {
                 auto t = u_tile.multi(e);
-                u[t]   = row(u0i, t[0])[col0 + t[1]];
+                u[t]   = row(update_input, t[0])[col0 + t[1]];
             });
         }
         idx.wave_stride(read_blocks.elements(), [&](auto b) {
@@ -223,49 +224,49 @@ struct chunk_scanner
                 [&](auto r, auto k) {
                     if constexpr(Settings::has_read)
                     {
-                        if(is_w(r))
-                            return row(wi, r0 + src_row(r))[k];
+                        if(is_read_row(r))
+                            return row(read_matrix, r0 + src_row(r))[k];
                     }
-                    return row(qi, r0 + src_row(r))[k];
+                    return row(output_matrix, r0 + src_row(r))[k];
                 },
                 [&](auto k, auto j) { return row(s, k)[v0 + j]; },
                 [&](auto x, auto r, auto j) {
                     const index_int sr = r0 + src_row(r);
                     if constexpr(Settings::has_read)
                     {
-                        if(is_w(r))
+                        if(is_read_row(r))
                         {
-                            row(u, sr)[v0 + j] = read(row(u0i, sr)[c0 + j], x);
+                            row(u, sr)[v0 + j] = read(row(update_input, sr)[c0 + j], x);
                             return;
                         }
                     }
                     acc_t ov = x;
                     if constexpr(Settings::has_out)
-                        ov = out_fn(row(pu0i, sr)[c0 + j], x);
-                    row(outm, i * rows + sr)[c0 + j] = ov;
+                        ov = out_fn(row(output_base, sr)[c0 + j], x);
+                    row(output, i * rows + sr)[c0 + j] = ov;
                 });
         });
     }
 
-    // S = step(S, [gamma], up) for one state element, or up on a zero start;
-    // gamma is read only under the gamma role
-    template <class Gamma>
-    __device__ void transition(acc_t& sv, acc_t up, bool live, Gamma gamma) const
+    // S = step(S, [decay], up) for one state element, or up on a zero start;
+    // decay is read only under the decay role
+    template <class Decay>
+    __device__ void transition(acc_t& sv, acc_t up, bool live, Decay decay) const
     {
         if(not live)
             sv = up;
-        else if constexpr(Settings::has_gamma)
-            sv = step(sv, gamma(), up);
+        else if constexpr(Settings::has_decay)
+            sv = step(sv, decay(), up);
         else
             sv = step(sv, up);
     }
 
-    // S = step(S, [gamma_i], kt_i u or upd_i) for chunk i
+    // S = step(S, [decay_i], update_matrix_i u or state_update_i) for chunk i
     __device__ void update_chunk(index_int i, bool live) const
     {
-        auto kti  = chunk<typename Settings::kt>(i);
-        auto updi = chunk<typename Settings::upd>(i);
-        auto gi   = chunk<typename Settings::gamma>(i);
+        auto update_matrix = chunk<typename Settings::update_matrix>(i);
+        auto state_update  = chunk<typename Settings::state_update>(i);
+        auto decay         = chunk<typename Settings::decay>(i);
         if constexpr(Settings::has_update_dot)
         {
             idx.wave_stride(update_blocks.elements(), [&](auto b) {
@@ -273,11 +274,11 @@ struct chunk_scanner
                 const index_int d0 = blk[0] * bd;
                 const index_int v0 = blk[1] * bn;
                 matmul<value_type, bd, bn, rows>(
-                    [&](auto d, auto r) { return column(kti, r)[d0 + d]; },
+                    [&](auto d, auto r) { return column(update_matrix, r)[d0 + d]; },
                     [&](auto r, auto j) { return row(u, r)[v0 + j]; },
                     [&](auto x, auto d, auto j) {
                         transition(row(s, d0 + d)[v0 + j], x, live, [&] {
-                            return row(gi, d0 + d)[col0 + v0 + j];
+                            return row(decay, d0 + d)[col0 + v0 + j];
                         });
                     });
             });
@@ -286,8 +287,8 @@ struct chunk_scanner
         {
             idx.local_stride(s_tile.elements(), [&](auto e) {
                 auto t = s_tile.multi(e);
-                transition(s[t], row(updi, t[0])[col0 + t[1]], live, [&] {
-                    return row(gi, t[0])[col0 + t[1]];
+                transition(s[t], row(state_update, t[0])[col0 + t[1]], live, [&] {
+                    return row(decay, t[0])[col0 + t[1]];
                 });
             });
         }

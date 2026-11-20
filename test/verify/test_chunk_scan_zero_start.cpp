@@ -28,7 +28,8 @@
 #include <migraphx/instruction.hpp>
 
 // The unrolled delta recurrence over three chunks from a zero state: the
-// first chunk emits pu0 and S_1 = kt u0 directly, the rest read the state
+// first chunk emits output_base and S_1 = update_matrix update_input
+// directly, the rest read the state
 struct test_chunk_scan_zero_start : verify_program<test_chunk_scan_zero_start>
 {
     static migraphx::instruction_ref
@@ -43,22 +44,29 @@ struct test_chunk_scan_zero_start : verify_program<test_chunk_scan_zero_start>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto w   = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 4, 4}});
-        auto q   = mm->add_parameter("q", {migraphx::shape::float_type, {1, 2, 3, 4, 4}});
-        auto kt  = mm->add_parameter("kt", {migraphx::shape::float_type, {1, 2, 3, 4, 4}});
-        auto u0  = mm->add_parameter("u0", {migraphx::shape::float_type, {1, 2, 3, 4, 8}});
-        auto pu0 = mm->add_parameter("pu0", {migraphx::shape::float_type, {1, 2, 3, 4, 8}});
-        std::vector<migraphx::instruction_ref> outs{chunk(*mm, pu0, 0)};
-        auto s =
-            mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, kt, 0), chunk(*mm, u0, 0));
+        migraphx::shape ks{migraphx::shape::float_type, {1, 2, 3, 4, 4}};
+        migraphx::shape vs{migraphx::shape::float_type, {1, 2, 3, 4, 8}};
+        auto read_matrix   = mm->add_parameter("read_matrix", ks);
+        auto output_matrix = mm->add_parameter("output_matrix", ks);
+        auto update_matrix = mm->add_parameter("update_matrix", ks);
+        auto update_input  = mm->add_parameter("update_input", vs);
+        auto output_base   = mm->add_parameter("output_base", vs);
+        std::vector<migraphx::instruction_ref> outs{chunk(*mm, output_base, 0)};
+        auto s = mm->add_instruction(
+            migraphx::make_op("dot"), chunk(*mm, update_matrix, 0), chunk(*mm, update_input, 0));
         for(std::size_t i = 1; i < 3; i++)
         {
-            auto ws = mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, w, i), s);
-            auto u  = mm->add_instruction(migraphx::make_op("sub"), chunk(*mm, u0, i), ws);
-            auto qs = mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, q, i), s);
-            outs.push_back(mm->add_instruction(migraphx::make_op("add"), chunk(*mm, pu0, i), qs));
-            auto upd = mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, kt, i), u);
-            s        = mm->add_instruction(migraphx::make_op("add"), s, upd);
+            auto read_product =
+                mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, read_matrix, i), s);
+            auto u = mm->add_instruction(
+                migraphx::make_op("sub"), chunk(*mm, update_input, i), read_product);
+            auto output_product =
+                mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, output_matrix, i), s);
+            outs.push_back(mm->add_instruction(
+                migraphx::make_op("add"), chunk(*mm, output_base, i), output_product));
+            auto state_update =
+                mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, update_matrix, i), u);
+            s = mm->add_instruction(migraphx::make_op("add"), s, state_update);
         }
         auto o = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), outs);
         mm->add_return({o, s});

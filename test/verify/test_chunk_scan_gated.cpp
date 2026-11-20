@@ -28,9 +28,10 @@
 #include <migraphx/instruction.hpp>
 
 // The unrolled gated delta recurrence over two chunks with a past state:
-// u = u0 - w S, o = pu0 + q S, S = S * gamma + kt u. The gpu target walks
-// the chunks in one kernel, accumulating half operands in float; 8 rows per
-// chunk make the stacked q and w block of a matrix instruction span both.
+// u = update_input - read_matrix S, o = output_base + output_matrix S,
+// S = S * decay + update_matrix u. The gpu target walks the chunks in one
+// kernel, accumulating half operands in float; 8 rows per chunk make the
+// stacked output and read matrix block of a matrix instruction span both.
 template <migraphx::shape::type_t DType>
 struct test_chunk_scan_gated : verify_program<test_chunk_scan_gated<DType>>
 {
@@ -47,26 +48,32 @@ struct test_chunk_scan_gated : verify_program<test_chunk_scan_gated<DType>>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape ss{DType, {1, 2, 16, 16}};
-        auto s0  = mm->add_parameter("s0", ss);
-        auto w   = mm->add_parameter("w", {DType, {1, 2, 2, 8, 16}});
-        auto q   = mm->add_parameter("q", {DType, {1, 2, 2, 8, 16}});
-        auto kt  = mm->add_parameter("kt", {DType, {1, 2, 2, 16, 8}});
-        auto u0  = mm->add_parameter("u0", {DType, {1, 2, 2, 8, 16}});
-        auto pu0 = mm->add_parameter("pu0", {DType, {1, 2, 2, 8, 16}});
-        auto g   = mm->add_parameter("g", {DType, {1, 2, 2, 1, 1}});
-        auto s   = s0;
+        auto s0            = mm->add_parameter("s0", ss);
+        auto read_matrix   = mm->add_parameter("read_matrix", {DType, {1, 2, 2, 8, 16}});
+        auto output_matrix = mm->add_parameter("output_matrix", {DType, {1, 2, 2, 8, 16}});
+        auto update_matrix = mm->add_parameter("update_matrix", {DType, {1, 2, 2, 16, 8}});
+        auto update_input  = mm->add_parameter("update_input", {DType, {1, 2, 2, 8, 16}});
+        auto output_base   = mm->add_parameter("output_base", {DType, {1, 2, 2, 8, 16}});
+        auto decay         = mm->add_parameter("decay", {DType, {1, 2, 2, 1, 1}});
+        auto s             = s0;
         std::vector<migraphx::instruction_ref> outs;
         for(std::size_t i = 0; i < 2; i++)
         {
-            auto ws = mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, w, i), s);
-            auto u  = mm->add_instruction(migraphx::make_op("sub"), chunk(*mm, u0, i), ws);
-            auto qs = mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, q, i), s);
-            outs.push_back(mm->add_instruction(migraphx::make_op("add"), chunk(*mm, pu0, i), qs));
-            auto upd = mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, kt, i), u);
-            auto gi  = mm->add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", ss.lens()}}), chunk(*mm, g, i));
-            auto sg = mm->add_instruction(migraphx::make_op("mul"), s, gi);
-            s       = mm->add_instruction(migraphx::make_op("add"), sg, upd);
+            auto read_product =
+                mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, read_matrix, i), s);
+            auto u = mm->add_instruction(
+                migraphx::make_op("sub"), chunk(*mm, update_input, i), read_product);
+            auto output_product =
+                mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, output_matrix, i), s);
+            outs.push_back(mm->add_instruction(
+                migraphx::make_op("add"), chunk(*mm, output_base, i), output_product));
+            auto state_update =
+                mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, update_matrix, i), u);
+            auto decay_i =
+                mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", ss.lens()}}),
+                                    chunk(*mm, decay, i));
+            auto sg = mm->add_instruction(migraphx::make_op("mul"), s, decay_i);
+            s       = mm->add_instruction(migraphx::make_op("add"), sg, state_update);
         }
         auto o = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), outs);
         mm->add_return({o, s});

@@ -100,9 +100,10 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
 
         const auto dk   = state.lens().at(state.ndim() - 2);
         const auto dv   = state.lens().back();
-        const auto q_i  = std::find(families.begin(), families.end(), "q") - families.begin();
-        const auto& q   = inputs.at(first_family + q_i);
-        const auto rows = q.lens().at(q.ndim() - 2);
+        const auto matrix_index =
+            std::find(families.begin(), families.end(), "output_matrix") - families.begin();
+        const auto& output_matrix = inputs.at(first_family + matrix_index);
+        const auto rows           = output_matrix.lens().at(output_matrix.ndim() - 2);
         // the widest dv block up to 32 columns that divides dv and keeps the
         // state and u tiles, accumulated in float, in LDS
         constexpr std::size_t max_lds = 64 * 1024;
@@ -124,10 +125,10 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
         settings += "static constexpr index_int dvb = " + std::to_string(dvb) + ";\n";
         for(const auto& [flag, on] :
             std::vector<std::pair<std::string, bool>>{{"has_state", has_state},
-                                                      {"has_update_dot", has("kt")},
-                                                      {"has_read", has("w")},
-                                                      {"has_gamma", has("gamma")},
-                                                      {"has_out", has("pu0")}})
+                                                      {"has_update_dot", has("update_matrix")},
+                                                      {"has_read", has("read_matrix")},
+                                                      {"has_decay", has("decay")},
+                                                      {"has_out", has("output_base")}})
             settings += "static constexpr bool " + flag + " = " + (on ? "true" : "false") + ";\n";
         const std::size_t nargs = first_family + families.size() + 2;
         settings += "static constexpr index_int s0_index = 0;\n";
@@ -139,11 +140,16 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
         for(std::size_t k = 0; k < families.size(); k++)
             settings += "struct " + families[k] + " { static constexpr index_int index = " +
                         std::to_string(first_family + k) + "; };\n";
-        // absent roles alias q; the kernel never reads through them
-        for(const auto& role : std::vector<std::string>{"w", "kt", "u0", "upd", "gamma", "pu0"})
+        // absent roles alias the output matrix; the kernel never reads through them
+        for(const auto& role : std::vector<std::string>{"read_matrix",
+                                                        "update_matrix",
+                                                        "update_input",
+                                                        "state_update",
+                                                        "decay",
+                                                        "output_base"})
         {
             if(not has(role))
-                settings += "using " + role + " = q;\n";
+                settings += "using " + role + " = output_matrix;\n";
         }
 
         auto problems = state.elements() / (dk * dv);
@@ -164,11 +170,11 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
         std::string preamble;
         std::size_t k = 0;
         preamble += gen::generate_pointwise(*mods.at(k++), "chunk_scan_step");
-        if(contains(families, "w"))
+        if(contains(families, "read_matrix"))
             preamble += gen::generate_pointwise(*mods.at(k++), "chunk_scan_read");
         else
             preamble += stub_pointwise("chunk_scan_read");
-        if(contains(families, "pu0"))
+        if(contains(families, "output_base"))
             preamble += gen::generate_pointwise(*mods.at(k++), "chunk_scan_out");
         else
             preamble += stub_pointwise("chunk_scan_out");

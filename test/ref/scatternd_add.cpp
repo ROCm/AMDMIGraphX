@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -102,5 +102,35 @@ TEST_CASE(scatternd_reduction_dyn_test)
                             1, 2, 3, 4, 5,  6,  7,  8,  8,  7,  6,  5,  4,  3,  2,  1,
                             9, 8, 7, 6, 6,  5,  4,  3,  4,  5,  6,  7,  9,  10, 11, 12,
                             8, 7, 6, 5, 4,  3,  2,  1,  1,  2,  3,  4,  5,  6,  7,  8};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(scatternd_add_negative_and_positive_indices_test)
+{
+    // -1 and 7 are the same element, and so are -8 and 0, so their updates add up.
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto dtype = migraphx::shape::float_type;
+    auto itype = migraphx::shape::int64_type;
+    migraphx::shape ds{dtype, {8}};
+    migraphx::shape is{itype, {4, 1}};
+    migraphx::shape us{dtype, {4}};
+
+    std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<int64_t> ind_vec{-1, 7, -8, 0};
+    std::vector<float> upd_vec{10, 20, 30, 40};
+
+    auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+    auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+    auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+    auto scatternd =
+        mm->add_instruction(migraphx::make_op("scatternd_add"), data, indices, updates);
+    mm->add_return({scatternd});
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{71, 2, 3, 4, 5, 6, 7, 38};
+
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

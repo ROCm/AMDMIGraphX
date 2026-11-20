@@ -97,10 +97,55 @@ migraphx::instruction_ref add_mask(migraphx::module& m,
     return m.add_instruction(migraphx::make_op("where"), condition, input, fill_value);
 }
 
+// The normalization of negative indices that the scatternd rewrite emits: they count back from the
+// end of the runtime extents of the unpadded data.
+migraphx::instruction_ref
+add_expected_index_normalization(migraphx::module& m,
+                                 migraphx::instruction_ref indices,
+                                 const std::vector<se>& extent_expressions,
+                                 const se& root,
+                                 const clone_spec& clone)
+{
+    // Constant indices with fixed extents are folded by the rewrite; these tests only use
+    // non-negative ones, which the folding leaves unchanged.
+    if(clone.min == clone.max and indices->can_eval())
+        return indices;
+    auto lens = indices->get_shape().lens();
+    migraphx::instruction_ref extent;
+    if(clone.min == clone.max)
+    {
+        std::vector<int64_t> values;
+        std::transform(extent_expressions.begin(),
+                       extent_expressions.end(),
+                       std::back_inserter(values),
+                       [&](const auto& expression) {
+                           return int64_t(
+                               expression.eval_uint({{migraphx::sym::as_symbol(root), clone.min}}));
+                       });
+        extent = m.add_literal(migraphx::literal{
+            migraphx::shape{migraphx::shape::int64_type, {values.size()}}, values});
+    }
+    else
+    {
+        extent = m.add_instruction(
+            migraphx::make_op("eval_expr_from_shape",
+                              {{"expressions", migraphx::to_value(extent_expressions)}}),
+            m.get_parameters());
+    }
+    extent = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), extent);
+    auto zero = m.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {int64_t{0}}});
+    zero = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), zero);
+    auto negative = m.add_instruction(migraphx::make_op("less"), indices, zero);
+    auto wrapped  = m.add_instruction(migraphx::make_op("add"), indices, extent);
+    return m.add_instruction(migraphx::make_op("where"), negative, wrapped, indices);
+}
+
 migraphx::instruction_ref add_expected_scatternd(migraphx::module& m,
                                                  migraphx::instruction_ref data,
                                                  migraphx::instruction_ref indices,
                                                  migraphx::instruction_ref updates,
+                                                 const std::vector<se>& data_extents,
                                                  const se& extent_expression,
                                                  const se& root,
                                                  const clone_spec& clone)
@@ -109,6 +154,8 @@ migraphx::instruction_ref add_expected_scatternd(migraphx::module& m,
     auto index_lens         = index_shape.dynamic() ? index_shape.max_lens() : index_shape.lens();
     auto index_depth        = index_lens.back();
     index_lens.pop_back();
+    if(index_depth > 0)
+        indices = add_expected_index_normalization(m, indices, data_extents, root, clone);
 
     std::vector<int64_t> positions_data(index_lens.front());
     std::iota(positions_data.begin(), positions_data.end(), 0);
@@ -3923,10 +3970,15 @@ TEST_CASE(split_sym_dim_materializes_fill_range_and_scatter)
             migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.0f}});
         auto one = sm.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f}});
-        auto clone_start = sm.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
-        auto clone_delta = sm.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+        migraphx::instruction_ref clone_start;
+        migraphx::instruction_ref clone_delta;
+        if(clone.min != clone.max)
+        {
+            clone_start = sm.add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+            clone_delta = sm.add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+        }
         auto clone_n = var("n", {clone.min, clone.max});
         sm.add_parameter("#split_sym_dim_input_0_1",
                          migraphx::shape{migraphx::shape::int64_type, {1}});
@@ -3937,16 +3989,26 @@ TEST_CASE(split_sym_dim_materializes_fill_range_and_scatter)
 
         std::vector<int64_t> range_indices_data(clone.max);
         std::iota(range_indices_data.begin(), range_indices_data.end(), 0);
-        auto range_indices = sm.add_literal(migraphx::literal{
-            migraphx::shape{migraphx::shape::int64_type, {clone.max}}, range_indices_data});
-        auto starts        = sm.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_start);
-        auto deltas = sm.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_delta);
-        range_indices = sm.add_instruction(migraphx::make_op("mul"), range_indices, deltas);
-        range_indices = sm.add_instruction(migraphx::make_op("add"), starts, range_indices);
-        range_indices =
-            sm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), range_indices);
+        migraphx::instruction_ref range_indices;
+        if(clone.min == clone.max)
+        {
+            // Constant indices with fixed extents are folded into a single literal
+            range_indices = sm.add_literal(migraphx::literal{
+                migraphx::shape{migraphx::shape::int64_type, {clone.max, 1}}, range_indices_data});
+        }
+        else
+        {
+            range_indices = sm.add_literal(migraphx::literal{
+                migraphx::shape{migraphx::shape::int64_type, {clone.max}}, range_indices_data});
+            auto starts   = sm.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_start);
+            auto deltas = sm.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_delta);
+            range_indices = sm.add_instruction(migraphx::make_op("mul"), range_indices, deltas);
+            range_indices = sm.add_instruction(migraphx::make_op("add"), starts, range_indices);
+            range_indices =
+                sm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), range_indices);
+        }
 
         auto padded_data =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_data);
@@ -3954,8 +4016,8 @@ TEST_CASE(split_sym_dim_materializes_fill_range_and_scatter)
         auto padded_updates =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_updates);
         auto filled_updates = sm.add_instruction(migraphx::make_op("fill"), one, padded_updates);
-        auto clone_output =
-            add_expected_scatternd(sm, filled_data, range_indices, filled_updates, n, n, clone);
+        auto clone_output   = add_expected_scatternd(
+            sm, filled_data, range_indices, filled_updates, {n}, n, n, clone);
         sm.add_return({clone_output});
     });
 
@@ -4023,8 +4085,10 @@ TEST_CASE(split_sym_dim_materializes_scatternd_with_static_indices)
         auto clone_updates = sm.add_parameter("updates", {migraphx::shape::float_type, {1, 4}});
         auto padded_data =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_data);
+        auto normalized_indices =
+            add_expected_index_normalization(sm, clone_indices, {n}, n, clone);
         auto clone_output = sm.add_instruction(
-            migraphx::make_op("scatternd_none"), padded_data, clone_indices, clone_updates);
+            migraphx::make_op("scatternd_none"), padded_data, normalized_indices, clone_updates);
         sm.add_return({clone_output});
     });
 
@@ -4098,8 +4162,8 @@ TEST_CASE(split_sym_dim_rewrites_padded_scatter_indices)
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_indices);
         auto padded_updates =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_updates);
-        auto clone_output =
-            add_expected_scatternd(sm, padded_data, padded_indices, padded_updates, n, n, clone);
+        auto clone_output = add_expected_scatternd(
+            sm, padded_data, padded_indices, padded_updates, {n}, n, n, clone);
         sm.add_return({clone_output});
     });
 
@@ -4181,8 +4245,8 @@ TEST_CASE(split_sym_dim_rewrites_zero_depth_scatter_indices)
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_data);
         auto padded_updates =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_updates);
-        auto clone_output =
-            add_expected_scatternd(sm, padded_data, clone_indices, padded_updates, n, n, clone.n);
+        auto clone_output = add_expected_scatternd(
+            sm, padded_data, clone_indices, padded_updates, {}, n, n, clone.n);
         sm.add_return({clone_output});
     });
 
@@ -4252,7 +4316,7 @@ TEST_CASE(split_sym_dim_rewrites_scalar_zero_depth_scatter_indices)
         auto padded_updates =
             sm.add_instruction(migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_updates);
         auto clone_output =
-            add_expected_scatternd(sm, clone_data, clone_indices, padded_updates, n, n, clone);
+            add_expected_scatternd(sm, clone_data, clone_indices, padded_updates, {}, n, n, clone);
         sm.add_return({clone_output});
     });
 
@@ -4339,10 +4403,15 @@ TEST_CASE(split_sym_dim_materializes_attention_chain)
             migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.0f}});
         auto one = sm.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f}});
-        auto clone_start = sm.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
-        auto clone_delta = sm.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+        migraphx::instruction_ref clone_start;
+        migraphx::instruction_ref clone_delta;
+        if(clone.min != clone.max)
+        {
+            clone_start = sm.add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+            clone_delta = sm.add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+        }
         auto clone_table =
             sm.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}));
         auto clone_sequence = var("sequence_length", {clone.min, clone.max});
@@ -4366,16 +4435,26 @@ TEST_CASE(split_sym_dim_materializes_attention_chain)
 
         std::vector<int64_t> range_indices_data(clone.max);
         std::iota(range_indices_data.begin(), range_indices_data.end(), 0);
-        auto range_indices = sm.add_literal(migraphx::literal{
-            migraphx::shape{migraphx::shape::int64_type, {clone.max}}, range_indices_data});
-        auto starts        = sm.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_start);
-        auto deltas = sm.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_delta);
-        range_indices = sm.add_instruction(migraphx::make_op("mul"), range_indices, deltas);
-        range_indices = sm.add_instruction(migraphx::make_op("add"), starts, range_indices);
-        range_indices =
-            sm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), range_indices);
+        migraphx::instruction_ref range_indices;
+        if(clone.min == clone.max)
+        {
+            // Constant indices with fixed extents are folded into a single literal
+            range_indices = sm.add_literal(migraphx::literal{
+                migraphx::shape{migraphx::shape::int64_type, {clone.max, 1}}, range_indices_data});
+        }
+        else
+        {
+            range_indices = sm.add_literal(migraphx::literal{
+                migraphx::shape{migraphx::shape::int64_type, {clone.max}}, range_indices_data});
+            auto starts   = sm.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_start);
+            auto deltas = sm.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", {clone.max}}}), clone_delta);
+            range_indices = sm.add_instruction(migraphx::make_op("mul"), range_indices, deltas);
+            range_indices = sm.add_instruction(migraphx::make_op("add"), starts, range_indices);
+            range_indices =
+                sm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), range_indices);
+        }
 
         auto padded_mask_buffer = sm.add_instruction(
             migraphx::make_op("fixed_pad", {{"value", 0.0f}}), clone_mask_buffer);
@@ -4385,7 +4464,7 @@ TEST_CASE(split_sym_dim_materializes_attention_chain)
         auto mask_updates =
             sm.add_instruction(migraphx::make_op("fill"), one, padded_update_buffer);
         auto clone_mask = add_expected_scatternd(
-            sm, mask_data, range_indices, mask_updates, sequence, sequence, clone);
+            sm, mask_data, range_indices, mask_updates, {sequence}, sequence, sequence, clone);
         clone_mask = sm.add_instruction(
             migraphx::make_op("multibroadcast",
                               {{"out_lens", {std::size_t{1}, clone.max, clone.max}}}),

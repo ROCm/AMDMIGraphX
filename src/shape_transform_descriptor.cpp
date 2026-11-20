@@ -1809,7 +1809,14 @@ shape_transform_descriptor shape_transform_descriptor::to_src_from_common() cons
     auto subs   = get_all_subdimensions(dimensions);
     result.rank = subs.size();
     transform(group_axes(subs), std::back_inserter(result.dimensions), [&](auto&& p) -> dimension {
-        const auto& [axis, gsubs] = p;
+        auto& gsubs = p.second;
+        // group_axes collects subdimensions in common-dims order, which interleaves one source
+        // axis's sub-axes when a transpose sits between the split and the merge. The merge needs
+        // them in source order -- the same ordering renumber_axes applies.
+        std::sort(gsubs.begin(),
+                  gsubs.end(),
+                  by(std::less<>{},
+                     [](const dimension::sub* s) -> const auto& { return s->origin_axis(); }));
         std::vector<dimension::sub> subdimensions;
         transform(gsubs, std::back_inserter(subdimensions), [&](const dimension::sub* s) {
             dimension::sub result = *s;

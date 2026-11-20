@@ -4478,6 +4478,16 @@ def external_data_size_mismatch_test():
         weight_bytes=np.ones(20, dtype=np.float32).tobytes())
 
 
+def external_data_length_zero_test():
+    # length "0" means the whole file. The weight is 10 float32 values (40 bytes);
+    # the parser must load those bytes, not treat 0 as an empty read.
+    _save_external_data_model(
+        'external_data_length_zero_test',
+        [('location', 'external_data_length_zero_test.weight'),
+         ('offset', '0'), ('length', '0')],
+        weight_bytes=np.arange(10, dtype=np.float32).tobytes())
+
+
 @onnx_test()
 def external_data_short_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [16])

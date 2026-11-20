@@ -717,82 +717,16 @@ environment.
       manager** instead of pip, importing MIGraphX fails with
       ``libhsa-runtime64.so.1: cannot open shared object file``. As
       a workaround, update ``LD_LIBRARY_PATH`` to link to the required ROCm
-      libraries in your installation path:
+      libraries in your installation path. Set the environment variable
+      for the current shell session and run this command again in each
+      new shell session:
 
-      .. tab-set::
+      .. code-block:: bash
+         :substitutions:
 
-         .. tab-item:: Active session
-            :sync: active
-
-            Set the environment variable for the current shell session
-            only. To keep this setting across sessions, use System-wide
-            setup or User setup.
-
-            .. code-block:: bash
-               :substitutions:
-
-               # MIGraphX Environment Setup
-               export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-               export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-
-         .. tab-item:: System-wide setup
-            :sync: system
-
-            Create a profile script so that all users inherit the
-            MIGraphX environment variables when they start a shell
-            session.
-
-            .. code-block:: bash
-               :substitutions:
-
-               # MIGraphX Environment Setup
-               sudo tee /etc/profile.d/set-migraphx-env.sh << 'EOF'
-               export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-               export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-               EOF
-
-               sudo chmod +x /etc/profile.d/set-migraphx-env.sh
-               source /etc/profile.d/set-migraphx-env.sh
-
-         .. tab-item:: User setup
-            :sync: user
-
-            Configure the MIGraphX environment for your user by updating
-            your shell startup configuration file.
-
-            .. tab-set::
-
-               .. tab-item:: .bashrc
-                  :sync: bashrc
-
-                  .. code-block:: bash
-                     :substitutions:
-
-                     # MIGraphX Environment Setup
-                     tee --append ~/.bashrc << 'EOF'
-                     # BEGIN MIGraphX environment configuration
-                     export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-                     export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-                     # END MIGraphX environment configuration
-                     EOF
-
-                     source ~/.bashrc
-
-               .. tab-item:: .profile
-                  :sync: profile
-
-                  .. code-block:: bash
-                     :substitutions:
-
-                     # MIGraphX Environment Setup
-                     tee --append ~/.profile << 'EOF'
-                     # BEGIN MIGraphX environment configuration
-                     export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-                     export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-                     # END MIGraphX environment configuration
-                     EOF
-
-                     source ~/.profile
+         # MIGraphX Environment Setup
+         export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+         export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
 
    4. Verify your installation.
 
@@ -828,44 +762,6 @@ environment.
 
          deactivate
          rm -rf .venv
-
-   2. Remove the MIGraphX environment configuration.
-
-      If you added the ``LD_LIBRARY_PATH`` workaround as part of the
-      installation, remove it.
-
-      .. tab-set::
-
-         .. tab-item:: System-wide setup
-            :sync: system
-
-            If you opted for a system-wide setup during the installation
-            process, remove the MIGraphX environment variables.
-
-            .. code-block:: bash
-
-               sudo rm -f /etc/profile.d/set-migraphx-env.sh
-
-         .. tab-item:: User setup
-            :sync: user
-
-            .. tab-set::
-
-               .. tab-item:: .bashrc
-                  :sync: bashrc
-
-                  If you opted for a user-specific setup during the installation
-                  process, remove the MIGraphX environment configuration block --
-                  the lines between the ``BEGIN`` and ``END`` markers -- from
-                  ``~/.bashrc``.
-
-               .. tab-item:: .profile
-                  :sync: profile
-
-                  If you opted for a user-specific setup during the installation
-                  process, remove the MIGraphX environment configuration block --
-                  the lines between the ``BEGIN`` and ``END`` markers -- from
-                  ``~/.profile``.
 
 .. selected:: i=tar
    :heading: Install MIGraphX via tarball

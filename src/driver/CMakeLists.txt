@@ -39,6 +39,16 @@ if(WIN32)
 endif()
 
 set_target_properties(driver PROPERTIES OUTPUT_NAME migraphx-driver)
+
+if(WIN32 AND MIGRAPHX_ENABLE_MLIR AND MIGRAPHX_TRITON_AMD_CODEGEN_LIB)
+    add_custom_command(TARGET driver POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${MIGRAPHX_TRITON_AMD_CODEGEN_LIB}"
+                "$<TARGET_FILE_DIR:driver>"
+        COMMENT "Copying ${MIGRAPHX_TRITON_AMD_CODEGEN_LIBNAME} to $<TARGET_FILE_DIR:driver>"
+        VERBATIM)
+endif()
+
 if(NOT WIN32)
     # Copy driver for backwards compatibility (Linux only)
     add_custom_command(

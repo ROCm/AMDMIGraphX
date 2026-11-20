@@ -76,10 +76,6 @@ static int dump_benchmarks(const migraphx::fs::path& dir)
     return 1;
 }
 
-// Recompile the saved program at mxr_file with MIGRAPHX_GPU_DUMP_BENCHMARK_MXR already set in
-// this process's environment (by the parent, via migraphx::process::env): the fresh process
-// means target::get_recompile_passes sees the env var on its first use, the same as a normal
-// compile would. Returning at all means nothing was dumped, same as dump_benchmarks above.
 static int recompile_dump_benchmarks(const migraphx::fs::path& mxr_file)
 {
     migraphx::log::set_severity(migraphx::log::severity::warn);

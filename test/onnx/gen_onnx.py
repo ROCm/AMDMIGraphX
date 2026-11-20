@@ -1207,6 +1207,168 @@ def castlike_error_test():
 
 
 @onnx_test()
+def causal_conv_with_state_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 2, 4])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 1, 3])
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         [1, 2, 2])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2, 4])
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            [1, 2, 2])
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        activation='silu',
+        domain='com.microsoft')
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_no_state_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 2, 4])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 1, 3])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2, 4])
+
+    node = onnx.helper.make_node('CausalConvWithState',
+                                 inputs=['input', 'weight'],
+                                 outputs=['output'],
+                                 domain='com.microsoft')
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def causal_conv_with_state_dilation_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT16, [1, 2, 6])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT16, [2, 1, 3])
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [2])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT16,
+                                         [1, 2, 4])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT16, [1, 2, 6])
+    present = helper.make_tensor_value_info('present_state',
+                                            TensorProto.FLOAT16, [1, 2, 4])
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        activation='none',
+        dilation=2,
+        domain='com.microsoft')
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_channels_last_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 3, 2, 2])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [4, 1, 3])
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [4])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         [1, 2, 2, 2])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                      [1, 3, 2, 2])
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        activation='swish',
+        channels_last=1,
+        domain='com.microsoft')
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_window_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 2, 2])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 1, 3])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         [3, 1, 2, 2])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2, 2])
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            [3, 1, 2, 2])
+
+    node = onnx.helper.make_node('CausalConvWithState',
+                                 inputs=['input', 'weight', '', 'past_state'],
+                                 outputs=['output', 'present_state'],
+                                 state_window=3,
+                                 domain='com.microsoft')
+
+    return ([node], [x, w, past], [y, present])
+
+
+def causal_conv_with_state_error_model(input_dims=[1, 2, 4],
+                                       weight_dims=[2, 1, 3],
+                                       bias_dims=[2],
+                                       past_dims=[1, 2, 2],
+                                       **attrs):
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_dims)
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, weight_dims)
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT, bias_dims)
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         past_dims)
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, input_dims)
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            past_dims)
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        domain='com.microsoft',
+        **attrs)
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_activation_error_test():
+    return causal_conv_with_state_error_model(activation='relu')
+
+
+@onnx_test()
+def causal_conv_with_state_ndim_error_test():
+    return causal_conv_with_state_error_model(input_dims=[1, 2, 4, 4],
+                                              weight_dims=[2, 1, 3, 3],
+                                              past_dims=[1, 2, 4, 2],
+                                              ndim=2)
+
+
+@onnx_test()
+def causal_conv_with_state_dilation_error_test():
+    return causal_conv_with_state_error_model(dilation=0)
+
+
+@onnx_test()
+def causal_conv_with_state_window_error_test():
+    return causal_conv_with_state_error_model(past_dims=[9, 1, 2, 2],
+                                              state_window=9)
+
+
+@onnx_test()
+def causal_conv_with_state_weight_error_test():
+    return causal_conv_with_state_error_model(weight_dims=[2, 2, 3])
+
+
+@onnx_test()
+def causal_conv_with_state_bias_error_test():
+    return causal_conv_with_state_error_model(bias_dims=[3])
+
+
+@onnx_test()
+def causal_conv_with_state_past_state_error_test():
+    return causal_conv_with_state_error_model(past_dims=[1, 2, 3])
+
+
+@onnx_test()
 def ceil_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -4316,6 +4478,16 @@ def external_data_size_mismatch_test():
         weight_bytes=np.ones(20, dtype=np.float32).tobytes())
 
 
+def external_data_length_zero_test():
+    # length "0" means the whole file. The weight is 10 float32 values (40 bytes);
+    # the parser must load those bytes, not treat 0 as an empty read.
+    _save_external_data_model(
+        'external_data_length_zero_test',
+        [('location', 'external_data_length_zero_test.weight'),
+         ('offset', '0'), ('length', '0')],
+        weight_bytes=np.arange(10, dtype=np.float32).tobytes())
+
+
 @onnx_test()
 def external_data_short_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [16])
@@ -5838,17 +6010,23 @@ def group_norm_test(x_dims,
                     y_dims,
                     num_groups,
                     eps_value=1e-5,
-                    dtype=TensorProto.FLOAT):
+                    dtype=TensorProto.FLOAT,
+                    stash_type=None):
     x = helper.make_tensor_value_info('x', dtype, x_dims)
     scale = helper.make_tensor_value_info('scale', dtype, scale_dims)
     bias = helper.make_tensor_value_info('bias', dtype, bias_dims)
     y = helper.make_tensor_value_info('y', dtype, y_dims)
 
+    attrs = {}
+    if stash_type is not None:
+        attrs['stash_type'] = stash_type
+
     node = onnx.helper.make_node('GroupNormalization',
                                  inputs=['x', 'scale', 'bias'],
                                  outputs=['y'],
                                  num_groups=num_groups,
-                                 epsilon=eps_value)
+                                 epsilon=eps_value,
+                                 **attrs)
 
     return ([node], [x, scale, bias], [y])
 
@@ -5863,6 +6041,21 @@ def group_norm_3d_half_test():
     return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            dtype=TensorProto.FLOAT16)
+
+
+@onnx_test(opset_version=21)
+def group_norm_v21_fp16_test():
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
+                           2,
+                           dtype=TensorProto.FLOAT16)
+
+
+@onnx_test(opset_version=21)
+def group_norm_v21_fp16_stash_fp16_test():
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
+                           2,
+                           dtype=TensorProto.FLOAT16,
+                           stash_type=TensorProto.FLOAT16)
 
 
 @onnx_test()
@@ -17159,6 +17352,55 @@ def symbolic_reshape_zero_dim_test():
     return (nodes, [x], [y])
 
 
+@onnx_test(opset_version=1)
+def symbolic_reshape_attribute_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+    node = helper.make_node('Reshape',
+                            inputs=['x'],
+                            outputs=['y'],
+                            shape=[-1, 4])
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_cross_root_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 4])
+    nodes = [
+        helper.make_node('Flatten', ['x'], ['flattened'], axis=0),
+        helper.make_node('Shape', ['x'], ['target_shape']),
+        helper.make_node('Reshape', ['flattened', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_invalid_elements_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 2, 2])
+    target = helper.make_tensor('target_value', TensorProto.INT64, [3],
+                                [0, 2, 2])
+    nodes = [
+        helper.make_node('Constant', [], ['target_shape'], value=target),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
+@onnx_test()
+def symbolic_reshape_missing_source_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      ['output_batch', 6])
+    target = from_array(np.array([-1, 6], dtype=np.int64), 'target_value')
+    nodes = [
+        helper.make_node('Constant', [], ['target_shape'], value=target),
+        helper.make_node('Reshape', ['x', 'target_shape'], ['y']),
+    ]
+    return (nodes, [x], [y])
+
+
 @onnx_test()
 def symbolic_reshape_negative_one_dim_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 4])
@@ -17255,6 +17497,30 @@ def symbolic_reshape_loop_test():
 
 
 @onnx_test()
+def symbolic_reshape_data_root_test():
+    condition = helper.make_tensor_value_info('condition', TensorProto.BOOL,
+                                              [4])
+    output = helper.make_tensor_value_info('output', TensorProto.INT64,
+                                           ['count', 1, 1, 1])
+    trailing_dims = helper.make_tensor('trailing_dims_value',
+                                       TensorProto.INT64, [2], [1, 1])
+    nodes = [
+        helper.make_node('NonZero', ['condition'], ['nonzero_indices']),
+        helper.make_node('Transpose', ['nonzero_indices'], ['transposed'],
+                         perm=[1, 0]),
+        helper.make_node('Shape', ['transposed'], ['transposed_shape']),
+        helper.make_node('Constant', [], ['trailing_dims'],
+                         value=trailing_dims),
+        helper.make_node('Concat', ['transposed_shape', 'trailing_dims'],
+                         ['target_shape'],
+                         axis=0),
+        helper.make_node('Reshape', ['transposed', 'target_shape'],
+                         ['output']),
+    ]
+    return (nodes, [condition], [output])
+
+
+@onnx_test()
 def scatternd_nonpacked_indices_test():
     n = 16
 
@@ -17279,6 +17545,26 @@ def scatternd_nonpacked_indices_test():
 
     return ([transpose_node,
              scatter_node], [data, updates], [output], [raw_indices_init])
+
+
+@onnx_test()
+def selu_bf16_test():
+    x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [6])
+    y = helper.make_tensor_value_info('y', TensorProto.BFLOAT16, [6])
+
+    node = onnx.helper.make_node('Selu', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def selu_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8])
+
+    node = onnx.helper.make_node('Selu', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
 
 
 @onnx_test()

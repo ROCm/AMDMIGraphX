@@ -79,6 +79,12 @@ struct find_reduce
                 new_reduce_axes.push_back(axis);
             }
         }
+        // An axis is recorded only when its length changes, so a reduced axis that is
+        // already length 1 leaves new_reduce_axes empty. An empty axes list selects the
+        // two-input reduce, which compute_shape rejects. Keep the original reduction:
+        // reduce_any/all normalize numeric inputs, and reduce_max initializes its accumulator.
+        if(new_reduce_axes.empty())
+            return;
         auto rsp_ins = m.insert_instruction(
             ins, migraphx::make_op("reshape", {{"dims", new_rsp_dims}}), ins->inputs().front());
         auto collapsed_reduce = m.insert_instruction(

@@ -1045,6 +1045,25 @@ TEST_CASE(sqlite_undecodable_key_is_a_miss)
     EXPECT(not db->load("v", "dev", "k").has_value());
 }
 
+// SQLite keeps whatever type a value was stored with, so a column holding the wrong type is a
+// miss rather than a crash.
+TEST_CASE(sqlite_wrong_column_type_is_a_miss)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    auto db   = migraphx::gpu::sqlite_binary_cache::open(path);
+    EXPECT(db.has_value());
+    db->store("v", "dev", {make_entry("k")});
+    EXPECT(db->load("v", "dev", "k").has_value());
+
+    migraphx::sqlite::write(path).execute("UPDATE cache_v1 SET code = 'text';");
+    EXPECT(not db->load("v", "dev", "k").has_value());
+
+    db->store("v", "dev", {make_entry("k")});
+    migraphx::sqlite::write(path).execute("UPDATE cache_v1 SET op_name = X'00';");
+    EXPECT(not db->load("v", "dev", "k").has_value());
+}
+
 // Both backends go through the same type-erased wrapper and give back the entry they were
 // given, field for field.
 TEST_CASE(backends_round_trip_through_the_wrapper)

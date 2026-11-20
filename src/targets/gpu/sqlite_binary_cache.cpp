@@ -25,6 +25,7 @@
 #include <migraphx/gpu/sqlite_binary_cache.hpp>
 #include <migraphx/gpu/binary_cache_backend.hpp>
 #include <migraphx/compression.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/logger.hpp>
@@ -104,6 +105,25 @@ constexpr const char* begin_sql    = "BEGIN IMMEDIATE;";
 constexpr const char* commit_sql   = "COMMIT;";
 constexpr const char* rollback_sql = "ROLLBACK;";
 
+// SQLite returns a value as the type it was stored with, whatever the column declares, so a
+// damaged row or one from an older table (whose key is TEXT) can hold the wrong type. value's
+// getters only assert the type, so these check it and make such a row a miss.
+const value::binary& blob_column(const value& row, const std::string& name)
+{
+    const auto* r = row.at(name).if_binary();
+    if(r == nullptr)
+        MIGRAPHX_THROW("binary cache column " + name + " is not a blob");
+    return *r;
+}
+
+const std::string& text_column(const value& row, const std::string& name)
+{
+    const auto* r = row.at(name).if_string();
+    if(r == nullptr)
+        MIGRAPHX_THROW("binary cache column " + name + " is not text");
+    return *r;
+}
+
 } // namespace
 
 optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path)
@@ -169,7 +189,7 @@ optional<binary_cache_entry> sqlite_binary_cache::load(const std::string& versio
         auto row = *it;
         // Rows are addressed by a hash of the key, so the full key is checked here to make a
         // collision a miss rather than a wrong kernel.
-        auto stored_key = zstd_decompress(row.at("key").get_binary());
+        auto stored_key = zstd_decompress(blob_column(row, "key"));
         if(std::string_view{stored_key.data(), stored_key.size()} != key)
         {
             log::warn() << "Ignoring binary cache entry with mismatched key: " << key_hash;
@@ -177,10 +197,10 @@ optional<binary_cache_entry> sqlite_binary_cache::load(const std::string& versio
         }
         binary_cache_entry e;
         e.key      = key;
-        e.op_name  = row.at("op_name").get_string();
-        e.problem  = from_json_string(row.at("problem").get_string());
-        e.solution = from_json_string(row.at("solution").get_string());
-        migraphx::from_value(from_msgpack(zstd_decompress(row.at("code").get_binary())), e.code);
+        e.op_name  = text_column(row, "op_name");
+        e.problem  = from_json_string(text_column(row, "problem"));
+        e.solution = from_json_string(text_column(row, "solution"));
+        migraphx::from_value(from_msgpack(zstd_decompress(blob_column(row, "code"))), e.code);
         return e;
     }
     catch(const std::exception& ex)

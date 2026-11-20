@@ -960,6 +960,28 @@ TEST_CASE(common_dims_transpose_reshape)
                make_op("reshape", {{"dims", {2, 1, 64, 64}}})});
 }
 
+// The transpose makes common dims visit axis 1's sub-axes (4 then 3) as (3 then 4); the
+// inverse must still merge them in source order. Merging in visit order instead yields
+// transpose{2,0,1,3}, a {1,12,5} with the two sub-axes interleaved the wrong way round.
+TEST_CASE(common_dims_reshape_transpose_split_merge_order)
+{
+    auto desc = make_simple_descriptor({1, 12, 5},
+                                       make_op("reshape", {{"dims", {1, 4, 3, 5}}}),
+                                       make_op("transpose", {{"permutation", {2, 1, 0, 3}}}));
+    EXPECT(desc.common_dims() == final_lens{3, 4, 1, 5});
+
+    EXPECT(desc.to_common_from_src().generate() ==
+           ops{make_op("reshape", {{"dims", {1, 4, 3, 5}}}),
+               make_op("transpose", {{"permutation", {2, 1, 0, 3}}})});
+
+    EXPECT(desc.to_src_from_common().generate() ==
+           ops{make_op("transpose", {{"permutation", {2, 1, 0, 3}}}),
+               make_op("reshape", {{"dims", {1, 12, 5}}})});
+
+    EXPECT(desc.to_common_from_dst().generate() == ops{});
+    EXPECT(desc.to_dst_from_common().generate() == ops{});
+}
+
 TEST_CASE(common_dims_broadcast_reshape)
 {
     auto desc = make_simple_descriptor({2, 32, 1},

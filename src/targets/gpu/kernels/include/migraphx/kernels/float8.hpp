@@ -74,7 +74,7 @@ struct float8
 #if defined(__gfx942__)
     // device specific optimized F8 down-conversion code
 
-    template <bool stochastic_rounding = false>
+    template <bool StochasticRounding = false>
     static __device__ uint8_t cast_to_f8fnuz_from_f32(float v, uint32_t rng = 0)
     {
         uint8_t i8data = 0x00;
@@ -100,7 +100,7 @@ struct float8
                 val.fval = __builtin_amdgcn_fmed3f(val.fval, 57344.0, -57344.0);
         }
 #endif
-        if(stochastic_rounding)
+        if(StochasticRounding)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {

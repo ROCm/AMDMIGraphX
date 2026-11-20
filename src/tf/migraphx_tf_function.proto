@@ -1,14 +1,14 @@
 syntax = "proto3";
 
-package tensorflow;
+package tensorflow_for_migraphx;
 option cc_enable_arenas = true;
 option java_outer_classname = "FunctionProtos";
 option java_multiple_files = true;
 option java_package = "org.tensorflow.framework";
 option go_package = "github.com/tensorflow/tensorflow/tensorflow/go/core/framework";
-import "attr_value.proto";
-import "node_def.proto";
-import "op_def.proto";
+import "migraphx_tf_attr_value.proto";
+import "migraphx_tf_node_def.proto";
+import "migraphx_tf_op_def.proto";
 
 // A library is a set of named functions.
 message FunctionDefLibrary {

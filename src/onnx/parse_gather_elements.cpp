@@ -53,19 +53,49 @@ struct parse_gather_elements : op_parser<parse_gather_elements>
         auto data_s = arg_data->get_shape();
         auto ind_s  = arg_ind->get_shape();
 
-        if(data_s.lens().size() != ind_s.lens().size())
+        if(data_s.ndim() != ind_s.ndim())
         {
             MIGRAPHX_THROW("PARSE_GATHER_ELEMENTS: input data and index must have the same rank!");
         }
 
-        int n_rank     = data_s.lens().size();
+        int n_rank     = data_s.ndim();
         int tuned_axis = tune_axis(n_rank, axis, opd.onnx_name);
+
+        if(data_s.dynamic())
+        {
+            MIGRAPHX_THROW("PARSE_GATHER_ELEMENTS: dynamic input data is not supported");
+        }
 
         auto axis_stride      = data_s.strides()[tuned_axis];
         int64_t data_elem_num = data_s.elements();
         // reshape the input data as one dimension and used as input data
         // to the gather operator
         arg_data = info.add_instruction(make_op("reshape", {{"dims", {data_elem_num}}}), arg_data);
+
+        if(ind_s.dynamic())
+        {
+            // The index into the flattened data is base + index * axis_stride, where base is
+            // the offset of the other coordinates. It needs their lens, so only the axis may vary.
+            auto dds = ind_s.dyn_dims();
+            std::vector<std::size_t> base_lens(dds.size(), 1);
+            for(int i = 0; i < n_rank; i++)
+            {
+                if(i == tuned_axis)
+                    continue;
+                if(not dds[i].is_fixed())
+                    MIGRAPHX_THROW("PARSE_GATHER_ELEMENTS: index can only be dynamic on the axis");
+                base_lens[i] = dds[i].get_interval().min;
+            }
+            shape base_s{ind_s.type(), base_lens};
+            std::vector<int64_t> base(base_s.elements());
+            for(std::size_t i = 0; i < base.size(); i++)
+                base[i] = data_s.index(base_s.multi(i));
+            auto l_base   = info.add_literal(literal(base_s, base.begin(), base.end()));
+            auto l_stride = info.add_literal(literal{{ind_s.type(), {1}}, {axis_stride}});
+            auto delta    = info.add_common_op("mul", arg_ind, l_stride);
+            auto ind      = info.add_common_op("add", l_base, delta);
+            return info.add_instruction(make_op("gather", {{"axis", 0}}), arg_data, ind);
+        }
 
         std::size_t elem_num = ind_s.elements();
         std::vector<int> ind_index(elem_num);

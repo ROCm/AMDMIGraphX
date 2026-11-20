@@ -41,7 +41,8 @@ jobs:
     - name: Install LLVM/Clang
       uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0  # v2
       with:
-        version: "22"
+        version: "22.1.0"
+        force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.0/LLVM-22.1.0-win64.exe
         directory: ${{ runner.temp }}/llvm
 
     - name: Install rbuild

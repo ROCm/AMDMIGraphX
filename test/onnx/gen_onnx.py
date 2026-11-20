@@ -8102,6 +8102,32 @@ def if_then_test_inlined():
 
 
 @onnx_test()
+def if_symbolic_branch_shapes_test():
+    # The branches return the transpose of x {N, 4} or of y {M, 4}, and its shape
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['M', 4])
+    cond = helper.make_tensor_value_info('cond', TensorProto.BOOL, [1])
+
+    def body(name, src, length):
+        out = helper.make_tensor_value_info(name + '_out', TensorProto.FLOAT,
+                                            [4, length])
+        dims = helper.make_tensor_value_info(name + '_dims', TensorProto.INT64,
+                                             [2])
+        nodes = [
+            helper.make_node('Transpose', [src], [name + '_out'], perm=[1, 0]),
+            helper.make_node('Shape', [name + '_out'], [name + '_dims']),
+        ]
+        return helper.make_graph(nodes, name, [], [out, dims])
+
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, [4, None])
+    dims = helper.make_tensor_value_info('dims', TensorProto.INT64, [2])
+    node = helper.make_node('If', ['cond'], ['out', 'dims'],
+                            then_branch=body('then', 'x', 'N'),
+                            else_branch=body('else', 'y', 'M'))
+    return ([node], [cond, x, y], [out, dims])
+
+
+@onnx_test()
 def if_tuple_test():
     x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [1, 4])
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [3, 4])

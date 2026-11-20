@@ -36,11 +36,13 @@
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/instruction_traversal.hpp>
 #include <migraphx/common_dims.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/enum.hpp>
 #include <migraphx/stringutils.hpp>
 #include <algorithm>
 #include <cassert>
 #include <deque>
+#include <functional>
 #include <numeric>
 #include <optional>
 #include <tuple>
@@ -788,62 +790,87 @@ module canonical_body(const module& pm, shape::type_t type)
     return m;
 }
 
-// The canonical body of a pointwise as a new module whose parameters follow
-// `roles`, the inputs of the pointwise in the order the kernel passes them
-module_ref copy_pointwise(module_pass_manager& mpm,
-                          const std::string& name,
-                          instruction_ref pw,
-                          const std::vector<instruction_ref>& roles,
-                          shape::type_t type)
+// A chunk's step, read or out pointwise with its inputs in the order the
+// kernel passes them
+struct scan_body
 {
-    assert(std::all_of(
-        roles.begin(), roles.end(), [&](auto role) { return contains(pw->inputs(), role); }));
-    auto body     = canonical_body(*pw->module_inputs().front(), type);
-    module_ref rm = mpm.create_module(name);
-    rm->set_bypass();
-    std::unordered_map<instruction_ref, instruction_ref> map;
-    for(std::size_t k = 0; k < roles.size(); k++)
-        map[roles[k]] = rm->add_parameter(param_name(k), shape{type});
-    rm->add_return(rm->fuse(body, pw->inputs(), &map));
-    return rm;
+    instruction_ref pw;
+    std::vector<instruction_ref> roles;
+
+    // The canonical body with its parameters in the order of the roles, so
+    // bodies that take their inputs in different orders compare by what they
+    // compute
+    module make(shape::type_t type) const
+    {
+        assert(std::all_of(
+            roles.begin(), roles.end(), [&](auto role) { return contains(pw->inputs(), role); }));
+        auto body = canonical_body(*pw->module_inputs().front(), type);
+        module m;
+        std::unordered_map<instruction_ref, instruction_ref> map;
+        for(std::size_t k = 0; k < roles.size(); k++)
+            map[roles[k]] = m.add_parameter(param_name(k), shape{type});
+        m.add_return(m.fuse(body, pw->inputs(), &map));
+        return m;
+    }
+};
+
+scan_body step_body(const chunk_step& step)
+{
+    scan_body result{step.state_out, {step.state_in}};
+    if(step.decay.has_value())
+        result.roles.push_back(*step.decay);
+    result.roles.push_back(step.state_update);
+    return result;
 }
 
-bool same_modules(const chunk_family& pws, shape::type_t type)
+std::optional<scan_body> read_body(const chunk_step& step)
 {
-    std::optional<module> first;
-    for(const auto& pw : pws)
-    {
-        if(not pw.has_value())
-            continue;
-        auto body = canonical_body(*(*pw)->module_inputs().front(), type);
-        if(not first.has_value())
-            first = std::move(body);
-        else if(not(*first == body))
-            return false;
-    }
-    return true;
+    if(not step.read.has_value())
+        return std::nullopt;
+    return scan_body{*step.read, {*step.update_input, *step.read_product}};
+}
+
+std::optional<scan_body> out_body(const chunk_output& output)
+{
+    if(not output.out.has_value())
+        return std::nullopt;
+    return scan_body{*output.out, {*output.output_base, *output.output_product}};
+}
+
+// Whether the chunks that have the body `f` yields all compute the same
+template <class T, class F>
+bool same_modules(const std::vector<std::optional<T>>& chunks, shape::type_t type, F f)
+{
+    std::vector<std::optional<scan_body>> bodies(chunks.size());
+    std::transform(chunks.begin(), chunks.end(), bodies.begin(), [&](const auto& chunk) {
+        return chunk.has_value() ? std::optional<scan_body>{f(*chunk)} : std::nullopt;
+    });
+    std::vector<module> mods;
+    transform_if(
+        bodies.begin(),
+        bodies.end(),
+        std::back_inserter(mods),
+        [](const auto& body) { return body.has_value(); },
+        [&](const auto& body) { return body->make(type); });
+    return std::adjacent_find(mods.begin(), mods.end(), std::not_equal_to<>{}) == mods.end();
 }
 
 // Every chunk's step, read and out body must be the same pointwise
 bool same_bodies(const chunk_loop& loop, shape::type_t type)
 {
-    const auto& head = loop.head();
-    if(not same_modules(gather(loop.steps, [](const chunk_step& s) { return s.state_out; }), type))
-        return false;
-    if(head.read.has_value() and
-       not same_modules(gather(loop.steps, [](const chunk_step& s) { return *s.read; }), type))
-        return false;
-    return not loop.has_out() or
-           same_modules(gather(loop.outputs, [](const chunk_output& o) { return o.out; }), type);
+    return same_modules(loop.steps, type, &step_body) and
+           same_modules(loop.steps, type, &read_body) and
+           same_modules(loop.outputs, type, &out_body);
 }
 
-std::vector<instruction_ref> step_roles(const chunk_step& step)
+module_ref add_scan_module(module_pass_manager& mpm,
+                           const std::string& name,
+                           const scan_body& body,
+                           shape::type_t type)
 {
-    std::vector<instruction_ref> roles{step.state_in};
-    if(step.decay.has_value())
-        roles.push_back(*step.decay);
-    roles.push_back(step.state_update);
-    return roles;
+    module_ref rm = mpm.create_module(name, body.make(type));
+    rm->set_bypass();
+    return rm;
 }
 
 // Whether the concat joins whole chunks one after another: the axes from the
@@ -994,17 +1021,11 @@ std::vector<module_ref> scan_modules(module_pass_manager& mpm,
                                      shape::type_t type)
 {
     const auto& head = loop.head();
-    std::vector<module_ref> mods;
-    mods.push_back(copy_pointwise(mpm, prefix + ":step", head.state_out, step_roles(head), type));
-    if(head.read.has_value())
-        mods.push_back(copy_pointwise(
-            mpm, prefix + ":read", *head.read, {*head.update_input, *head.read_product}, type));
-    if(loop.has_out())
-    {
-        const auto& o = loop.head_output();
-        mods.push_back(copy_pointwise(
-            mpm, prefix + ":out", *o.out, {*o.output_base, *o.output_product}, type));
-    }
+    std::vector<module_ref> mods{add_scan_module(mpm, prefix + ":step", step_body(head), type)};
+    if(auto read = read_body(head))
+        mods.push_back(add_scan_module(mpm, prefix + ":read", *read, type));
+    if(auto out = out_body(loop.head_output()))
+        mods.push_back(add_scan_module(mpm, prefix + ":out", *out, type));
     return mods;
 }
 

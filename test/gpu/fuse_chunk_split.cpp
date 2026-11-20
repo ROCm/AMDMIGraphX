@@ -525,6 +525,167 @@ TEST_CASE(different_steps_not_fused)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// The same body over swapped inputs is another transition: S - state_update
+// for one chunk and state_update - S for the next
+TEST_CASE(swapped_step_inputs_not_fused)
+{
+    auto ss = fshape({1, 2, 4, 8});
+    auto ks = fshape({1, 2, 2, 2, 4});
+    auto us = fshape({1, 2, 2, 4, 8});
+    migraphx::program p1;
+    {
+        auto* mm           = p1.get_main_module();
+        auto s0            = mm->add_parameter("s0", ss);
+        auto output_matrix = mm->add_parameter("output_matrix", ks);
+        auto state_update  = mm->add_parameter("state_update", us);
+        auto output0 =
+            mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, output_matrix, 0), s0);
+        auto s1 = add_pointwise(
+            p1, "main:pointwise0", {s0, chunk(*mm, state_update, 0)}, single_pointwise("sub"));
+        auto output1 =
+            mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, output_matrix, 1), s1);
+        auto s2 = add_pointwise(
+            p1, "main:pointwise1", {chunk(*mm, state_update, 1), s1}, single_pointwise("sub"));
+        auto o = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), output0, output1);
+        mm->add_return({o, s2});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// The same transition written over its inputs in another order is the same
+// step: S - state_update as x0 - x1 and as x1 - x0 over swapped inputs
+TEST_CASE(reordered_step_inputs)
+{
+    auto ss = fshape({1, 2, 4, 8});
+    auto ks = fshape({1, 2, 2, 2, 4});
+    auto us = fshape({1, 2, 2, 4, 8});
+    migraphx::program p1;
+    {
+        auto* mm           = p1.get_main_module();
+        auto s0            = mm->add_parameter("s0", ss);
+        auto output_matrix = mm->add_parameter("output_matrix", ks);
+        auto state_update  = mm->add_parameter("state_update", us);
+        auto output0 =
+            mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, output_matrix, 0), s0);
+        auto s1 = add_pointwise(
+            p1, "main:pointwise0", {s0, chunk(*mm, state_update, 0)}, single_pointwise("sub"));
+        auto output1 =
+            mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, output_matrix, 1), s1);
+        auto s2 = add_pointwise(
+            p1, "main:pointwise1", {chunk(*mm, state_update, 1), s1}, [](auto* pm, const auto& xs) {
+                return pm->add_instruction(migraphx::make_op("sub"), xs[1], xs[0]);
+            });
+        auto o = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), output0, output1);
+        mm->add_return({o, s2});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm           = p2.get_main_module();
+        auto s0            = mm->add_parameter("s0", ss);
+        auto output_matrix = mm->add_parameter("output_matrix", ks);
+        auto state_update  = mm->add_parameter("state_update", us);
+        auto* step =
+            create_pointwise_module(p2, "main:chunk_scan0:step", {s0, s0}, single_pointwise("sub"));
+        auto op = migraphx::make_op(
+            "gpu::chunk_scan",
+            {{"output_shape", migraphx::to_value(fshape({1, 2, 4, 8}))},
+             {"state_shape", migraphx::to_value(ss)},
+             {"families",
+              migraphx::to_value(std::vector<std::string>{"output_matrix", "state_update"})},
+             {"chunks", 2},
+             {"has_state", true}});
+        auto scan = mm->add_instruction(op, {s0, output_matrix, state_update}, {step});
+        mm->add_return({get_tuple_elem(*mm, scan, 0), get_tuple_elem(*mm, scan, 1)});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// Nor may the read swap its inputs between chunks: update_input - product
+// and product - update_input
+TEST_CASE(swapped_read_inputs_not_fused)
+{
+    auto ss = fshape({1, 2, 4, 4});
+    auto ks = fshape({1, 2, 2, 4, 4});
+    migraphx::program p1;
+    {
+        auto* mm           = p1.get_main_module();
+        auto s0            = mm->add_parameter("s0", ss);
+        auto read_matrix   = mm->add_parameter("read_matrix", ks);
+        auto output_matrix = mm->add_parameter("output_matrix", ks);
+        auto update_matrix = mm->add_parameter("update_matrix", ks);
+        auto update_input  = mm->add_parameter("update_input", ks);
+        auto s             = s0;
+        std::vector<migraphx::instruction_ref> outs;
+        for(std::size_t i = 0; i < 2; i++)
+        {
+            auto read_product =
+                mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, read_matrix, i), s);
+            auto input = chunk(*mm, update_input, i);
+            auto u =
+                add_pointwise(p1,
+                              "main:pointwise" + std::to_string(2 * i),
+                              i == 0 ? std::vector<migraphx::instruction_ref>{input, read_product}
+                                     : std::vector<migraphx::instruction_ref>{read_product, input},
+                              single_pointwise("sub"));
+            outs.push_back(
+                mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, output_matrix, i), s));
+            auto state_update =
+                mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, update_matrix, i), u);
+            s = add_pointwise(p1,
+                              "main:pointwise" + std::to_string(2 * i + 1),
+                              {s, state_update},
+                              single_pointwise("add"));
+        }
+        auto o = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), outs);
+        mm->add_return({o, s});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// Nor the out pointwise: output_base - product and product - output_base
+TEST_CASE(swapped_out_inputs_not_fused)
+{
+    auto ss = fshape({1, 2, 4, 4});
+    auto ks = fshape({1, 2, 2, 4, 4});
+    migraphx::program p1;
+    {
+        auto* mm           = p1.get_main_module();
+        auto s0            = mm->add_parameter("s0", ss);
+        auto output_matrix = mm->add_parameter("output_matrix", ks);
+        auto state_update  = mm->add_parameter("state_update", ks);
+        auto output_base   = mm->add_parameter("output_base", ks);
+        auto s             = s0;
+        std::vector<migraphx::instruction_ref> outs;
+        for(std::size_t i = 0; i < 2; i++)
+        {
+            auto output_product =
+                mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, output_matrix, i), s);
+            auto base = chunk(*mm, output_base, i);
+            outs.push_back(
+                add_pointwise(p1,
+                              "main:pointwise" + std::to_string(2 * i),
+                              i == 0 ? std::vector<migraphx::instruction_ref>{base, output_product}
+                                     : std::vector<migraphx::instruction_ref>{output_product, base},
+                              single_pointwise("sub")));
+            s = add_pointwise(p1,
+                              "main:pointwise" + std::to_string(2 * i + 1),
+                              {s, chunk(*mm, state_update, i)},
+                              single_pointwise("add"));
+        }
+        auto o = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), outs);
+        mm->add_return({o, s});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1.sort() == p2.sort());
+}
+
 // A family operand may be any view of its chunk: the transposed keys stack
 // as a transpose of the whole input
 TEST_CASE(transposed_family)

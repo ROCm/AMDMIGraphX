@@ -160,11 +160,13 @@ struct chunk_scanner
 
     __device__ void load_state() const
     {
-        auto s0m = mat<Settings::s0_index>();
         idx.local_stride(s_tile.elements(), [&](auto e) {
             auto t = s_tile.multi(e);
             if constexpr(Settings::has_state)
+            {
+                auto s0m = mat<Settings::s0_index>();
                 s[t] = row(s0m, t[0])[col0 + t[1]];
+            }
             else
                 s[t] = 0;
         });

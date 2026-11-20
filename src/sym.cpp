@@ -1304,14 +1304,9 @@ expr max(expr x, expr y)
         [](interval a, interval b) { return max(a, b); })(std::move(x), std::move(y));
 }
 
-std::optional<bool> strict_less(const expr& a, const expr& b, interval default_bounds)
+static std::optional<bool>
+strict_less_min_max(const expr& a, const expr& b, interval default_bounds)
 {
-    if(a.empty() or b.empty())
-        return std::nullopt;
-
-    if(same_symbol(a, b))
-        return false;
-
     if(a.name() == "min")
     {
         if(any_of(a.children(), [&](const auto& child) {
@@ -1356,6 +1351,21 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
            }))
             return false;
     }
+
+    return std::nullopt;
+}
+
+std::optional<bool> strict_less(const expr& a, const expr& b, interval default_bounds)
+{
+    if(a.empty() or b.empty())
+        return std::nullopt;
+
+    if(same_symbol(a, b))
+        return false;
+
+    auto min_max_result = strict_less_min_max(a, b, default_bounds);
+    if(min_max_result.has_value())
+        return min_max_result;
 
     // 1. Interval of b - a. eval_interval is already monotonicity-tightened, so the
     //    cross-term correlations between b and a get picked up automatically.

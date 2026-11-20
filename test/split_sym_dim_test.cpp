@@ -2685,7 +2685,7 @@ TEST_CASE(split_sym_dim_orders_merged_blocks_by_dependencies)
     auto consumer_select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
-            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{std::move(output_shapes)})}}),
+            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{output_shapes})}}),
         std::vector<migraphx::instruction_ref>{expected_producer, expected_x},
         consumer_modules);
     auto expected_independent = expected_main.add_instruction(
@@ -5214,7 +5214,7 @@ TEST_CASE(split_sym_dim_shared_replacement_memo)
     auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
-            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{std::move(output_shapes)})}}),
+            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{output_shapes})}}),
         std::vector<migraphx::instruction_ref>{
             expected_selected, expected_values0, expected_values1},
         modules);
@@ -5337,7 +5337,7 @@ TEST_CASE(split_sym_dim_topk_static_sentinel_padding)
     auto select = expected_main.add_instruction(
         migraphx::make_op(
             "select_module",
-            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{std::move(output_shapes)})}}),
+            {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{output_shapes})}}),
         std::vector<migraphx::instruction_ref>{expected_data, expected_indices},
         modules);
     auto expected_largest_values =

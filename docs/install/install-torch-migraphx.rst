@@ -47,8 +47,13 @@ Torch-MIGraphX into a Python virtual environment.
 
    .. code-block:: bash
 
-      python3.12 -m venv .venv
+      python3 -m venv .venv
       source .venv/bin/activate
+
+   .. note::
+
+      This command may vary depending on the Python version installed on
+      your system (for example, ``python3.12 -m venv .venv``).
 
 2. Install a ROCm-enabled PyTorch release into the environment. See
    |TORCH_INSTALL_DOC|.

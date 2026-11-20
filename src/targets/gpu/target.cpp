@@ -238,7 +238,7 @@ std::size_t option_or(std::size_t option, std::size_t device_default)
 std::vector<std::string> force_mlir_ops_for_recompile(std::vector<std::string> use_specific_ops)
 {
     static const std::vector<std::string> required = {
-        "dot", "fused_dot", "convolution", "fused_convolution", "fused"};
+        "dot", "fused_dot", "convolution", "fused_convolution", "convolution_backwards", "fused"};
     use_specific_ops.insert(use_specific_ops.end(), required.begin(), required.end());
     return use_specific_ops;
 }

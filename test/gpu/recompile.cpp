@@ -37,6 +37,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_description.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/check_recompiled_memory.hpp>
 #include <migraphx/gpu/record_compiled_for.hpp>
 #include <test.hpp>
@@ -675,6 +676,9 @@ TEST_CASE(recompilable_rewrites_lrn)
 // every kernel is one recompile can regenerate for another device.
 TEST_CASE(recompilable_avoids_out_of_scope_kernels)
 {
+    // Without MLIR, dot and convolution stay rocBLAS/hipBLASLt/MIOpen calls with no recipe
+    if(not migraphx::gpu::mlir_enabled())
+        return;
     migraphx::program p;
     auto* mm = p.get_main_module();
     // K (the shared 2048 dim) past 1535 makes is_mlir_dot's fast-mode heuristic skip MLIR by
@@ -698,6 +702,32 @@ TEST_CASE(recompilable_avoids_out_of_scope_kernels)
     // check (false by default) that the forcing bypasses.
     auto options                                  = recipe_options();
     options.backend_options["convolution_layout"] = "channels_first";
+    p.compile(cross_target("gfx942"), options);
+
+    EXPECT(not has_out_of_scope_kernel(p));
+    EXPECT(all_have_recipes(p));
+}
+
+// convolution_backwards (ONNX ConvTranspose) uses MIOpen when it is built, except on gfx12
+// (fuse_mlir.cpp), so a recompilable program has to force it onto MLIR too. Eager compilation
+// skips rewrite_convolution, which would otherwise decompose it into forward convolutions that
+// are already forced onto MLIR, so it is what reaches fuse_mlir as convolution_backwards.
+TEST_CASE(recompilable_avoids_out_of_scope_convolution_backwards)
+{
+    // Without MLIR, convolution_backwards stays a MIOpen call with no recipe
+    if(not migraphx::gpu::mlir_enabled())
+        return;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape x_s{migraphx::shape::float_type, {1, 3, 8, 8}};
+    // The weights are {input channels, output channels, kh, kw}
+    migraphx::shape w_s{migraphx::shape::float_type, {3, 4, 3, 3}};
+    auto x = mm->add_parameter("x", x_s);
+    auto w = mm->add_literal(migraphx::generate_literal(w_s, 1));
+    mm->add_return({mm->add_instruction(migraphx::make_op("convolution_backwards"), x, w)});
+    // A non-gfx12 device, where convolution_backwards defaults to MIOpen instead of MLIR
+    auto options         = recipe_options();
+    options.compile_mode = migraphx::compile_modes::eager;
     p.compile(cross_target("gfx942"), options);
 
     EXPECT(not has_out_of_scope_kernel(p));

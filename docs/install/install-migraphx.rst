@@ -28,7 +28,8 @@ MIGraphX |MIGRAPHX_VERSION| is currently supported on:
 
 See the |ROCM_COMPAT_DOC| for more information.
 
-* Ensure your system has Python 3.14 or 3.12 installed and accessible.
+* Ensure your system has Python 3.10, 3.11, 3.12, 3.13, or 3.14 installed
+  and accessible.
 
 .. _migraphx-package-install:
 

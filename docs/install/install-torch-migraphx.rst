@@ -22,7 +22,8 @@ MIGraphX |MIGRAPHX_VERSION|. See the :doc:`MIGraphX installation page
 <install-migraphx>` for the list of supported architectures and the
 |ROCM_COMPAT_DOC| for more information.
 
-* Ensure your system has Python 3.14 or 3.12 installed and accessible.
+* Ensure your system has Python 3.10, 3.11, 3.12, 3.13, or 3.14 installed
+  and accessible.
 
 * A ROCm-enabled PyTorch build must be installed in the same environment.
 

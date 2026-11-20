@@ -52,7 +52,10 @@ copyright = "Copyright (c) 2024 Advanced Micro Devices, Inc. All rights reserved
 version = version_number
 release = version_number
 
-extensions = ["rocm_docs", "rocm_docs.doxygen", "sphinx_collapse", "sphinxcontrib.datatemplates"]
+extensions = [
+    "rocm_docs", "rocm_docs.doxygen", "rocm_docs.selector", "sphinx_collapse",
+    "sphinxcontrib.datatemplates", "sphinx_substitution_extensions"
+]
 external_toc_path = "./sphinx/_toc.yml"
 doxygen_root = "doxygen"
 doxysphinx_enabled = False
@@ -61,6 +64,53 @@ doxygen_project = {
     "path": "doxygen/xml",
 }
 
+substitutions_default_enabled = True
+# Substituting into hyperlink targets needs sphinx-substitution-extensions
+# >=2026.8.2, which requires Python >=3.11 and Sphinx >=8.1; RTD builds this
+# project on Python 3.10. Until that moves, spell the ROCm version out in
+# external URLs instead of using |ROCM_VERSION|.
+substitutions_hyperlink_targets_enabled = True
+
 html_title = f"{project} {version_number} documentation"
 
 external_projects_current_project = "amdmigraphx"
+
+# Bump these when the docs target a new ROCm or Torch-MIGraphX release; every
+# ROCm-versioned string used below (and in the install docs, via
+# myst_substitutions) is derived from them so a release bump only touches
+# this block. MIGRAPHX_VERSION below is parsed from ../CMakeLists.txt
+# instead, since that file is the source of truth for the MIGraphX version.
+rocm_version = "10.0.0"
+rocm_version_pkg_suffix = "10.0"
+rocm_major = "10"
+rocm_docs_version = f"docs-{rocm_version}"
+torch_migraphx_version = "1.2"
+
+myst_substitutions = {
+    "ROCM_VERSION":
+    rocm_version,
+    "ROCM_VERSION_PKG_SUFFIX":
+    rocm_version_pkg_suffix,
+    "ROCM_MAJOR":
+    rocm_major,
+    "MIGRAPHX_VERSION":
+    version,
+    "TORCH_MIGRAPHX_VERSION":
+    torch_migraphx_version,
+    "WHL":
+    f'"torch_migraphx=={torch_migraphx_version}+rocm{rocm_version}"',
+    "WHL_PKG_REPO":
+    "https://stable.repo.amd.com/rocm/migraphx/whl-next/",
+    "TARBALL_REPO":
+    "https://stable.repo.amd.com/rocm/migraphx/tarball/",
+    "TARBALL_NAME":
+    f"amdrocm{rocm_major}-migraphx-{version}.tar.gz",
+    "ROCM_INSTALL_DOC":
+    f"`Install AMD ROCm {rocm_version} <https://rocm.docs.amd.com/en/{rocm_docs_version}/install/rocm.html>`__",
+    "ROCM_COMPAT_DOC":
+    f"`ROCm {rocm_version} compatibility matrix <https://rocm.docs.amd.com/en/{rocm_docs_version}/compatibility/compatibility-matrix.html>`__",
+    "TORCH_INSTALL_DOC":
+    f"`Install PyTorch for ROCm <https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html?rocm-ver={rocm_version}>`__",
+}
+rst_prolog = "\n".join(f".. |{key}| replace:: {val}"
+                       for key, val in myst_substitutions.items())

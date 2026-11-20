@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 #include <migraphx/split_sym/analyzer.hpp>
-#include <migraphx/functional.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/value.hpp>
 #include <algorithm>
@@ -74,14 +73,8 @@ std::optional<dyn_slice_bounds> prefix_stable_dyn_slice_bounds(instruction_ref i
             return std::nullopt;
         if(not sym::find_variables(end).empty() and not(end == input_end))
         {
-            bool bounded_by_input = fix<bool>([&](auto self, const sym::expr& expression) {
-                return expression == input_end or
-                       (expression.name() == "min" and
-                        any_of(expression.children(),
-                               [&](const auto& child) { return self(child); }));
-            })(end);
-            auto input_less_end   = sym::strict_less(input_end, end);
-            if(not bounded_by_input and (not input_less_end.has_value() or *input_less_end))
+            auto input_less_end = sym::strict_less(input_end, end);
+            if(not input_less_end.has_value() or *input_less_end)
                 return std::nullopt;
         }
     }

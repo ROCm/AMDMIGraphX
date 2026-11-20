@@ -1018,10 +1018,12 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     return expr(op_node{op}, std::move(args));
 }
 
-static bool provable_less_equal(const expr& a, const expr& b)
+std::optional<bool> provable_less_equal(const expr& a, const expr& b, interval default_bounds)
 {
-    auto difference = (b - a).eval_interval_default();
-    return not scalar_less(difference.min, scalar{int64_t{0}});
+    auto result = strict_less(b, a, default_bounds);
+    if(not result.has_value())
+        return std::nullopt;
+    return not *result;
 }
 
 static expr normalize_min_max(const op_def* op, std::vector<expr> args)
@@ -1031,9 +1033,9 @@ static expr normalize_min_max(const op_def* op, std::vector<expr> args)
     const auto& b = args[1];
     if(same_symbol(a, b))
         return combine_symbols(args);
-    if(provable_less_equal(a, b))
+    if(provable_less_equal(a, b).value_or(false))
         return op->name == "min" ? a : b;
-    if(provable_less_equal(b, a))
+    if(provable_less_equal(b, a).value_or(false))
         return op->name == "min" ? b : a;
     return expr(op_node{op}, std::move(args));
 }
@@ -1310,6 +1312,51 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
     if(same_symbol(a, b))
         return false;
 
+    if(a.name() == "min")
+    {
+        if(any_of(a.children(), [&](const auto& child) {
+               return strict_less(child, b, default_bounds).value_or(false);
+           }))
+            return true;
+        if(all_of(a.children(), [&](const auto& child) {
+               return provable_less_equal(b, child, default_bounds).value_or(false);
+           }))
+            return false;
+    }
+    if(a.name() == "max")
+    {
+        if(all_of(a.children(), [&](const auto& child) {
+               return strict_less(child, b, default_bounds).value_or(false);
+           }))
+            return true;
+        if(any_of(a.children(), [&](const auto& child) {
+               return provable_less_equal(b, child, default_bounds).value_or(false);
+           }))
+            return false;
+    }
+    if(b.name() == "min")
+    {
+        if(all_of(b.children(), [&](const auto& child) {
+               return strict_less(a, child, default_bounds).value_or(false);
+           }))
+            return true;
+        if(any_of(b.children(), [&](const auto& child) {
+               return provable_less_equal(child, a, default_bounds).value_or(false);
+           }))
+            return false;
+    }
+    if(b.name() == "max")
+    {
+        if(any_of(b.children(), [&](const auto& child) {
+               return strict_less(a, child, default_bounds).value_or(false);
+           }))
+            return true;
+        if(all_of(b.children(), [&](const auto& child) {
+               return provable_less_equal(child, a, default_bounds).value_or(false);
+           }))
+            return false;
+    }
+
     // 1. Interval of b - a. eval_interval is already monotonicity-tightened, so the
     //    cross-term correlations between b and a get picked up automatically.
     auto i = (b - a).eval_interval_default(default_bounds);
@@ -1326,10 +1373,11 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
         auto q_int = (b / a).eval_interval_default(default_bounds);
         if(a_pos)
         {
-            // a > 0: a < b iff b/a > 1
+            // For a > 0, b/a > 1 proves a < b.
             if(scalar_less(scalar{int64_t{1}}, q_int.min))
                 return true;
-            if(not scalar_less(scalar{int64_t{1}}, q_int.max))
+            // Integer division truncates, so a quotient of 1 does not disprove a < b.
+            if(scalar_less(q_int.max, scalar{int64_t{1}}))
                 return false;
         }
         else

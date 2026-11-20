@@ -2430,4 +2430,64 @@ TEST_CASE(module_print_static_shape)
         printed_py(s), R"(migraphx.shape(type="float_type", lens=[2, 3, 4], strides=[1, 8, 2]))"));
 }
 
+TEST_CASE(sort_long_chain)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    auto x = m.add_parameter("x", s);
+    auto y = x;
+    for(int i = 0; i < 6000; ++i)
+        y = m.add_instruction(migraphx::make_op("neg"), y);
+    m.add_return({y});
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+    EXPECT(std::prev(m.end())->name() == "@return");
+}
+
+TEST_CASE(replace_long_chain)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    auto x = m.add_parameter("x", s);
+    auto y = x;
+    for(int i = 0; i < 6000; ++i)
+        y = m.add_instruction(migraphx::make_op("neg"), y);
+    m.add_debug_symbols(y, {"tail"});
+    auto ret = m.add_return({y});
+    auto rep = m.insert_instruction(y, migraphx::make_op("relu"), x);
+    // Used to recurse the sole-dependent input chain and overflow the C stack.
+    m.replace_instruction(y, rep);
+    EXPECT(ret->inputs().front() == rep);
+}
+
+TEST_CASE(move_output_long_chain)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    auto x = m.add_parameter("x", s);
+    auto y = x;
+    for(int i = 0; i < 6000; ++i)
+        y = m.add_instruction(migraphx::make_op("neg"), y);
+    auto ret = m.add_return({y});
+    // Used to recurse along the output chain and overflow the C stack.
+    m.move_output_instructions_after(x, ret);
+    EXPECT(std::next(m.begin()) == ret);
+    EXPECT(std::prev(m.end()) == y);
+    EXPECT(ret->inputs().front() == y);
+}
+
+TEST_CASE(dangling_ref_long_alias_chain)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    auto x = m.add_parameter("x", s);
+    auto y = x;
+    for(int i = 0; i < 6000; ++i)
+        y = m.add_instruction(migraphx::make_op("identity"), y);
+    m.add_return({y});
+    // Used to recurse through the alias chain and overflow the C stack.
+    EXPECT(m.find_dangling_reference() == m.end());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

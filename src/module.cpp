@@ -1121,15 +1121,17 @@ instruction_ref module::validate() const
 
 static bool is_borrowed(instruction_ref ins)
 {
-    auto aliases = instruction::get_output_alias(ins, true);
-    if(aliases.size() == 1 and aliases.front() == ins)
-        return false;
-    return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
-        lifetime l = alias->get_operator().get_lifetime();
-        if(l == lifetime::borrow)
-            return true;
-        return is_borrowed(alias);
-    });
+    return fix<bool>([](auto self, instruction_ref cur) -> bool {
+        auto aliases = instruction::get_output_alias(cur, true);
+        if(aliases.size() == 1 and aliases.front() == cur)
+            return false;
+        return std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
+            lifetime l = alias->get_operator().get_lifetime();
+            if(l == lifetime::borrow)
+                return true;
+            return self(alias);
+        });
+    })(ins);
 }
 
 static bool is_global(instruction_ref ins)

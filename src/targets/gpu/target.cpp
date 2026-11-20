@@ -85,6 +85,7 @@
 #include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/limit_concat.hpp>
 #include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/check_recompiled_memory.hpp>
@@ -427,6 +428,8 @@ struct pipeline_factory
             fuse_ops{get_context(), options.fast_math},
             dead_code_elimination{},
             enable_pass(backend_opts.eliminate_concat_past_present, fuse_concat_past_present{}),
+            dead_code_elimination{},
+            limit_concat_inputs{},
             dead_code_elimination{},
 #if MIGRAPHX_USE_HIPBLASLT
             compile_hipblaslt{get_generic_context()},

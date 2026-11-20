@@ -33,7 +33,6 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/float_equal.hpp>
-#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/tensor_view.hpp>
@@ -273,7 +272,7 @@ struct flash_decoding_split
     broadcast_split_sequence(module& mm, instruction_ref insert_before, instruction_ref ins) const
     {
         const auto& lens = ins->get_shape().lens();
-        auto split       = ins;
+        instruction_ref split;
         if(lens.size() == 1)
         {
             split =
@@ -505,7 +504,7 @@ struct flash_decoding_split
                             instruction_ref group,
                             const std::vector<operation>& output_views) const
     {
-        const auto g_axis = static_cast<int64_t>(scores_lens.size() - 2);
+        const int64_t g_axis = scores_lens.size() - 2;
         auto o_prime = mm.insert_instruction(pos, make_op("get_tuple_elem", {{"index", 0}}), group);
         auto lse     = mm.insert_instruction(pos, make_op("get_tuple_elem", {{"index", 1}}), group);
 

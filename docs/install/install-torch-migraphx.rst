@@ -81,22 +81,43 @@ Torch-MIGraphX into a Python virtual environment.
    This prints ``True`` if the MIGraphX backend is registered as expected.
 
    .. important::
-      :substitutions:
 
-      If you installed ROCm using your Linux distribution's package manager
-      instead of pip, both commands fail with ``libhsa-runtime64.so.1:
-      cannot open shared object file``. The ROCm libraries are in
-      :substitution-code:`/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|/lib`,
-      which isn't on the default linker path, so add it before running
-      them:
+      If either command fails with a missing shared library error, such
+      as ``libhiprtc.so.7: cannot open shared object file`` or
+      ``libhsa-runtime64.so.1: cannot open shared object file``, update
+      ``LD_LIBRARY_PATH`` to link to the required ROCm libraries. Select
+      the tab that matches how you installed ROCm.
 
-      .. code-block:: bash
-         :substitutions:
+      .. tab-set::
 
-         export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-         export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+         .. tab-item:: Installed ROCm using pip
+            :sync: rocm-pip
 
-      To make this permanent, add these lines to your shell startup script.
+            ROCm's pip wheels place their shared libraries inside your
+            virtual environment's ``site-packages`` instead of
+            ``/opt/rocm``, so add them to ``LD_LIBRARY_PATH`` before
+            running the commands:
+
+            .. code-block:: bash
+
+               ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
+               ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
+               export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:$LD_LIBRARY_PATH
+
+            To make this permanent, add these lines to your shell
+            startup script.
+
+         .. tab-item:: Installed ROCm using a package manager
+            :sync: rocm-pkgman
+
+            .. code-block:: bash
+               :substitutions:
+
+               export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+               export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+
+            To make this permanent, add these lines to your shell
+            startup script.
 
 Uninstall Torch-MIGraphX
 --------------------------

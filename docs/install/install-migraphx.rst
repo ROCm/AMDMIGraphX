@@ -68,86 +68,174 @@ a Python virtual environment.
           "migraphx==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|" \
           |WHL_LIBS_URL|
 
-3. **If you installed ROCm using your Linux distribution's package
-   manager** instead of pip, importing MIGraphX fails with
-   ``libhsa-runtime64.so.1: cannot open shared object file``. As
-   a workaround, update ``LD_LIBRARY_PATH`` to link to the required ROCm
-   libraries in your installation path:
+3. Importing MIGraphX may fail with a missing shared library error, such
+   as ``libhiprtc.so.7: cannot open shared object file`` or
+   ``libhsa-runtime64.so.1: cannot open shared object file``. As a
+   workaround, update ``LD_LIBRARY_PATH`` to link to the required ROCm
+   libraries. Select the tab that matches how you installed ROCm.
 
    .. tab-set::
 
-      .. tab-item:: Active session
-         :sync: active
+      .. tab-item:: Installed ROCm using pip
+         :sync: rocm-pip
 
-         Set the environment variable for the current shell session
-         only. To keep this setting across sessions, use System-wide
-         setup or User setup.
-
-         .. code-block:: bash
-            :substitutions:
-
-            # MIGraphX Environment Setup
-            export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-            export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-
-      .. tab-item:: System-wide setup
-         :sync: system
-
-         Create a profile script so that all users inherit the
-         MIGraphX environment variables when they start a shell
-         session.
-
-         .. code-block:: bash
-            :substitutions:
-
-            # MIGraphX Environment Setup
-            sudo tee /etc/profile.d/set-migraphx-env.sh << 'EOF'
-            export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-            export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-            EOF
-
-            sudo chmod +x /etc/profile.d/set-migraphx-env.sh
-            source /etc/profile.d/set-migraphx-env.sh
-
-      .. tab-item:: User setup
-         :sync: user
-
-         Configure the MIGraphX environment for your user by updating
-         your shell startup configuration file.
+         ROCm's pip wheels place their shared libraries inside your
+         virtual environment's ``site-packages`` instead of
+         ``/opt/rocm``. Run these commands with the virtual environment
+         active, so the paths resolve correctly.
 
          .. tab-set::
 
-            .. tab-item:: .bashrc
-               :sync: bashrc
+            .. tab-item:: Active session
+               :sync: active
+
+               Set the environment variable for the current shell
+               session only. To keep this setting across sessions, use
+               System-wide setup or User setup.
+
+               .. code-block:: bash
+
+                  # MIGraphX Environment Setup
+                  ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
+                  ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
+                  export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:$LD_LIBRARY_PATH
+
+            .. tab-item:: System-wide setup
+               :sync: system
+
+               Create a profile script so that all users inherit the
+               MIGraphX environment variables when they start a shell
+               session.
+
+               .. code-block:: bash
+
+                  # MIGraphX Environment Setup
+                  ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
+                  ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
+                  sudo tee /etc/profile.d/set-migraphx-env.sh << EOF
+                  export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:\$LD_LIBRARY_PATH
+                  EOF
+
+                  sudo chmod +x /etc/profile.d/set-migraphx-env.sh
+                  source /etc/profile.d/set-migraphx-env.sh
+
+            .. tab-item:: User setup
+               :sync: user
+
+               Configure the MIGraphX environment for your user by
+               updating your shell startup configuration file.
+
+               .. tab-set::
+
+                  .. tab-item:: .bashrc
+                     :sync: bashrc
+
+                     .. code-block:: bash
+
+                        # MIGraphX Environment Setup
+                        ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
+                        ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
+                        tee --append ~/.bashrc << EOF
+                        # BEGIN MIGraphX environment configuration
+                        export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:\$LD_LIBRARY_PATH
+                        # END MIGraphX environment configuration
+                        EOF
+
+                        source ~/.bashrc
+
+                  .. tab-item:: .profile
+                     :sync: profile
+
+                     .. code-block:: bash
+
+                        # MIGraphX Environment Setup
+                        ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
+                        ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
+                        tee --append ~/.profile << EOF
+                        # BEGIN MIGraphX environment configuration
+                        export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:\$LD_LIBRARY_PATH
+                        # END MIGraphX environment configuration
+                        EOF
+
+                        source ~/.profile
+
+      .. tab-item:: Installed ROCm using a package manager
+         :sync: rocm-pkgman
+
+         .. tab-set::
+
+            .. tab-item:: Active session
+               :sync: active
+
+               Set the environment variable for the current shell
+               session only. To keep this setting across sessions, use
+               System-wide setup or User setup.
 
                .. code-block:: bash
                   :substitutions:
 
                   # MIGraphX Environment Setup
-                  tee --append ~/.bashrc << 'EOF'
-                  # BEGIN MIGraphX environment configuration
                   export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
                   export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-                  # END MIGraphX environment configuration
-                  EOF
 
-                  source ~/.bashrc
+            .. tab-item:: System-wide setup
+               :sync: system
 
-            .. tab-item:: .profile
-               :sync: profile
+               Create a profile script so that all users inherit the
+               MIGraphX environment variables when they start a shell
+               session.
 
                .. code-block:: bash
                   :substitutions:
 
                   # MIGraphX Environment Setup
-                  tee --append ~/.profile << 'EOF'
-                  # BEGIN MIGraphX environment configuration
+                  sudo tee /etc/profile.d/set-migraphx-env.sh << 'EOF'
                   export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
                   export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-                  # END MIGraphX environment configuration
                   EOF
 
-                  source ~/.profile
+                  sudo chmod +x /etc/profile.d/set-migraphx-env.sh
+                  source /etc/profile.d/set-migraphx-env.sh
+
+            .. tab-item:: User setup
+               :sync: user
+
+               Configure the MIGraphX environment for your user by
+               updating your shell startup configuration file.
+
+               .. tab-set::
+
+                  .. tab-item:: .bashrc
+                     :sync: bashrc
+
+                     .. code-block:: bash
+                        :substitutions:
+
+                        # MIGraphX Environment Setup
+                        tee --append ~/.bashrc << 'EOF'
+                        # BEGIN MIGraphX environment configuration
+                        export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+                        export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+                        # END MIGraphX environment configuration
+                        EOF
+
+                        source ~/.bashrc
+
+                  .. tab-item:: .profile
+                     :sync: profile
+
+                     .. code-block:: bash
+                        :substitutions:
+
+                        # MIGraphX Environment Setup
+                        tee --append ~/.profile << 'EOF'
+                        # BEGIN MIGraphX environment configuration
+                        export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
+                        export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+                        # END MIGraphX environment configuration
+                        EOF
+
+                        source ~/.profile
 
 4. Verify your installation.
 

@@ -42,18 +42,18 @@ struct parse_expand : op_parser<parse_expand>
                           std::vector<instruction_ref> args) const
     {
         migraphx::argument arg_s = args[1]->eval();
-        if(arg_s.empty())
+        const shape& shape_0     = args[0]->get_shape();
+        if(arg_s.empty() or shape_0.dynamic())
         {
-            // variable dims input
+            // variable dims input, or a dynamic input whose output lens are only known at run time
             const auto symbolic_dims = args[1]->sym_eval();
-            const auto& input_shape  = args[0]->get_shape();
-            if(not symbolic_dims.empty() and (not input_shape.dynamic() or input_shape.symbolic()))
+            if(not symbolic_dims.empty() and (not shape_0.dynamic() or shape_0.symbolic()))
             {
                 const auto expressions = symbolic_dims.get();
                 const std::vector<shape::dynamic_dimension> target_dims(expressions.begin(),
                                                                         expressions.end());
                 const auto output_dims =
-                    compute_broadcasted_dyn_dims(input_shape.to_symbolic().dyn_dims(), target_dims);
+                    compute_broadcasted_dyn_dims(shape_0.to_symbolic().dyn_dims(), target_dims);
                 return info.add_instruction(
                     make_op("broadcast_with_dims", {{"out_dyn_dims", to_value(output_dims)}}),
                     args[0],
@@ -63,12 +63,6 @@ struct parse_expand : op_parser<parse_expand>
         }
         else
         {
-            const shape& shape_0 = args[0]->get_shape();
-            if(shape_0.dynamic())
-            {
-                MIGRAPHX_THROW(
-                    "PARSE_EXPAND: dynamic input tensor with fixed dims input not supported");
-            }
             const auto& in_lens = shape_0.lens();
             std::vector<std::size_t> dims;
             arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });

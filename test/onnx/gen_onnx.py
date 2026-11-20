@@ -20549,6 +20549,18 @@ def tile_test_3x2():
 
 
 @onnx_test()
+def tile_dyn_input_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [3])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [None, 3, 4])
+
+    node = onnx.helper.make_node('Tile', inputs=['x', 'y'], outputs=['z'])
+
+    return ([node], [x, y], [z],
+            [helper.make_tensor('y', TensorProto.INT64, [3], [2, 3, 2])])
+
+
+@onnx_test()
 def topk_attrk_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 5, 3, 2])
     val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, 2, 3, 2])

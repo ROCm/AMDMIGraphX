@@ -46,12 +46,27 @@ struct tile : op_builder<tile>
     insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
     {
         const auto& input_shape = args[0]->get_shape();
-        const auto& input_lens  = input_shape.lens();
 
-        if(repeats.size() != input_lens.size())
+        if(repeats.size() != input_shape.ndim())
         {
             MIGRAPHX_THROW("tile op-builder: repeats size mismatch with input shape");
         }
+
+        if(input_shape.dynamic())
+        {
+            // The lens are not known here, so concatenate copies along each repeated axis
+            auto result = args[0];
+            for(std::size_t axis = 0; axis < repeats.size(); axis++)
+            {
+                if(repeats[axis] == 1)
+                    continue;
+                std::vector<instruction_ref> copies(repeats[axis], result);
+                result = m.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), copies);
+            }
+            return {result};
+        }
+
+        const auto& input_lens = input_shape.lens();
 
         /*
         input_lens:           {l0, l1, l2, ..., lN-1} - size: N

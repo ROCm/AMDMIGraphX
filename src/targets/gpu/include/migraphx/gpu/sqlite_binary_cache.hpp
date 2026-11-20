@@ -38,8 +38,8 @@ namespace gpu {
 
 // A binary_cache_backend that keeps entries as rows in a SQLite database, one row per
 // (version, device, md5 of key), with each field of the entry in its own column so a cache can
-// be inspected with SQL. The compiled code, a program fragment, is stored as a zstd frame of its
-// msgpack.
+// be inspected with SQL. The key and the compiled code, a program fragment, are stored as zstd
+// frames: the key of its text, the code of its msgpack.
 //
 // Holding sqlite and sqlite_stmt by value does not leak the SQLite dependency into this
 // target: migraphx/sqlite.hpp forward-declares both impl types and never includes sqlite3.h.

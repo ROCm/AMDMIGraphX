@@ -31,8 +31,11 @@
 #include <migraphx/md5.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
+#include <algorithm>
+#include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,6 +62,11 @@ constexpr int busy_timeout_ms = 5000;
 // source and would otherwise be stored a second time in the index. The full key is kept in its
 // own column and checked on load, so a collision is a miss rather than a wrong kernel.
 //
+// Key and code each hold a zstd frame: the key of its text, the code of its msgpack. After the
+// code, the key is the largest column, and it compresses about threefold. A table made by a build
+// that stored the key as text declares it TEXT, but SQLite keeps a bound blob a blob either way,
+// and the version column keeps rows of the two formats apart, so this needs no new table.
+//
 // The primary key leads with version so that dropping everything belonging to a superseded
 // toolchain is a range scan rather than a full table scan. Point lookups bind all three and do
 // not care about the order.
@@ -67,7 +75,7 @@ CREATE TABLE IF NOT EXISTS cache_v1 (
   version   TEXT    NOT NULL,
   device    TEXT    NOT NULL,
   key_hash  TEXT    NOT NULL,
-  key       TEXT    NOT NULL,
+  key       BLOB    NOT NULL,
   op_name   TEXT    NOT NULL,
   problem   TEXT    NOT NULL,
   solution  TEXT    NOT NULL,
@@ -97,6 +105,11 @@ constexpr const char* store_sql =
 constexpr const char* begin_sql    = "BEGIN IMMEDIATE;";
 constexpr const char* commit_sql   = "COMMIT;";
 constexpr const char* rollback_sql = "ROLLBACK;";
+
+std::vector<char> decompress_column(const value::binary& b)
+{
+    return zstd_decompress(reinterpret_cast<const char*>(b.data()), b.size());
+}
 
 } // namespace
 
@@ -163,20 +176,18 @@ optional<binary_cache_entry> sqlite_binary_cache::load(const std::string& versio
         auto row = *it;
         // Rows are addressed by a hash of the key, so the full key is checked here to make a
         // collision a miss rather than a wrong kernel.
-        if(row.at("key").get_string() != key)
+        auto stored_key = decompress_column(row.at("key").get_binary());
+        if(not std::equal(stored_key.begin(), stored_key.end(), key.begin(), key.end()))
         {
             log::warn() << "Ignoring binary cache entry with mismatched key: " << key_hash;
             return nullopt;
         }
         binary_cache_entry e;
-        e.key            = key;
-        e.op_name        = row.at("op_name").get_string();
-        e.problem        = from_json_string(row.at("problem").get_string());
-        e.solution       = from_json_string(row.at("solution").get_string());
-        const auto& code = row.at("code").get_binary();
-        migraphx::from_value(
-            from_msgpack(zstd_decompress(reinterpret_cast<const char*>(code.data()), code.size())),
-            e.code);
+        e.key      = key;
+        e.op_name  = row.at("op_name").get_string();
+        e.problem  = from_json_string(row.at("problem").get_string());
+        e.solution = from_json_string(row.at("solution").get_string());
+        migraphx::from_value(from_msgpack(decompress_column(row.at("code").get_binary())), e.code);
         return e;
     }
     catch(const std::exception& ex)
@@ -204,7 +215,7 @@ void sqlite_binary_cache::store(const std::string& version,
             store_stmt(version,
                        device,
                        md5(e.key),
-                       e.key,
+                       zstd_compress(e.key.data(), e.key.size()),
                        e.op_name,
                        to_json_string(e.problem),
                        to_json_string(e.solution),

@@ -94,15 +94,15 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
         const auto chunks    = v.at("chunks").to<std::size_t>();
         const bool has_state = v.at("has_state").to<bool>();
         const auto families  = v.at("families").to_vector<std::string>();
-        const auto views     = from_value<std::vector<shape>>(v.at("views"));
-        const auto offsets   = v.at("offsets").to_vector<std::size_t>();
-        const auto deltas    = v.at("deltas").to_vector<std::size_t>();
         auto has             = [&](const std::string& role) { return contains(families, role); };
+        // kernel arguments: [state0], families..., output, state_out
+        const std::size_t first_family = has_state ? 1 : 0;
 
         const auto dk   = state.lens().at(state.ndim() - 2);
         const auto dv   = state.lens().back();
         const auto q_i  = std::find(families.begin(), families.end(), "q") - families.begin();
-        const auto rows = views.at(q_i).lens().at(views.at(q_i).ndim() - 2);
+        const auto& q   = inputs.at(first_family + q_i);
+        const auto rows = q.lens().at(q.ndim() - 2);
         // the widest dv block up to 32 columns that divides dv and keeps the
         // state and u tiles, accumulated in float, in LDS
         constexpr std::size_t max_lds = 64 * 1024;
@@ -129,25 +129,16 @@ struct chunk_scan_compiler : compiler<chunk_scan_compiler>
                                                       {"has_gamma", has("gamma")},
                                                       {"has_out", has("pu0")}})
             settings += "static constexpr bool " + flag + " = " + (on ? "true" : "false") + ";\n";
-        // kernel arguments: [state0], families..., output, state_out
-        const std::size_t nargs = (has_state ? 1 : 0) + families.size() + 2;
+        const std::size_t nargs = first_family + families.size() + 2;
         settings += "static constexpr index_int s0_index = 0;\n";
         settings +=
             "static constexpr index_int output_index = " + std::to_string(nargs - 2) + ";\n";
         settings +=
             "static constexpr index_int state_out_index = " + std::to_string(nargs - 1) + ";\n";
-        // each family: its argument and its chunk 0 view, offset and stride
+        // each family names its argument
         for(std::size_t k = 0; k < families.size(); k++)
-        {
-            settings += "struct " + families[k] + " {\n";
-            settings +=
-                "static constexpr index_int index = " + std::to_string(k + (has_state ? 1 : 0)) +
-                ";\n";
-            settings += "static constexpr auto view = " + generate_make_shape(views[k]) + ";\n";
-            settings += "static constexpr index_int offset = " + std::to_string(offsets[k]) + ";\n";
-            settings += "static constexpr index_int delta = " + std::to_string(deltas[k]) + ";\n";
-            settings += "};\n";
-        }
+            settings += "struct " + families[k] + " { static constexpr index_int index = " +
+                        std::to_string(first_family + k) + "; };\n";
         // absent roles alias q; the kernel never reads through them
         for(const auto& role : std::vector<std::string>{"w", "kt", "u0", "upd", "gamma", "pu0"})
         {

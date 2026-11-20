@@ -35,16 +35,16 @@
 
 namespace migraphx {
 
-// The last two axes of Shape as a tensor_view over base, positioned at
-// leading index lead plus offset elements
-template <class Shape, class Base, class Lead>
-__device__ auto matrix_slice(Base base, Lead lead, index_int offset)
+// The last two axes of base as a tensor_view, positioned at leading index
+// lead
+template <class Base, class Lead>
+__device__ auto matrix_slice(Base base, Lead lead)
 {
-    constexpr auto s   = Shape{};
+    constexpr auto s   = get_shape_c<Base>{};
     constexpr auto n   = s.lens.size();
     constexpr auto mat = make_shape(index_ints<s.lens[n - 2], s.lens[n - 1]>{},
                                     index_ints<s.strides[n - 2], s.strides[n - 1]>{});
-    return base.with(base.data() + s.index(lead) + offset, mat);
+    return base.with(base.data() + s.index(lead), mat);
 }
 
 // Row r and column c of a matrix view. Indexing a rank-1 slice keeps the
@@ -119,18 +119,26 @@ struct chunk_scanner
     s_view s;
     u_view u;
 
-    // the matrix of argument I at this problem, offset into its base
-    template <index_int I, class Shape = get_shape_c<arg_t<I>>>
-    __device__ auto mat(index_int offset = 0) const
+    // the matrix of argument I at this problem
+    template <index_int I>
+    __device__ auto mat() const
     {
-        return matrix_slice<Shape>(args(arg_c<I>()), base, offset);
+        return matrix_slice(args(arg_c<I>()), base);
     }
 
-    // the chunk i matrix of a family
+    // the chunk i matrix of a family, whose argument stacks the chunks ahead
+    // of the matrix axes: (lead..., chunks, m, n). A family a zero start
+    // never reads at chunk 0 holds the chunks from 1 on.
     template <class Family>
     __device__ auto chunk(index_int i) const
     {
-        return mat<Family::index, decltype(Family::view)>(Family::offset + i * Family::delta);
+        constexpr auto fs     = get_shape_c<arg_t<Family::index>>{};
+        constexpr index_int n = fs.lens.size();
+        array<index_int, n> at{};
+        for(index_int k = 0; k + 3 < n; k++)
+            at[k] = base[k];
+        at[n - 3] = i - (chunks - fs.lens[n - 3]);
+        return matrix_slice(args(arg_c<Family::index>()), at);
     }
 
     // a stacked row as (group, q or w, row within the group)

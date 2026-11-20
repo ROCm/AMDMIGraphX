@@ -29,15 +29,21 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/algorithm.hpp>
 #include <migraphx/erase.hpp>
 #include <migraphx/param_utils.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/instruction_traversal.hpp>
+#include <migraphx/common_dims.hpp>
+#include <migraphx/enum.hpp>
+#include <migraphx/stringutils.hpp>
 #include <algorithm>
 #include <cassert>
 #include <deque>
+#include <numeric>
 #include <optional>
+#include <tuple>
 #include <unordered_set>
 
 namespace migraphx {
@@ -48,20 +54,19 @@ namespace gpu {
 //   u   = read(u0_i, w_i S) or u0_i
 //   o_i = out(pu0_i, q_i S) or q_i S
 //   S   = step(S, gamma_i, upd_i),  upd_i = kt_i u or a precomputed view
-// Each per-chunk operand family is one view of chunk 0 over its base input
-// plus the element stride to the next chunk; `families` names the present
-// ones in the op's input order (w, q, kt and u0 or upd, gamma, pu0), after
-// the initial state when there is one. The submodules are the step, read
-// and out pointwise bodies in that order, each with its inputs in the order
-// listed above.
+// Each per-chunk operand family is one input holding its chunks stacked ahead
+// of the matrix axes, (lead..., chunks, m, n), with lead the problem axes of
+// the state; `families` names the present ones in the op's input order (w, q,
+// kt and u0 or upd, gamma, pu0), after the initial state when there is one.
+// The submodules are the step, read and out pointwise bodies in that order,
+// each with its inputs in the order listed above.
 struct chunk_scan
 {
+    MIGRAPHX_NESTED_ENUM_CLASS(family, w, q, kt, u0, upd, gamma, pu0)
+
     shape output_shape;
     shape state_shape;
-    std::vector<std::string> families;
-    std::vector<shape> views;
-    std::vector<std::size_t> offsets;
-    std::vector<std::size_t> deltas;
+    std::vector<family> families;
     std::size_t chunks = 0;
     bool has_state     = false; // S_0 input, else the walk starts from zero
 
@@ -71,35 +76,68 @@ struct chunk_scan
         return pack(f(self.output_shape, "output_shape"),
                     f(self.state_shape, "state_shape"),
                     f(self.families, "families"),
-                    f(self.views, "views"),
-                    f(self.offsets, "offsets"),
-                    f(self.deltas, "deltas"),
                     f(self.chunks, "chunks"),
                     f(self.has_state, "has_state"));
     }
 
     std::string name() const { return "gpu::chunk_scan"; }
 
-    bool has(const std::string& role) const { return contains(families, role); }
+    bool has(family role) const { return contains(families, role); }
+
+    // The lens of a family's input for chunks of `rows` rows. A zero start
+    // never reads chunk 0 of w and q, so they hold one chunk less.
+    std::vector<std::size_t> family_lens(family role, std::size_t rows) const
+    {
+        const auto& slens = state_shape.lens();
+        const auto dk     = slens[slens.size() - 2];
+        const auto dv     = slens.back();
+        const bool tail   = not has_state and (role == family::w or role == family::q);
+        std::vector<std::size_t> lens(slens.begin(), slens.end() - 2);
+        lens.push_back(tail ? chunks - 1 : chunks);
+        switch(role)
+        {
+        case family::w:
+        case family::q: lens.insert(lens.end(), {rows, dk}); break;
+        case family::kt: lens.insert(lens.end(), {dk, rows}); break;
+        case family::u0:
+        case family::pu0: lens.insert(lens.end(), {rows, dv}); break;
+        case family::upd:
+        case family::gamma: lens.insert(lens.end(), {dk, dv}); break;
+        }
+        return lens;
+    }
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
         const std::size_t state_inputs = has_state ? 1 : 0;
         check_shapes{inputs, *this}.has(families.size() + state_inputs);
-        if(views.size() != families.size() or offsets.size() != families.size() or
-           deltas.size() != families.size())
-            MIGRAPHX_THROW("chunk_scan: views, offsets and deltas must have one entry per family");
         if(chunks == 0 or state_shape.ndim() < 2)
             MIGRAPHX_THROW("chunk_scan: needs at least one chunk and a matrix state");
-        if(mods.size() != 1 + (has("w") ? 1 : 0) + (has("pu0") ? 1 : 0))
+        if(mods.size() != 1 + (has(family::w) ? 1 : 0) + (has(family::pu0) ? 1 : 0))
             MIGRAPHX_THROW("chunk_scan: wrong number of submodules");
-        // every chunk of a family lies inside its input
-        for(std::size_t k = 0; k < families.size(); k++)
-        {
-            if(offsets[k] + (chunks - 1) * deltas[k] + views[k].element_space() >
-               inputs[k + state_inputs].element_space())
-                MIGRAPHX_THROW("chunk_scan: family " + families[k] + " reads past its input");
-        }
+        if(has_state and inputs.front().lens() != state_shape.lens())
+            MIGRAPHX_THROW("chunk_scan: the initial state must have the lens of the state");
+        auto q = std::find(families.begin(), families.end(), family::q);
+        if(q == families.end())
+            MIGRAPHX_THROW("chunk_scan: needs the q family");
+        const auto& q_lens = inputs[state_inputs + (q - families.begin())].lens();
+        if(q_lens.size() != state_shape.ndim() + 1)
+            MIGRAPHX_THROW("chunk_scan: family q has the wrong rank");
+        const auto rows = q_lens[q_lens.size() - 2];
+        auto bad        = std::mismatch(families.begin(),
+                                        families.end(),
+                                        inputs.begin() + state_inputs,
+                                        [&](family role, const shape& input) {
+                                     return input.lens() == family_lens(role, rows);
+                                        });
+        if(bad.first != families.end())
+            MIGRAPHX_THROW("chunk_scan: family " + to_string(*bad.first) + " has lens {" +
+                           to_string_range(bad.second->lens()) + "} instead of {" +
+                           to_string_range(family_lens(*bad.first, rows)) + "}");
+        auto out_lens                    = state_shape.lens();
+        out_lens.at(out_lens.size() - 2) = rows * chunks;
+        if(output_shape.lens() != out_lens)
+            MIGRAPHX_THROW("chunk_scan: the output must stack the chunks along its rows");
         return shape{{output_shape, state_shape}};
     }
 };
@@ -107,56 +145,76 @@ MIGRAPHX_REGISTER_OP(chunk_scan);
 
 namespace {
 
-// Where a chain of views lands in its base buffer
-struct view_origin
-{
-    instruction_ref base;
-    shape view;
-    std::size_t offset = 0;
-};
-
-// Reshape copies unless its input is standard, so only then is it a view
+// The views a shape_transform_descriptor describes; a slice is followed
+// separately, since it selects elements
 bool is_view(instruction_ref ins)
 {
-    static const std::vector<std::string> views = {
-        "slice", "squeeze", "unsqueeze", "transpose", "multibroadcast", "broadcast"};
-    const auto name = ins->name();
-    if(contains(views, name))
-        return true;
-    return name == "reshape" and ins->inputs().front()->get_shape().standard();
+    static const std::unordered_set<std::string> names = {
+        "reshape", "squeeze", "unsqueeze", "flatten", "transpose", "multibroadcast", "broadcast"};
+    return contains(names, ins->name()) and ins->inputs().size() == 1;
 }
 
-view_origin origin_of(instruction_ref ins)
-{
-    view_origin r{ins, ins->get_shape(), 0};
-    while(is_view(r.base))
-    {
-        if(r.base->name() == "slice")
-        {
-            // the element the slice starts at in its input
-            const auto v      = r.base->get_operator().to_value();
-            const auto axes   = v.at("axes").to_vector<std::size_t>();
-            const auto starts = v.at("starts").to_vector<std::size_t>();
-            const auto& in_s  = r.base->inputs().front()->get_shape();
-            std::vector<std::size_t> start(in_s.ndim(), 0);
-            for_each(axes.begin(), axes.end(), starts.begin(), [&](auto axis, auto s) {
-                start.at(axis) = s;
-            });
-            r.offset += in_s.index(start);
-        }
-        r.base = r.base->inputs().front();
-    }
-    return r;
-}
+bool is_slice(instruction_ref ins) { return ins->name() == "slice" and ins->inputs().size() == 1; }
 
 bool is_dot(instruction_ref ins) { return ins->name() == "dot"; }
 
-// The instruction a chain of views reads from
-instruction_ref strip_views(instruction_ref ins)
+// The instruction a chain of views reads, with the views in the order they
+// are applied
+std::pair<instruction_ref, std::vector<operation>> view_chain(instruction_ref ins)
 {
-    while(is_view(ins))
-        ins = ins->inputs().front();
-    return ins;
+    return get_input_ops_if(ins, &is_view);
+}
+
+instruction_ref view_root(instruction_ref ins) { return view_chain(ins).first; }
+
+// Whether ins repeats elements of what it reads, through its views and slices
+bool is_broadcast_view(instruction_ref ins)
+{
+    auto [root, ops] = view_chain(ins);
+    if(shape_transform_descriptor::create(root->get_shape().lens(), ops).has_broadcast())
+        return true;
+    return is_slice(root) and is_broadcast_view(root->inputs().front());
+}
+
+// The views that take src to ins: ins reads src, or both are views of the
+// same instruction, in which case the views of src are undone first
+std::optional<std::vector<operation>> views_between(instruction_ref src, instruction_ref ins)
+{
+    auto [root, ops] =
+        get_input_ops_if(ins, [&](instruction_ref x) { return x != src and is_view(x); });
+    if(root == src)
+        return ops;
+    auto [base, src_ops] = view_chain(src);
+    if(root != base)
+        return std::nullopt;
+    auto undo = shape_transform_descriptor::create(base->get_shape().lens(), src_ops).invert();
+    if(undo.empty())
+        return std::nullopt;
+    auto result = undo.generate();
+    result.insert(result.end(), ops.begin(), ops.end());
+    return result;
+}
+
+// Whether ins holds the elements of src in the same order: the views between
+// them only regroup axes, without selecting, repeating or reordering elements
+bool same_order(instruction_ref src, instruction_ref ins)
+{
+    auto ops = views_between(src, ins);
+    if(not ops.has_value())
+        return false;
+    auto desc = shape_transform_descriptor::create(src->get_shape().lens(), *ops);
+    return not desc.empty() and not desc.has_broadcast() and not desc.is_transposed();
+}
+
+// Whether ins holds the matrices of src: the same elements in the same order
+// under the same matrix axes. The scan keeps the state and its products as
+// (rows, columns) tiles, so nothing else can be read from them.
+bool same_matrix(instruction_ref src, instruction_ref ins)
+{
+    const auto& x = src->get_shape().lens();
+    const auto& y = ins->get_shape().lens();
+    return x.size() >= 2 and y.size() >= 2 and std::equal(x.end() - 2, x.end(), y.end() - 2) and
+           same_order(src, ins);
 }
 
 // The instruction a chain of single-use views feeds
@@ -167,33 +225,37 @@ instruction_ref follow_views(instruction_ref ins)
     return ins;
 }
 
-// The dots reading ins as their right operand, directly or through views
-void collect_dot_readers(instruction_ref src, std::vector<instruction_ref>& readers)
-{
-    for(auto out : src->outputs())
-    {
-        if(is_dot(out) and out->inputs().at(1) == src)
-            readers.push_back(out);
-        else if(is_view(out))
-            collect_dot_readers(out, readers);
-    }
-}
-
-std::vector<instruction_ref> dot_readers(instruction_ref ins)
+// The dots reading the matrices of src as their right operand, among those
+// reading ins or a view of it
+std::vector<instruction_ref> dot_readers(instruction_ref src, instruction_ref ins)
 {
     std::vector<instruction_ref> readers;
-    collect_dot_readers(ins, readers);
+    for(auto out : ins->outputs())
+    {
+        if(is_dot(out) and out->inputs().at(1) == ins)
+        {
+            if(same_matrix(src, ins))
+                readers.push_back(out);
+        }
+        else if(is_view(out))
+        {
+            auto through = dot_readers(src, out);
+            readers.insert(readers.end(), through.begin(), through.end());
+        }
+    }
     return readers;
 }
 
-// Whether ins is read as the right operand of a dot, directly or through
-// views: the state is, and the decay and precomputed updates are not
-bool read_by_dot(instruction_ref ins)
+// A view of what ins is a view of may hold its matrices too, so the walk
+// starts from there
+std::vector<instruction_ref> dot_readers(instruction_ref ins)
 {
-    return std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](auto out) {
-        return (is_dot(out) and out->inputs().at(1) == ins) or (is_view(out) and read_by_dot(out));
-    });
+    return dot_readers(ins, view_root(ins));
 }
+
+// Whether a dot reads the matrices of ins as its right operand: the state
+// is, and the decay and precomputed updates are not
+bool read_by_dot(instruction_ref ins) { return not dot_readers(ins).empty(); }
 
 // One transition S' = step(S, [gamma_i], upd_i) with the instructions it
 // consumes from the chunk's operand families
@@ -231,13 +293,12 @@ std::optional<chunk_step> match_step(instruction_ref pw)
         return in != step.state_in;
     });
     if(std::any_of(rest.begin(), rest.end(), [](auto in) {
-           return in->outputs().size() != 1 or not(is_dot(in) or is_view(in));
+           return in->outputs().size() != 1 or not(is_dot(in) or is_view(in) or is_slice(in));
        }))
         return std::nullopt;
     auto upd_it = std::find_if(rest.begin(), rest.end(), is_dot);
     if(upd_it == rest.end())
-        upd_it = std::find_if(
-            rest.begin(), rest.end(), [](auto in) { return not in->get_shape().broadcasted(); });
+        upd_it = std::find_if_not(rest.begin(), rest.end(), &is_broadcast_view);
     if(upd_it == rest.end())
         return std::nullopt;
     step.upd = *upd_it;
@@ -246,28 +307,29 @@ std::optional<chunk_step> match_step(instruction_ref pw)
         return std::nullopt;
     if(not rest.empty())
     {
-        if(not is_view(rest.front()) or not rest.front()->get_shape().broadcasted())
+        if(not is_broadcast_view(rest.front()))
             return std::nullopt;
         step.gamma = rest.front();
     }
     if(is_dot(step.upd))
     {
         step.kt = step.upd->inputs().at(0);
-        auto u  = strip_views(step.upd->inputs().at(1));
+        auto ui = step.upd->inputs().at(1);
+        auto u  = view_root(ui);
         if(u->name() == "pointwise" and u->inputs().size() == 2)
         {
-            // u = read(u0, dot(w, S)), possibly through views on either side
+            // u = read(u0, dot(w, S)); the views on the way keep the elements
+            // in order, and the dot reads the matrices of the state
             auto ws = std::find_if(u->inputs().begin(), u->inputs().end(), [&](auto in) {
-                auto d = strip_views(in);
-                return is_dot(d) and
-                       strip_views(d->inputs().at(1)) == strip_views(step.state_in) and
-                       d->outputs().size() == 1;
+                auto d = view_root(in);
+                return is_dot(d) and d->outputs().size() == 1 and same_order(d, in) and
+                       same_matrix(step.state_in, d->inputs().at(1));
             });
-            if(ws == u->inputs().end())
+            if(ws == u->inputs().end() or not same_order(u, ui))
                 return std::nullopt;
             step.read = u;
             step.ws   = *ws;
-            step.w    = strip_views(*ws)->inputs().at(0);
+            step.w    = view_root(*ws)->inputs().at(0);
             step.u0   = u->inputs().at(*ws == u->inputs().front() ? 1 : 0);
         }
         else
@@ -293,49 +355,164 @@ chunk_family gather(const std::vector<std::optional<T>>& xs, F f)
     return result;
 }
 
-// A family as a view of its base: every chunk is the same view, each a
-// constant number of elements further in
-struct family
+// The range a slice selects along each of its axes
+struct slice_range
 {
-    instruction_ref base;
-    shape view;
-    std::size_t offset = 0;
-    std::size_t delta  = 0;
+    std::vector<std::size_t> axes;
+    std::vector<std::size_t> starts;
+    std::vector<std::size_t> ends;
+
+    static slice_range of(instruction_ref slice)
+    {
+        const auto v = slice->normalized_operator().to_value();
+        return {v.at("axes").to_vector<std::size_t>(),
+                v.at("starts").to_vector<std::size_t>(),
+                v.at("ends").to_vector<std::size_t>()};
+    }
+
+    // The same axes with axis k advanced by i times its length
+    slice_range advance(std::size_t k, std::size_t i) const
+    {
+        auto result      = *this;
+        const auto len   = ends[k] - starts[k];
+        result.starts[k] = starts[k] + i * len;
+        result.ends[k]   = result.starts[k] + len;
+        return result;
+    }
+
+    // The slice of an input of lens `lens`, or nothing when it takes all of it
+    std::optional<operation> to_op(const std::vector<std::size_t>& lens) const
+    {
+        auto ks = range(axes.size());
+        if(std::all_of(ks.begin(), ks.end(), [&](auto k) {
+               return starts[k] == 0 and ends[k] == lens.at(axes[k]);
+           }))
+            return std::nullopt;
+        return make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}});
+    }
+
+    friend bool operator==(const slice_range& x, const slice_range& y)
+    {
+        return std::tie(x.axes, x.starts, x.ends) == std::tie(y.axes, y.starts, y.ends);
+    }
 };
 
-std::optional<family> make_family(const chunk_family& chunks)
+// A transpose of a rank `rank` tensor that moves axis `from` to `to`
+operation move_axis(std::size_t rank, std::size_t from, std::size_t to)
 {
-    std::optional<family> f;
-    std::optional<std::size_t> first; // index of the first present chunk
-    for(std::size_t i = 0; i < chunks.size(); i++)
-    {
-        if(not chunks[i].has_value())
-            continue;
-        auto o = origin_of(*chunks[i]);
-        if(not f.has_value())
-        {
-            f     = family{o.base, o.view, o.offset, 0};
-            first = i;
-            continue;
-        }
-        if(o.base != f->base or o.view != f->view or o.offset < f->offset)
-            return std::nullopt;
-        const auto span = i - *first;
-        const auto dist = o.offset - f->offset;
-        if(dist % span != 0)
-            return std::nullopt;
-        const auto delta = dist / span;
-        if(span > 1 and delta != f->delta)
-            return std::nullopt;
-        f->delta = delta;
-    }
-    if(not f.has_value())
+    std::vector<int64_t> perm(rank);
+    std::iota(perm.begin(), perm.end(), 0);
+    perm.erase(perm.begin() + from);
+    perm.insert(perm.begin() + to, from);
+    return make_op("transpose", {{"permutation", perm}});
+}
+
+// The chunks of a family stacked along a new leading axis, as views of one
+// instruction: (n, lens of a chunk...)
+struct chunk_stack
+{
+    instruction_ref base;
+    std::optional<operation> slice; // the part of base the chunks cover
+    std::vector<operation> ops;     // from that part to the stack
+    std::vector<std::size_t> lens;  // of the part
+    std::size_t n = 0;
+};
+
+// The views of a chunk over the instruction they read
+shape_transform_descriptor chunk_views(instruction_ref chunk)
+{
+    auto [root, ops] = view_chain(chunk);
+    return shape_transform_descriptor::create(root->get_shape().lens(), ops);
+}
+
+// One chunk is its own stack
+chunk_stack stack_chunk(instruction_ref chunk)
+{
+    auto [root, ops] = view_chain(chunk);
+    ops.push_back(make_op("unsqueeze", {{"axes", {0}}}));
+    return {root, std::nullopt, ops, root->get_shape().lens(), 1};
+}
+
+// Several chunks stack when they are consecutive, equal slices of one
+// instruction along one axis, each under the same views: the sliced axis
+// splits into (n, len) and the views apply to every chunk
+std::optional<chunk_stack> stack_chunks(const std::vector<instruction_ref>& chunks)
+{
+    assert(not chunks.empty());
+    if(chunks.size() == 1)
+        return stack_chunk(chunks.front());
+    std::vector<instruction_ref> slices;
+    std::transform(chunks.begin(), chunks.end(), std::back_inserter(slices), &view_root);
+    if(not std::all_of(slices.begin(), slices.end(), &is_slice))
         return std::nullopt;
-    // chunk 0 may be absent when the walk starts from zero
-    if(f->offset < *first * f->delta)
+    auto base = slices.front()->inputs().front();
+    auto desc = chunk_views(chunks.front());
+    if(desc.empty() or
+       not std::all_of(
+           chunks.begin(), chunks.end(), [&](auto c) { return chunk_views(c) == desc; }) or
+       not std::all_of(
+           slices.begin(), slices.end(), [&](auto s) { return s->inputs().front() == base; }))
         return std::nullopt;
-    f->offset -= *first * f->delta;
-    return f;
+
+    const auto first = slice_range::of(slices.front());
+    const auto next  = slice_range::of(slices.at(1));
+    if(next.axes != first.axes)
+        return std::nullopt;
+    // the axis the chunks advance along
+    auto advanced =
+        std::mismatch(first.starts.begin(), first.starts.end(), next.starts.begin()).first;
+    if(advanced == first.starts.end())
+        return std::nullopt;
+    const std::size_t k = std::distance(first.starts.begin(), advanced);
+    if(first.ends[k] <= first.starts[k])
+        return std::nullopt;
+    const auto n = chunks.size();
+    auto is      = range(n);
+    if(not std::all_of(is.begin(), is.end(), [&](auto i) {
+           return slice_range::of(slices[i]) == first.advance(k, i);
+       }))
+        return std::nullopt;
+
+    const auto len = first.ends[k] - first.starts[k];
+    auto cover     = first;
+    cover.ends[k]  = first.starts[k] + n * len;
+    chunk_stack result;
+    result.base       = base;
+    result.slice      = cover.to_op(base->get_shape().lens());
+    result.n          = n;
+    result.lens       = slices.front()->get_shape().lens();
+    const auto axis   = first.axes[k];
+    result.lens[axis] = n * len;
+    auto split_lens   = result.lens;
+    split_lens[axis]  = len;
+    split_lens.insert(split_lens.begin() + axis, n);
+    result.ops.push_back(make_op("reshape", {{"dims", split_lens}}));
+    if(axis != 0)
+        result.ops.push_back(move_axis(split_lens.size(), axis, 0));
+    desc.prepend_axis(n);
+    auto chain = desc.generate();
+    result.ops.insert(result.ops.end(), chain.begin(), chain.end());
+    return result;
+}
+
+// The present chunks of a family: all of them, or all but chunk 0
+std::optional<std::vector<instruction_ref>> present_chunks(const chunk_family& chunks)
+{
+    auto first =
+        std::find_if(chunks.begin(), chunks.end(), [](const auto& c) { return c.has_value(); });
+    if(first == chunks.end() or
+       std::any_of(first, chunks.end(), [](const auto& c) { return not c.has_value(); }))
+        return std::nullopt;
+    std::vector<instruction_ref> result;
+    std::transform(
+        first, chunks.end(), std::back_inserter(result), [](const auto& c) { return *c; });
+    return result;
+}
+
+bool is_family(const chunk_family& chunks)
+{
+    auto present = present_chunks(chunks);
+    return present.has_value() and stack_chunks(*present).has_value();
 }
 
 // The output of one chunk: the read q_i S of its state, the out pointwise
@@ -356,7 +533,7 @@ std::optional<instruction_ref> output_read(instruction_ref state,
 {
     auto readers = dot_readers(state);
     if(step.has_value() and step->ws.has_value())
-        erase_if(readers, [&](auto out) { return strip_views(*step->ws) == out; });
+        erase_if(readers, [&](auto out) { return view_root(*step->ws) == out; });
     if(readers.size() != 1)
         return std::nullopt;
     return readers.front();
@@ -379,7 +556,9 @@ std::optional<chunk_output> trace_output(instruction_ref state,
     if(user->name() == "pointwise" and user->inputs().size() == 2 and user->outputs().size() == 1)
     {
         const auto& ins = user->inputs();
-        bool first      = strip_views(ins.front()) == *read;
+        bool first      = same_order(*read, ins.front());
+        if(not first and not same_order(*read, ins.back()))
+            return std::nullopt;
         result.out      = user;
         result.qs_in    = ins.at(first ? 0 : 1);
         result.pu0      = ins.at(first ? 1 : 0);
@@ -455,15 +634,13 @@ bool starts_from_zero(const std::vector<chunk_step>& chain)
         std::transform(chain.begin(), chain.end(), std::back_inserter(u0s), [](const auto& s) {
             return s.u0;
         });
-        return make_family(kts).has_value() and make_family(u0s).has_value();
+        return is_family(kts) and is_family(u0s);
     }
-    if(not is_view(head.state_in))
-        return false;
     chunk_family upds{head.state_in};
     std::transform(chain.begin(), chain.end(), std::back_inserter(upds), [](const auto& s) {
         return std::optional<instruction_ref>{s.upd};
     });
-    return make_family(upds).has_value();
+    return is_family(upds);
 }
 
 // The chain of transitions from a state, bounded by the concat the chunk
@@ -535,10 +712,10 @@ bool check_concat(chunk_loop& loop)
         const auto& o = loop.outputs[i];
         if(o.has_value())
         {
-            if(strip_views(joined[i]) != o->out.value_or(o->read))
+            if(not same_order(o->out.value_or(o->read), joined[i]))
                 return false;
         }
-        else if(per_chunk and is_view(joined[i]))
+        else if(per_chunk and (is_view(joined[i]) or is_slice(joined[i])))
         {
             loop.zero_out = joined[i];
         }
@@ -649,24 +826,15 @@ std::vector<instruction_ref> step_roles(const chunk_step& step)
     return roles;
 }
 
-// Drop leading unit axes until the view has the state's rank; the simplifier
-// leaves the chunk outputs with an unsqueezed chunk axis
-std::optional<shape> squeeze_to(const shape& view, std::size_t ndim)
+// Whether the concat joins whole chunks one after another: the axes from the
+// concat axis on hold the rows and columns of one chunk, as the (lead...,
+// n * rows, dv) output of the scan does
+bool joins_chunks(instruction_ref concat, std::size_t chunk_elements)
 {
-    std::vector<int64_t> axes;
-    const auto& lens = view.lens();
-    // the matrix axes stay; unit axes before them go, last first
-    for(auto axis = lens.size() - 2; axis > 0 and lens.size() - axes.size() > ndim; axis--)
-    {
-        if(lens[axis - 1] == 1)
-            axes.push_back(axis - 1);
-    }
-    if(lens.size() - axes.size() != ndim)
-        return std::nullopt;
-    // squeeze with no axes would drop every unit axis
-    if(axes.empty())
-        return view;
-    return make_op("squeeze", {{"axes", axes}}).compute_shape({view});
+    const auto axis  = concat->normalized_operator().to_value().at("axis").to<std::size_t>();
+    const auto& lens = concat->inputs().front()->get_shape().lens();
+    return std::accumulate(lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{}) ==
+           chunk_elements;
 }
 
 // Whether every instruction in inss comes before pos in the module
@@ -697,15 +865,28 @@ chunk_scan scan_op(const chunk_loop& loop)
     return op;
 }
 
-// The per-chunk operands of each family in the op's input order
-std::vector<std::pair<std::string, chunk_family>> operand_families(const chunk_loop& loop)
+// The per-chunk operands of a family; a dot reads its operand as matrices,
+// a pointwise only element by element
+struct operand_family
 {
+    chunk_scan::family role;
+    chunk_family chunks;
+    bool dot_operand = false;
+};
+
+// The families in the op's input order
+std::vector<operand_family> operand_families(const chunk_loop& loop)
+{
+    using family     = chunk_scan::family;
     const auto& head = loop.head();
-    std::vector<std::pair<std::string, chunk_family>> families;
+    std::vector<operand_family> families;
     if(head.read.has_value())
-        families.emplace_back("w", gather(loop.steps, [](const chunk_step& s) { return *s.w; }));
-    families.emplace_back(
-        "q", gather(loop.outputs, [](const chunk_output& o) { return o.read->inputs().at(0); }));
+        families.push_back(
+            {family::w, gather(loop.steps, [](const chunk_step& s) { return *s.w; }), true});
+    families.push_back(
+        {family::q,
+         gather(loop.outputs, [](const chunk_output& o) { return o.read->inputs().at(0); }),
+         true});
     if(head.kt.has_value())
     {
         auto kts = gather(loop.steps, [](const chunk_step& s) { return *s.kt; });
@@ -716,48 +897,70 @@ std::vector<std::pair<std::string, chunk_family>> operand_families(const chunk_l
             kts[0]         = ops.at(0);
             u0s[0]         = ops.at(1);
         }
-        families.emplace_back("kt", kts);
-        families.emplace_back("u0", u0s);
+        families.push_back({family::kt, kts, true});
+        families.push_back({family::u0, u0s, not head.read.has_value()});
     }
     else
     {
         auto upds = gather(loop.steps, [](const chunk_step& s) { return s.upd; });
         if(not loop.has_state)
             upds[0] = zero_start_operands(*loop.states[1]).at(0);
-        families.emplace_back("upd", upds);
+        families.push_back({family::upd, upds});
     }
     if(head.gamma.has_value())
-        families.emplace_back("gamma",
-                              gather(loop.steps, [](const chunk_step& s) { return *s.gamma; }));
+        families.push_back(
+            {family::gamma, gather(loop.steps, [](const chunk_step& s) { return *s.gamma; })});
     if(loop.has_out())
     {
         auto pu0s = gather(loop.outputs, [](const chunk_output& o) { return o.pu0; });
         if(not loop.has_state)
             pu0s[0] = loop.zero_out;
-        families.emplace_back("pu0", pu0s);
+        families.push_back({family::pu0, pu0s});
     }
     return families;
 }
 
-// Encode a family as a view of its base in the op and return the base; the
-// leading axes are the problem axes, shared with the state
-std::optional<instruction_ref>
-add_family(chunk_scan& op, const std::string& name, const chunk_family& chunks)
+// One input of the scan: the views of base that stack a family's chunks
+struct family_input
 {
-    auto f = make_family(chunks);
-    if(not f.has_value())
+    instruction_ref base;
+    std::vector<operation> ops;
+};
+
+// The views stacking a family's chunks into `lens`, the (lead..., n, m, k)
+// its role takes. The stack axis goes ahead of the axes of a chunk that hold
+// one matrix, which keeps the elements of every problem in order; a dot
+// operand has the matrix as its last two axes.
+std::optional<family_input> make_family_input(const operand_family& f,
+                                              const std::vector<std::size_t>& lens)
+{
+    auto present = present_chunks(f.chunks);
+    if(not present.has_value() or present->size() != lens[lens.size() - 3])
         return std::nullopt;
-    auto view = squeeze_to(f->view, op.state_shape.ndim());
-    if(not view.has_value())
+    auto stack = stack_chunks(*present);
+    if(not stack.has_value())
         return std::nullopt;
-    if(not std::equal(
-           view->lens().begin(), std::prev(view->lens().end(), 2), op.state_shape.lens().begin()))
+    const auto& clens = present->front()->get_shape().lens();
+    if(f.dot_operand and
+       (clens.size() < 2 or not std::equal(clens.end() - 2, clens.end(), lens.end() - 2)))
         return std::nullopt;
-    op.families.push_back(name);
-    op.views.push_back(*view);
-    op.offsets.push_back(f->offset);
-    op.deltas.push_back(f->delta);
-    return f->base;
+    // the products of the last j lens of a chunk
+    std::vector<std::size_t> tails(clens.size() + 1, 1);
+    std::partial_sum(clens.rbegin(), clens.rend(), tails.begin() + 1, std::multiplies<>{});
+    if(tails.back() * stack->n != elements(lens))
+        return std::nullopt;
+    auto matrix = std::find(tails.begin(), tails.end(), lens[lens.size() - 2] * lens.back());
+    if(matrix == tails.end())
+        return std::nullopt;
+    const std::size_t axis = clens.size() - std::distance(tails.begin(), matrix);
+    auto ops               = stack->ops;
+    if(axis != 0)
+        ops.push_back(move_axis(clens.size() + 1, 0, axis));
+    ops.push_back(make_op("reshape", {{"dims", lens}}));
+    ops = optimize_shape_transforms(stack->lens, ops);
+    if(stack->slice.has_value())
+        ops.insert(ops.begin(), *stack->slice);
+    return family_input{stack->base, ops};
 }
 
 // The step, read and out submodules in the kernel's order
@@ -785,30 +988,41 @@ bool fuse_loop(module_pass_manager& mpm, const chunk_loop& loop, const std::stri
     auto& m                  = mpm.get_module();
     auto op                  = scan_op(loop);
     const auto& concat_shape = loop.concat->get_shape();
-    // the chunks are joined along the rows of the (.., n * rows, dv) output
-    if(not concat_shape.standard() or concat_shape.elements() != op.output_shape.elements())
+    const auto& out_lens     = op.output_shape.lens();
+    const auto rows          = out_lens[out_lens.size() - 2] / op.chunks;
+    if(not joins_chunks(loop.concat, rows * out_lens.back()))
         return false;
-    std::vector<instruction_ref> inputs;
-    if(op.has_state)
-        inputs.push_back(*loop.states[0]);
-    std::optional<instruction_ref> q;
-    for(const auto& [name, chunks] : operand_families(loop))
+    std::vector<family_input> families;
+    for(const auto& f : operand_families(loop))
     {
-        auto base = add_family(op, name, chunks);
-        if(not base.has_value())
+        auto input = make_family_input(f, op.family_lens(f.role, rows));
+        if(not input.has_value())
             return false;
-        if(name == "q")
-            q = base;
-        inputs.push_back(*base);
+        op.families.push_back(f.role);
+        families.push_back(*input);
     }
     // every input must be computed before the loop is replaced
-    if(not all_before(m, inputs, loop.concat))
+    std::vector<instruction_ref> bases;
+    if(op.has_state)
+        bases.push_back(*loop.states[0]);
+    std::transform(families.begin(), families.end(), std::back_inserter(bases), [](const auto& f) {
+        return f.base;
+    });
+    if(not all_before(m, bases, loop.concat))
         return false;
     // the operands' type, as the kernel takes it from q
-    const auto type = accumulation_type(q.value()->get_shape().type());
+    const auto q    = std::find(op.families.begin(), op.families.end(), chunk_scan::family::q);
+    const auto type = accumulation_type(families[q - op.families.begin()].base->get_shape().type());
     if(not same_bodies(loop, type))
         return false;
 
+    std::vector<instruction_ref> inputs;
+    if(op.has_state)
+        inputs.push_back(*loop.states[0]);
+    std::transform(families.begin(),
+                   families.end(),
+                   std::back_inserter(inputs),
+                   [&](const auto& f) { return insert_ops(m, loop.concat, f.ops, f.base); });
     auto mods  = scan_modules(mpm, loop, prefix, type);
     auto scan  = m.insert_instruction(loop.concat, op, inputs, mods);
     auto out   = m.insert_instruction(loop.concat, make_op("get_tuple_elem", {{"index", 0}}), scan);

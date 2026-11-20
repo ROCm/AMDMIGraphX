@@ -187,8 +187,8 @@ Uninstall MIGraphX
 
 2. Remove the MIGraphX environment configuration.
 
-   If you added the ``LD_LIBRARY_PATH`` workaround as part of the
-   installation, remove it.
+   **If you added the** ``LD_LIBRARY_PATH`` **workaround as part of
+   the installation**, remove it.
 
    .. tab-set::
 

@@ -1302,7 +1302,10 @@ struct find_mlir_attention_op
 {
     auto matcher() const
     {
-        return match::name("group")(match::has_op_value("tag", "attention")).bind("group");
+        // attention_scores: the q.k^T gemm of an unfused block with its fp32 convert
+        return match::name("group")(match::any_of(match::has_op_value("tag", "attention"),
+                                                  match::has_op_value("tag", "attention_scores")))
+            .bind("group");
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const

@@ -189,12 +189,19 @@ TEST_CASE(recompile_dumps_one_mxr_per_candidate)
 
 int main(int argc, const char* argv[])
 {
-    if(argc > 2 and std::string_view{argv[1]} == dump_flag)
-        return dump_benchmarks(argv[2]);
-    if(argc > 2 and std::string_view{argv[1]} == recompile_dump_flag)
-        return recompile_dump_benchmarks(argv[2]);
+    test::driver d{};
+    d.add_arg({dump_flag},
+              "Internal: compile the reduce program with every benchmark candidate saved to <dir>");
+    d.add_arg({recompile_dump_flag},
+              "Internal: recompile <file.mxr> with benchmark candidates saved to the directory in "
+              "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR");
+    auto args = d.parse(argc, argv);
+    if(args.count(dump_flag) > 0 and not args.at(dump_flag).empty())
+        return dump_benchmarks(args.at(dump_flag).front());
+    if(args.count(recompile_dump_flag) > 0 and not args.at(recompile_dump_flag).empty())
+        return recompile_dump_benchmarks(args.at(recompile_dump_flag).front());
     // The child is spawned by path, so a bare-name argv[0] has to be resolved here.
     executable = migraphx::fs::absolute(argv[0]);
-    test::run(argc, argv);
+    d.run(argc, argv);
     return 0;
 }

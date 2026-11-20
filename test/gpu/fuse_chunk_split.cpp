@@ -22,16 +22,13 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/fuse_chunk_split.hpp>
-#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
-#include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <test.hpp>
 #include "kernel_names.hpp"
@@ -98,11 +95,10 @@ TEST_CASE(gated_delta_with_state)
         std::vector<migraphx::instruction_ref> outs;
         for(std::size_t i = 0; i < 2; i++)
         {
-            auto n  = std::to_string(3 * i);
             auto read_product =
                 mm->add_instruction(migraphx::make_op("dot"), chunk(*mm, read_matrix, i), s);
             auto u = add_pointwise(p1,
-                                   "main:pointwise" + n,
+                                   "main:pointwise" + std::to_string(3 * i),
                                    {chunk(*mm, update_input, i), read_product},
                                    single_pointwise("sub"));
             auto output_product =
@@ -876,6 +872,38 @@ TEST_CASE(scan_rejects_family_rows)
     }));
 }
 
+// And the families as a set: a scan without an update, or with a family
+// twice, is rejected
+TEST_CASE(scan_rejects_family_combination)
+{
+    auto ss = fshape({1, 2, 4, 8});
+    migraphx::program p;
+    auto* mm           = p.get_main_module();
+    auto s0            = mm->add_parameter("s0", ss);
+    auto output_matrix = mm->add_parameter("output_matrix", fshape({1, 2, 2, 2, 4}));
+    auto state_update  = mm->add_parameter("state_update", fshape({1, 2, 2, 4, 8}));
+    auto* step         = create_pointwise_module(p, "step", {s0, s0}, single_pointwise("add"));
+    auto no_update     = migraphx::make_op(
+        "gpu::chunk_scan",
+        {{"output_shape", migraphx::to_value(fshape({1, 2, 4, 8}))},
+         {"state_shape", migraphx::to_value(ss)},
+         {"families", migraphx::to_value(std::vector<std::string>{"output_matrix"})},
+         {"chunks", 2},
+         {"has_state", true}});
+    EXPECT(test::throws([&] { mm->add_instruction(no_update, {s0, output_matrix}, {step}); }));
+    auto repeated = migraphx::make_op("gpu::chunk_scan",
+                                      {{"output_shape", migraphx::to_value(fshape({1, 2, 4, 8}))},
+                                       {"state_shape", migraphx::to_value(ss)},
+                                       {"families",
+                                        migraphx::to_value(std::vector<std::string>{
+                                            "output_matrix", "state_update", "state_update"})},
+                                       {"chunks", 2},
+                                       {"has_state", true}});
+    EXPECT(test::throws([&] {
+        mm->add_instruction(repeated, {s0, output_matrix, state_update, state_update}, {step});
+    }));
+}
+
 // A family operand may be any view of its chunk: the transposed keys stack
 // as a transpose of the whole input
 TEST_CASE(transposed_family)
@@ -1105,8 +1133,8 @@ TEST_CASE(transposed_state_in_read_not_fused)
 }
 
 // The scan keeps u = read(update_input, read_matrix S) in the order the read
-// produces it, so the
-// read's product and the update's operand cannot be reordered on the way
+// produces it, so the read's product and the update's operand cannot be
+// reordered on the way
 TEST_CASE(transposed_read_product_not_fused)
 {
     auto ss = fshape({1, 2, 4, 4});
@@ -1148,6 +1176,7 @@ TEST_CASE(transposed_read_product_not_fused)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// Nor the update's operand
 TEST_CASE(transposed_update_operand_not_fused)
 {
     auto ss = fshape({1, 2, 4, 4});

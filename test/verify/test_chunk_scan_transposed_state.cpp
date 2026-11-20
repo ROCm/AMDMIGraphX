@@ -30,8 +30,8 @@
 
 // A recurrence over a square state whose outputs read the transposed state:
 // o = output_matrix transpose(S), S = S + update_matrix update_input. Every
-// shape matches the chunk scan, but
-// the scan reads the state as it keeps it, so the loop must stay unrolled.
+// shape matches the chunk scan, but the scan reads the state as it keeps it,
+// so the loop must stay unrolled.
 struct test_chunk_scan_transposed_state : verify_program<test_chunk_scan_transposed_state>
 {
     static migraphx::instruction_ref

@@ -26,7 +26,6 @@
 #define MIGRAPHX_GUARD_KERNELS_MATMUL_HPP
 
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/type_traits.hpp>
@@ -267,9 +266,8 @@ store_block(const acc_frag<Acc, B>& acc, index_int i0, index_int j0, C c, index_
 // Without a matrix instruction each lane owns tiles of tm consecutive rows
 // by tn columns and walks k with FMAs: tm rows when the lanes cover the
 // matrix exactly, so a lane's loads of A along its rows stay adjacent, else
-// one row per tile strided over the lanes. Tile t covers rows
-// (t / (N / tn)) * tm.. and columns (t % (N / tn)) * tn.., so a lane's tiles
-// share their columns of B when N / tn divides the wave
+// one row per tile strided over the lanes. Tiles are numbered row-major, so
+// a lane's tiles share their columns of B when N / tn divides the wave
 template <class Acc, index_int M, index_int N>
 struct fma_tiling
 {
@@ -309,7 +307,7 @@ struct fma_tiling
     }
 };
 
-template <class Acc, class T, index_int M, index_int N, index_int K, class A, class B, class C>
+template <class Acc, index_int M, index_int N, index_int K, class A, class B, class C>
 __device__ void matmul_fma(A a, B b, C c, index_int lane)
 {
     using tiling = fma_tiling<Acc, M, N>;
@@ -373,7 +371,7 @@ __device__ void matmul(A a, B b, C c)
     }
     else
     {
-        matmul_detail::matmul_fma<acc, T, M, N, K>(a, b, c, lane);
+        matmul_detail::matmul_fma<acc, M, N, K>(a, b, c, lane);
     }
 }
 

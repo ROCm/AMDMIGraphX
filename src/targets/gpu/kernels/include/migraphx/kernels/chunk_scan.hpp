@@ -28,49 +28,47 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/uninitialized_buffer.hpp>
-#include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/slice.hpp>
 #include <migraphx/kernels/matmul.hpp>
 
 namespace migraphx {
 
-// The last two axes of base as a tensor_view, positioned at leading index
-// lead
-template <class Base, class Lead>
-__device__ auto matrix_slice(Base base, Lead lead)
-{
-    constexpr auto s   = get_shape_c<Base>{};
-    constexpr auto n   = s.lens.size();
-    constexpr auto mat = make_shape(index_ints<s.lens[n - 2], s.lens[n - 1]>{},
-                                    index_ints<s.strides[n - 2], s.strides[n - 1]>{});
-    return base.with(base.data() + s.index(lead), mat);
-}
-
-// Row r and column c of a matrix view. Indexing a rank-1 slice keeps the
-// address affine in the loop variable, which lets adjacent loads merge
-template <class View>
-__device__ auto row(View m, index_int r)
-{
-    return slice_tensor(m, array<index_int, 2>{r, 0}, slice_axes<1>());
-}
-
-template <class View>
-__device__ auto column(View m, index_int c)
-{
-    return slice_tensor(m, array<index_int, 2>{0, c}, slice_axes<0>());
-}
-
 // Walk the chunks of a linear recurrence with the state tile of one problem
 // and one dv block resident in LDS, one workgroup per (problem, dv block).
 // Each chunk reads the state with its output matrix (and its read matrix
-// under the read module), keeps u in LDS, then updates the state with its
-// update matrix times u (or the precomputed update) through the step module. The products are
-// wave-level matmuls, half and bf16 accumulating in float. Arguments are found by the role indices
-// in Settings; see gpu::chunk_scan for the roles.
+// under the read module), keeps u in LDS, then steps the state with its
+// update matrix times u (or the precomputed update). The products are
+// wave-level matmuls. See gpu::chunk_scan for the roles Settings indexes.
 template <class Settings, class Step, class Read, class Out, class Args>
 struct chunk_scanner
 {
+    // The last two axes of view as a tensor_view, positioned at the leading
+    // index at
+    template <class View, class Index>
+    __device__ static auto matrix_slice(View view, Index at)
+    {
+        constexpr auto vs  = get_shape_c<View>{};
+        constexpr auto n   = vs.lens.size();
+        constexpr auto mat = make_shape(index_ints<vs.lens[n - 2], vs.lens[n - 1]>{},
+                                        index_ints<vs.strides[n - 2], vs.strides[n - 1]>{});
+        return view.with(view.data() + vs.index(at), mat);
+    }
+
+    // Row r and column c of a matrix view. Indexing a rank-1 slice keeps the
+    // address affine in the loop variable, which lets adjacent loads merge
+    template <class View>
+    __device__ static auto row(View m, index_int r)
+    {
+        return slice_tensor(m, array<index_int, 2>{r, 0}, slice_axes<1>());
+    }
+
+    template <class View>
+    __device__ static auto column(View m, index_int c)
+    {
+        return slice_tensor(m, array<index_int, 2>{0, c}, slice_axes<0>());
+    }
+
     template <index_int I>
     using arg_t                       = decltype(declval<Args>()(arg_c<I>()));
     using value_type                  = typename arg_t<Settings::output_matrix::index>::type;
@@ -103,9 +101,8 @@ struct chunk_scanner
     static constexpr auto u_tile        = make_shape(index_ints<rows, dvb>{});
     static constexpr auto read_blocks   = make_shape(index_ints<rows / bm, dvb / bn>{});
     static constexpr auto update_blocks = make_shape(index_ints<dk / bd, dvb / bn>{});
-    static_assert((s_tile.elements() + u_tile.elements()) * sizeof(acc_t) <= 65536,
+    static_assert((s_tile.elements() + u_tile.elements()) * sizeof(acc_t) <= Settings::max_lds,
                   "the state and u tiles must fit in LDS");
-    // the state and u tiles in LDS
     using s_view = decltype(make_tensor_view<lds_memory_tag>(declval<acc_t*>(), s_tile));
     using u_view = decltype(make_tensor_view<lds_memory_tag>(declval<acc_t*>(), u_tile));
 
@@ -134,6 +131,7 @@ struct chunk_scanner
     {
         constexpr auto fs     = get_shape_c<arg_t<Family::index>>{};
         constexpr index_int n = fs.lens.size();
+        static_assert(n >= 3, "a family stacks its chunks ahead of the matrix axes");
         array<index_int, n> at{};
         for(index_int k = 0; k + 3 < n; k++)
             at[k] = base[k];
@@ -142,8 +140,7 @@ struct chunk_scanner
     }
 
     // a stacked row as (group, output or read matrix, row within the group)
-    static constexpr auto stack =
-        make_shape(index_ints<Settings::has_read ? stacked / (2 * g) : 1, 2, g>{});
+    static constexpr auto stack = make_shape(index_ints<bm / g, 2, g>{});
     __device__ static bool is_read_row(index_int r) { return stack.multi(r)[1] == 1; }
     __device__ static index_int src_row(index_int r)
     {
@@ -302,7 +299,7 @@ struct chunk_scanner
         __syncthreads();
         for(index_int i = 0; i < chunks; i++)
         {
-            // chunk 0 of a zero start skips the reads and the transition
+            // chunk 0 of a zero start skips the reads and the step: S = update
             const bool live = Settings::has_state or i > 0;
             if(live)
                 read_chunk(i);

@@ -59,7 +59,7 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
 
 #ifdef MIGRAPHX_NGROUP
 // If global is divisible by local then local can be a const
-#if (MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL == 0) || (MIGRAPHX_NGROUP == 1)
+#if(MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL == 0) || (MIGRAPHX_NGROUP == 1)
 #define MIGRAPHX_HAS_CONST_LOCAL 1
 #endif
 #endif
@@ -159,6 +159,13 @@ struct index
     constexpr auto local_wave() const { return local % nlocal_wave(); }
     constexpr auto nwave() const { return max_nlocal() / nlocal_wave(); }
     constexpr auto wave() const { return local / nlocal_wave(); }
+
+    // The lanes of this wave where pred holds, as a bit per lane
+#if MIGRAPHX_WAVEFRONTSIZE == 32
+    __device__ uint32_t ballot(bool pred) const { return __builtin_amdgcn_ballot_w32(pred); }
+#else
+    __device__ uint64_t ballot(bool pred) const { return __builtin_amdgcn_ballot_w64(pred); }
+#endif
 
     template <class N, class Stride>
     static constexpr auto max_stride_iterations(N n, Stride stride)

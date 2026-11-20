@@ -24,11 +24,8 @@
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/algorithm.hpp>
 #include <migraphx/register_target.hpp>
-#include <migraphx/gpu/code_object_op.hpp>
 #include <test.hpp>
 #include "kernel_names.hpp"
 

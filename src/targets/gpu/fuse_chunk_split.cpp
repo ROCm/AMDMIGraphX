@@ -36,7 +36,6 @@
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/instruction_traversal.hpp>
 #include <migraphx/common_dims.hpp>
-#include <migraphx/algorithm.hpp>
 #include <migraphx/enum.hpp>
 #include <migraphx/stringutils.hpp>
 #include <algorithm>
@@ -46,6 +45,7 @@
 #include <numeric>
 #include <optional>
 #include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace migraphx {
@@ -100,6 +100,7 @@ struct chunk_scan
     // hold one chunk less.
     std::vector<std::size_t> family_lens(family role, std::size_t rows) const
     {
+        assert(state_shape.ndim() >= 2 and chunks > 0);
         const auto& slens = state_shape.lens();
         const auto dk     = slens[slens.size() - 2];
         const auto dv     = slens.back();
@@ -124,8 +125,16 @@ struct chunk_scan
     {
         const std::size_t state_inputs = has_state ? 1 : 0;
         check_shapes{inputs, *this}.has(families.size() + state_inputs);
-        if(chunks == 0 or state_shape.ndim() < 2)
+        if(chunks == 0 or state_shape.ndim() < 2 or state_shape.elements() == 0)
             MIGRAPHX_THROW("chunk_scan: needs at least one chunk and a matrix state");
+        if(std::adjacent_find(families.begin(), families.end(), std::greater_equal<>{}) !=
+           families.end())
+            MIGRAPHX_THROW("chunk_scan: the families must follow their order without repeats");
+        if(has(family::update_matrix) != has(family::update_input) or
+           has(family::update_matrix) == has(family::state_update) or
+           (has(family::read_matrix) and not has(family::update_matrix)))
+            MIGRAPHX_THROW("chunk_scan: needs update_matrix and update_input, which a "
+                           "read_matrix requires, or state_update");
         if(mods.size() !=
            1 + (has(family::read_matrix) ? 1 : 0) + (has(family::output_base) ? 1 : 0))
             MIGRAPHX_THROW("chunk_scan: wrong number of submodules");
@@ -231,7 +240,7 @@ bool same_matrix(instruction_ref src, instruction_ref ins)
            same_order(src, ins);
 }
 
-// The instruction a chain of single-use views feeds
+// The last of the single-use views following ins, or ins without one
 instruction_ref follow_views(instruction_ref ins)
 {
     while(ins->outputs().size() == 1 and is_view(ins->outputs().front()))
@@ -416,6 +425,7 @@ struct slice_range
 // A transpose of a rank `rank` tensor that moves axis `from` to `to`
 operation move_axis(std::size_t rank, std::size_t from, std::size_t to)
 {
+    assert(from < rank and to < rank);
     std::vector<int64_t> perm(rank);
     std::iota(perm.begin(), perm.end(), 0);
     perm.erase(perm.begin() + from);
@@ -446,7 +456,7 @@ chunk_stack stack_chunk(instruction_ref chunk)
 {
     auto [root, ops] = view_chain(chunk);
     ops.push_back(make_op("unsqueeze", {{"axes", {0}}}));
-    return {root, std::nullopt, ops, root->get_shape().lens(), 1};
+    return {root, std::nullopt, std::move(ops), root->get_shape().lens(), 1};
 }
 
 // Several chunks stack when they are consecutive, equal slices of one
@@ -543,25 +553,26 @@ struct chunk_output
     instruction_ref concat;
 };
 
-// The output read of a state: the dot(output_matrix_i, S) that is not the
-// read feeding the chunk's transition
-std::optional<instruction_ref> output_read(instruction_ref state,
-                                           const std::optional<chunk_step>& step)
+// The output read of the state a step consumes: the dot(output_matrix_i, S)
+// that is not the read feeding the step
+std::optional<instruction_ref> output_read(const chunk_step& step)
 {
-    auto readers = dot_readers(state);
-    if(step.has_value() and step->read_product.has_value())
-        erase_if(readers, [&](auto out) { return view_root(*step->read_product) == out; });
+    auto readers = dot_readers(step.state_in);
+    if(step.read_product.has_value())
+    {
+        auto read_dot = view_root(*step.read_product);
+        erase_if(readers, [&](auto out) { return out == read_dot; });
+    }
     if(readers.size() != 1)
         return std::nullopt;
     return readers.front();
 }
 
-// Follow the read through the views the simplifier leaves to its out
-// pointwise and the concat
-std::optional<chunk_output> trace_output(instruction_ref state,
-                                         const std::optional<chunk_step>& step)
+// The read followed through its views to its out pointwise, if any, and
+// the concat
+std::optional<chunk_output> trace_output(const chunk_step& step)
 {
-    auto read = output_read(state, step);
+    auto read = output_read(step);
     if(not read.has_value() or (*read)->outputs().size() != 1)
         return std::nullopt;
     chunk_output result;
@@ -590,30 +601,29 @@ std::optional<chunk_output> trace_output(instruction_ref state,
     return result;
 }
 
-// The matched loop over n chunks: the state entering each chunk, its
-// transition and its output, and the concat assembling the outputs. The
-// entries of chunk 0 are absent when the walk starts from zero.
+// The matched loop: the transition and the output of each chunk. The entries
+// of chunk 0 are absent when the walk starts from zero.
 struct chunk_loop
 {
-    std::size_t chunks = 0;
-    bool has_state     = false;
-    instruction_ref final_state;
-    instruction_ref concat;
-    std::optional<instruction_ref> zero_out; // chunk 0's output view of a zero start
-    std::vector<std::optional<instruction_ref>> states;
+    bool has_state = false;
     std::vector<std::optional<chunk_step>> steps;
     std::vector<std::optional<chunk_output>> outputs;
 
+    std::size_t chunks() const { return steps.size(); }
     // the first chunk with a transition
     std::size_t first() const { return has_state ? 0 : 1; }
-    const chunk_step& head() const { return *steps.at(first()); }
-    const chunk_output& head_output() const { return *outputs.at(first()); }
-    bool has_out() const
+    const chunk_step& head() const
     {
-        return std::any_of(outputs.begin(), outputs.end(), [](const auto& o) {
-            return o.has_value() and o->out.has_value();
-        });
+        assert(steps.at(first()).has_value());
+        return *steps.at(first());
     }
+    const chunk_output& head_output() const
+    {
+        assert(outputs.at(first()).has_value());
+        return *outputs.at(first());
+    }
+    instruction_ref final_state() const { return steps.back()->state_out; }
+    instruction_ref concat() const { return head_output().concat; }
 };
 
 // The transitions of a module by the state they consume, and the pointwises
@@ -624,44 +634,72 @@ struct step_map
     std::unordered_set<instruction_ref> transitions;
 };
 
+// The per-chunk operands of a family; a dot reads its operand as matrices,
+// a pointwise only element by element
+struct operand_family
+{
+    chunk_scan::family role;
+    chunk_family chunks;
+    bool dot_operand = false;
+};
+
 // The operands of chunk 0 of a zero start come from the state entering
 // chunk 1, which is its update: dot(update_matrix_0, update_input_0) or the
 // precomputed view
-std::vector<instruction_ref> zero_start_operands(instruction_ref state1)
+std::vector<instruction_ref> zero_start_operands(const chunk_step& head)
 {
-    if(is_dot(state1))
-        return state1->inputs();
-    return {state1};
+    if(not head.update_matrix.has_value())
+        return {head.state_in};
+    if(is_dot(head.state_in))
+        return head.state_in->inputs();
+    return {};
 }
 
-// Whether the chain starts from a zero state: its first state has the form
-// of a chunk's update and completes the chunk operand families
-bool starts_from_zero(const std::vector<chunk_step>& chain)
+// The families of the update: update_matrix and update_input, or
+// state_update. None when the first state of a zero start does not have the
+// form of a chunk's update.
+std::vector<operand_family> update_families(const chunk_loop& loop)
 {
-    const auto& head = chain.front();
-    const auto ops   = zero_start_operands(head.state_in);
+    using family     = chunk_scan::family;
+    const auto& head = loop.head();
+    std::vector<operand_family> families;
     if(head.update_matrix.has_value())
     {
-        if(ops.size() != 2)
-            return false;
-        chunk_family update_matrices{ops[0]};
-        chunk_family update_inputs{ops[1]};
-        std::transform(chain.begin(),
-                       chain.end(),
-                       std::back_inserter(update_matrices),
-                       [](const auto& s) { return s.update_matrix; });
-        std::transform(chain.begin(),
-                       chain.end(),
-                       std::back_inserter(update_inputs),
-                       [](const auto& s) { return s.update_input; });
-        return is_family(update_matrices) and is_family(update_inputs);
+        families.push_back(
+            {family::update_matrix,
+             gather(loop.steps, [](const chunk_step& s) { return *s.update_matrix; }),
+             true});
+        families.push_back({family::update_input,
+                            gather(loop.steps, [](const chunk_step& s) { return *s.update_input; }),
+                            not head.read.has_value()});
     }
-    chunk_family state_updates{head.state_in};
-    std::transform(chain.begin(),
-                   chain.end(),
-                   std::back_inserter(state_updates),
-                   [](const auto& s) { return std::optional<instruction_ref>{s.state_update}; });
-    return is_family(state_updates);
+    else
+    {
+        families.push_back({family::state_update, gather(loop.steps, [](const chunk_step& s) {
+                                return s.state_update;
+                            })});
+    }
+    if(loop.has_state)
+        return families;
+    const auto ops = zero_start_operands(head);
+    if(ops.size() != families.size())
+        return {};
+    std::transform(ops.begin(), ops.end(), families.begin(), families.begin(), [](auto op, auto f) {
+        f.chunks.front() = op;
+        return f;
+    });
+    return families;
+}
+
+// Whether the loop, laid out without a chunk 0 transition, starts from a
+// zero state: its first state completes the families of the update
+bool starts_from_zero(const chunk_loop& loop)
+{
+    assert(not loop.has_state);
+    const auto families = update_families(loop);
+    return not families.empty() and std::all_of(families.begin(),
+                                                families.end(),
+                                                [](const auto& f) { return is_family(f.chunks); });
 }
 
 // The chain of transitions from a state, bounded by the concat the chunk
@@ -676,7 +714,7 @@ std::optional<chunk_loop> trace_loop(instruction_ref state, const step_map& step
     assert(it != steps.by_state.end());
     while(it != steps.by_state.end())
     {
-        auto out = trace_output(it->first, it->second);
+        auto out = trace_output(it->second);
         auto c   = out.has_value() ? std::optional<instruction_ref>{out->concat}
                                    : std::optional<instruction_ref>{};
         if(chain.empty())
@@ -695,62 +733,43 @@ std::optional<chunk_loop> trace_loop(instruction_ref state, const step_map& step
        }))
         return std::nullopt;
 
+    // laid out as a zero start, whose chunk 0 has no transition and no read
     chunk_loop loop;
-    loop.has_state   = not starts_from_zero(chain);
-    loop.chunks      = chain.size() + loop.first();
-    loop.final_state = chain.back().state_out;
-    loop.states.resize(loop.chunks);
-    loop.steps.resize(loop.chunks);
-    loop.outputs.resize(loop.chunks);
-    std::copy(chain.begin(), chain.end(), loop.steps.begin() + loop.first());
-    std::copy(outputs.begin(), outputs.end(), loop.outputs.begin() + loop.first());
-    std::transform(chain.begin(),
-                   chain.end(),
-                   loop.states.begin() + loop.first(),
-                   [](const chunk_step& s) { return s.state_in; });
+    loop.steps.resize(chain.size() + 1);
+    loop.outputs.resize(chain.size() + 1);
+    std::copy(chain.begin(), chain.end(), loop.steps.begin() + 1);
+    std::copy(outputs.begin(), outputs.end(), loop.outputs.begin() + 1);
+    if(not starts_from_zero(loop))
+    {
+        loop.has_state = true;
+        loop.steps.erase(loop.steps.begin());
+        loop.outputs.erase(loop.outputs.begin());
+    }
     return loop;
 }
 
-// Every chunk's output joins the same concat, in chunk order, all through an
-// out pointwise or none; chunk 0 of a zero start joins its output_base view
+// Every chunk's output joins the concat in chunk order, all through an out
+// pointwise or none; chunk 0 of a zero start joins its output_base view
 // directly
-bool check_concat(chunk_loop& loop)
+bool check_concat(const chunk_loop& loop)
 {
     if(not loop.outputs.at(loop.first()).has_value())
         return false;
-    const auto& head = loop.head_output();
-    if(std::any_of(loop.outputs.begin(), loop.outputs.end(), [&](const auto& o) {
-           return o.has_value() and
-                  (o->concat != head.concat or o->out.has_value() != head.out.has_value());
-       }))
+    const auto& joined   = loop.concat()->inputs();
+    const bool per_chunk = loop.head_output().out.has_value();
+    if(joined.size() != loop.chunks())
         return false;
-    loop.concat          = head.concat;
-    const auto& joined   = loop.concat->inputs();
-    const bool per_chunk = head.out.has_value();
-    if(joined.size() != loop.chunks)
-        return false;
-    for(std::size_t i = 0; i < loop.chunks; i++)
-    {
+    auto is = range(loop.chunks());
+    return std::all_of(is.begin(), is.end(), [&](auto i) {
         const auto& o = loop.outputs[i];
-        if(o.has_value())
-        {
-            if(not same_order(o->out.value_or(o->read), joined[i]))
-                return false;
-        }
-        else if(per_chunk and (is_view(joined[i]) or is_slice(joined[i])))
-        {
-            loop.zero_out = joined[i];
-        }
-        else
-        {
-            return false;
-        }
-    }
-    return true;
+        if(not o.has_value())
+            return per_chunk and (is_view(joined[i]) or is_slice(joined[i]));
+        return o->out.has_value() == per_chunk and same_order(o->out.value_or(o->read), joined[i]);
+    });
 }
 
-// The state accumulates in float unless the operands already are float or
-// double; the kernel's accumulation type follows the same rule
+// The state accumulates in float, or in double for double operands, as the
+// kernel's acc_type does
 shape::type_t accumulation_type(shape::type_t t)
 {
     return (t == shape::float_type or t == shape::double_type) ? t : shape::float_type;
@@ -837,7 +856,7 @@ std::optional<scan_body> out_body(const chunk_output& output)
     return scan_body{*output.out, {*output.output_base, *output.output_product}};
 }
 
-// Whether the chunks that have the body `f` yields all compute the same
+// Whether the bodies `f` yields for the chunks that have one are all equal
 template <class T, class F>
 bool same_modules(const std::vector<std::optional<T>>& chunks, shape::type_t type, F f)
 {
@@ -845,14 +864,14 @@ bool same_modules(const std::vector<std::optional<T>>& chunks, shape::type_t typ
     std::transform(chunks.begin(), chunks.end(), bodies.begin(), [&](const auto& chunk) {
         return chunk.has_value() ? std::optional<scan_body>{f(*chunk)} : std::nullopt;
     });
-    std::vector<module> mods;
-    transform_if(
-        bodies.begin(),
-        bodies.end(),
-        std::back_inserter(mods),
-        [](const auto& body) { return body.has_value(); },
-        [&](const auto& body) { return body->make(type); });
-    return std::adjacent_find(mods.begin(), mods.end(), std::not_equal_to<>{}) == mods.end();
+    auto first = std::find_if(
+        bodies.begin(), bodies.end(), [](const auto& body) { return body.has_value(); });
+    if(first == bodies.end())
+        return true;
+    const auto head = (*first)->make(type);
+    return std::all_of(std::next(first), bodies.end(), [&](const auto& body) {
+        return not body.has_value() or body->make(type) == head;
+    });
 }
 
 // Every chunk's step, read and out body must be the same pointwise
@@ -875,61 +894,39 @@ module_ref add_scan_module(module_pass_manager& mpm,
 
 // Whether the concat joins whole chunks one after another: the axes from the
 // concat axis on hold the rows and columns of one chunk, as the (lead...,
-// n * rows, dv) output of the scan does
+// chunks * rows, dv) output of the scan does
 bool joins_chunks(instruction_ref concat, std::size_t chunk_elements)
 {
     const auto axis  = concat->normalized_operator().to_value().at("axis").to<std::size_t>();
     const auto& lens = concat->inputs().front()->get_shape().lens();
-    return std::accumulate(lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{}) ==
-           chunk_elements;
+    return elements(range(lens.begin() + axis, lens.end())) == chunk_elements;
 }
 
-// Whether every instruction in inss comes before pos in the module
-bool all_before(const module& m, const std::vector<instruction_ref>& inss, instruction_ref pos)
+// The position of each instruction of a module
+using instruction_order = std::unordered_map<instruction_ref, std::size_t>;
+
+// Whether x comes before y; an instruction of another module comes before none
+bool comes_before(const instruction_order& order, instruction_ref x, instruction_ref y)
 {
-    std::unordered_set<instruction_ref> pending(inss.begin(), inss.end());
-    for(auto ins : iterator_for(m))
-    {
-        if(ins == pos)
-            break;
-        pending.erase(ins);
-    }
-    return pending.empty();
+    auto ix = order.find(x);
+    auto iy = order.find(y);
+    return ix != order.end() and iy != order.end() and ix->second < iy->second;
 }
 
-// Whichever of a and b comes first in the module
-instruction_ref first_of(const module& m, instruction_ref a, instruction_ref b)
-{
-    auto inss = iterator_for(m);
-    auto it   = std::find_if(
-        inss.begin(), inss.end(), [&](instruction_ref ins) { return ins == a or ins == b; });
-    assert(it != inss.end());
-    return *it;
-}
-
-// The op's shapes: the kernel writes (lead..., n * rows, dv); the concat's
-// own layout is a reshape of that
+// The op's shapes: the kernel writes (lead..., chunks * rows, dv); the
+// concat's own layout is a reshape of that
 chunk_scan scan_op(const chunk_loop& loop)
 {
     chunk_scan op;
-    op.chunks                        = loop.chunks;
+    op.chunks                        = loop.chunks();
     op.has_state                     = loop.has_state;
-    op.state_shape                   = loop.final_state->get_shape();
+    op.state_shape                   = loop.final_state()->get_shape();
     auto out_lens                    = op.state_shape.lens();
     const auto& read_lens            = loop.head_output().read->get_shape().lens();
-    out_lens.at(out_lens.size() - 2) = read_lens.at(read_lens.size() - 2) * loop.chunks;
-    op.output_shape                  = shape{loop.concat->get_shape().type(), out_lens};
+    out_lens.at(out_lens.size() - 2) = read_lens.at(read_lens.size() - 2) * loop.chunks();
+    op.output_shape                  = shape{loop.concat()->get_shape().type(), out_lens};
     return op;
 }
-
-// The per-chunk operands of a family; a dot reads its operand as matrices,
-// a pointwise only element by element
-struct operand_family
-{
-    chunk_scan::family role;
-    chunk_family chunks;
-    bool dot_operand = false;
-};
 
 // The families in the op's input order
 std::vector<operand_family> operand_families(const chunk_loop& loop)
@@ -945,37 +942,18 @@ std::vector<operand_family> operand_families(const chunk_loop& loop)
         {family::output_matrix,
          gather(loop.outputs, [](const chunk_output& o) { return o.read->inputs().at(0); }),
          true});
-    if(head.update_matrix.has_value())
-    {
-        auto update_matrices =
-            gather(loop.steps, [](const chunk_step& s) { return *s.update_matrix; });
-        auto update_inputs =
-            gather(loop.steps, [](const chunk_step& s) { return *s.update_input; });
-        if(not loop.has_state)
-        {
-            const auto ops     = zero_start_operands(*loop.states[1]);
-            update_matrices[0] = ops.at(0);
-            update_inputs[0]   = ops.at(1);
-        }
-        families.push_back({family::update_matrix, update_matrices, true});
-        families.push_back({family::update_input, update_inputs, not head.read.has_value()});
-    }
-    else
-    {
-        auto state_updates = gather(loop.steps, [](const chunk_step& s) { return s.state_update; });
-        if(not loop.has_state)
-            state_updates[0] = zero_start_operands(*loop.states[1]).at(0);
-        families.push_back({family::state_update, state_updates});
-    }
+    auto updates = update_families(loop);
+    families.insert(families.end(), updates.begin(), updates.end());
     if(head.decay.has_value())
         families.push_back(
             {family::decay, gather(loop.steps, [](const chunk_step& s) { return *s.decay; })});
-    if(loop.has_out())
+    if(loop.head_output().out.has_value())
     {
         auto output_bases =
             gather(loop.outputs, [](const chunk_output& o) { return o.output_base; });
+        // chunk 0 of a zero start joins its output_base directly
         if(not loop.has_state)
-            output_bases[0] = loop.zero_out;
+            output_bases.front() = loop.concat()->inputs().front();
         families.push_back({family::output_base, output_bases});
     }
     return families;
@@ -988,13 +966,14 @@ struct family_input
     std::vector<operation> ops;
 };
 
-// The views stacking a family's chunks into `lens`, the (lead..., n, m, k)
-// its role takes. The stack axis goes ahead of the axes of a chunk that hold
-// one matrix, which keeps the elements of every problem in order; a dot
+// The views stacking a family's chunks into `lens`, the (lead..., chunks, m,
+// n) its role takes. The stack axis goes ahead of the axes of a chunk that
+// hold one matrix, which keeps the elements of every problem in order; a dot
 // operand has the matrix as its last two axes.
 std::optional<family_input> make_family_input(const operand_family& f,
                                               const std::vector<std::size_t>& lens)
 {
+    assert(lens.size() >= 3);
     auto present = present_chunks(f.chunks);
     if(not present.has_value() or present->size() != lens[lens.size() - 3])
         return std::nullopt;
@@ -1014,14 +993,14 @@ std::optional<family_input> make_family_input(const operand_family& f,
     if(matrix == tails.end())
         return std::nullopt;
     const std::size_t axis = clens.size() - std::distance(tails.begin(), matrix);
-    auto ops               = stack->ops;
+    auto ops               = std::move(stack->ops);
     if(axis != 0)
         ops.push_back(move_axis(clens.size() + 1, 0, axis));
     ops.push_back(make_op("reshape", {{"dims", lens}}));
     ops = optimize_shape_transforms(stack->lens, ops);
     if(stack->slice.has_value())
         ops.insert(ops.begin(), *stack->slice);
-    return family_input{stack->base, ops};
+    return family_input{stack->base, std::move(ops)};
 }
 
 // The step, read and out submodules in the kernel's order
@@ -1039,14 +1018,19 @@ std::vector<module_ref> scan_modules(module_pass_manager& mpm,
     return mods;
 }
 
-bool fuse_loop(module_pass_manager& mpm, const chunk_loop& loop, const std::string& prefix)
+bool fuse_loop(module_pass_manager& mpm,
+               const chunk_loop& loop,
+               const instruction_order& order,
+               const std::string& prefix)
 {
     auto& m                  = mpm.get_module();
     auto op                  = scan_op(loop);
-    const auto& concat_shape = loop.concat->get_shape();
+    const auto concat        = loop.concat();
+    const auto final_state   = loop.final_state();
+    const auto& concat_shape = concat->get_shape();
     const auto& out_lens     = op.output_shape.lens();
     const auto rows          = out_lens[out_lens.size() - 2] / op.chunks;
-    if(not joins_chunks(loop.concat, rows * out_lens.back()))
+    if(not joins_chunks(concat, rows * out_lens.back()))
         return false;
     std::vector<family_input> families;
     for(const auto& f : operand_families(loop))
@@ -1055,30 +1039,31 @@ bool fuse_loop(module_pass_manager& mpm, const chunk_loop& loop, const std::stri
         if(not input.has_value())
             return false;
         op.families.push_back(f.role);
-        families.push_back(*input);
+        families.push_back(std::move(*input));
     }
     // The scan replaces the concat and the final state, so it goes ahead of
     // both for their users to follow it. Every input must come before that:
     // one that does not may be computed from the final state.
-    const auto pos = first_of(m, loop.concat, loop.final_state);
+    assert(contains(order, concat) and contains(order, final_state));
+    const auto pos = comes_before(order, concat, final_state) ? concat : final_state;
     std::vector<instruction_ref> bases;
     if(op.has_state)
-        bases.push_back(*loop.states[0]);
+        bases.push_back(loop.head().state_in);
     std::transform(families.begin(), families.end(), std::back_inserter(bases), [](const auto& f) {
         return f.base;
     });
-    if(not all_before(m, bases, pos))
+    if(not std::all_of(
+           bases.begin(), bases.end(), [&](auto base) { return comes_before(order, base, pos); }))
         return false;
     // the operands' type, as the kernel takes it from the output matrix
-    const auto q =
-        std::find(op.families.begin(), op.families.end(), chunk_scan::family::output_matrix);
-    const auto type = accumulation_type(families[q - op.families.begin()].base->get_shape().type());
+    const auto type =
+        accumulation_type(loop.head_output().read->inputs().front()->get_shape().type());
     if(not same_bodies(loop, type))
         return false;
 
     std::vector<instruction_ref> inputs;
     if(op.has_state)
-        inputs.push_back(*loop.states[0]);
+        inputs.push_back(loop.head().state_in);
     std::transform(families.begin(),
                    families.end(),
                    std::back_inserter(inputs),
@@ -1089,8 +1074,8 @@ bool fuse_loop(module_pass_manager& mpm, const chunk_loop& loop, const std::stri
     auto state = m.insert_instruction(pos, make_op("get_tuple_elem", {{"index", 1}}), scan);
     if(concat_shape.lens() != op.output_shape.lens())
         out = m.insert_instruction(pos, make_op("reshape", {{"dims", concat_shape.lens()}}), out);
-    m.replace_instruction(loop.concat, out);
-    m.replace_instruction(loop.final_state, state);
+    m.replace_instruction(concat, out);
+    m.replace_instruction(final_state, state);
     return true;
 }
 
@@ -1100,8 +1085,10 @@ void fuse_chunk_split::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
     step_map steps;
+    instruction_order order;
     for(auto ins : iterator_for(m))
     {
+        order.emplace(ins, order.size());
         auto step = match_step(ins);
         if(not step.has_value())
             continue;
@@ -1122,9 +1109,9 @@ void fuse_chunk_split::apply(module_pass_manager& mpm) const
         heads.pop_front();
         if(not loop.has_value())
             continue;
-        // a recurrence fed by this one's final state is traced next
-        if(steps.by_state.count(loop->final_state) > 0)
-            heads.push_back(loop->final_state);
+        // a recurrence fed by this one's final state is traced too
+        if(steps.by_state.count(loop->final_state()) > 0)
+            heads.push_back(loop->final_state());
         if(check_concat(*loop))
             loops.push_back(std::move(*loop));
     }
@@ -1135,7 +1122,7 @@ void fuse_chunk_split::apply(module_pass_manager& mpm) const
     for(const auto& loop : loops)
     {
         n--;
-        fuse_loop(mpm, loop, m.name() + ":chunk_scan" + std::to_string(n));
+        fuse_loop(mpm, loop, order, m.name() + ":chunk_scan" + std::to_string(n));
     }
 }
 

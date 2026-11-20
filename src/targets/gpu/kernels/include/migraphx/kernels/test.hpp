@@ -26,6 +26,8 @@
 #define MIGRAPHX_GUARD_KERNELS_TEST_HPP
 
 #include <migraphx/kernels/print.hpp>
+#include <migraphx/kernels/bit.hpp>
+#include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/hip.hpp>
 
 namespace migraphx {
@@ -271,10 +273,11 @@ struct test_manager
     __device__ void
     failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
     {
-        const auto failing = __ballot(not bool(x.value()));
+        const auto idx     = make_index();
+        const auto failing = idx.ballot(not bool(x.value()));
         if(failing == 0)
             return;
-        if(__lane_id() == __builtin_ctzll(failing))
+        if(idx.local_wave() == countr_zero(failing))
         {
             migraphx::cout() << func << '\n';
             migraphx::cout() << file << ':' << line << ':' << '\n';

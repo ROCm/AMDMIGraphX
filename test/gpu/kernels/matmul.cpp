@@ -74,8 +74,8 @@ TEST_CASE_REGISTER(matmul_blocks<migraphx::half>)
 TEST_CASE_REGISTER(matmul_blocks<migraphx::bf16>)
 TEST_CASE_REGISTER(matmul_blocks<float>)
 
-// 32x32 blocks over k that every 32x32 instruction divides (64, 32) and k
-// that only some do (16, 8; 4 fits only f32 and gfx908 bf16)
+// 32x32 blocks over k that every 32x32 instruction divides (64, 32, 16) and
+// k that only some do (8 not the gfx950 x16; 4 only f32 and gfx908 bf16)
 template <class T>
 TEST_CASE_TEMPLATE(matmul_big_blocks)
 {

@@ -30,8 +30,8 @@
 // The unrolled gated delta recurrence over two chunks with a past state:
 // u = update_input - read_matrix S, o = output_base + output_matrix S,
 // S = S * decay + update_matrix u. The gpu target walks the chunks in one
-// kernel, accumulating half operands in float; 8 rows per chunk make the
-// stacked output and read matrix block of a matrix instruction span both.
+// kernel, accumulating half operands in float; with 8 rows per chunk one
+// 16-row matrix instruction block holds the output rows and the read rows.
 template <migraphx::shape::type_t DType>
 struct test_chunk_scan_gated : verify_program<test_chunk_scan_gated<DType>>
 {

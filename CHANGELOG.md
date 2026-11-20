@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added `onnx_options::map_input_values` and the driver option `--input-value` to give an ONNX input values instead of making it a parameter, so an `If` on that input only parses the branch it takes, for example the merged decoder of a model with KV cache (#5548).
 * Added a binary cache for compiled GPU kernels: identical kernels within a model compile once, and setting the `MIGRAPHX_BINARY_CACHE` environment variable (or the `binary_cache` backend option) also persists them on disk so later compiles of the same kernels skip compilation entirely, in a directory or, for a path ending in `.db` or `.sqlite`, in a single SQLite database; a `binary_cache_verify` backend option recompiles reused kernels and fails if they differ.
 * Optimized GridSample by adding a GPU JIT kernel for the ONNX `nearest`, `linear`/`bilinear`, and `cubic`/`bicubic` modes, replacing the `concat`+`gathernd` decomposition in the ONNX parser for those modes (#5139).
 * Added the `split_sym_dim` pass, which specializes bounded symbolic dimensions into static `select_module` submodules (#5123).

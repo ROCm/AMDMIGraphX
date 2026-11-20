@@ -44,6 +44,7 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     onnx::onnx_parser parser;
     parser.external_data_path  = options.external_data_path;
     parser.map_input_dims      = options.map_input_dims;
+    parser.map_input_values    = options.map_input_values;
     parser.dim_params          = options.dim_params;
     parser.map_dyn_input_dims  = options.map_dyn_input_dims;
     parser.use_debug_symbols   = options.use_debug_symbols;

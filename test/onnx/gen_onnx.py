@@ -31,7 +31,7 @@ from onnx import TensorProto
 from onnx.numpy_helper import from_array
 
 
-def onnx_test(external_data=False, opset_version=None):
+def onnx_test(external_data=False, opset_version=None, ir_version=None):
     def create_onnx_test(op_test):
         def run_test():
             op_info = op_test()
@@ -55,6 +55,9 @@ def onnx_test(external_data=False, opset_version=None):
                 model_def = helper.make_model(graph_def,
                                               producer_name=op_test.__name__)
 
+            if ir_version is not None:
+                model_def.ir_version = ir_version
+
             onnx.save_model(model_def,
                             '{}.onnx'.format(op_test.__name__),
                             save_as_external_data=external_data,
@@ -65,6 +68,219 @@ def onnx_test(external_data=False, opset_version=None):
         return run_test
 
     return create_onnx_test
+
+
+def _matmulinteger_test(a_type,
+                        b_type,
+                        a_dims,
+                        b_dims,
+                        output_dims,
+                        with_zp=True,
+                        za_dims=None,
+                        zb_dims=None):
+    a = helper.make_tensor_value_info('a', a_type, a_dims)
+    b = helper.make_tensor_value_info('b', b_type, b_dims)
+    inputs = [a, b]
+    node_inputs = ['a', 'b']
+    if with_zp:
+        za_dims = [1] if za_dims is None else za_dims
+        zb_dims = [1] if zb_dims is None else zb_dims
+        inputs.extend([
+            helper.make_tensor_value_info('za', a_type, za_dims),
+            helper.make_tensor_value_info('zb', b_type, zb_dims),
+        ])
+        node_inputs.extend(['za', 'zb'])
+    node = helper.make_node('MatMulInteger', node_inputs, ['y'])
+    output = helper.make_tensor_value_info('y', TensorProto.INT32, output_dims)
+    return ([node], inputs, [output])
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_correction_batched_int8_int8():
+    return _matmulinteger_test(
+        TensorProto.INT8,
+        TensorProto.INT8,
+        [2, 3, 4],
+        [1, 4, 2],
+        [2, 3, 2],
+        za_dims=[2, 3, 1],
+        zb_dims=[1, 1, 2],
+    )
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_correction_batched_int8_uint8():
+    return _matmulinteger_test(
+        TensorProto.INT8,
+        TensorProto.UINT8,
+        [2, 3, 4],
+        [1, 4, 2],
+        [2, 3, 2],
+        za_dims=[2, 3, 1],
+        zb_dims=[1, 1, 2],
+    )
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_correction_batched_uint8_int8():
+    return _matmulinteger_test(
+        TensorProto.UINT8,
+        TensorProto.INT8,
+        [2, 3, 4],
+        [1, 4, 2],
+        [2, 3, 2],
+        za_dims=[2, 3, 1],
+        zb_dims=[1, 1, 2],
+    )
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_correction_batched_uint8_uint8():
+    return _matmulinteger_test(
+        TensorProto.UINT8,
+        TensorProto.UINT8,
+        [2, 3, 4],
+        [1, 4, 2],
+        [2, 3, 2],
+        za_dims=[2, 3, 1],
+        zb_dims=[1, 1, 2],
+    )
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_correction_int8_int8():
+    return _matmulinteger_test(
+        TensorProto.INT8,
+        TensorProto.INT8,
+        [2, 3, 4],
+        [1, 4, 2],
+        [2, 3, 2],
+        za_dims=[3],
+        zb_dims=[2],
+    )
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_correction_int8_uint8():
+    return _matmulinteger_test(
+        TensorProto.INT8,
+        TensorProto.UINT8,
+        [2, 3, 4],
+        [1, 4, 2],
+        [2, 3, 2],
+        za_dims=[3],
+        zb_dims=[2],
+    )
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_correction_uint8_int8():
+    return _matmulinteger_test(
+        TensorProto.UINT8,
+        TensorProto.INT8,
+        [2, 3, 4],
+        [1, 4, 2],
+        [2, 3, 2],
+        za_dims=[3],
+        zb_dims=[2],
+    )
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_correction_uint8_uint8():
+    return _matmulinteger_test(
+        TensorProto.UINT8,
+        TensorProto.UINT8,
+        [2, 3, 4],
+        [1, 4, 2],
+        [2, 3, 2],
+        za_dims=[3],
+        zb_dims=[2],
+    )
+
+
+@onnx_test(opset_version=13, ir_version=10)
+def matmulinteger_int32_correction_test():
+    a = helper.make_tensor_value_info('a', TensorProto.UINT8, [1, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.INT32, [1, 2])
+    node = helper.make_node('MatMulInteger', ['a', 'b', 'za', 'zb'],
+                            ['output'])
+    initializers = [
+        from_array(np.array([[5, -2], [-4, 3], [2, 7], [-1, -3]],
+                            dtype=np.int8),
+                   name='b'),
+        from_array(np.asarray(1, dtype=np.uint8), name='za'),
+        from_array(np.asarray(0, dtype=np.int8), name='zb'),
+    ]
+    return ([node], [a], [output], initializers)
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_overflow_int8_150000():
+    return _matmulinteger_test(TensorProto.INT8, TensorProto.INT8, [1, 150000],
+                               [150000, 1], [1, 1])
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_overflow_int8_70000_vector():
+    return _matmulinteger_test(TensorProto.INT8, TensorProto.INT8, [70000],
+                               [70000], [])
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_overflow_uint8_131072():
+    return _matmulinteger_test(TensorProto.UINT8,
+                               TensorProto.UINT8, [1, 131072], [131072, 1],
+                               [1, 1],
+                               with_zp=False)
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_vector_lhs_int8_int8():
+    return _matmulinteger_test(TensorProto.INT8, TensorProto.INT8, [4], [4, 2],
+                               [2])
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_vector_lhs_int8_uint8():
+    return _matmulinteger_test(TensorProto.INT8, TensorProto.UINT8, [4],
+                               [4, 2], [2])
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_vector_lhs_uint8_int8():
+    return _matmulinteger_test(TensorProto.UINT8, TensorProto.INT8, [4],
+                               [4, 2], [2])
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_vector_lhs_uint8_uint8():
+    return _matmulinteger_test(TensorProto.UINT8, TensorProto.UINT8, [4],
+                               [4, 2], [2])
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_vector_rhs_int8_int8():
+    return _matmulinteger_test(TensorProto.INT8, TensorProto.INT8, [2, 4], [4],
+                               [2])
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_vector_rhs_int8_uint8():
+    return _matmulinteger_test(TensorProto.INT8, TensorProto.UINT8, [2, 4],
+                               [4], [2])
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_vector_rhs_uint8_int8():
+    return _matmulinteger_test(TensorProto.UINT8, TensorProto.INT8, [2, 4],
+                               [4], [2])
+
+
+@onnx_test(opset_version=13, ir_version=8)
+def matmulinteger_vector_rhs_uint8_uint8():
+    return _matmulinteger_test(TensorProto.UINT8, TensorProto.UINT8, [2, 4],
+                               [4], [2])
 
 
 @onnx_test()

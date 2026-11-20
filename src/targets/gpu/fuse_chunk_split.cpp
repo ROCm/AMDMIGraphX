@@ -897,6 +897,16 @@ bool all_before(const module& m, const std::vector<instruction_ref>& inss, instr
     return pending.empty();
 }
 
+// Whichever of a and b comes first in the module
+instruction_ref first_of(const module& m, instruction_ref a, instruction_ref b)
+{
+    auto inss = iterator_for(m);
+    auto it   = std::find_if(
+        inss.begin(), inss.end(), [&](instruction_ref ins) { return ins == a or ins == b; });
+    assert(it != inss.end());
+    return *it;
+}
+
 // The op's shapes: the kernel writes (lead..., n * rows, dv); the concat's
 // own layout is a reshape of that
 chunk_scan scan_op(const chunk_loop& loop)
@@ -1047,14 +1057,17 @@ bool fuse_loop(module_pass_manager& mpm, const chunk_loop& loop, const std::stri
         op.families.push_back(f.role);
         families.push_back(*input);
     }
-    // every input must be computed before the loop is replaced
+    // The scan replaces the concat and the final state, so it goes ahead of
+    // both for their users to follow it. Every input must come before that:
+    // one that does not may be computed from the final state.
+    const auto pos = first_of(m, loop.concat, loop.final_state);
     std::vector<instruction_ref> bases;
     if(op.has_state)
         bases.push_back(*loop.states[0]);
     std::transform(families.begin(), families.end(), std::back_inserter(bases), [](const auto& f) {
         return f.base;
     });
-    if(not all_before(m, bases, loop.concat))
+    if(not all_before(m, bases, pos))
         return false;
     // the operands' type, as the kernel takes it from the output matrix
     const auto q =
@@ -1069,14 +1082,13 @@ bool fuse_loop(module_pass_manager& mpm, const chunk_loop& loop, const std::stri
     std::transform(families.begin(),
                    families.end(),
                    std::back_inserter(inputs),
-                   [&](const auto& f) { return insert_ops(m, loop.concat, f.ops, f.base); });
+                   [&](const auto& f) { return insert_ops(m, pos, f.ops, f.base); });
     auto mods  = scan_modules(mpm, loop, prefix, type);
-    auto scan  = m.insert_instruction(loop.concat, op, inputs, mods);
-    auto out   = m.insert_instruction(loop.concat, make_op("get_tuple_elem", {{"index", 0}}), scan);
-    auto state = m.insert_instruction(loop.concat, make_op("get_tuple_elem", {{"index", 1}}), scan);
+    auto scan  = m.insert_instruction(pos, op, inputs, mods);
+    auto out   = m.insert_instruction(pos, make_op("get_tuple_elem", {{"index", 0}}), scan);
+    auto state = m.insert_instruction(pos, make_op("get_tuple_elem", {{"index", 1}}), scan);
     if(concat_shape.lens() != op.output_shape.lens())
-        out = m.insert_instruction(
-            loop.concat, make_op("reshape", {{"dims", concat_shape.lens()}}), out);
+        out = m.insert_instruction(pos, make_op("reshape", {{"dims", concat_shape.lens()}}), out);
     m.replace_instruction(loop.concat, out);
     m.replace_instruction(loop.final_state, state);
     return true;

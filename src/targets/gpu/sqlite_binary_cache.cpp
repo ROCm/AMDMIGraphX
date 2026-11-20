@@ -99,26 +99,36 @@ constexpr const char* rollback_sql = "ROLLBACK;";
 
 } // namespace
 
-optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path)
+static optional<sqlite> open_database(const std::string& path, bool read_only)
+{
+    // Opening for writing would create a missing file and take write locks.
+    if(read_only)
+        return sqlite::read(path);
+
+    // sqlite will not create a missing parent directory, but the file backend does, so
+    // this keeps the two backends behaving the same on a fresh machine. A failure here is
+    // left to the open below, since an existing database may still be readable.
+    auto parent = fs::path{path}.parent_path();
+    std::error_code ec;
+    if(not parent.empty())
+        fs::create_directories(parent, ec);
+
+    // A database that can be read but not written to is still worth having: reads serve
+    // hits and nothing is stored. Opening for writing already falls back to reading when the
+    // file itself is write-protected; reading is tried here for anything else that refuses
+    // a writer, such as a read-only mount, as long as there is a database to read.
+    auto db = sqlite::try_write(path);
+    if(not db.has_value() and fs::exists(path))
+        db = sqlite::read(path);
+    return db;
+}
+
+optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path, bool read_only)
 {
     sqlite_binary_cache r;
     try
     {
-        // sqlite will not create a missing parent directory, but the file backend does, so
-        // this keeps the two backends behaving the same on a fresh machine. A failure here is
-        // left to the open below, since an existing database may still be readable.
-        auto parent = fs::path{path}.parent_path();
-        std::error_code ec;
-        if(not parent.empty())
-            fs::create_directories(parent, ec);
-
-        // A database that can be read but not written to is still worth having: reads serve
-        // hits and nothing is stored. Opening for writing already falls back to reading when the
-        // file itself is write-protected; reading is tried here for anything else that refuses
-        // a writer, such as a read-only mount, as long as there is a database to read.
-        auto db = sqlite::try_write(path);
-        if(not db.has_value() and fs::exists(path))
-            db = sqlite::read(path);
+        auto db = open_database(path, read_only);
         if(not db.has_value())
         {
             log::warn() << "Disabling the binary cache: cannot open " << path;
@@ -126,14 +136,15 @@ optional<sqlite_binary_cache> sqlite_binary_cache::open(const std::string& path)
         }
         r.db = std::move(*db);
         r.db.set_busy_timeout(busy_timeout_ms);
-        if(r.db.read_only())
-        {
-            log::warn() << "Binary cache at " << path << " is read-only";
-        }
-        else
+        if(not r.db.read_only())
         {
             r.db.execute(schema_sql);
             r.store_stmt = r.db.prepare(store_sql);
+        }
+        // Only worth a warning when writes were wanted but the database refused them.
+        else if(not read_only)
+        {
+            log::warn() << "Binary cache at " << path << " is read-only";
         }
         // Without a working lookup there is no cache, so this failure disables the backend. That
         // includes a read-only database that was never given the schema.

@@ -47,13 +47,18 @@ std::optional<dyn_slice_bounds> prefix_stable_dyn_slice_bounds(instruction_ref i
     auto attributes = ins->get_operator().to_value();
     if(not attributes.contains("axes"))
         return std::nullopt;
-    auto starts_value = inputs.at(1)->sym_eval();
-    auto ends_value   = inputs.at(2)->sym_eval();
-    if(starts_value.empty() or ends_value.empty())
-        return std::nullopt;
-    auto axes   = attributes.at("axes").to_vector<int64_t>();
-    auto starts = starts_value.get().to_vector();
-    auto ends   = ends_value.get().to_vector();
+    auto axes = attributes.at("axes").to_vector<int64_t>();
+    // The bound inputs carry the run-time values of the starts and ends attributes; when they
+    // cannot be evaluated symbolically, as for the length output of dyn_concat, the attributes
+    // still give them
+    auto bounds = [&](std::size_t index, const std::string& name) {
+        auto value = inputs.at(index)->sym_eval();
+        if(value.empty())
+            return from_value<std::vector<sym::expr>>(attributes.at(name));
+        return value.get().to_vector();
+    };
+    auto starts = bounds(1, "starts");
+    auto ends   = bounds(2, "ends");
     if(axes.size() != starts.size() or axes.size() != ends.size())
         return std::nullopt;
 

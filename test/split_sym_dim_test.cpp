@@ -36,6 +36,7 @@
 #include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
 #include <test.hpp>
+#include <cmath>
 #include <limits>
 #include <numeric>
 #include <set>
@@ -4945,6 +4946,172 @@ TEST_CASE(split_sym_dim_dyn_concat_count_root)
         EXPECT(migraphx::contains(selections.front()->inputs(), selected));
         EXPECT(not migraphx::contains(selections.front()->inputs(), x));
         EXPECT(not migraphx::contains(selections.front()->inputs(), y));
+    }
+}
+
+// Attention over a key/value cache of variable length n, as in a decoder: the new key and value
+// are appended with dyn_concat, and dyn_slice keeps the n + 1 valid rows
+static migraphx::instruction_ref add_cached_attention(migraphx::module& m,
+                                                      migraphx::instruction_ref h,
+                                                      migraphx::instruction_ref past_k,
+                                                      migraphx::instruction_ref past_v,
+                                                      const se& n,
+                                                      std::size_t layer)
+{
+    const std::size_t d = 4;
+    auto weight         = [&](std::size_t seed) {
+        return m.add_literal(migraphx::generate_literal(
+            migraphx::shape{migraphx::shape::float_type, {1, d, d}}, 3 * layer + seed));
+    };
+    auto q     = m.add_instruction(migraphx::make_op("dot"), h, weight(0));
+    auto zero  = m.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
+    auto cache = [&](migraphx::instruction_ref past, std::size_t seed) {
+        auto next   = m.add_instruction(migraphx::make_op("dot"), h, weight(seed));
+        auto counts = m.add_instruction(
+            migraphx::make_op("eval_expr_from_shape",
+                              {{"expressions", migraphx::to_value(std::vector<se>{n, lit(1)})}}),
+            past);
+        auto concat =
+            m.add_instruction(migraphx::make_op("dyn_concat", {{"axis", 1}}), counts, past, next);
+        auto buffer =
+            m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
+        auto total = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
+        return m.add_instruction(
+            migraphx::make_op("dyn_slice",
+                              {{"axes", {1}},
+                               {"starts", {0}},
+                               {"ends", migraphx::value::array{migraphx::to_value(n + lit(1))}}}),
+            buffer,
+            zero,
+            total);
+    };
+    auto k  = cache(past_k, 1);
+    auto v  = cache(past_v, 2);
+    auto kt = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), k);
+    auto scores = m.add_instruction(migraphx::make_op("dot"), q, kt);
+    auto probs  = m.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), scores);
+    auto attn   = m.add_instruction(migraphx::make_op("dot"), probs, v);
+    return m.add_instruction(migraphx::make_op("add"), attn, h);
+}
+
+TEST_CASE(split_sym_dim_cached_attention)
+{
+    auto n = var("n", {1, 8}, {2});
+    migraphx::shape h_shape{migraphx::shape::float_type, {1, 1, 4}};
+    migraphx::shape past_shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(4)}}};
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    // As parsed with symbolic shapes, the input of fixed shape has literal dims
+    auto h = m.add_parameter(
+        "h", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{lit(4)}}});
+    auto layer = [&](migraphx::instruction_ref x, std::size_t i) {
+        auto past_k = m.add_parameter("past_k" + std::to_string(i), past_shape);
+        auto past_v = m.add_parameter("past_v" + std::to_string(i), past_shape);
+        return add_cached_attention(m, x, past_k, past_v, n, i);
+    };
+    auto out = layer(layer(h, 0), 1);
+    // A static projection after the last block
+    auto w = m.add_literal(
+        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1, 4, 4}}, 9));
+    m.add_return({m.add_instruction(migraphx::make_op("dot"), out, w)});
+
+    auto reference = p;
+    run_pass(p);
+
+    EXPECT(migraphx::any_of(migraphx::iterator_for(m),
+                            [](auto ins) { return ins->name() == "select_module"; }));
+    // Only the dispatch, its outputs and the shape reads stay symbolic in the main module
+    EXPECT(migraphx::all_of(migraphx::iterator_for(m), [](auto ins) {
+        return not ins->get_shape().dynamic() or
+               migraphx::contains(
+                   {"@param", "select_module", "get_tuple_elem", "eval_expr_from_shape"},
+                   ins->name());
+    }));
+
+    auto target = migraphx::make_target("ref");
+    reference.compile(target);
+    p.compile(target);
+    for(std::size_t length : {1u, 2u, 3u, 8u})
+    {
+        migraphx::shape past{migraphx::shape::float_type, {1, length, 4}};
+        migraphx::parameter_map params;
+        params["h"] = migraphx::generate_argument(h_shape, 1);
+        for(std::size_t i = 0; i < 2; ++i)
+        {
+            params["past_k" + std::to_string(i)] = migraphx::generate_argument(past, 2 + 2 * i);
+            params["past_v" + std::to_string(i)] = migraphx::generate_argument(past, 3 + 2 * i);
+        }
+        auto expected = reference.eval(params).back().to_vector<float>();
+        auto actual   = p.eval(params).back().to_vector<float>();
+        EXPECT(actual.size() == expected.size());
+        EXPECT(migraphx::all_of(migraphx::range(actual.size()), [&](auto i) {
+            return std::abs(actual[i] - expected[i]) <= 1e-4f * (1.0f + std::abs(expected[i]));
+        }));
+    }
+}
+
+// After the blocks, the weight of a projection is broadcast to literal symbolic dims, as the
+// MatMul parser does with symbolic shapes. The broadcast reads no symbolic value, so the code
+// after the blocks must re-emit it in static form when the dot is re-emitted.
+TEST_CASE(split_sym_dim_static_code_reads_fixed_broadcast)
+{
+    auto n = var("n", {1, 8}, {2});
+    migraphx::shape h_shape{migraphx::shape::float_type, {1, 1, 4}};
+    migraphx::shape past_shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(4)}}};
+    // The reference broadcasts the weight to static lens: ref cannot evaluate a broadcast to
+    // symbolic dims before the pass binds them
+    auto make_program = [&](bool symbolic_weight) {
+        migraphx::program p;
+        auto& m = *p.get_main_module();
+        auto h  = m.add_parameter(
+            "h",
+            migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{lit(4)}}});
+        auto layer = [&](migraphx::instruction_ref x, std::size_t i) {
+            auto past_k = m.add_parameter("past_k" + std::to_string(i), past_shape);
+            auto past_v = m.add_parameter("past_v" + std::to_string(i), past_shape);
+            return add_cached_attention(m, x, past_k, past_v, n, i);
+        };
+        auto out = layer(layer(h, 0), 1);
+        auto w   = m.add_literal(
+            migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {4, 4}}, 9));
+        auto bcast =
+            symbolic_weight
+                ? migraphx::make_op("multibroadcast",
+                                    {{"out_dyn_dims",
+                                      migraphx::to_value(std::vector<dd>{
+                                          dd{lit(1)}, dd{lit(4)}, dd{lit(4)}})}})
+                : migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 4}}});
+        auto wb   = m.add_instruction(bcast, w);
+        auto proj = m.add_instruction(migraphx::make_op("dot"), out, wb);
+        auto bias = m.add_literal(
+            migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {4}}, 10));
+        auto bb = m.add_instruction(migraphx::make_op("multibroadcast"), bias, proj);
+        m.add_return({m.add_instruction(migraphx::make_op("add"), proj, bb)});
+        return p;
+    };
+    auto p         = make_program(true);
+    auto reference = make_program(false);
+    run_pass(p);
+
+    auto target = migraphx::make_target("ref");
+    reference.compile(target);
+    p.compile(target);
+    for(std::size_t length : {1u, 3u, 8u})
+    {
+        migraphx::shape past{migraphx::shape::float_type, {1, length, 4}};
+        migraphx::parameter_map params;
+        params["h"] = migraphx::generate_argument(h_shape, 1);
+        for(std::size_t i = 0; i < 2; ++i)
+        {
+            params["past_k" + std::to_string(i)] = migraphx::generate_argument(past, 2 + 2 * i);
+            params["past_v" + std::to_string(i)] = migraphx::generate_argument(past, 3 + 2 * i);
+        }
+        auto expected = reference.eval(params).back().to_vector<float>();
+        auto actual   = p.eval(params).back().to_vector<float>();
+        EXPECT(actual.size() == expected.size());
+        EXPECT(migraphx::all_of(migraphx::range(actual.size()), [&](auto i) {
+            return std::abs(actual[i] - expected[i]) <= 1e-4f * (1.0f + std::abs(expected[i]));
+        }));
     }
 }
 

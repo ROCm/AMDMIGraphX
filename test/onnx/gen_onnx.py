@@ -9160,6 +9160,40 @@ def loop_outer_scope_nested_unordered_test():
 
 
 @onnx_test()
+def loop_outer_scope_forward_ref_test():
+    # Identity reads b_loop before the Loop node produces it, so the nodes have to be sorted, and
+    # the Loop body reads a2 from the outer scope without taking it as an input
+    body = helper.make_graph([
+        helper.make_node("Identity", ["keep_going_inp"], ["keep_going"]),
+        helper.make_node("Add", ["a2", "b_in"], ["my_local"]),
+    ], "body", [
+        helper.make_tensor_value_info('iteration_num', TensorProto.INT64, [1]),
+        helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('b_in', TensorProto.FLOAT, [1])
+    ], [
+        helper.make_tensor_value_info('keep_going', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('my_local', TensorProto.FLOAT, [1]),
+    ])
+
+    identity = helper.make_node("Identity", ["b_loop"], ["b_out"])
+    add = helper.make_node("Add", ["a", "a"], ["a2"])
+    loop = helper.make_node("Loop",
+                            inputs=["max_trip_count", "keep_going_cond", "b"],
+                            outputs=["b_loop"],
+                            body=body)
+
+    iter = helper.make_tensor_value_info('max_trip_count', TensorProto.INT64,
+                                         [1])
+    cond = helper.make_tensor_value_info('keep_going_cond', TensorProto.BOOL,
+                                         [1])
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [1])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [1])
+    b_out = helper.make_tensor_value_info('b_out', TensorProto.FLOAT, [1])
+
+    return ([identity, add, loop], [iter, cond, a, b], [b_out])
+
+
+@onnx_test()
 def loop_test_implicit_tripcnt():
     body = helper.make_graph([
         helper.make_node("Add", ["a", "b_in"], ["my_local"]),

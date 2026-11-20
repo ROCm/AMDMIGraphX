@@ -458,10 +458,13 @@ static void collect_outer_scope_inputs(const onnx::GraphProto& graph,
                                        std::unordered_set<std::string>& result)
 {
     std::unordered_set<std::string> defined;
-    for(auto&& input : graph.input())
-        defined.insert(input.name());
-    for(auto&& initializer : graph.initializer())
-        defined.insert(initializer.name());
+    auto name = [](const auto& x) { return x.name(); };
+    std::transform(
+        graph.input().begin(), graph.input().end(), std::inserter(defined, defined.end()), name);
+    std::transform(graph.initializer().begin(),
+                   graph.initializer().end(),
+                   std::inserter(defined, defined.end()),
+                   name);
     for(auto&& node : graph.node())
         defined.insert(node.output().begin(), node.output().end());
 
@@ -475,11 +478,10 @@ static void collect_outer_scope_inputs(const onnx::GraphProto& graph,
                 collect_outer_scope_inputs(attr.g(), used);
         }
     }
-    for(auto&& name : used)
-    {
-        if(not name.empty() and not contains(defined, name))
-            result.insert(name);
-    }
+    std::copy_if(used.begin(),
+                 used.end(),
+                 std::inserter(result, result.end()),
+                 [&](const std::string& n) { return not n.empty() and not contains(defined, n); });
 }
 
 // The values a node reads through its subgraphs, so it has to be parsed after their producers

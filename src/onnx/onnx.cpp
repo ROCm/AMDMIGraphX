@@ -114,7 +114,15 @@ program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options
 
 const std::vector<std::string>& get_onnx_operators()
 {
-    static std::vector<std::string> result = onnx::get_op_parsers();
+    // Refresh from the parser registry on each call rather than snapshotting once.
+    // A one-shot function-local-static cached the set the first time this was called,
+    // which could be before all op_parser auto-register static initializers had run
+    // (static-init order across DLLs is unspecified). That dropped late-registered
+    // parsers (e.g. GptOssMoE) from the set the MIGraphX EP reads in GetCapability,
+    // so the EP never claimed those nodes. Re-querying makes the result reflect the
+    // fully-initialized registry by the time it is actually used.
+    static std::vector<std::string> result;
+    result = onnx::get_op_parsers();
     return result;
 }
 

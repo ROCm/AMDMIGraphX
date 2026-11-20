@@ -45,23 +45,15 @@ Torch-MIGraphX into a Python virtual environment.
 1. Create and activate a virtual environment or activate an existing ROCm
    |ROCM_VERSION| environment.
 
-   .. tab-set::
+   .. code-block:: bash
 
-      .. tab-item:: Python 3.14
-         :sync: py314
+      python3 -m venv .venv
+      source .venv/bin/activate
 
-         .. code-block:: bash
+   .. note::
 
-            python3.14 -m venv .venv
-            source .venv/bin/activate
-
-      .. tab-item:: Python 3.12
-         :sync: py312
-
-         .. code-block:: bash
-
-            python3.12 -m venv .venv
-            source .venv/bin/activate
+      This command may vary depending on the Python version installed on
+      your system (for example, ``python3.12 -m venv .venv``).
 
 2. Install a ROCm-enabled PyTorch release into the environment. See
    |TORCH_INSTALL_DOC|.

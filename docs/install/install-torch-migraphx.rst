@@ -57,7 +57,9 @@ Torch-MIGraphX into a Python virtual environment.
       your system (for example, ``python3.12 -m venv .venv``).
 
 2. Install a ROCm-enabled PyTorch release into the environment. See
-   |TORCH_INSTALL_DOC|.
+   |TORCH_INSTALL_DOC|. **If you're installing into an existing ROCm
+   environment**, select that environment's ROCm version on the
+   selector panel, which might not match ROCm |ROCM_VERSION|.
 
 3. Install the ``torch_migraphx`` wheel. This also installs the matching
    MIGraphX |MIGRAPHX_VERSION| wheel.

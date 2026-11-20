@@ -96,16 +96,14 @@ Torch-MIGraphX into a Python virtual environment.
             ROCm's pip wheels place their shared libraries inside your
             virtual environment's ``site-packages`` instead of
             ``/opt/rocm``, so add them to ``LD_LIBRARY_PATH`` before
-            running the commands:
+            running the commands. Run this command again in each new
+            shell session after activating the virtual environment.
 
             .. code-block:: bash
 
                ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
                ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
                export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:$LD_LIBRARY_PATH
-
-            To make this permanent, add these lines to your shell
-            startup script.
 
          .. tab-item:: Installed ROCm using a package manager
             :sync: rocm-pkgman

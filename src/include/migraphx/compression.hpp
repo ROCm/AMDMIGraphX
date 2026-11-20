@@ -30,33 +30,25 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
- 
-// zstd compression of whole buffers.
-//
-// Everything written is a single standard zstd frame (RFC 8878) recording the size of its
-// content and a checksum of it, so the stock zstd tool can read it and damage is reported as an
-// error rather than decoded into wrong bytes. zstd.h is only included by compression.cpp, so the
-// dependency does not reach users of this header.
 
-/// zstd's own default: about the ratio of zlib's default, at a fraction of the time.
-constexpr int default_zstd_level = 3;
+// Each buffer is one standard zstd frame (RFC 8878) with its content size and a checksum, so the
+// zstd tool can read it and damage is an error rather than wrong bytes. zstd.h stays private to
+// compression.cpp.
 
 /// The largest content zstd_decompress produces unless told otherwise. A frame records its own
 /// size, so this bounds what a damaged size field can make it allocate.
 constexpr std::size_t default_zstd_max_size = std::size_t{256} << 20u;
 
-/// Compress into one zstd frame.
-MIGRAPHX_EXPORT std::vector<char>
-zstd_compress(const char* data, std::size_t size, int level = default_zstd_level);
+/// Compress into one zstd frame, at zstd's default level.
+MIGRAPHX_EXPORT std::vector<char> zstd_compress(const char* data, std::size_t size);
 
-inline std::vector<char> zstd_compress(const std::vector<char>& data,
-                                       int level = default_zstd_level)
+inline std::vector<char> zstd_compress(const std::vector<char>& data)
 {
-    return zstd_compress(data.data(), data.size(), level);
+    return zstd_compress(data.data(), data.size());
 }
 
-/// Decompress exactly one zstd frame. Throws when the input is not one whole frame, is damaged
-/// (including a checksum mismatch), needs a dictionary, or holds more than max_size bytes.
+/// Decompress exactly one zstd frame that records its content size, at most max_size bytes.
+/// Throws otherwise, or when the frame is damaged or needs a dictionary.
 MIGRAPHX_EXPORT std::vector<char>
 zstd_decompress(const char* data, std::size_t size, std::size_t max_size = default_zstd_max_size);
 
@@ -65,9 +57,6 @@ inline std::vector<char> zstd_decompress(const std::vector<char>& data,
 {
     return zstd_decompress(data.data(), data.size(), max_size);
 }
-
-/// True when the data starts with the magic number of a zstd frame.
-MIGRAPHX_EXPORT bool is_zstd_frame(const char* data, std::size_t size);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

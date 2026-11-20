@@ -62,9 +62,6 @@ constexpr int busy_timeout_ms = 5000;
 // The primary key leads with version so that dropping everything belonging to a superseded
 // toolchain is a range scan rather than a full table scan. Point lookups bind all three and do
 // not care about the order.
-//
-// The code column holds a zstd frame of the msgpack of the compiled code. The other columns are
-// left as text, so that the cache can still be inspected and queried with SQL.
 constexpr const char* schema_sql = R"__migraphx__(
 CREATE TABLE IF NOT EXISTS cache_v1 (
   version   TEXT    NOT NULL,

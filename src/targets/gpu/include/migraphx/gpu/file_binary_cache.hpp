@@ -38,8 +38,8 @@ namespace gpu {
 
 // A binary_cache_backend that keeps each entry as a file under a root directory, laid out
 // <root>/<version>/<device>/<md5 of key>.mxr. The version directory is named after the build
-// that wrote it, so the tree is self-describing. Each file is a zstd frame of the msgpack of the
-// whole entry, so `zstd -d` recovers the msgpack.
+// that wrote it, so the tree is self-describing. Each file is a zstd frame of the entry's
+// msgpack.
 struct MIGRAPHX_GPU_EXPORT file_binary_cache
 {
     optional<binary_cache_entry>

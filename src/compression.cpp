@@ -46,11 +46,17 @@ std::size_t check(std::size_t r, const char* what)
 }
 
 // The magic number that opens every zstd frame (RFC 8878 section 3.1.1), little endian.
-constexpr std::array<unsigned char, 4> frame_magic = {0x28, 0xb5, 0x2f, 0xfd};
+constexpr std::array<char, 4> frame_magic = {'\x28', '\xb5', '\x2f', '\xfd'};
+
+// Skippable frames have a different magic number, and ZSTD_findFrameCompressedSize accepts them.
+bool is_zstd_frame(const char* data, std::size_t size)
+{
+    return size >= frame_magic.size() and std::equal(frame_magic.begin(), frame_magic.end(), data);
+}
 
 } // namespace
 
-std::vector<char> zstd_compress(const char* data, std::size_t size, int level)
+std::vector<char> zstd_compress(const char* data, std::size_t size)
 {
     cctx_ptr cctx{ZSTD_createCCtx()};
     if(cctx == nullptr)
@@ -59,18 +65,9 @@ std::vector<char> zstd_compress(const char* data, std::size_t size, int level)
     // content size lets the reader allocate once and check it against its limit up front.
     check(ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_checksumFlag, 1), "checksum flag");
     check(ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_contentSizeFlag, 1), "content size flag");
-    check(ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_compressionLevel, level), "level");
     std::vector<char> out(ZSTD_compressBound(size));
     out.resize(check(ZSTD_compress2(cctx.get(), out.data(), out.size(), data, size), "compress"));
     return out;
-}
-
-bool is_zstd_frame(const char* data, std::size_t size)
-{
-    return size >= frame_magic.size() and
-           std::equal(frame_magic.begin(), frame_magic.end(), data, [](auto m, char c) {
-               return m == static_cast<unsigned char>(c);
-           });
 }
 
 std::vector<char> zstd_decompress(const char* data, std::size_t size, std::size_t max_size)
@@ -87,20 +84,14 @@ std::vector<char> zstd_decompress(const char* data, std::size_t size, std::size_
     if(content > max_size)
         MIGRAPHX_THROW("zstd: content of " + std::to_string(content) + " bytes exceeds the " +
                        std::to_string(max_size) + " byte limit");
-    if(ZSTD_getDictID_fromFrame(data, size) != 0)
-        MIGRAPHX_THROW("zstd: the frame needs a dictionary");
 
     dctx_ptr dctx{ZSTD_createDCtx()};
     if(dctx == nullptr)
         MIGRAPHX_THROW("zstd: cannot create a decompression context");
-    // One spare byte, so that an empty frame still has somewhere to point and a frame holding
-    // more than it records fails rather than fitting exactly.
-    std::vector<char> out(content + 1);
-    auto n =
-        check(ZSTD_decompressDCtx(dctx.get(), out.data(), out.size(), data, size), "decompress");
-    if(n != content)
-        MIGRAPHX_THROW("zstd: the frame holds a different size than it records");
-    out.resize(content);
+    // zstd itself rejects a frame that needs a dictionary or decodes to other than its recorded
+    // size, so out is exactly filled when this succeeds.
+    std::vector<char> out(content);
+    check(ZSTD_decompressDCtx(dctx.get(), out.data(), out.size(), data, size), "decompress");
     return out;
 }
 

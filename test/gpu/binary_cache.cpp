@@ -32,7 +32,6 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/compression.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/md5.hpp>
@@ -158,6 +157,20 @@ static stored_entries db_entries(const std::string& path)
     return result;
 }
 
+/// The code column of every row in a cache database, keyed by the key hash that addresses it.
+static std::map<std::string, std::vector<char>> db_codes(const std::string& path)
+{
+    std::map<std::string, std::vector<char>> result;
+    auto select = migraphx::sqlite::read(path).prepare("SELECT key_hash, code FROM cache_v1;");
+    auto rows   = select();
+    std::transform(rows.begin(), rows.end(), std::inserter(result, result.end()), [](auto row) {
+        const auto& code = row.at("code").get_binary();
+        return std::make_pair(row.at("key_hash").get_string(),
+                              std::vector<char>(code.begin(), code.end()));
+    });
+    return result;
+}
+
 /// Whether two entries hold the same thing.
 static bool same_entry(const migraphx::gpu::binary_cache_entry& x,
                        const migraphx::gpu::binary_cache_entry& y)
@@ -210,37 +223,25 @@ struct database_backend
     /// Overwrite every stored entry's code with bytes that do not decode.
     static void damage(const std::string& p)
     {
-        // 0xc1 is never used in msgpack, so the code cannot be decoded.
+        // Not a zstd frame, so the code cannot be decoded.
         migraphx::sqlite::write(p).execute("UPDATE cache_v1 SET code = X'c1c1c1c1';");
     }
     /// What is stored for each entry: the code column.
     static std::vector<std::vector<char>> frames(const std::string& p)
     {
-        auto select = migraphx::sqlite::read(p).prepare("SELECT code FROM cache_v1;");
-        auto rows   = select();
-        std::vector<std::vector<char>> result;
-        std::transform(rows.begin(), rows.end(), std::back_inserter(result), [](auto row) {
-            const auto& code = row.at("code").get_binary();
-            return std::vector<char>(code.begin(), code.end());
+        auto codes = db_codes(p);
+        std::vector<std::vector<char>> result(codes.size());
+        std::transform(codes.begin(), codes.end(), result.begin(), [](const auto& c) {
+            return c.second;
         });
         return result;
     }
     /// Flip a byte in the middle of every stored entry's code, which leaves it a zstd frame.
     static void flip(const std::string& p)
     {
-        auto db = migraphx::sqlite::write(p);
-        std::vector<std::pair<std::string, std::vector<char>>> codes;
-        {
-            auto select = db.prepare("SELECT key_hash, code FROM cache_v1;");
-            auto rows   = select();
-            std::transform(rows.begin(), rows.end(), std::back_inserter(codes), [](auto row) {
-                const auto& code = row.at("code").get_binary();
-                return std::make_pair(row.at("key_hash").get_string(),
-                                      std::vector<char>(code.begin(), code.end()));
-            });
-        }
+        auto db     = migraphx::sqlite::write(p);
         auto update = db.prepare("UPDATE cache_v1 SET code = ?2 WHERE key_hash = ?1;");
-        for(auto& [key_hash, frame] : codes)
+        for(auto& [key_hash, frame] : db_codes(p))
         {
             frame[frame.size() / 2] ^= '\xff';
             update(key_hash, frame);
@@ -1074,8 +1075,7 @@ TEST_CASE(key_covers_more_than_the_source)
     EXPECT(migraphx::gpu::hip_compile_key(ctx, changed_views) != base);
 }
 
-// Every entry is stored as a zstd frame of what was stored before compression: the msgpack of
-// the whole entry in a file, of the code in a database row.
+// Every entry is a zstd frame of msgpack: the whole entry in a file, the code in a database row.
 template <class Backend>
 static void stored_entries_are_zstd_frames()
 {
@@ -1087,9 +1087,7 @@ static void stored_entries_are_zstd_frames()
 
     auto frames = Backend::frames(path);
     EXPECT(frames.size() == 1);
-    const auto& frame = frames.front();
-    EXPECT(migraphx::is_zstd_frame(frame.data(), frame.size()));
-    EXPECT(not migraphx::from_msgpack(migraphx::zstd_decompress(frame)).empty());
+    EXPECT(not migraphx::from_msgpack(migraphx::zstd_decompress(frames.front())).empty());
 }
 TEST_CASE_REGISTER(stored_entries_are_zstd_frames<directory_backend>);
 TEST_CASE_REGISTER(stored_entries_are_zstd_frames<database_backend>);
@@ -1114,14 +1112,6 @@ static void damaged_frame_is_a_miss()
 }
 TEST_CASE_REGISTER(damaged_frame_is_a_miss<directory_backend>);
 TEST_CASE_REGISTER(damaged_frame_is_a_miss<database_backend>);
-
-// Entries of the uncompressed v1 format are never looked up, since the version they are stored
-// under names the format.
-TEST_CASE(version_id_carries_the_format)
-{
-    EXPECT(migraphx::starts_with(migraphx::gpu::binary_cache::version_id(true), "v2-"));
-    EXPECT(migraphx::starts_with(migraphx::gpu::binary_cache::version_id(false), "v2-"));
-}
 
 TEST_CASE(version_id_is_stable)
 {

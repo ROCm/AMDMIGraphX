@@ -40,9 +40,7 @@ static std::vector<char> random_bytes(std::size_t n)
 TEST_CASE(round_trip_empty)
 {
     std::vector<char> data;
-    auto frame = migraphx::zstd_compress(data);
-    EXPECT(migraphx::is_zstd_frame(frame.data(), frame.size()));
-    EXPECT(migraphx::zstd_decompress(frame).empty());
+    EXPECT(migraphx::zstd_decompress(migraphx::zstd_compress(data)).empty());
 }
 
 TEST_CASE(round_trip_one_byte)
@@ -57,7 +55,6 @@ TEST_CASE(round_trip_shrinks_redundant_data)
     std::vector<char> data(1u << 16u);
     std::iota(data.begin(), data.end(), char{0});
     auto frame = migraphx::zstd_compress(data);
-    EXPECT(migraphx::is_zstd_frame(frame.data(), frame.size()));
     EXPECT(frame.size() < data.size() / 2);
     EXPECT(migraphx::zstd_decompress(frame) == data);
 }
@@ -68,19 +65,9 @@ TEST_CASE(round_trip_incompressible_data)
     EXPECT(migraphx::zstd_decompress(migraphx::zstd_compress(data)) == data);
 }
 
-TEST_CASE(levels_round_trip)
-{
-    auto data = random_bytes(4096);
-    data.insert(data.end(), data.begin(), data.end());
-    for(int level : {1, 3, 19})
-        EXPECT(migraphx::zstd_decompress(migraphx::zstd_compress(data, level)) == data);
-}
-
 TEST_CASE(not_a_frame_throws)
 {
-    // 0xc1 is never used in msgpack: what a damaged or uncompressed entry might hold.
     const std::vector<char> data(4, '\xc1');
-    EXPECT(not migraphx::is_zstd_frame(data.data(), data.size()));
     EXPECT(test::throws([&] { migraphx::zstd_decompress(data); }));
 }
 
@@ -90,7 +77,6 @@ TEST_CASE(truncated_frame_throws)
     frame.pop_back();
     EXPECT(test::throws([&] { migraphx::zstd_decompress(frame); }));
     frame.resize(3);
-    EXPECT(not migraphx::is_zstd_frame(frame.data(), frame.size()));
     EXPECT(test::throws([&] { migraphx::zstd_decompress(frame); }));
 }
 
@@ -110,7 +96,6 @@ TEST_CASE(damaged_content_fails_the_checksum)
 {
     auto frame = migraphx::zstd_compress(random_bytes(4096));
     frame[frame.size() / 2] ^= '\x10';
-    EXPECT(migraphx::is_zstd_frame(frame.data(), frame.size()));
     EXPECT(test::throws([&] { migraphx::zstd_decompress(frame); }));
 }
 

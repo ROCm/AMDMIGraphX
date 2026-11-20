@@ -31,7 +31,19 @@
 import re
 
 html_theme = "rocm_docs_theme"
-html_theme_options = {"flavor": "rocm-docs-home"}
+html_theme_options = {
+    "flavor": "ai-ecosystem",
+    "link_main_doc": True,
+    "repository_url": "https://github.com/ROCm/AMDMIGraphX",
+    "use_repository_button": True,
+    "use_issues_button": True,
+    "use_download_button": True,
+}
+
+# Publish the llms.txt index at the docs site root and let
+# rocm-docs-core generate llms-full.txt after each build (the llms.txt standard,
+# https://llmstxt.org/).
+rocm_docs_generate_llms = True
 
 templates_path = ["."]  # Use the current folder for templates
 

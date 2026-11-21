@@ -342,11 +342,16 @@ static std::size_t hash_scalar(scalar s)
     return visit(
         [](auto x) -> std::size_t {
             using t = std::decay_t<decltype(x)>;
+            // A whole number within int64 hashes as that integer, so it matches the integer
+            // literal of the same value
             if constexpr(std::is_floating_point<t>{})
             {
-                int64_t i = x;
-                if(float_equal(x, i))
-                    return hash_value(i);
+                if(std::isfinite(x) and std::abs(x) < 0x1p63)
+                {
+                    int64_t i = x;
+                    if(float_equal(x, i))
+                        return hash_value(i);
+                }
             }
             return hash_value(x);
         },

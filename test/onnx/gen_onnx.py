@@ -12352,6 +12352,48 @@ def nms_dynamic_classes_test():
 
 
 @onnx_test()
+def nms_pad_int32_test():
+    # Pads the selected indices with zeros to 10 entries, with the pad size computed in int32 the
+    # way tf2onnx exports it
+    b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 6, 4])
+    s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 6])
+    mo = helper.make_tensor_value_info('max_output_boxes_per_class',
+                                       TensorProto.INT64, [1])
+    iou = helper.make_tensor_value_info('iou_threshold', TensorProto.FLOAT,
+                                        [1])
+    st = helper.make_tensor_value_info('score_threshold', TensorProto.FLOAT,
+                                       [1])
+    out = helper.make_tensor_value_info('y', TensorProto.INT64, [10])
+
+    starts = helper.make_tensor('starts', TensorProto.INT64, [1], [2])
+    ends = helper.make_tensor('ends', TensorProto.INT64, [1], [3])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [1])
+    size = helper.make_tensor('size', TensorProto.INT32, [1], [10])
+    zero = helper.make_tensor('zero', TensorProto.INT64, [], [0])
+
+    nodes = [
+        helper.make_node('NonMaxSuppression', [
+            'boxes', 'scores', 'max_output_boxes_per_class', 'iou_threshold',
+            'score_threshold'
+        ], ['selected_indices']),
+        helper.make_node('Slice',
+                         ['selected_indices', 'starts', 'ends', 'axes'],
+                         ['box_column']),
+        helper.make_node('Squeeze', ['box_column', 'axes'], ['box_indices']),
+        helper.make_node('Shape', ['box_indices'], ['num_selected']),
+        helper.make_node('Cast', ['num_selected'], ['num_selected_int32'],
+                         to=TensorProto.INT32),
+        helper.make_node('Sub', ['size', 'num_selected_int32'], ['pad_int32']),
+        helper.make_node('Cast', ['pad_int32'], ['pad'], to=TensorProto.INT64),
+        helper.make_node('Expand', ['zero', 'pad'], ['zeros']),
+        helper.make_node('Concat', ['box_indices', 'zeros'], ['y'], axis=0),
+    ]
+
+    return (nodes, [b, s, mo, iou,
+                    st], [out], [starts, ends, axes, size, zero])
+
+
+@onnx_test()
 def nonmaxsuppression_zero_boxes_test():
     b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 6, 4])
     s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 6])
@@ -14789,6 +14831,35 @@ def randomuniformlike_type_error_test():
                                  seed=seed)
 
     return ([node], [input], [output])
+
+
+@onnx_test()
+def range_float_min_test():
+    # Range over min(5, len(x)), computed in float the way tf2onnx exports a TensorFlow minimum
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N'])
+    out = helper.make_tensor_value_info('y', TensorProto.INT32, ['M'])
+
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+    one = helper.make_tensor('one', TensorProto.INT64, [1], [1])
+    limit = helper.make_tensor('limit', TensorProto.FLOAT, [], [5.0])
+    start = helper.make_tensor('start', TensorProto.INT32, [], [0])
+    delta = helper.make_tensor('delta', TensorProto.INT32, [], [1])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['x_shape']),
+        helper.make_node('Cast', ['x_shape'], ['x_shape_int32'],
+                         to=TensorProto.INT32),
+        helper.make_node('Slice', ['x_shape_int32', 'zero', 'one'], ['n']),
+        helper.make_node('Squeeze', ['n', 'zero'], ['n_scalar']),
+        helper.make_node('Cast', ['n_scalar'], ['n_float'],
+                         to=TensorProto.FLOAT),
+        helper.make_node('Min', ['limit', 'n_float'], ['count_float']),
+        helper.make_node('Cast', ['count_float'], ['count'],
+                         to=TensorProto.INT32),
+        helper.make_node('Range', ['start', 'count', 'delta'], ['y']),
+    ]
+
+    return (nodes, [x], [out], [zero, one, limit, start, delta])
 
 
 @onnx_test()

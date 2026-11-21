@@ -749,7 +749,11 @@ struct remove_qdq_pairs
                             replacement.ops.end(),
                             replacement.input->get_shape(),
                             [](const auto& s, const auto& op) { return op.compute_shape({s}); });
-        if(replacement_shape != dq_ins->get_shape())
+        // Only the type and lengths have to match. The replacement can have different strides
+        // than the dequantizelinear output, such as a broadcast or slice of the float input.
+        const auto& dq_shape = dq_ins->get_shape();
+        if(replacement_shape.type() != dq_shape.type() or
+           replacement_shape.lens() != dq_shape.lens())
             return std::nullopt;
         return replacement;
     }

@@ -122,11 +122,9 @@ struct convert : unary<convert>
                 return whole;
             if(target != shape::bool_type)
                 return whole;
-            const auto value = sym::fixed_value(whole);
-            if(not value.has_value())
-                return sym::expr{};
-            const auto integer = sym::to<int64_t>(*value);
-            if(integer != 0 and integer != 1)
+            // A whole number from 0 to 1, as a comparison gives, is the same as a bool
+            const auto bounds = whole.eval_interval();
+            if(sym::to<double>(bounds.min) < 0 or sym::to<double>(bounds.max) > 1)
                 return sym::expr{};
             return whole;
         };

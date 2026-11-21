@@ -428,6 +428,58 @@ TEST_CASE(op_sym_equal)
     EXPECT(result == symbolic_tensor_value{lit(1), lit(0)});
 }
 
+TEST_CASE(op_sym_compare)
+{
+    const auto s = var("S", {1, 16});
+    const auto t = var("T", {1, 16});
+    auto compare = [](const std::string& name,
+                      shape::type_t type,
+                      const symbolic_tensor_value& x,
+                      const symbolic_tensor_value& y) {
+        return symbolic_compute(migraphx::make_op(name),
+                                shape{type, {2}},
+                                {shape{type, {2}}, shape{type, {2}}},
+                                {x, y});
+    };
+    // A known order gives a literal, and the others a comparison of the symbols
+    EXPECT(compare("greater", shape::int64_type, {s, s}, {lit(0), t}) ==
+           symbolic_tensor_value{lit(1), migraphx::sym::less_than(t, s)});
+    EXPECT(compare("less", shape::float_type, {s, lit(2.0)}, {lit(20.0), t}) ==
+           symbolic_tensor_value{lit(1), migraphx::sym::less_than(lit(2.0), t)});
+}
+
+TEST_CASE(op_sym_not)
+{
+    const auto s = var("S", {1, 16});
+    const auto c = migraphx::sym::less_than(s, lit(8));
+    EXPECT(symbolic_compute(migraphx::make_op("not"),
+                            shape{shape::bool_type, {2}},
+                            {shape{shape::bool_type, {2}}},
+                            {symbolic_tensor_value{c, lit(1)}}) ==
+           symbolic_tensor_value{1 - c, lit(0)});
+    // A value other than 0 or 1
+    EXPECT(not symbolic_compute(migraphx::make_op("not"),
+                                shape{shape::bool_type, {1}},
+                                {shape{shape::bool_type, {1}}},
+                                {symbolic_tensor_value{s}})
+                   .has_value());
+}
+
+TEST_CASE(op_sym_convert_comparison_to_bool)
+{
+    const auto s = var("S", {1, 16});
+    const auto c = migraphx::sym::less_than(s, lit(8));
+    EXPECT(symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::bool_type}}),
+                            shape{shape::bool_type, {1}},
+                            {shape{shape::float_type, {1}}},
+                            {symbolic_tensor_value{c}}) == symbolic_tensor_value{c});
+    EXPECT(not symbolic_compute(migraphx::make_op("convert", {{"target_type", shape::bool_type}}),
+                                shape{shape::bool_type, {1}},
+                                {shape{shape::int64_type, {1}}},
+                                {symbolic_tensor_value{s}})
+                   .has_value());
+}
+
 TEST_CASE(op_sym_where)
 {
     const auto s = var("S", {1, 16});
@@ -508,15 +560,15 @@ TEST_CASE(op_sym_convert_rejects_unsupported_cases)
                    .has_value());
 }
 
-TEST_CASE(op_sym_equal_rejects_indeterminate_comparison)
+TEST_CASE(op_sym_equal_indeterminate_comparison)
 {
     const auto s = var("S", {1, 16});
     const auto t = var("T", {1, 16});
-    EXPECT(not symbolic_compute(migraphx::make_op("equal"),
-                                shape{shape::int64_type, {1}},
-                                {shape{shape::int64_type, {1}}, shape{shape::int64_type, {1}}},
-                                {symbolic_tensor_value{s}, symbolic_tensor_value{t}})
-                   .has_value());
+    EXPECT(symbolic_compute(migraphx::make_op("equal"),
+                            shape{shape::int64_type, {1}},
+                            {shape{shape::int64_type, {1}}, shape{shape::int64_type, {1}}},
+                            {symbolic_tensor_value{s}, symbolic_tensor_value{t}}) ==
+           symbolic_tensor_value{migraphx::sym::equal_to(s, t)});
 }
 
 TEST_CASE(op_sym_where_rejects_symbolic_condition)

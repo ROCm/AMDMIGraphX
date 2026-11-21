@@ -31,6 +31,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/value.hpp>
+#include <cassert>
 #include <utility>
 
 namespace migraphx {
@@ -167,8 +168,10 @@ struct hip_load_scalar
     std::string name() const { return "hip::load_scalar"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).elements(1);
-        return {inputs.front().type(), inputs.front().lens()};
+        check_shapes{inputs, *this}.has(1);
+        if(inputs.front().element_space() != 1)
+            MIGRAPHX_THROW("LOAD_SCALAR: input must occupy a single element");
+        return inputs.front();
     }
     void finalize(context&, const shape& output_shape, const std::vector<shape>&)
     {
@@ -176,7 +179,10 @@ struct hip_load_scalar
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        copy_from_gpu(ctx, args.front(), result);
+        // Stride-0 inputs are not packed, so copy a one-element view to stay on the memcpy path
+        assert(args.front().get_shape().type() == result.get_shape().type());
+        shape element{result.get_shape().type()};
+        copy_from_gpu(ctx, args.front().reshape(element), result.reshape(element));
         gpu_spin_sync(ctx);
         return result;
     }

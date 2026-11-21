@@ -271,6 +271,209 @@ TEST_CASE(gemm_softmax_gemm_min_q_rows)
     EXPECT(has_attention_group(p1));
 }
 
+// q.k^T scaled after a convert to fp32, as rewrite_reduce leaves an fp16 attention block.
+// With batched, the gemm is 3-D (heads, seq, seq) and unsqueezed to 4-D like the dolly-v2-7b
+// export. With grouped, the gemm and the convert are in an attention_scores group.
+static migraphx::program make_scaled_fp32_softmax_attention(bool grouped, bool batched = false)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 2, 32, 64}};
+    migraphx::shape s3{migraphx::shape::half_type, {2, 32, 64}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 2, 32, 32}};
+    auto to_float = migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}});
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto q    = mm->add_parameter("q", batched ? s3 : s1);
+    auto k    = mm->add_parameter("k", batched ? s3 : s1);
+    auto v    = mm->add_parameter("v", s1);
+    auto perm = batched ? std::vector<int64_t>{0, 2, 1} : std::vector<int64_t>{0, 1, 3, 2};
+    auto kt   = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), k);
+    auto scores_of = [&](auto* m, auto qi, auto ki) {
+        auto x = m->add_instruction(migraphx::make_op("dot"), qi, ki);
+        if(batched)
+            x = m->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
+        return m->add_instruction(to_float, x);
+    };
+    auto scores = grouped ? add_group(p,
+                                      "attn_scores0",
+                                      "attention_scores",
+                                      {q, kt},
+                                      [&](auto* gm, const auto& inputs) {
+                                          return std::vector<migraphx::instruction_ref>{
+                                              scores_of(gm, inputs[0], inputs[1])};
+                                      })
+                          : scores_of(mm, q, kt);
+    auto scale =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {0.125f}});
+    scale =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), scale);
+    auto mul  = mm->add_instruction(migraphx::make_op("mul"), scores, scale);
+    auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mul);
+    rmax =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), rmax);
+    auto sub  = mm->add_instruction(migraphx::make_op("sub"), mul, rmax);
+    auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+    auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+    rsum =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), rsum);
+    auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+    auto probs = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+    auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), probs, v);
+    mm->add_return({gemm2});
+    return p;
+}
+
+TEST_CASE(unfused_attention_scores_grouped)
+{
+    // The block is below the row gate, so it is not fused. Its softmax was promoted to fp32,
+    // so the first gemm is grouped with that convert for MLIR to write fp32 scores, which
+    // cannot overflow like fp16 scores.
+    migraphx::program p1 = make_scaled_fp32_softmax_attention(false);
+    run_pass(p1, {.attn_enabled = true, .attn_min_q_rows = 256});
+    migraphx::program p2 = make_scaled_fp32_softmax_attention(true);
+    EXPECT(not has_attention_group(p1));
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(unfused_attention_scores_grouped_unsqueezed)
+{
+    // Same with a 3-D gemm unsqueezed before the convert
+    migraphx::program p1 = make_scaled_fp32_softmax_attention(false, true);
+    run_pass(p1, {.attn_enabled = true, .attn_min_q_rows = 256});
+    migraphx::program p2 = make_scaled_fp32_softmax_attention(true, true);
+    EXPECT(not has_attention_group(p1));
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(unfused_wide_head_attention_scores_not_grouped)
+{
+    // A block left unfused for its head dim (64 past a limit of 32) has enough q rows that
+    // fp32 scores would double its traffic, so its gemm is not grouped
+    migraphx::program p1 = make_scaled_fp32_softmax_attention(false);
+    migraphx::program p2 = p1;
+    run_pass(p1, {.attn_enabled = true, .attn_max_head_dim = 32});
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(fused_attention_scores_not_grouped)
+{
+    // A fused block needs no scores group: the fused kernel already holds the scores in fp32.
+    // The unsqueeze after the 3-D gemm does not stop the match.
+    for(bool batched : {false, true})
+    {
+        migraphx::program p1 = make_scaled_fp32_softmax_attention(false, batched);
+        run_pass(p1, {.attn_enabled = true});
+        EXPECT(has_attention_group(p1));
+        const auto* mm = p1.get_main_module();
+        EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
+            return ins.name() == "group" and
+                   ins.get_operator().to_value()["tag"].template to<std::string>() ==
+                       "attention_scores";
+        }));
+    }
+}
+
+static bool has_group_tag(const migraphx::module& m, const std::string& tag)
+{
+    return std::any_of(m.begin(), m.end(), [&](const auto& ins) {
+        return ins.name() == "group" and
+               ins.get_operator().to_value()["tag"].template to<std::string>() == tag;
+    });
+}
+
+TEST_CASE(unfused_kv_cache_decode_attention_scores_grouped)
+{
+    // A decode step of a model whose kv cache is a plain concat of the past and the new key and
+    // value (no GroupQueryAttention, so not find_kv_cache_attention). It has one q row per head,
+    // which leaves it unfused by the row gate, so its first gemm gets an attention_scores group.
+    migraphx::shape sq{migraphx::shape::half_type, {1, 2, 1, 64}};
+    migraphx::shape spast{migraphx::shape::half_type, {1, 2, 31, 64}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 2, 1, 32}};
+    auto to_float = migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}});
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto q      = mm->add_parameter("q", sq);
+        auto past_k = mm->add_parameter("past_k", spast);
+        auto k      = mm->add_parameter("k", sq);
+        auto past_v = mm->add_parameter("past_v", spast);
+        auto v      = mm->add_parameter("v", sq);
+        auto kc     = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), past_k, k);
+        auto vc     = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), past_v, v);
+        auto kt     = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), kc);
+        auto gemm1  = mm->add_instruction(migraphx::make_op("dot"), q, kt);
+        auto scores = mm->add_instruction(to_float, gemm1);
+        auto rmax   = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scores);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), scores, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto probs = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), probs, vc);
+        mm->add_return({gemm2});
+    }
+    run_pass(p1, {.attn_enabled = true, .attn_min_q_rows = 256});
+    EXPECT(not has_attention_group(p1));
+    EXPECT(has_group_tag(*p1.get_main_module(), "attention_scores"));
+}
+
+// An attention block with 2 * 32 = 64 q rows, which fuses, in module m
+static void add_attention(migraphx::module& m,
+                          migraphx::instruction_ref q,
+                          migraphx::instruction_ref k,
+                          migraphx::instruction_ref v)
+{
+    std::vector<std::size_t> lens = {1, 2, 32, 32};
+    auto kt = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+    auto gemm1 = m.add_instruction(migraphx::make_op("dot"), q, kt);
+    auto rmax  = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+    rmax       = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), rmax);
+    auto sub   = m.add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+    auto exp   = m.add_instruction(migraphx::make_op("exp"), sub);
+    auto rsum  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+    rsum       = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), rsum);
+    auto div   = m.add_instruction(migraphx::make_op("div"), exp, rsum);
+    auto gemm2 = m.add_instruction(migraphx::make_op("dot"), div, v);
+    m.add_return({gemm2});
+}
+
+TEST_CASE(attention_submodule_names_unique)
+{
+    // The pass counts the attention submodules from 0 in every module, so the blocks of two
+    // submodules (as split_sym_dim specializations make) each get a submodule of their own
+    migraphx::shape s{migraphx::shape::half_type, {1, 2, 32, 64}};
+    migraphx::program p;
+    auto* mm       = p.get_main_module();
+    auto cond      = mm->add_parameter("cond", migraphx::shape{migraphx::shape::bool_type});
+    auto q         = mm->add_parameter("q", s);
+    auto k         = mm->add_parameter("k", s);
+    auto v         = mm->add_parameter("v", s);
+    auto* then_mod = p.create_module("If_then");
+    add_attention(*then_mod, q, k, v);
+    auto* else_mod = p.create_module("If_else");
+    add_attention(*else_mod, q, k, v);
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret)});
+    run_pass(p, {.attn_enabled = true});
+
+    auto attention_module = [](const migraphx::module* m) -> const migraphx::module* {
+        auto group = std::find_if(
+            m->begin(), m->end(), [](const auto& ins) { return ins.name() == "group"; });
+        return group == m->end() ? nullptr : group->module_inputs().front();
+    };
+    const auto* then_attn = attention_module(then_mod);
+    const auto* else_attn = attention_module(else_mod);
+    EXPECT(then_attn != nullptr);
+    EXPECT(else_attn != nullptr);
+    EXPECT(then_attn != else_attn);
+}
+
 TEST_CASE(gemm_pw_softmax_gemm)
 {
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};

@@ -1379,6 +1379,40 @@ TEST_CASE(standalone_attention)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(attention_scores_group)
+{
+    // The q.k^T gemm of an attention block left unfused, grouped with its fp32 convert, becomes
+    // one MLIR op, which writes the fp32 accumulator instead of rounding it to fp16
+    migraphx::shape s1{migraphx::shape::half_type, {1, 2, 1, 64}};
+    migraphx::shape s2{migraphx::shape::half_type, {1, 2, 32, 64}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s1);
+        auto k   = mm->add_parameter("k", s2);
+        k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        auto group = add_group(
+            p1, "attn_scores0", "attention_scores", {q, k}, [=](auto* gm, const auto& inputs) {
+                auto gemm = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto cvt  = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                    gemm);
+                return std::vector<migraphx::instruction_ref>{cvt};
+            });
+        mm->add_return({group});
+    }
+    run_pass(p1);
+    const auto* mm = p1.get_main_module();
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "group"; }));
+    auto mlir = std::find_if(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "gpu::mlir_op"; });
+    EXPECT(mlir != mm->end());
+    if(mlir == mm->end())
+        return;
+    EXPECT(mlir->get_shape().type() == migraphx::shape::float_type);
+}
+
 TEST_CASE(fused_attention)
 {
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};

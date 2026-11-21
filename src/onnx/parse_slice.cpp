@@ -27,10 +27,8 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/op/convert.hpp>
-#include <migraphx/float_equal.hpp>
+#include <migraphx/functional.hpp>
 #include <algorithm>
-#include <array>
 #include <numeric>
 #include <optional>
 #include <unordered_map>
@@ -39,273 +37,65 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-// Evaluates one element of an integer tensor from literals and symbolic values, as for the slice
-// bounds TF's pad_or_clip computes from the input shape, when the tensor as a whole has no
-// symbolic value. A comparison of values that are not fixed takes the outcome in `decisions`, or
-// is recorded in `open` and stops the evaluation.
-struct bound_evaluator
+// The extent dyn_slice gives for a bound on an axis of length len
+static int64_t clipped_bound(int64_t bound, int64_t len)
 {
-    std::unordered_map<instruction_ref, bool> decisions = {};
-    std::vector<instruction_ref> open                   = {};
-
-    std::optional<sym::expr> operator()(instruction_ref ins, std::size_t i, int depth = 0)
-    {
-        const auto& s = ins->get_shape();
-        if(depth > 64 or s.dynamic() or s.elements() == 0)
-            return std::nullopt;
-        if(s.elements() == 1)
-            i = 0;
-        else if(i >= s.elements())
-            return std::nullopt;
-        const auto value = ins->sym_eval();
-        if(not value.empty())
-        {
-            const auto values = value.get().to_vector();
-            if(i < values.size())
-                return values[i];
-        }
-        return evaluate_op(ins, i, depth + 1);
-    }
-
-    // Integers are compared as integers, so large values keep their order
-    static bool compare(const std::string& name, const sym::scalar& a, const sym::scalar& b)
-    {
-        auto less = [](const sym::scalar& x, const sym::scalar& y) {
-            if(std::holds_alternative<int64_t>(x) and std::holds_alternative<int64_t>(y))
-                return std::get<int64_t>(x) < std::get<int64_t>(y);
-            return sym::to<double>(x) < sym::to<double>(y);
-        };
-        if(name == "greater")
-            return less(b, a);
-        if(name == "less")
-            return less(a, b);
-        return not less(a, b) and not less(b, a);
-    }
-
-    private:
-    // Element i of input k of ins, which has one element or as many as ins
-    std::optional<sym::expr> input(instruction_ref ins, std::size_t k, std::size_t i, int depth)
-    {
-        auto x = ins->inputs().at(k);
-        auto n = x->get_shape().elements();
-        if(n != 1 and n != ins->get_shape().elements())
-            return std::nullopt;
-        return (*this)(x, i, depth);
-    }
-
-    std::optional<sym::expr> evaluate_op(instruction_ref ins, std::size_t i, int depth)
-    {
-        const auto& name = ins->name();
-        if(contains({"multibroadcast", "unsqueeze", "squeeze", "reshape", "contiguous"}, name))
-            return input(ins, 0, i, depth);
-        if(contains({"convert", "not"}, name))
-            return evaluate_logical(ins, input(ins, 0, i, depth));
-        if(name == "gather" and ins->inputs().front()->get_shape().ndim() == 1)
-            return evaluate_gather(ins, i, depth);
-        if(name == "slice" and ins->inputs().size() == 1 and
-           ins->inputs().front()->get_shape().ndim() == 1)
-            return evaluate_slice(ins, i, depth);
-        if(name == "concat" and ins->get_shape().ndim() == 1)
-            return evaluate_concat(ins, i, depth);
-        if(contains({"add", "sub", "mul", "greater", "less", "equal"}, name))
-        {
-            auto a = input(ins, 0, i, depth);
-            auto b = input(ins, 1, i, depth);
-            if(not a.has_value() or not b.has_value())
-                return std::nullopt;
-            if(contains({"add", "sub", "mul"}, name))
-                return evaluate_arithmetic(name, *a, *b);
-            return evaluate_comparison(ins, *a, *b);
-        }
-        return std::nullopt;
-    }
-
-    // Whether type `t` holds every value in `bounds` exactly: within its range for an integer
-    // type, and within the exact integers for float and double
-    static bool fits_type(shape::type_t t, const sym::interval& bounds)
-    {
-        const double lo = sym::to<double>(bounds.min);
-        const double hi = sym::to<double>(bounds.max);
-        double lowest   = 0;
-        double highest  = 0;
-        if(t == shape::float_type or t == shape::double_type)
-        {
-            highest = std::ldexp(1.0, t == shape::float_type ? 24 : 53);
-            lowest  = -highest;
-        }
-        else if(shape::is_integral(t))
-        {
-            shape{t}.visit_type([&](auto as) {
-                lowest  = static_cast<double>(as.min());
-                highest = static_cast<double>(as.max());
-            });
-        }
-        else
-        {
-            return false;
-        }
-        return std::isfinite(lo) and std::isfinite(hi) and lowest <= lo and hi <= highest;
-    }
-
-    // A convert keeps the value when the target holds it exactly. From a floating-point type that
-    // needs a fixed whole number, since the value is truncated at run time.
-    static std::optional<sym::expr> convert_value(shape::type_t from, shape::type_t to, sym::expr x)
-    {
-        if(not shape::is_integral(from))
-        {
-            const auto v = sym::fixed_value(x);
-            if(not v.has_value())
-                return std::nullopt;
-            const double d = sym::to<double>(*v);
-            const double t = std::trunc(d);
-            if(not std::isfinite(d) or t < d or d < t or std::abs(d) > 0x1p53)
-                return std::nullopt;
-            x = sym::lit(static_cast<int64_t>(d));
-        }
-        if(not fits_type(to, x.eval_interval()))
-            return std::nullopt;
-        return x;
-    }
-
-    // A convert to bool, or a not, of a fixed value is 0 or 1; a convert to another type keeps the
-    // value that type holds
-    static std::optional<sym::expr> evaluate_logical(instruction_ref ins,
-                                                     const std::optional<sym::expr>& x)
-    {
-        if(not x.has_value())
-            return std::nullopt;
-        bool is_not = ins->name() == "not";
-        if(not is_not)
-        {
-            auto to = any_cast<op::convert>(ins->get_operator()).target_type;
-            if(to != shape::bool_type)
-                return convert_value(ins->inputs().front()->get_shape().type(), to, *x);
-        }
-        auto v = sym::fixed_value(*x);
-        if(not v.has_value())
-            return std::nullopt;
-        bool nonzero = not float_equal(sym::to<double>(*v), 0.0);
-        return sym::lit(nonzero == is_not ? 0 : 1);
-    }
-
-    std::optional<sym::expr> evaluate_gather(instruction_ref ins, std::size_t i, int depth)
-    {
-        auto index       = (*this)(ins->inputs().at(1), i, depth);
-        auto index_value = index.has_value() ? sym::fixed_value(*index) : std::nullopt;
-        if(not index_value.has_value())
-            return std::nullopt;
-        auto data = ins->inputs().front();
-        auto j    = sym::to<int64_t>(*index_value);
-        if(j < 0)
-            j += data->get_shape().elements();
-        return (*this)(data, j, depth);
-    }
-
-    std::optional<sym::expr> evaluate_slice(instruction_ref ins, std::size_t i, int depth)
-    {
-        auto data  = ins->inputs().front();
-        auto op    = any_cast<op::slice>(ins->get_operator());
-        auto start = op.starts.empty() ? 0 : op.starts.front();
-        if(start < 0)
-            start += data->get_shape().elements();
-        return (*this)(data, i + start, depth);
-    }
-
-    std::optional<sym::expr> evaluate_concat(instruction_ref ins, std::size_t i, int depth)
-    {
-        for(auto x : ins->inputs())
-        {
-            auto n = x->get_shape().elements();
-            if(i < n)
-                return (*this)(x, i, depth);
-            i -= n;
-        }
-        return std::nullopt;
-    }
-
-    static sym::expr
-    evaluate_arithmetic(const std::string& name, const sym::expr& a, const sym::expr& b)
-    {
-        if(name == "add")
-            return a + b;
-        if(name == "sub")
-            return a - b;
-        return a * b;
-    }
-
-    std::optional<sym::expr>
-    evaluate_comparison(instruction_ref ins, const sym::expr& a, const sym::expr& b)
-    {
-        auto va = sym::fixed_value(a);
-        auto vb = sym::fixed_value(b);
-        if(va.has_value() and vb.has_value())
-            return sym::lit(compare(ins->name(), *va, *vb) ? 1 : 0);
-        if(ins->get_shape().elements() != 1)
-            return std::nullopt;
-        auto decision = decisions.find(ins);
-        if(decision != decisions.end())
-            return sym::lit(decision->second ? 1 : 0);
-        if(not contains(open, ins))
-            open.push_back(ins);
-        return std::nullopt;
-    }
-};
-
-// The extent dyn_slice gives for an end on an axis of length len
-static int64_t clipped_end(int64_t end, int64_t len)
-{
-    if(end < 0)
-        end += len;
-    return std::clamp<int64_t>(end, 0, len);
+    if(bound < 0)
+        bound += len;
+    return std::clamp<int64_t>(bound, 0, len);
 }
 
-// Whether `len` is the only symbol in each expression
-static bool depends_only_on(const sym::expr& len, const std::vector<sym::expr>& exprs)
+// The comparisons in `e` whose operands have none
+static std::vector<sym::expr> innermost_comparisons(const sym::expr& e)
+{
+    std::vector<sym::expr> result;
+    fix<bool>([&](auto self, const sym::expr& x) {
+        bool nested = false;
+        for(const auto& child : x.children())
+            nested = self(child) or nested;
+        const bool comparison = contains({"less_than", "equal_to"}, std::string{x.name()});
+        if(comparison and not nested and not contains(result, x))
+            result.push_back(x);
+        return comparison or nested;
+    })(e);
+    return result;
+}
+
+// Whether `len` is the only symbol in `e`
+static bool depends_only_on(const sym::expr& len, const sym::expr& e)
 {
     const auto allowed = sym::find_variables(len);
-    return std::all_of(exprs.begin(), exprs.end(), [&](const sym::expr& e) {
-        auto vars = sym::find_variables(e);
-        return std::all_of(
-            vars.begin(), vars.end(), [&](const auto& v) { return contains(allowed, v); });
-    });
+    const auto vars    = sym::find_variables(e);
+    return std::all_of(
+        vars.begin(), vars.end(), [&](const auto& v) { return contains(allowed, v); });
 }
 
-// An end that depends on one comparison of the axis length, such as `n > 100 ? 100 : -1` for a
-// clip to 100 computed with arithmetic as tf2onnx exports TF's pad_or_clip (a `where` is not
-// evaluated), resolves to an expression of the length when one candidate gives the same extent as
-// both cases for every length the axis can have
-static std::optional<sym::expr>
-resolve_conditional_end(instruction_ref ends, std::size_t i, const shape::dynamic_dimension& dim)
+// The symbolic value of a bound, with a comparison of the axis length resolved: a bound such as
+// `n > 100 ? 100 : -1` for a clip to 100, computed with arithmetic as tf2onnx exports TF's
+// pad_or_clip, becomes an expression of the length when one candidate gives the same extent as the
+// bound for every length the axis can have
+static std::optional<sym::expr> resolve_bound(const sym::expr& bound,
+                                              const shape::dynamic_dimension& dim)
 {
-    bound_evaluator probe;
-    if(auto end = probe(ends, i))
-        return end;
-    if(probe.open.size() != 1 or not dim.is_symbolic() or dim.sym_expr.name() != "variable")
-        return std::nullopt;
-    auto condition    = probe.open.front();
-    const auto bounds = dim.get_interval();
-    if(bounds.max - bounds.min > (1u << 16))
-        return std::nullopt;
-
-    std::array<sym::expr, 2> branches;
-    for(bool outcome : {false, true})
-    {
-        bound_evaluator evaluator{{{condition, outcome}}};
-        auto end = evaluator(ends, i);
-        if(not end.has_value() or not evaluator.open.empty())
-            return std::nullopt;
-        branches[outcome ? 1 : 0] = *end;
-    }
-    bound_evaluator operands;
-    auto lhs = operands(condition->inputs().at(0), 0);
-    auto rhs = operands(condition->inputs().at(1), 0);
-    if(not lhs.has_value() or not rhs.has_value())
+    const auto comparisons = innermost_comparisons(bound);
+    if(comparisons.empty())
+        return bound;
+    if(comparisons.size() != 1 or not dim.is_symbolic() or dim.sym_expr.name() != "variable")
         return std::nullopt;
     // Only the axis length may vary, so checking each of its values covers every case
-    const auto& len = dim.sym_expr;
-    if(not depends_only_on(len, {*lhs, *rhs, branches[0], branches[1]}))
+    const auto& len   = dim.sym_expr;
+    const auto bounds = dim.get_interval();
+    if(bounds.max - bounds.min > (1u << 16) or not depends_only_on(len, bound))
         return std::nullopt;
 
+    std::vector<sym::expr> branches;
+    for(int64_t outcome : {0, 1})
+    {
+        auto branch = bound.subs({{comparisons.front(), sym::lit(outcome)}});
+        if(not innermost_comparisons(branch).empty())
+            return std::nullopt;
+        branches.push_back(branch);
+    }
     std::vector<sym::expr> candidates = {
         sym::min(len, branches[0]), sym::min(len, branches[1]), branches[0], branches[1]};
     auto matches = [&](const sym::expr& candidate) {
@@ -314,10 +104,8 @@ resolve_conditional_end(instruction_ref ends, std::size_t i, const shape::dynami
         for(auto n = lo; n <= hi; ++n)
         {
             std::unordered_map<sym::expr, sym::scalar> vars = {{len, sym::scalar{n}}};
-            auto outcome =
-                bound_evaluator::compare(condition->name(), lhs->eval(vars), rhs->eval(vars));
-            auto expected = clipped_end(sym::to<int64_t>(branches[outcome ? 1 : 0].eval(vars)), n);
-            if(clipped_end(sym::to<int64_t>(candidate.eval(vars)), n) != expected)
+            if(clipped_bound(sym::to<int64_t>(candidate.eval(vars)), n) !=
+               clipped_bound(sym::to<int64_t>(bound.eval(vars)), n))
                 return false;
         }
         return true;
@@ -394,30 +182,26 @@ struct parse_slice : op_parser<parse_slice>
             {
                 steps.emplace(axes->size(), int64_t{1});
             }
-            // A start or end only known at run time gets a symbol per axis, bounded by the axis
-            // length, since dyn_slice clips it to the axis
-            if((starts.empty() or ends.empty()) and axes.has_value() and steps.has_value() and
-               steps->size() == axes->size() and
+            // Each bound is its symbolic value, or a new symbol bounded by the axis length where it
+            // is only known at run time or depends on a comparison that does not resolve, since
+            // dyn_slice clips it to the axis
+            if(axes.has_value() and steps.has_value() and steps->size() == axes->size() and
                all_of(*steps, [](auto step) { return step == 1; }) and
                args[1]->get_shape().elements() == axes->size() and
                args[2]->get_shape().elements() == axes->size())
             {
                 const auto& dims = args[0]->get_shape().dyn_dims();
-                // Each bound is worked out per axis where it can be; the others get a symbol
-                // bounded by the axis length
-                auto bounds = [&](const sym_argument& known,
-                                  instruction_ref arg,
-                                  const std::string& suffix,
-                                  bool is_end) {
-                    if(not known.empty())
-                        return known.get().to_vector();
+                auto bounds      = [&](const sym_argument& value, const std::string& suffix) {
+                    const auto values =
+                        value.empty() ? std::vector<sym::expr>{} : value.get().to_vector();
                     std::vector<sym::expr> result;
                     for(std::size_t i = 0; i < axes->size(); ++i)
                     {
                         auto axis       = axes->at(i);
                         const auto& dim = dims.at(axis < 0 ? axis + dims.size() : axis);
-                        auto bound      = is_end ? resolve_conditional_end(arg, i, dim)
-                                                 : bound_evaluator{}(arg, i);
+                        std::optional<sym::expr> bound;
+                        if(i < values.size())
+                            bound = resolve_bound(values[i], dim);
                         if(not bound.has_value())
                             bound = sym::var(parser.symbol_names.allocate(info.name + suffix),
                                              {0, static_cast<int64_t>(dim.get_interval().max)});
@@ -425,26 +209,10 @@ struct parse_slice : op_parser<parse_slice>
                     }
                     return result;
                 };
-                return info.add_instruction(
-                    make_op("dyn_slice",
-                            {{"axes", *axes},
-                             {"starts", to_value(bounds(starts, args[1], "_start", false))},
-                             {"ends", to_value(bounds(ends, args[2], "_end", true))}}),
-                    args[0],
-                    args[1],
-                    args[2]);
-            }
-            if(not starts.empty() and not ends.empty() and axes.has_value() and
-               steps.has_value() and starts.get_shape().elements() == axes->size() and
-               ends.get_shape().elements() == axes->size() and steps->size() == axes->size() and
-               all_of(*steps, [](auto step) { return step == 1; }))
-            {
-                const auto starts_values = starts.get().to_vector();
-                const auto ends_values   = ends.get().to_vector();
                 return info.add_instruction(make_op("dyn_slice",
                                                     {{"axes", *axes},
-                                                     {"starts", to_value(starts_values)},
-                                                     {"ends", to_value(ends_values)}}),
+                                                     {"starts", to_value(bounds(starts, "_start"))},
+                                                     {"ends", to_value(bounds(ends, "_end"))}}),
                                             args[0],
                                             args[1],
                                             args[2]);

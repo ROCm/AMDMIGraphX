@@ -1628,4 +1628,45 @@ TEST_CASE(serialize_comparison_survives_round_trip)
     EXPECT(strict_less(out2, h2) == std::optional<bool>{true});
 }
 
+TEST_CASE(compare_known_order)
+{
+    auto n = var("n", {1, 16});
+    EXPECT(migraphx::sym::less_than(n, lit(20)) == lit(1));
+    EXPECT(migraphx::sym::less_than(lit(20), n) == lit(0));
+    EXPECT(migraphx::sym::less_than(n, n) == lit(0));
+    EXPECT(migraphx::sym::equal_to(n, n) == lit(1));
+    EXPECT(migraphx::sym::equal_to(n, lit(20)) == lit(0));
+}
+
+TEST_CASE(compare_symbols)
+{
+    auto n    = var("n", {1, 16});
+    auto less = migraphx::sym::less_than(n, lit(8));
+    auto eq   = migraphx::sym::equal_to(n, lit(8));
+    auto at   = [&](const se& e, int64_t v) {
+        return migraphx::sym::to<int64_t>(e.eval({{n, migraphx::sym::scalar{v}}}));
+    };
+    EXPECT(at(less, 7) == 1);
+    EXPECT(at(less, 8) == 0);
+    EXPECT(at(eq, 8) == 1);
+    EXPECT(at(eq, 9) == 0);
+    for(const auto& e : {less, eq})
+    {
+        auto bounds = e.eval_interval();
+        EXPECT(migraphx::sym::to<int64_t>(bounds.min) == 0);
+        EXPECT(migraphx::sym::to<int64_t>(bounds.max) == 1);
+    }
+    // A known operand folds the comparison
+    EXPECT(less.subs({{n, lit(3)}}) == lit(1));
+    EXPECT(eq.subs({{n, lit(3)}}) == lit(0));
+}
+
+TEST_CASE(serialize_compare)
+{
+    auto n = var("n");
+    auto e = migraphx::sym::less_than(n, lit(4)) + migraphx::sym::equal_to(n, lit(2));
+    EXPECT(round_trip(e) == e);
+    EXPECT(parse(e.to_string()) == e);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

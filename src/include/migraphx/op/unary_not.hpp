@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,8 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/unary.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/sym.hpp>
 #include <cmath>
 
 namespace migraphx {
@@ -34,10 +36,26 @@ namespace op {
 
 struct unary_not : unary<unary_not>
 {
+    static constexpr bool enable_symbolic_compute = true;
+
     std::string point_function() const { return "!"; }
+    bool supports_symbolic_compute(const shape& output_shape,
+                                   const std::vector<sym_argument>&) const
+    {
+        return output_shape.type() == shape::bool_type;
+    }
     auto apply() const
     {
-        return [](auto x) { return not x; };
+        return overloaded{
+            [](auto x) { return not x; },
+            // A value of 0 or 1, as a comparison gives, negates to 1 - x
+            [](sym::expr x) {
+                const auto bounds = x.eval_interval();
+                if(sym::to<double>(bounds.min) < 0 or sym::to<double>(bounds.max) > 1)
+                    return sym::expr{};
+                return 1 - x;
+            },
+        };
     }
 
     std::string name() const { return "not"; }

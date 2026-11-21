@@ -16,12 +16,15 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
+* Changed ONNX `Slice` parsing of a symbolic input with a start or end only known at run time to emit a `dyn_slice`, instead of failing to parse. A bound computed from the input shape becomes an expression of the shape, with a comparison of the length resolved as in the clip of TensorFlow `pad_or_clip` (for example `min(N, 100)`); other bounds become a symbol over the axis length. Symbolic evaluation of `greater`, `less`, `equal` and `not` now gives a `less_than` or `equal_to` expression when the outcome depends on the symbols (#5520).
 * Changed the ONNX `NonMaxSuppression` parser to trim its zero-padded indices output down to the number of selected boxes with a `dyn_slice`, so a parsed model now returns the ONNX specification's `[num_selected_indices, 3]` output instead of a fixed padded size. This removes the `MIGRAPHX_USE_DYNAMIC_NMS` environment variable that previously gated the trim (#5150).
 * Changed `fixed_pad` to accept a configurable padding value (#5123).
 * Changed lowered `select_module` instructions to use one caller-provided output buffer per result (#5123).
 * Updated `eliminate_convert` to remove no-op and redundant nested `convert` instructions for dynamic and symbolic shapes (#5385).
 * Updated `nonmaxsuppression` kernel to use uint32_t bitmask instead of bool type to get around number of elements > uint32_t (#5302).
 * Enabled MLIR attention fusion by default on every GPU, not just gfx94x/gfx95x, gated per attention block on profitability: blocks whose head dim exceeds `attn_max_head_dim` (512 on wave64 devices, 256 on wave32) at kv lengths past `attn_wide_head_kv_len` (1024 on wave64, none on wave32), or with fewer than `attn_min_q_rows` total query rows (24 per CU), run as separate gemm and softmax kernels instead. The thresholds are configurable through the matching backend options, requesting `attention` in `MIGRAPHX_MLIR_USE_SPECIFIC_OPS` or the `mlir_use_specific_ops` backend option fuses every block regardless of the gate, and `!attention` in the backend option now disables the fusion on every device (#5405).
+* Changed symbolic evaluation of `convert`, `add`, `sub`, `mul` and `div` to also compute int32 values (and `convert` from `bool`), so sizes that tf2onnx computes in int32, such as the pad size after `NonMaxSuppression`, keep a symbolic or static dimension (#5511).
+* Changed symbolic evaluation of `convert` to also cover `float` and `double` for whole-number values, and added it to `min` and `max`, so a size computed as `int(min(limit, float(n)))`, as tf2onnx exports a TensorFlow `minimum`, keeps a symbolic value (#5515).
 
 ### Resolved issues
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,8 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/sym.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,10 +37,20 @@ namespace op {
 
 struct greater : binary<greater>
 {
+    static constexpr bool enable_symbolic_compute = true;
+
     std::string point_function() const { return ">"; }
+    // The result is 0 or 1, which every type holds
+    bool supports_symbolic_compute(const shape&, const std::vector<sym_argument>&) const
+    {
+        return true;
+    }
     auto apply() const
     {
-        return [](auto x, auto y) { return x > y; };
+        return overloaded{
+            [](auto x, auto y) { return x > y; },
+            [](sym::expr x, sym::expr y) { return sym::less_than(std::move(y), std::move(x)); },
+        };
     }
 };
 

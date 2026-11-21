@@ -53,12 +53,7 @@ struct equal : binary<equal>
     {
         return overloaded{
             [](auto x, auto y) { return float_equal(x, y); },
-            [](sym::expr x, sym::expr y) {
-                const auto result = sym::provable_equal(x, y);
-                if(not result.has_value())
-                    return sym::expr{};
-                return sym::lit(*result ? 1 : 0);
-            },
+            [](sym::expr x, sym::expr y) { return sym::equal_to(std::move(x), std::move(y)); },
         };
     }
 };

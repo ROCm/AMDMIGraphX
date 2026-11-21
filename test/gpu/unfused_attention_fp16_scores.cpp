@@ -101,4 +101,65 @@ TEST_CASE(unfused_attention_fp16_scores_do_not_overflow)
         }));
 }
 
+// The same for a decode step: the new key and value appended to the cache with a concat and one
+// q row per head, which is also too small to fuse. All scores are equal, so the output is the
+// mean of the v rows: with v row s filled with s, (kv - 1) / 2.
+TEST_CASE(unfused_decode_attention_fp16_scores_do_not_overflow)
+{
+    const std::size_t heads = 32;
+    const std::size_t past  = 24;
+    const std::size_t kv    = past + 1;
+    const std::size_t dim   = 128;
+    migraphx::shape q_s{migraphx::shape::half_type, {heads, 1, dim}};
+    migraphx::shape new_s{migraphx::shape::half_type, {1, heads, 1, dim}};
+    migraphx::shape past_s{migraphx::shape::half_type, {1, heads, past, dim}};
+    std::vector<std::size_t> scores_lens = {1, heads, 1, kv};
+
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto q      = mm->add_parameter("q", q_s);
+    auto past_k = mm->add_parameter("past_k", past_s);
+    auto k      = mm->add_parameter("k", new_s);
+    auto past_v = mm->add_parameter("past_v", past_s);
+    auto v      = mm->add_parameter("v", new_s);
+    auto kc     = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), past_k, k);
+    auto vc     = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), past_v, v);
+    auto kt =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), kc);
+    kt          = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), kt);
+    auto qk     = mm->add_instruction(migraphx::make_op("dot"), q, kt);
+    auto scores = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), qk);
+    auto scale  = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {1.0 / std::sqrt(dim)}});
+    scale  = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", scores_lens}}),
+                                 scale);
+    scores = mm->add_instruction(migraphx::make_op("mul"), scores, scale);
+    auto probs = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), scores);
+    auto out   = mm->add_instruction(migraphx::make_op("dot"), probs, vc);
+    mm->add_return({out});
+
+    migraphx::compile_options options;
+    options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), options);
+
+    auto fill = [](const migraphx::shape& s, auto f) {
+        std::vector<float> data(s.elements());
+        migraphx::shape_for_each(s, [&](const auto& idx) { data[s.index(idx)] = f(idx); });
+        return migraphx::literal{s, data}.get_argument();
+    };
+    auto twenty_four = [](const auto&) { return 24.0f; };
+    auto result = p.eval({{"q", fill(q_s, twenty_four)},
+                          {"past_k", fill(past_s, twenty_four)},
+                          {"k", fill(new_s, twenty_four)},
+                          {"past_v", fill(past_s, [](const auto& idx) { return float(idx[2]); })},
+                          {"v", fill(new_s, [&](const auto&) { return float(past); })}})
+                      .back();
+
+    std::vector<float> out_data;
+    result.visit([&](auto x) { out_data.assign(x.begin(), x.end()); });
+    const float expected = (kv - 1) / 2.0f;
+    EXPECT(std::all_of(
+        out_data.begin(), out_data.end(), [&](float x) { return std::abs(x - expected) < 1e-2f; }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

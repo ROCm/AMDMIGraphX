@@ -534,7 +534,8 @@ struct parse_resize : op_parser<parse_resize>
             }
         });
 
-        auto ind = calc_neighbor_points(vvv_ind, in_s, out_s, resized_m);
+        // Reshape flattens the input in logical order, so gather indices use standard strides.
+        auto ind = calc_neighbor_points(vvv_ind, in_s.as_standard(), out_s, resized_m);
 
         auto dim_lens = out_lens;
         // indices matrix size grows 2x per resized-axis:

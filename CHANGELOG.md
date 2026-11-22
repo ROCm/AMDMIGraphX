@@ -18,6 +18,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed incorrect ONNX linear interpolation after a layout-changing transpose.
 * Fixed `int` to `bf16`/`fp16` conversion errors (#4745).
 * Fixed comparison logic in `find_concat_op` to match the correct I/O (#4661).
 * Fixed `shape_transform_descriptor::rebase` when flattening a broadcasted dimension (#4559).

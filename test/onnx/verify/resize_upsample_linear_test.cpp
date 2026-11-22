@@ -46,3 +46,24 @@ TEST_CASE(resize_upsample_linear_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
+
+TEST_CASE(resize_linear_after_transpose_test)
+{
+    auto p = read_onnx("resize_linear_after_transpose_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape input_shape{migraphx::shape::float_type, {1, 2, 2, 2}};
+    std::vector<float> input = {1, 11, 2, 12, 3, 13, 4, 14};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_shape, input.data());
+
+    auto result = p.eval(params).back();
+    std::vector<float> actual;
+    result.visit([&](auto output) { actual.assign(output.begin(), output.end()); });
+
+    std::vector<float> expected = {1, 1.25, 1.75, 2, 1.5, 1.75, 2.25, 2.5,
+                                   2.5, 2.75, 3.25, 3.5, 3, 3.25, 3.75, 4,
+                                   11, 11.25, 11.75, 12, 11.5, 11.75, 12.25, 12.5,
+                                   12.5, 12.75, 13.25, 13.5, 13, 13.25, 13.75, 14};
+    EXPECT(migraphx::verify::verify_rms_range(actual, expected));
+}

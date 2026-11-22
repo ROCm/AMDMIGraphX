@@ -131,7 +131,11 @@ target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -
 target_link_options(compile_for_gpu INTERFACE  -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
 option(MIGRAPHX_CLANG_OFFLOAD_COMPRESS "Compress GPU device code with clang --offload-compress" ON)
 message(STATUS "MIGRAPHX_CLANG_OFFLOAD_COMPRESS = ${MIGRAPHX_CLANG_OFFLOAD_COMPRESS}")
-if(MIGRAPHX_CLANG_OFFLOAD_COMPRESS)
+# clang-offload-bundler before LLVM 24 may lack llvm/llvm-project#182579 and fail to
+# unbundle the concatenated compressed bundles of a linked library
+if(MIGRAPHX_CLANG_OFFLOAD_COMPRESS AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 24)
+    message(STATUS "Clang ${CMAKE_CXX_COMPILER_VERSION} < 24, building without --offload-compress")
+elseif(MIGRAPHX_CLANG_OFFLOAD_COMPRESS)
     if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
         target_compile_options(compile_for_gpu INTERFACE /clang:--offload-compress)
     else()

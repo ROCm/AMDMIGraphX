@@ -25,7 +25,9 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `simplify_reshapes` generating an inverse shape transform that merges a split axis's sub-axes in the wrong order when a transpose separates the split from the merge, producing a correctly shaped output with its data permuted (#5563).
 * Fixed GPU kernel compilation aborting on HIP toolchains whose clang emits the experimental `-Wlifetime-safety-experimental-field-origin-escape` warning, which is treated as an error under the `-Weverything -Werror` flags used for JIT kernel compilation and is a false positive on `tensor_view`'s non-owning pointer accessors (ROCM-34291).
+* Fixed GPU `broadcast_with_dims` (ONNX `Expand` to a run-time shape) reading its dims on the host from GPU memory without a copy or a stream sync, which could give the output a wrong shape when a kernel computes the dims (#5531).
 * Fixed `compute_broadcasted_lens` broadcasting a dimension of 1 to 1 instead of 0 when the other dimension is 0, which made `broadcast_with_dims` produce one element for an empty target dimension (#5529).
 * Fixed the GPU `rewrite_reduce` pass's `mean(x^2) - mean(x)^2` rewrite of `LayerNormalization`-style variance reductions producing `NaN` outputs from catastrophic cancellation at large input magnitude, by clamping the computed variance to zero before it reaches `rsqrt` (AIMIGRAPHX-1376).
 * Fixed `lower_reshape` returning a strided view as a program output when a reshape of a non-standard input (for example the last row sliced out of a KV-cache `concat`) reaches `@return`, which made `run` reject standard caller-provided output buffers (#5237).
@@ -36,6 +38,7 @@ Full documentation for MIGraphX is available at
 * Fixed out-of-process hiprtc compiles hanging on Windows: the `migraphx-hiprtc-driver` child could stay alive after writing its reply, because DLL detach deadlocked on compiler-library locks, so the parent never returned. The child now exits without running DLL detach.
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
 * Fixed hiprtc kernel compiles on Clang 24, where `-Weverything` enables the experimental lifetime-safety analysis. Its field-origin-escape diagnostic fails the compile under `-Werror`, and suppressing only that diagnostic still makes the compile extremely slow. hiprtc now suppresses the whole `-Wlifetime-safety-experimental` group when the compiler accepts it.
+* Fixed `eliminate_concat` returning a strided view of the concat buffer as a program output when a concat input is also returned (for example a time cache kept as the last frames of a `concat`), which made integrations that allocate packed outputs, such as the ONNX Runtime MIGraphX EP, write past the end of the output buffer (#5484).
 
 ### Optimized
 

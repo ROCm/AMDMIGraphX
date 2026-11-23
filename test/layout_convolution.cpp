@@ -957,7 +957,7 @@ TEST_CASE(channels_auto_allowance_saturates)
         auto wlayout = add_layout_nhwc(m2, w);
         auto conv    = m2.add_instruction(
             migraphx::make_op("convolution",
-                                 {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                              {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
             xlayout,
             wlayout);
         auto relu = m2.add_instruction(migraphx::make_op("relu"), conv);

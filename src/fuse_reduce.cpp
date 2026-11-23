@@ -590,28 +590,6 @@ struct find_reduce_broadcast
     }
 };
 
-// Whether pw converts the fp16 result of a dot to float, as rewrite_reduce does ahead of a softmax
-// it promotes. A separate dot rounds its accumulator to fp16, which can overflow where the
-// float result after the pointwise fits (eg the unscaled q.k^T of an attention left unfused),
-// so such a pointwise is left out of the reduce for fuse_mlir to fuse it into the dot instead.
-static bool widens_dot_output(instruction_ref pw)
-{
-    static const std::unordered_set<std::string> views = {"reshape", "unsqueeze", "squeeze"};
-    const auto* pm                                     = pw->module_inputs().front();
-    auto param_map                                     = pm->get_ins_param_map(pw->inputs(), true);
-    return std::any_of(param_map.begin(), param_map.end(), [&](const auto& p) {
-        auto [param, input] = p;
-        while(contains(views, input->name()))
-            input = input->inputs().front();
-        if(input->name() != "dot" or input->get_shape().type() != shape::half_type)
-            return false;
-        return not param->outputs().empty() and
-               std::all_of(param->outputs().begin(), param->outputs().end(), [](auto out) {
-                   return out->name() == "convert" and out->get_shape().type() == shape::float_type;
-               });
-    });
-}
-
 struct find_pointwise_reduce
 {
     auto matcher() const
@@ -622,10 +600,8 @@ struct find_pointwise_reduce
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto reduce = r.result;
-        auto input  = r.instructions["pointwise"];
-        if(widens_dot_output(input))
-            return;
+        auto reduce        = r.result;
+        auto input         = r.instructions["pointwise"];
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
 

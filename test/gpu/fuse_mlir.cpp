@@ -1379,6 +1379,84 @@ TEST_CASE(standalone_attention)
     EXPECT(p1 == p2);
 }
 
+// dot -> reduce whose pointwise first converts the dot result to float, as rewrite_reduce leaves
+// a softmax it promotes. With add_direct, the pointwise also reads the dot result unconverted.
+static migraphx::program make_dot_widening_reduce(migraphx::shape::type_t type,
+                                                  bool add_direct = false)
+{
+    migraphx::shape s1{type, {2, 32, 64}};
+    migraphx::shape s2{type, {2, 64, 32}};
+    auto to_float = migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}});
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto a    = mm->add_parameter("a", s1);
+    auto b    = mm->add_parameter("b", s2);
+    auto dot  = mm->add_instruction(migraphx::make_op("dot"), a, b);
+    auto rmax = add_reduce(
+        p,
+        "main:pointwise0:main:reduce_max0",
+        {dot},
+        {2},
+        [&](auto* rm, const auto& inputs, const auto& axes) {
+            auto pw = add_pointwise(p, rm, "main:pointwise0", inputs, [&](auto* pm, const auto& x) {
+                auto f = pm->add_instruction(to_float, x[0]);
+                if(add_direct)
+                    f = pm->add_instruction(
+                        migraphx::make_op("add"),
+                        f,
+                        pm->add_instruction(
+                            to_float, pm->add_instruction(migraphx::make_op("add"), x[0], x[0])));
+                return pm->add_instruction(migraphx::make_op("mul"), f, f);
+            });
+            return rm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), pw);
+        });
+    mm->add_return({rmax});
+    return p;
+}
+
+static migraphx::instruction_ref find_reduce(const migraphx::program& p)
+{
+    const auto* mm = p.get_main_module();
+    return std::find_if(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "fused_reduce"; });
+}
+
+TEST_CASE(dot_widening_reduce)
+{
+    // The convert moves from the reduce into the MLIR op of the dot, which then writes float,
+    // and the reduce no longer converts
+    migraphx::program p1 = make_dot_widening_reduce(migraphx::shape::half_type);
+    run_pass(p1);
+    auto reduce = find_reduce(p1);
+    EXPECT(reduce != p1.get_main_module()->end());
+    auto input = reduce->inputs().front();
+    EXPECT(input->name() == "gpu::mlir_op");
+    EXPECT(input->get_shape().type() == migraphx::shape::float_type);
+    const auto* rm = reduce->module_inputs().front();
+    for(const auto& ins : *rm)
+    {
+        if(ins.name() != "pointwise")
+            continue;
+        const auto* pm = ins.module_inputs().front();
+        EXPECT(std::none_of(
+            pm->begin(), pm->end(), [](const auto& i) { return i.name() == "convert"; }));
+    }
+}
+
+TEST_CASE(dot_widening_reduce_skips_bf16_and_unconverted)
+{
+    // bf16 does not overflow, and a dot result the reduce also reads unconverted stays fp16
+    for(auto [type, add_direct] : {std::make_pair(migraphx::shape::bf16_type, false),
+                                   std::make_pair(migraphx::shape::half_type, true)})
+    {
+        migraphx::program p1 = make_dot_widening_reduce(type, add_direct);
+        run_pass(p1);
+        auto reduce = find_reduce(p1);
+        EXPECT(reduce != p1.get_main_module()->end());
+        EXPECT(reduce->inputs().front()->get_shape().type() == type);
+    }
+}
+
 TEST_CASE(fused_attention)
 {
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};

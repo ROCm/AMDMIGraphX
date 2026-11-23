@@ -163,10 +163,12 @@ TEST_CASE(literal_raw_buffer_broadcast)
 TEST_CASE(literal_vector_too_many_values)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};
-    EXPECT(test::throws<migraphx::exception>(
-        [&] { migraphx::literal{s, std::vector<float>{1, 2, 3, 4, 5}}; }));
-    EXPECT(test::throws<migraphx::exception>(
-        [&] { migraphx::literal{s, {1.0f, 2.0f, 3.0f, 4.0f, 5.0f}}; }));
+    EXPECT(test::throws<migraphx::exception>([&] {
+        migraphx::literal{s, std::vector<float>{1, 2, 3, 4, 5}};
+    }));
+    EXPECT(test::throws<migraphx::exception>([&] {
+        migraphx::literal{s, {1.0f, 2.0f, 3.0f, 4.0f, 5.0f}};
+    }));
 }
 
 TEST_CASE(literal_vector_partial_fill)

@@ -57,8 +57,7 @@ static std::vector<migraphx::external_data> saved_external_refs(const migraphx::
             return node.contains("literal") and node.at("literal").contains("external");
         },
         [](const migraphx::value& node) {
-            return migraphx::from_value<migraphx::external_data>(
-                node.at("literal").at("external"));
+            return migraphx::from_value<migraphx::external_data>(node.at("literal").at("external"));
         });
     return result;
 }
@@ -486,10 +485,8 @@ TEST_CASE(alignment_already_aligned_sizes)
 
     auto refs    = saved_external_refs(filename);
     auto weights = migraphx::read_buffer(filename + ".data");
-    check_weights_layout(refs,
-                         {l2->get_literal(), l1->get_literal()},
-                         weights,
-                         migraphx::external_data_alignment);
+    check_weights_layout(
+        refs, {l2->get_literal(), l1->get_literal()}, weights, migraphx::external_data_alignment);
     EXPECT(refs.at(1).offset == refs.at(0).offset + refs.at(0).size);
     EXPECT(weights.size() == 3 * migraphx::external_data_alignment);
 }

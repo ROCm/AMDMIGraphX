@@ -215,8 +215,7 @@ static std::vector<migraphx::external_data> saved_external_refs(const std::strin
             return node.contains("literal") and node.at("literal").contains("external");
         },
         [](const migraphx::value& node) {
-            return migraphx::from_value<migraphx::external_data>(
-                node.at("literal").at("external"));
+            return migraphx::from_value<migraphx::external_data>(node.at("literal").at("external"));
         });
     return result;
 }

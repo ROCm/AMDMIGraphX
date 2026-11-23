@@ -93,13 +93,13 @@ std::string compute_type_name()
 
     name = __PRETTY_FUNCTION__;
 
-    auto begin = name.find(parameter_name) + sizeof(parameter_name);
-#if (defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
+    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
+#if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
     auto length = name.find_last_of(",") - begin;
 #else
     auto length = name.find_first_of("];", begin) - begin;
 #endif
-    name = name.substr(begin, length);
+    name        = name.substr(begin, length);
 #endif
     return name;
 }
@@ -1657,9 +1657,8 @@ struct file_options : MIGRAPHX_HANDLE_BASE(file_options)
     /// Weights file to save to; by default the program file name with ".data" appended
     void set_external_weights_file(const std::string& path)
     {
-        call(&migraphx_file_options_set_external_weights_file,
-             this->get_handle_ptr(),
-             path.c_str());
+        call(
+            &migraphx_file_options_set_external_weights_file, this->get_handle_ptr(), path.c_str());
     }
 
     /// Save references to the files literals were read from instead of their data

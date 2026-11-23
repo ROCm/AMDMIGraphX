@@ -81,7 +81,7 @@ std::string relative_external_data_path(const fs::path& base_dir, const fs::path
     if(base_dir.empty())
         return target.generic_string();
     const fs::path base = lexically_normalize(fs::absolute(base_dir));
-    const auto m = std::mismatch(base.begin(), base.end(), target.begin(), target.end());
+    const auto m        = std::mismatch(base.begin(), base.end(), target.begin(), target.end());
     if(m.first != base.end() or m.second == target.end())
         return target.generic_string();
     return std::accumulate(m.second,
@@ -157,8 +157,7 @@ struct external_data_writer_impl
 };
 
 scoped_external_data_writer::scoped_external_data_writer(external_data_save_options options)
-    : impl(std::make_unique<external_data_writer_impl>(std::move(options))),
-      previous(active_writer)
+    : impl(std::make_unique<external_data_writer_impl>(std::move(options))), previous(active_writer)
 {
     const auto& o = impl->options;
     if(std::bitset<64>(o.alignment).count() != 1)
@@ -252,9 +251,8 @@ std::pair<std::shared_ptr<mapped_file>, external_data> map_external_data(const e
     }
     else
     {
-        auto base =
-            options.base_dir.empty() ? fs::current_path() : fs::absolute(options.base_dir);
-        resolved = resolve_external_data_path(base, p);
+        auto base = options.base_dir.empty() ? fs::current_path() : fs::absolute(options.base_dir);
+        resolved  = resolve_external_data_path(base, p);
     }
     auto file = reader == nullptr ? std::make_shared<mapped_file>(resolved) : reader->map(resolved);
     if(ref.offset > file->size() or ref.size > file->size() - ref.offset)

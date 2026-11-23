@@ -42,7 +42,7 @@ TEST_CASE(external_data_reuse_test)
     EXPECT(std::count_if(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
                return ins.name() == "@literal" and ins.get_literal().is_external();
            }) == 1);
-    auto weights = std::find_if(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
+    auto weights    = std::find_if(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
         return ins.name() == "@literal" and ins.get_literal().is_external();
     });
     const auto& lit = weights->get_literal();

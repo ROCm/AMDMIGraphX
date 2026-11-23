@@ -34,8 +34,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static program
-load_from(const char* buffer, std::size_t size, const fs::path& base_dir, const file_options& options)
+static program load_from(const char* buffer,
+                         std::size_t size,
+                         const fs::path& base_dir,
+                         const file_options& options)
 {
     scoped_external_data_reader reader{
         external_data_load_options{base_dir, options.verify_external_weights}};
@@ -102,8 +104,8 @@ void save(const program& p, const std::string& filename, const file_options& opt
                             ? fs::path{filename + external_data_extension}
                             : fs::path{options.external_weights_file};
     // References are relative to the program file's directory, so the pair can be moved together
-    scoped_external_data_writer writer{get_save_options(
-        options, weights_file, fs::absolute(fs::path{filename}).parent_path())};
+    scoped_external_data_writer writer{
+        get_save_options(options, weights_file, fs::absolute(fs::path{filename}).parent_path())};
     auto buffer = serialize_program(p, options.format);
     writer.commit();
     write_atomically(filename, buffer);

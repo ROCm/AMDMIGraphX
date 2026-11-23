@@ -589,10 +589,10 @@ struct loader
             if(file_type == "json")
             {
                 file_options options;
-                options.format = "json";
-                options.finalize = finalize;
+                options.format                  = "json";
+                options.finalize                = finalize;
                 options.verify_external_weights = verify_external_weights;
-                p = migraphx::load(file, options);
+                p                               = migraphx::load(file, options);
             }
 #ifdef MIGRAPHX_ENABLE_ONNX
             else if(file_type == "onnx")
@@ -616,8 +616,8 @@ struct loader
             {
                 file_options options;
                 options.verify_external_weights = verify_external_weights;
-                options.finalize = finalize;
-                p = migraphx::load(file, options);
+                options.finalize                = finalize;
+                p                               = migraphx::load(file, options);
             }
         }
         if(trim > 0)

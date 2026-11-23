@@ -2933,8 +2933,7 @@ migraphx_file_options_set_reuse_external_data(migraphx_file_options_t file_optio
 }
 
 extern "C" migraphx_status
-migraphx_file_options_set_external_data_path(migraphx_file_options_t file_options,
-                                             const char* path)
+migraphx_file_options_set_external_data_path(migraphx_file_options_t file_options, const char* path)
 {
     auto api_error_result = migraphx::try_([&] {
         if(file_options == nullptr)
@@ -2945,8 +2944,7 @@ migraphx_file_options_set_external_data_path(migraphx_file_options_t file_option
 }
 
 extern "C" migraphx_status
-migraphx_file_options_set_verify_external_weights(migraphx_file_options_t file_options,
-                                                  bool value)
+migraphx_file_options_set_verify_external_weights(migraphx_file_options_t file_options, bool value)
 {
     auto api_error_result = migraphx::try_([&] {
         if(file_options == nullptr)

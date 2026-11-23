@@ -37,21 +37,21 @@ struct file_options
     /// Load the kernels of a compiled program. When false, the program can be opened on a
     /// machine without the device it was compiled for, for example to recompile it.
     bool finalize = true;
-     /// Save literals of at least this many bytes to an external weights file; nullopt keeps
-     /// them inline
-     std::optional<std::size_t> external_weights_threshold = std::nullopt;
-     /// Save a reference to the file a literal was read from (an ONNX or weights file) instead of
-     /// its data
-     bool reuse_external_data = false;
-     /// Weights file to save to; empty uses the program file name + external_data_extension
-     std::string external_weights_file;
-     /// Byte alignment of each literal in the weights file; must be a nonzero power of two
-     std::size_t external_weights_alignment = external_data_alignment;
-     /// Directory relative external references resolve against; empty uses the program file's
-     /// directory
-     std::string external_data_path;
-     /// Check the checksum of each external literal when loading
-     bool verify_external_weights = false;
+    /// Save literals of at least this many bytes to an external weights file; nullopt keeps
+    /// them inline
+    std::optional<std::size_t> external_weights_threshold = std::nullopt;
+    /// Save a reference to the file a literal was read from (an ONNX or weights file) instead of
+    /// its data
+    bool reuse_external_data = false;
+    /// Weights file to save to; empty uses the program file name + external_data_extension
+    std::string external_weights_file;
+    /// Byte alignment of each literal in the weights file; must be a nonzero power of two
+    std::size_t external_weights_alignment = external_data_alignment;
+    /// Directory relative external references resolve against; empty uses the program file's
+    /// directory
+    std::string external_data_path;
+    /// Check the checksum of each external literal when loading
+    bool verify_external_weights = false;
 };
 
 MIGRAPHX_EXPORT program load(const std::string& filename,

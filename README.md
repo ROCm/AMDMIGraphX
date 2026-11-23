@@ -11,11 +11,8 @@ AMD MIGraphX is AMD's graph inference engine, which accelerates machine learning
 
 ## Installing from binaries
 
-Install binaries using:
-
-```bash
-sudo apt update && sudo apt install -y migraphx
-```
+See [Install
+MIGraphX](https://rocm.docs.amd.com/projects/AMDMIGraphX/en/latest/install/install-migraphx.html) for instructions on installing via your Linux distribution's package manager, pip, or using a tarball release.
 
 Header files and libraries are installed under ``/opt/rocm-<version>``, where ``<version>`` is the ROCm
 version.
@@ -50,12 +47,22 @@ The following is a list of prerequisites for building MIGraphX.
 * [MessagePack](https://msgpack.org/index.html) for model serialization to binary format
 * [SQLite3](https://www.sqlite.org/index.html) to create database of kernels' tuning information or run queries on existing database
 
-### Installing the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+### Installing the ROCm build tool [rbuild](https://github.com/ROCm/rbuild).
 
-1. Install `rocm-cmake`, `pip3`, `rocblas`, and `miopen-hip`:
+1. Complete the appropriate [ROCm installation
+   prerequisites](https://rocm.docs.amd.com/en/latest/install/rocm.html) for
+   your system environment and register AMD package repositories.
+
+1. Install the required ROCm development packages:
 
     ```bash
-    sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
+    sudo apt install amdrocm-runtime-dev \
+        amdrocm-blas-dev \
+        amdrocm-blas-host \
+        amdrocm-dnn-dev \
+        amdrocm-dnn-host \
+        amdrocm-hipblas-common-dev \
+        amdrocm-core
     ```
 
 2. Set up and activate python venv for rbuild:
@@ -64,17 +71,24 @@ The following is a list of prerequisites for building MIGraphX.
     source venv_rbuild/bin/activate
     ```
 
-3. Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) in the python venv:
+3. Install the host build tools if you don't have them already.
+
+   ```bash
+   sudo apt install build-essential cmake git pkg-config python3-dev python3-pip python3-venv
+   ```
+
+4. Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) in the python venv:
 
     ```bash
-    pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+    pip install https://github.com/pfultz2/cget/archive/master.tar.gz
+    pip install https://github.com/ROCm/rbuild/archive/master.tar.gz
     ```
 
 > [!NOTE]
 > You can deactivate the python virtual environment with `deactivate`.
 
 
-### Compile using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+### Compile using the ROCm build tool [rbuild](https://github.com/ROCm/rbuild).
 
 1. Follow instructions in [installing rbuild](#installing-the-rocm-build-tool-rbuild)
 

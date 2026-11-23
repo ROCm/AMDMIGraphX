@@ -24,11 +24,21 @@
  */
 #include <migraphx/reshape_dims.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/permutation.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
+#include <algorithm>
+#include <functional>
+#include <iterator>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+static bool is_zero(const sym::expr& e) { return sym::same_symbol(e, sym::lit(std::int64_t{0})); }
+
+static bool is_one(const sym::expr& e) { return sym::same_symbol(e, sym::lit(std::int64_t{1})); }
 
 template <class Iterator>
 static Iterator compute_end_dim(Iterator start, Iterator last, const sym::expr& dim)
@@ -180,6 +190,43 @@ void validate_reshape_dims(const std::string& name, const std::vector<dim_like>&
                        to_string_range(dims) + "} with " + to_string(n_neg_dims) + " -1 dims");
 }
 
+static void validate_reshape_element_count_impl(const std::string& name,
+                                                const shape& input,
+                                                const shape& output,
+                                                bool has_inferred_dim)
+{
+    if(input.symbolic() and has_inferred_dim)
+        return;
+
+    auto output_elements = output.sym_elements();
+    auto input_elements  = input.sym_elements();
+    if(sym::strict_less(output_elements, input_elements).value_or(false) or
+       sym::strict_less(input_elements, output_elements).value_or(false))
+        MIGRAPHX_THROW(name + ": Wrong number of elements for reshape: reshape has " +
+                       to_string(output_elements) + " elements whereas the input has " +
+                       to_string(input_elements));
+}
+
+void validate_reshape_element_count(const std::string& name,
+                                    const shape& input,
+                                    const shape& output,
+                                    const std::vector<dim_like>& dims)
+{
+    validate_reshape_element_count_impl(name, input, output, contains(dims, dim_like{-1}));
+}
+
+void validate_reshape_element_count(const std::string& name,
+                                    const shape& input,
+                                    const shape& output,
+                                    const std::vector<sym::expr>& dims)
+{
+    auto has_inferred_dim = std::any_of(dims.begin(), dims.end(), [](const auto& dim) {
+        auto value = sym::fixed_value(dim);
+        return value.has_value() and sym::to<int64_t>(*value) == -1;
+    });
+    validate_reshape_element_count_impl(name, input, output, has_inferred_dim);
+}
+
 optional<shape> reshape_dims(const shape& input,
                              const std::vector<std::size_t>& rdims,
                              reshape_dims_options options)
@@ -226,12 +273,24 @@ compute_reshape_strides(const std::vector<sym::expr>& idims,
                     return nullopt;
                 auto n = it - start;
                 assert((i + n) <= istrides.size());
-                if(options.lazy and
-                   not can_strides_merge(
-                       start, it + 1, istrides.begin() + i, istrides.begin() + i + n + 1))
+                auto first_stride = istrides.begin() + i;
+                auto last_stride  = first_stride + n + 1;
+                if(options.lazy and not can_strides_merge(start, it + 1, first_stride, last_stride))
                     return nullopt;
+                // Neither a broadcast axis nor a length-1 axis has a place in memory, since the
+                // stride of a length-1 axis is arbitrary. The merged axis sits where the innermost
+                // axis of the run that has one does, and is a broadcast when no axis has one. A
+                // view can't mix the two, so this only differs from the last stride when copying.
+                auto rlast = std::make_reverse_iterator(first_stride);
+                auto inner = std::mismatch(std::make_reverse_iterator(last_stride),
+                                           rlast,
+                                           std::make_reverse_iterator(it + 1),
+                                           [](const auto& stride, const auto& dim) {
+                                               return is_zero(stride) or is_one(dim);
+                                           })
+                                 .first;
                 i += n;
-                rstrides.push_back(istrides[i]);
+                rstrides.push_back(inner == rlast ? istrides[i] : *inner);
             }
             // unsqueeze
             else if(*rdim_lt)
@@ -276,18 +335,36 @@ compute_reshape_strides(const std::vector<sym::expr>& idims,
     return rstrides;
 }
 
+// The order, outermost first, in which a copy of `s` lays out its axes. A zero-stride axis has no
+// place in memory, so rather than sorting innermost it follows its logical predecessor, or leads
+// if it has none. That keeps the length-1 axes of a standard layout where they were.
+static std::vector<int64_t> find_copy_permutation(const shape& s)
+{
+    auto perm = find_permutation(s);
+    if(not s.broadcasted())
+        return perm;
+    const auto& strides = s.dyn_strides();
+    // Memory rank of each non-broadcast axis, and -1 for a broadcast axis
+    auto rank = invert_permutation(perm);
+    std::transform(
+        rank.begin(), rank.end(), strides.begin(), rank.begin(), [](int64_t r, const auto& stride) {
+            return is_zero(stride) ? -1 : r;
+        });
+    // Each broadcast axis takes the rank of the closest non-broadcast axis before it
+    std::partial_sum(rank.begin(), rank.end(), rank.begin(), [](int64_t prev, int64_t r) {
+        return r < 0 ? prev : r;
+    });
+    std::iota(perm.begin(), perm.end(), 0);
+    std::stable_sort(perm.begin(), perm.end(), by(std::less<>{}, [&](auto a) { return rank[a]; }));
+    return perm;
+}
+
 optional<shape>
 reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_dims_options options)
 {
     const std::vector<shape::dynamic_dimension> rdds(rdims.begin(), rdims.end());
 
     if(input.standard())
-        return shape{input.type(), rdds};
-
-    // Broadcasts have ambiguous permutations (multiple axes share stride 0), so
-    // for non-lazy reshape fall back to a standard layout. Sliced (non-packed)
-    // inputs still propagate the permutation via the algorithm + with_lens below.
-    if(not options.lazy and input.broadcasted())
         return shape{input.type(), rdds};
 
     // Range-based dynamic dimensions carry no stride expressions to merge or split.
@@ -302,10 +379,20 @@ reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_di
         return nullopt;
 
     auto result = shape{input.type(), rdds, *rstrides};
-    if(options.lazy or result.packed())
+    // A broadcast input can leave arbitrary strides on length-1 axes, so its copy is rebuilt below
+    if(options.lazy or (result.packed() and not input.broadcasted()))
         return result;
-    // TODO: Add as_packed to shape class
-    return result.with_lens(result.type(), result.dyn_dims());
+    // An output axis made only of broadcast data has no place in memory, so its order relative to
+    // the other axes is ambiguous and the copy falls back to a standard layout.
+    if(std::inner_product(
+           rdims.begin(),
+           rdims.end(),
+           rstrides->begin(),
+           false,
+           std::logical_or<>{},
+           [](const auto& dim, const auto& stride) { return is_zero(stride) and not is_one(dim); }))
+        return shape{input.type(), rdds};
+    return shape::from_permutation(result.type(), rdds, find_copy_permutation(result));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

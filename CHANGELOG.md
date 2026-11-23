@@ -12,6 +12,7 @@ Full documentation for MIGraphX is available at
 * Added the `split_sym_dim` pass, which specializes bounded symbolic dimensions into static `select_module` submodules (#5123).
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
+* Added MXR recompiling: `migraphx-driver compile --recompilable` stores each GPU kernel's compile recipe in the MXR, and `migraphx-driver recompile` (`program::recompile`) recompiles the kernels of a compiled MXR for the same or a newer GPU generation, including cross-compiling with `--gpu-arch` and exhaustive tuning, without the original model. MXR files can be opened without loading their kernels (`file_options::finalize`).
 
 ### Changed
 
@@ -24,12 +25,18 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `simplify_reshapes` generating an inverse shape transform that merges a split axis's sub-axes in the wrong order when a transpose separates the split from the merge, producing a correctly shaped output with its data permuted (#5563).
+* Fixed GPU kernel compilation aborting on HIP toolchains whose clang emits the experimental `-Wlifetime-safety-experimental-field-origin-escape` warning, which is treated as an error under the `-Weverything -Werror` flags used for JIT kernel compilation and is a false positive on `tensor_view`'s non-owning pointer accessors (ROCM-34291).
+* Fixed GPU `broadcast_with_dims` (ONNX `Expand` to a run-time shape) reading its dims on the host from GPU memory without a copy or a stream sync, which could give the output a wrong shape when a kernel computes the dims (#5531).
+* Fixed `compute_broadcasted_lens` broadcasting a dimension of 1 to 1 instead of 0 when the other dimension is 0, which made `broadcast_with_dims` produce one element for an empty target dimension (#5529).
+* Fixed the GPU `rewrite_reduce` pass's `mean(x^2) - mean(x)^2` rewrite of `LayerNormalization`-style variance reductions producing `NaN` outputs from catastrophic cancellation at large input magnitude, by clamping the computed variance to zero before it reaches `rsqrt` (AIMIGRAPHX-1376).
 * Fixed `lower_reshape` returning a strided view as a program output when a reshape of a non-standard input (for example the last row sliced out of a KV-cache `concat`) reaches `@return`, which made `run` reject standard caller-provided output buffers (#5237).
 * Fixed `migraphx.argument` created from a Python buffer (for example a NumPy array) not keeping that buffer alive, which left a dangling pointer when the buffer was a temporary (ROCm/TheRock#8939).
 * Fixed `simplify_reshapes` generating invalid inverse shape transforms when moving an element-expanding shape-transform chain through a shared reduction (#5360).
 * Fixed non-standard GPU output layouts being exposed to integrations that require packed tensors (#5345).
 * Fixed mixed `uint8` and `int8` quantization (#5075).
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
+* Fixed `eliminate_concat` returning a strided view of the concat buffer as a program output when a concat input is also returned (for example a time cache kept as the last frames of a `concat`), which made integrations that allocate packed outputs, such as the ONNX Runtime MIGraphX EP, write past the end of the output buffer (#5484).
 
 ### Optimized
 

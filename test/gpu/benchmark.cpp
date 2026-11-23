@@ -544,4 +544,16 @@ TEST_CASE(simple_benchmark_rejects_a_bundle_below_one_for_kernel_candidates)
     }));
 }
 
+TEST_CASE(time_loop_runs_the_bundle_and_runs_of_each_call)
+{
+    migraphx::gpu::context ctx{};
+    for(auto [bundle, nruns] : {std::pair{1, 1}, std::pair{4, 3}, std::pair{2, 5}})
+    {
+        int calls = 0;
+        (void)migraphx::gpu::time_loop(ctx, bundle, nruns, [&] { ++calls; });
+        // One warmup call, then bundle calls per run
+        EXPECT(calls == 1 + bundle * nruns);
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

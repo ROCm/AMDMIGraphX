@@ -48,6 +48,15 @@ TEST_CASE(gpu_context_serialize)
     EXPECT(v == v1);
 }
 
+TEST_CASE(gpu_context_create_streams)
+{
+    migraphx::gpu::context ctx{0, 1};
+    ctx.create_streams(2);
+    EXPECT(ctx.get_current_device().nstreams() == 3);
+    ctx.create_streams(0);
+    EXPECT(ctx.get_current_device().nstreams() == 3);
+}
+
 TEST_CASE(context_queue)
 {
     migraphx::context ctx = migraphx::gpu::context{0, 3};

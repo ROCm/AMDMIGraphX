@@ -80,12 +80,17 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_concat_past_present.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/gpu/check_recompiled_memory.hpp>
+#include <migraphx/gpu/eliminate_recompile_anchors.hpp>
+#include <migraphx/gpu/restore_recipes.hpp>
+#include <migraphx/gpu/record_compiled_for.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -185,7 +190,7 @@ struct backend_options
 
 // The backend options passed to compile, with any key set by MIGRAPHX_GPU_OPTIONS (a json-like
 // object such as "{convolution_layout:channels_last}") overriding it.
-backend_options get_backend_options(const compile_options& options)
+value backend_options_value(const compile_options& options)
 {
     auto opts = options.backend_options;
     auto env  = string_value_of(MIGRAPHX_GPU_OPTIONS{});
@@ -197,7 +202,7 @@ backend_options get_backend_options(const compile_options& options)
         for(const auto& opt : v)
             opts[opt.get_key()] = opt.without_key();
     }
-    return from_value<backend_options>(value(opts));
+    return opts;
 }
 
 // Wave64 devices (accvgprs double the per-lane register budget) fuse head dims up to 512
@@ -239,11 +244,35 @@ struct pipeline_factory
     migraphx::context* gctx_ptr = nullptr;
     compile_options options;
     backend_options backend_opts = {};
+    /// The options to record with a recompilable program
+    value recorded_options = {};
 
     migraphx::context* get_generic_context() const { return gctx_ptr; }
 
     // cppcheck-suppress CastIntegerToAddressAtReturn
     context* get_context() const { return any_cast<context>(gctx_ptr); }
+
+    fuse_pointwise_reduce get_fuse_pointwise_reduce() const
+    {
+        const auto& device = get_context()->get_current_device();
+        fuse_pointwise_reduce result;
+        // A workgroup per reduction output fills the device once the batch
+        // reaches the number of resident workgroups
+        auto max_batch = device.get_max_workgroups();
+        if(max_batch > 0)
+            result.lower_max_batch = max_batch;
+        // Fusing trailing operators into the small completion reduce of a
+        // split needs enough outputs to stream the full-sized result: an
+        // eighth of the resident workgroups, tuned on gfx1201
+        result.min_fused_outputs = std::max<std::size_t>(result.lower_max_batch / 8, 1);
+        // With a large batch the fused kernel re-reads each row from the
+        // last-level cache, so a split is only needed once the resident
+        // rows (sized for 2-byte types) no longer fit
+        auto cache_elements = device.get_last_level_cache_size() / (2 * result.lower_max_batch);
+        if(cache_elements > 0)
+            result.upper_split_size = cache_elements;
+        return result;
+    }
 
     std::vector<pass> dynamic_shapes_pipeline() const
     {
@@ -357,7 +386,7 @@ struct pipeline_factory
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
-            fuse_pointwise_reduce{},
+            get_fuse_pointwise_reduce(),
             dead_code_elimination{},
 #ifndef _WIN32
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
@@ -382,6 +411,7 @@ struct pipeline_factory
             auto_contiguous{.standardize_outputs = backend_opts.standardize_outputs},
             dead_code_elimination{},
             lowering{get_context(), options.offload_copy},
+            eliminate_device_copy{},
             eliminate_contiguous{"gpu::contiguous"},
             dead_code_elimination{},
             lower_reshape{},
@@ -410,7 +440,8 @@ struct pipeline_factory
             compile_ops{get_context(),
                         options.exhaustive_tune,
                         options.compile_mode == compile_modes::eager,
-                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{})},
+                        string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}),
+                        options.recompilable},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -429,6 +460,7 @@ struct pipeline_factory
             normalize_ops{},
             dead_code_elimination{},
             eliminate_identity{},
+            enable_pass(options.recompilable, record_compiled_for{get_context(), recorded_options}),
         };
     }
 };
@@ -441,11 +473,11 @@ static migraphx::context make_context(const target& t)
     return context(gpu::get_device_id());
 }
 
-std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
+// Configure the context for compiling with these options. The context predates the compile
+// options, so the binary cache and problem caches they configure are installed here.
+static void
+setup_context(context& ctx, const compile_options& options, const backend_options& backend_opts)
 {
-    auto backend_opts = get_backend_options(options);
-    auto& ctx         = any_cast<context>(gctx);
-    // The context predates the compile options, so the cache they configure is installed here.
     ctx.set_binary_cache(std::make_shared<binary_cache>(
         binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
@@ -456,8 +488,37 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     ctx.load_problem_caches(backend_opts.read_only_problem_cache_files,
                             backend_opts.problem_cache_files);
+}
+
+std::vector<pass> target::get_recompile_passes(migraphx::context& gctx,
+                                               const compile_options& options) const
+{
+    auto& ctx = any_cast<context>(gctx);
+    setup_context(ctx, options, from_value<backend_options>(backend_options_value(options)));
+    // Dead code elimination is safe only while the anchors restore_recipes adds are in the
+    // program: kernels that write into part of a buffer are not used by anything
+    return {restore_recipes{&ctx, options.exhaustive_tune},
+            dead_code_elimination{},
+            compile_ops{.ctx             = &ctx,
+                        .exhaustive_tune = options.exhaustive_tune,
+                        .skip_benchmark  = options.compile_mode == compile_modes::eager,
+                        .recompilable    = true},
+            dead_code_elimination{},
+            eliminate_recompile_anchors{},
+            check_recompiled_memory{},
+            record_compiled_for{&ctx}};
+}
+
+std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
+{
+    auto backend_v    = backend_options_value(options);
+    auto backend_opts = from_value<backend_options>(backend_v);
+    auto& ctx         = any_cast<context>(gctx);
+    setup_context(ctx, options, backend_opts);
 
     pipeline_factory p{&gctx, options, backend_opts};
+    if(options.recompilable)
+        p.recorded_options = compile_options_value(options, backend_v);
 
     std::vector<std::vector<pass>> pipelines;
 

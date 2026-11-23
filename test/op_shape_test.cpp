@@ -2975,6 +2975,40 @@ TEST_CASE(multibroadcast)
     }
 }
 
+TEST_CASE(multibroadcast_scalar_lower_rank)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 1, 2}, {0, 0, 0, 0}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 3, 2}, {0, 0, 0}},
+                 migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 2}}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_unit_leading_axes)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 1, 2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 3, 2}, {2, 0, 1}},
+                 migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 2}}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_lower_rank_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 1, 1, 2}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 2}}}), input);
+}
+
+TEST_CASE(multibroadcast_scalar_lower_rank_nonunit_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {3, 1, 1, 1}, {0, 0, 0, 0}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2}}}), input);
+}
+
+TEST_CASE(multibroadcast_scalar_lower_rank_trailing_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 1, 5}, {0, 0, 0, 0}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2}}}), input);
+}
+
 TEST_CASE(multibroadcast_1in_dyn_error_0)
 {
     // multibroadcast doesn't support single dynamic shape input
@@ -4825,6 +4859,31 @@ TEST_CASE(reshape_transposed_broadcast)
     migraphx::shape output{migraphx::shape::float_type, lens};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
     EXPECT(output.standard());
+}
+
+TEST_CASE(reshape_transposed_broadcast_merge)
+{
+    // Nearest-neighbor 2x upsample of an NHWC input: every broadcast axis merges into a spatial
+    // axis that places it in memory, so the output keeps the NHWC layout.
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 2, 2, 3, 2}, {24, 1, 12, 0, 4, 0}};
+    std::vector<std::size_t> lens = {1, 4, 4, 6};
+    migraphx::shape output =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, lens, {0, 2, 3, 1});
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
+    EXPECT(output.packed());
+    EXPECT(not output.standard());
+}
+
+TEST_CASE(reshape_broadcast_merge_singleton)
+{
+    // The broadcast axis merges with a length-1 axis, which doesn't place it in memory, so the
+    // output is standard.
+    migraphx::shape input{migraphx::shape::float_type, {2, 1, 1}};
+    auto broadcasted =
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 4}}}).compute_shape({input});
+    std::vector<std::size_t> lens = {2, 4};
+    migraphx::shape output{migraphx::shape::float_type, lens};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), broadcasted);
 }
 
 TEST_CASE(reshape_transposed_slice)

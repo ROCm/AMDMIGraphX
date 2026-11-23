@@ -91,6 +91,7 @@ struct set_stream
     }
     void finalize(context& ctx, const shape&, const std::vector<shape>&) const
     {
+        ctx.create_streams(stream);
         ctx.set_stream(stream);
     }
 };

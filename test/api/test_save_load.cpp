@@ -78,7 +78,7 @@ TEST_CASE(load_save_external_weights)
 {
     migraphx::tmp_dir td{"api-external-weights"};
     auto filename = (td.path / "model.mxr").string();
-    auto p1       = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto p1       = migraphx::parse_onnx("group_query_attention_test.onnx");
     migraphx::file_options options;
     options.set_file_format("msgpack");
     options.set_external_weights_threshold(1);
@@ -98,12 +98,12 @@ TEST_CASE(load_save_external_weights)
     EXPECT(generations.size() == 1);
     EXPECT(not migraphx::fs::exists(td.path / "weights.data"));
 
-    auto p2 = migraphx::load(filename.c_str());
-    EXPECT(p1.sort() == p2.sort());
+    // Windows cannot rewrite a file while a loaded program maps it
+    EXPECT(p1.sort() == migraphx::load(filename.c_str()).sort());
 
     // A corrupted weights file loads unless its checksums are verified
     auto weights = migraphx::read_buffer(generations.front());
-    weights.at(3)++;
+    weights.at(0)++;
     migraphx::write_buffer(generations.front(), weights);
     migraphx::file_options verify;
     verify.set_verify_external_weights(true);
@@ -118,7 +118,7 @@ TEST_CASE(load_save_reuse_external_data)
     migraphx::fs::create_directories(td.path / "a");
     migraphx::fs::create_directories(td.path / "b");
     auto original = (td.path / "a" / "model.mxr").string();
-    auto p1       = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto p1       = migraphx::parse_onnx("group_query_attention_test.onnx");
     migraphx::file_options options;
     options.set_external_weights_threshold(1);
     migraphx::save(p1, original.c_str(), options);

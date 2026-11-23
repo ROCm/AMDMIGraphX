@@ -26,6 +26,8 @@
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
+option(MIGRAPHX_ENABLE_HARDENING "Enable Linux exploit-mitigation compiler and linker flags" ON)
+
 # HIP offload compiles one invocation for the host and the device. Prefer
 # -Xarch_host when clang accepts it so the flag stays on the host pass. GCC
 # does not accept that form, and those builds use the bare flag.

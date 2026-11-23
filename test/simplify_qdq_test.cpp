@@ -220,6 +220,66 @@ TEST_CASE(remove_qdq_pack_shape_mismatch_not_removed)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(remove_qdq_broadcast_input)
+{
+    migraphx::shape xs{migraphx::shape::half_type, {4, 8}};
+    migraphx::shape bs{migraphx::shape::half_type, {8}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", xs);
+        auto b = m1.add_parameter("b", bs);
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 8}}}), b);
+        auto scale =
+            m1.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {0.5f}});
+        auto q   = add_quantize_op(m1, "quantizelinear", mb, scale);
+        auto dq  = add_quantize_op(m1, "dequantizelinear", q, scale);
+        auto add = m1.add_instruction(migraphx::make_op("add"), x, dq);
+        m1.add_return({add});
+    }
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", xs);
+        auto b = m2.add_parameter("b", bs);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 8}}}), b);
+        auto add = m2.add_instruction(migraphx::make_op("add"), x, mb);
+        m2.add_return({add});
+    }
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(remove_qdq_slice_input)
+{
+    migraphx::shape xs{migraphx::shape::half_type, {4, 24}};
+    migraphx::shape ys{migraphx::shape::half_type, {4, 8}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", xs);
+        auto y  = m1.add_parameter("y", ys);
+        auto sl = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {8}}, {"ends", {16}}}), x);
+        auto scale =
+            m1.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {0.5f}});
+        auto q   = add_quantize_op(m1, "quantizelinear", sl, scale);
+        auto dq  = add_quantize_op(m1, "dequantizelinear", q, scale);
+        auto add = m1.add_instruction(migraphx::make_op("add"), dq, y);
+        m1.add_return({add});
+    }
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", xs);
+        auto y  = m2.add_parameter("y", ys);
+        auto sl = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {8}}, {"ends", {16}}}), x);
+        auto add = m2.add_instruction(migraphx::make_op("add"), sl, y);
+        m2.add_return({add});
+    }
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(qdq_different_scales)
 {
     migraphx::shape sh1{migraphx::shape::float_type, {100, 100}};

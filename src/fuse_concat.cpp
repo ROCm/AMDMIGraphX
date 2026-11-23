@@ -32,6 +32,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -114,10 +115,25 @@ MIGRAPHX_REGISTER_OP(fused_concat);
 
 namespace {
 
-bool is_fusable_pointwise(instruction_ref ins)
+// The producer fuses the pointwise into its own kernel later
+bool is_epilogue(instruction_ref ins, const std::unordered_set<std::string>& epilogue_ops)
+{
+    if(ins->inputs().empty())
+        return false;
+    auto producer = ins->inputs().front();
+    return contains(epilogue_ops, producer->name()) and producer->outputs().size() == 1;
+}
+
+bool is_fusable_pointwise(instruction_ref ins, const std::unordered_set<std::string>& epilogue_ops)
 {
     return ins->name() == "pointwise" and ins->outputs().size() == 1 and
-           ins->get_shape().type() != shape::tuple_type;
+           ins->get_shape().type() != shape::tuple_type and not is_epilogue(ins, epilogue_ops);
+}
+
+auto fusable_concat_input(const std::unordered_set<std::string>& epilogue_ops)
+{
+    return match::make_basic_pred_matcher(
+        [=](instruction_ref ins) { return is_fusable_pointwise(ins, epilogue_ops); });
 }
 
 template <class... Ts>
@@ -141,11 +157,12 @@ struct concat_counter
 
 struct find_concat_pointwise : concat_counter<0>
 {
+    std::unordered_set<std::string> epilogue_ops;
+
     auto matcher() const
     {
-        auto pointwise_used_once = fusable_pointwise(match::used_once());
-        return match::name("concat")(match::used_once(),
-                                     match::any_of[match::inputs()](pointwise_used_once));
+        return match::name("concat")(
+            match::used_once(), match::any_of[match::inputs()](fusable_concat_input(epilogue_ops)));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -156,7 +173,7 @@ struct find_concat_pointwise : concat_counter<0>
         size_t num_noops = 0;
         for(auto input : concat_ins->inputs())
         {
-            if(input->name() == "pointwise" and input->outputs().size() == 1)
+            if(is_fusable_pointwise(input, epilogue_ops))
             {
                 inputs.insert(inputs.end(), input->inputs().begin(), input->inputs().end());
             }
@@ -176,7 +193,7 @@ struct find_concat_pointwise : concat_counter<0>
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
                        [&](instruction_ref input) {
-                           if(is_fusable_pointwise(input))
+                           if(is_fusable_pointwise(input, epilogue_ops))
                            {
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
@@ -202,11 +219,12 @@ struct find_concat_pointwise : concat_counter<0>
 
 struct find_pointwise_concat_pointwise : concat_counter<1>
 {
+    std::unordered_set<std::string> epilogue_ops;
+
     auto matcher() const
     {
-        auto pointwise = fusable_pointwise(match::used_once());
-        auto concat =
-            match::name("concat")(match::used_once(), match::any_of[match::inputs()](pointwise));
+        auto concat = match::name("concat")(
+            match::used_once(), match::any_of[match::inputs()](fusable_concat_input(epilogue_ops)));
         return fusable_pointwise(match::any_of[match::inputs()](concat.bind("concat")));
     }
 
@@ -220,7 +238,7 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
         std::vector<instruction_ref> inputs;
         for(auto input : concat_ins->inputs())
         {
-            if(input->name() == "pointwise" and input->outputs().size() == 1)
+            if(is_fusable_pointwise(input, epilogue_ops))
                 inputs.insert(inputs.end(), input->inputs().begin(), input->inputs().end());
             else
                 inputs.push_back(input);
@@ -236,7 +254,7 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
                        [&](instruction_ref input) {
-                           if(is_fusable_pointwise(input))
+                           if(is_fusable_pointwise(input, epilogue_ops))
                            {
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
@@ -363,9 +381,9 @@ void fuse_concat::apply(module_pass_manager& mpm) const
     mpm.run_pass(migraphx::dead_code_elimination{});
     match::find_matches(mpm, find_nested_concat{});
     mpm.run_pass(migraphx::dead_code_elimination{});
-    match::find_matches(mpm, find_pointwise_concat_pointwise{});
+    match::find_matches(mpm, find_pointwise_concat_pointwise{{}, epilogue_ops});
     mpm.run_pass(migraphx::dead_code_elimination{});
-    match::find_matches(mpm, find_concat_pointwise{});
+    match::find_matches(mpm, find_concat_pointwise{{}, epilogue_ops});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

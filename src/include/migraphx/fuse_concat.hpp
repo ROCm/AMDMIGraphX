@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <string>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,6 +35,9 @@ struct module_pass_manager;
 
 struct MIGRAPHX_EXPORT fuse_concat
 {
+    // Ops that fuse a pointwise consumer into their own kernel in a later pass. That pointwise
+    // is left for them instead of being fused into the concat.
+    std::unordered_set<std::string> epilogue_ops = {};
     std::string name() const { return "fuse_concat"; }
     void apply(module_pass_manager& mpm) const;
 };

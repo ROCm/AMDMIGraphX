@@ -215,6 +215,110 @@ TEST_CASE(skip_pointwise_concat)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(skip_epilogue_pointwise_concat)
+{
+    // The convolution fuses the add into its own kernel later, so it is not fused into the concat
+    migraphx::shape s{migraphx::shape::float_type, {1, 4, 8, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto x      = mm->add_parameter("x", s);
+        auto w      = mm->add_parameter("w", ws);
+        auto b      = mm->add_parameter("b", s);
+        auto y      = mm->add_parameter("y", s);
+        auto conv   = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        auto add    = add_pointwise(p1, "main:pointwise0", {conv, b}, single_pointwise("add"));
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, y);
+        mm->add_return({concat});
+    }
+    migraphx::program p2 = p1;
+    migraphx::run_passes(p1,
+                         {migraphx::fuse_concat{.epilogue_ops = {"convolution"}},
+                          migraphx::dead_code_elimination{}});
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(epilogue_pointwise_concat_multi_use_producer)
+{
+    // The convolution has another user, so it cannot take the add as its epilogue
+    migraphx::shape s{migraphx::shape::float_type, {1, 4, 8, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto x      = mm->add_parameter("x", s);
+        auto w      = mm->add_parameter("w", ws);
+        auto b      = mm->add_parameter("b", s);
+        auto y      = mm->add_parameter("y", s);
+        auto conv   = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        auto add    = add_pointwise(p1, "main:pointwise0", {conv, b}, single_pointwise("add"));
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, y);
+        mm->add_return({concat, conv});
+    }
+    migraphx::run_passes(p1,
+                         {migraphx::fuse_concat{.epilogue_ops = {"convolution"}},
+                          migraphx::dead_code_elimination{}});
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto w    = mm->add_parameter("w", ws);
+        auto b    = mm->add_parameter("b", s);
+        auto y    = mm->add_parameter("y", s);
+        auto conv = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        auto fused_concat =
+            add_pointwise_concat(p2,
+                                 1,
+                                 arg("main:noop:concat2", {}, noop_pointwise()),
+                                 arg("concat:main:pointwise0", {conv, b}, single_pointwise("add")),
+                                 arg("main:concat:noop0", {y}, noop_pointwise()));
+        mm->add_return({fused_concat, conv});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(partial_epilogue_pointwise_concat)
+{
+    // The add stays with its convolution and is copied into the concat like any other input
+    migraphx::shape s{migraphx::shape::float_type, {1, 4, 8, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto x      = mm->add_parameter("x", s);
+        auto w      = mm->add_parameter("w", ws);
+        auto b      = mm->add_parameter("b", s);
+        auto y      = mm->add_parameter("y", s);
+        auto conv   = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        auto add    = add_pointwise(p1, "main:pointwise0", {conv, b}, single_pointwise("add"));
+        auto sub    = add_pointwise(p1, "main:pointwise1", {x, y}, single_pointwise("sub"));
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, sub);
+        mm->add_return({concat});
+    }
+    migraphx::run_passes(p1,
+                         {migraphx::fuse_concat{.epilogue_ops = {"convolution"}},
+                          migraphx::dead_code_elimination{}});
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto w    = mm->add_parameter("w", ws);
+        auto b    = mm->add_parameter("b", s);
+        auto y    = mm->add_parameter("y", s);
+        auto conv = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        auto add  = add_pointwise(p2, "main:pointwise0", {conv, b}, single_pointwise("add"));
+        auto fused_concat =
+            add_pointwise_concat(p2,
+                                 1,
+                                 arg("main:noop:concat2", {}, noop_pointwise()),
+                                 arg("main:concat:noop0", {add}, noop_pointwise()),
+                                 arg("concat:main:pointwise1", {x, y}, single_pointwise("sub")));
+        mm->add_return({fused_concat});
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(simple_pointwise_concat_pointwise)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

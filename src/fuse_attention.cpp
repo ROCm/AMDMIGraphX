@@ -154,19 +154,13 @@ struct attention_gate
     std::size_t min_q_rows       = 1;
     std::size_t wide_head_kv_len = 0;
 
-    bool few_q_rows(const shape& q, std::size_t d_v) const
+    bool fusable(const shape& q, std::size_t d_v, std::size_t kv_len) const
     {
         auto d_qk     = q.lens().back();
         auto head_dim = std::max(d_qk, d_v);
         auto min_rows = min_q_rows * std::min<std::size_t>(head_dim, 128) / 128;
-        return q.elements() / d_qk < min_rows;
-    }
-
-    bool fusable(const shape& q, std::size_t d_v, std::size_t kv_len) const
-    {
-        if(few_q_rows(q, d_v))
+        if(q.elements() / d_qk < min_rows)
             return false;
-        auto head_dim = std::max(q.lens().back(), d_v);
         return head_dim <= max_head_dim or kv_len <= wide_head_kv_len;
     }
 
@@ -177,12 +171,6 @@ struct attention_gate
         // v is input 1, not back(): a quant_dot may carry trailing scale inputs
         const auto& v = gemm2->inputs().at(1)->get_shape();
         return fusable(q, v.lens().back(), v.lens().rbegin()[1]);
-    }
-
-    bool few_q_rows(instruction_ref gemm1, instruction_ref gemm2) const
-    {
-        return few_q_rows(gemm1->inputs().front()->get_shape(),
-                          gemm2->inputs().at(1)->get_shape().lens().back());
     }
 };
 
@@ -567,40 +555,6 @@ struct find_attention
         return m.name() == "main" ? name : m.name() + ":" + name;
     }
 
-    // An attention block left unfused runs q.k^T as its own gemm, which writes the scores in
-    // fp16 even when the softmax after it was promoted to fp32. The unscaled scores can
-    // overflow fp16 when the scaled ones fit, while the fused kernel keeps them in fp32. Group
-    // the gemm with that convert so MLIR compiles them as one kernel, which writes its fp32
-    // accumulator instead of rounding it to fp16 first.
-    void group_unfused_scores(module_pass_manager& mpm, instruction_ref gemm1) const
-    {
-        if(gemm1->get_shape().type() != shape::half_type)
-            return;
-        // Shape-only ops may sit between the gemm and the convert (a batched 3-D gemm unsqueezed)
-        std::vector<instruction_ref> inss = {gemm1};
-        auto next                         = [&] { return inss.back()->outputs().front(); };
-        while(inss.back()->outputs().size() == 1 and next()->inputs().size() == 1 and
-              contains({"reshape", "unsqueeze"}, next()->name()))
-            inss.push_back(next());
-        if(inss.back()->outputs().size() != 1 or next()->name() != "convert" or
-           next()->get_shape().type() != shape::float_type)
-            return;
-        auto cvt = next();
-        inss.push_back(cvt);
-
-        module m_scores;
-        std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mscores;
-        m_scores.fuse(inss, &map_mm_to_mscores);
-        m_scores.add_return({map_mm_to_mscores.at(cvt)});
-        auto inputs = m_scores.get_inputs(invert_map_ins(map_mm_to_mscores));
-        module_ref mpm_scores =
-            mpm.create_module(get_name(mpm.get_module(), "attn_scores"), std::move(m_scores));
-        mpm_scores->set_bypass();
-        auto group_ins = mpm.get_module().insert_instruction(
-            cvt, make_op("group", {{"tag", "attention_scores"}}), inputs, {mpm_scores});
-        mpm.get_module().replace_instruction(cvt, group_ins);
-    }
-
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref gemm1, instruction_ref gemm2) const
     {
@@ -638,12 +592,7 @@ struct find_attention
         auto softmax_input = r.instructions["x"];
 
         if(not gate.fusable(gemm1, gemm2))
-        {
-            // Only small blocks: fp32 scores double the traffic of a large unfused block
-            if(gate.few_q_rows(gemm1, gemm2))
-                group_unfused_scores(mpm, gemm1);
             return;
-        }
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), gemm1, gemm2);

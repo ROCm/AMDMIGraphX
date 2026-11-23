@@ -122,6 +122,50 @@ TEST_CASE(pointwise_reduce)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(pointwise_widening_dot_not_fused_into_reduce)
+{
+    // A pointwise that converts the fp16 result of a dot to float, as ahead of a softmax
+    // promoted to float, stays out of the reduce so the dot can be fused with it and write float
+    migraphx::shape s1{migraphx::shape::half_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    auto to_float = [](auto* pm, const auto& inputs) {
+        return pm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+            inputs[0]);
+    };
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto dot  = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto cvt  = add_pointwise(p1, "main:pointwise0", {dot}, to_float);
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), cvt);
+        mm->add_return({rmax});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto cvt = add_pointwise(p2, "main:pointwise0", {dot}, to_float);
+        auto rmax =
+            add_reduce(p2,
+                       "main:reduce_max0",
+                       {cvt},
+                       {1},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           return rm->add_instruction(
+                               migraphx::make_op("reduce_max", {{"axes", axes}}), inputs[0]);
+                       });
+        mm->add_return({rmax});
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(pointwise_reduce_unfusable_broadcast)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 1, 3}};

@@ -826,6 +826,31 @@ struct find_mlir_fused_ops
     }
 
     /**
+     * Matches an input of the pointwise with m, skipping inputs whose matched "gemm_based_op"
+     * is an ancestor of a sibling input: fusing it would make the fused op depend on its own
+     * output. Residual blocks hit this when the skip input is itself a gemm/conv.
+     */
+    template <class M>
+    static auto fusable_gemm_input(M m)
+    {
+        return match::make_basic_fun_matcher(
+            [=](match::matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+                const auto& inputs = ins->inputs();
+                auto it = std::find_if(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+                    if(not ctx.matched(m, input))
+                        return false;
+                    auto gemm_based_op = ctx.instructions.at("gemm_based_op");
+                    return std::none_of(inputs.begin(), inputs.end(), [&](instruction_ref i) {
+                        return i != input and reaches(gemm_based_op, i);
+                    });
+                });
+                if(it == inputs.end())
+                    return nullopt;
+                return ins;
+            });
+    }
+
+    /**
      * Matches:
      * mlir_dot_or_conv <binds to "gemm_based_op"> ->
      * skip(conv_dot_reshaper_names) <binds to "x"> ->
@@ -836,7 +861,7 @@ struct find_mlir_fused_ops
         static const auto conv_dot_reshaper_names = make_conv_dot_reshaper_names();
         auto dot_or_conv = match::skip(match::name(conv_dot_reshaper_names))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
-        return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
+        return mlir_pointwise()(fusable_gemm_input(dot_or_conv.bind("x")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -845,13 +870,6 @@ struct find_mlir_fused_ops
         auto gemm_based_op = r.instructions["gemm_based_op"];
         auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
         auto* pm           = pw_ins->module_inputs().front();
-        auto pw_inputs     = pw_ins->inputs();
-        // only of one of the inputs to pointwise module should be dependent on conv/gemm that is
-        // being fused, otherwise it can create invalid graph transformation
-        if(std::any_of(pw_inputs.begin(), pw_inputs.end(), [&](const auto& i) {
-               return i != x_ins and reaches(gemm_based_op, i);
-           }))
-            return;
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref mm = mpm.create_module("mlir_" + pm->name());
@@ -895,15 +913,9 @@ struct find_mlir_fused_ops
                 migraphx::make_op("get_tuple_elem", {{"index", rins.size() - 1}}),
                 fused_ins);
 
-            // move all the reshape instructions after the fused op to avoid
-            // generating invalid migraphx program since the reshapes can be
-            // used by the replaced dot_ins
-            for(instruction_ref x : inss_to_insert)
-            {
-                if(x == gemm_based_op)
-                    continue;
-                mpm.get_module().move_instruction(x, pw_ins);
-            }
+            // The reshapes and any other users of the gemm placed before the pointwise will
+            // read from dot_ins, so move them after it to keep the program valid
+            mpm.get_module().move_output_instructions_after(gemm_based_op, dot_ins);
 
             mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
             if(rins.size() == 2)

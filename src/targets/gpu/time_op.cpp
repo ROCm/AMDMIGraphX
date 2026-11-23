@@ -384,7 +384,7 @@ static double time_benchmark(std::vector<migraphx::context>& ctx_vec,
                              bool use_graph,
                              bool warmup = true)
 {
-    // time_loop's check sees the first bundle value_of cached in this process, not this one
+    // A graph holds the bundle evals and time_loop only sees a bundle of 1, so check it here
     if(bundle <= 0)
         MIGRAPHX_THROW("Timing bundle must be greater than zero");
     auto& gctx = any_cast<migraphx::gpu::context>(ctx_vec.front());

@@ -349,6 +349,29 @@ struct rebase_ambiguity_resolver
     // Returns the axes mapping that can be used for rebase
     auto resolve()
     {
+        auto axes_map = resolve_groups();
+        drop_unit_splits(axes_map);
+        return axes_map;
+    }
+
+    private:
+    // The unit subdimensions a split adds stay unit for any length of the
+    // axis, so only its other subdimensions take part in rebasing it
+    static void drop_unit_splits(axes_map_t& axes_map)
+    {
+        std::for_each(axes_map.begin(), axes_map.end(), [](auto& p) {
+            auto& subs = p.second;
+            auto unit  = [](const dimension::sub* s) {
+                return s->len == 1 and not s->has_hidden_axis();
+            };
+            if(std::all_of(subs.begin(), subs.end(), unit))
+                return;
+            subs.erase(std::remove_if(subs.begin(), subs.end(), unit), subs.end());
+        });
+    }
+
+    axes_map_t resolve_groups()
+    {
         std::vector<std::pair<dimension::sub, std::size_t>> subs_to_insert;
         {
             axes_map_t axes_map = group_axes(desc->dimensions);
@@ -376,7 +399,6 @@ struct rebase_ambiguity_resolver
         return regroup_axes();
     }
 
-    private:
     template <class T, class U>
     static auto check_div(T x, U y) -> decltype(x / y)
     {
@@ -899,6 +921,18 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
         }
         else if(op.name() == "multibroadcast")
         {
+            // Leading unit axes beyond the output rank are dropped first
+            auto out_ndim = v.at("out_lens").size();
+            if(out_ndim < dims.size())
+            {
+                auto extra = dims.size() - out_ndim;
+                if(not std::all_of(
+                       dims.begin(), dims.begin() + extra, [](auto d) { return d == 1; }))
+                    return false;
+                dims.erase(dims.begin(), dims.begin() + extra);
+                if(not apply_reshape(dims))
+                    return false;
+            }
             dims = compute_dims(op, dims);
             // cppcheck-suppress knownConditionTrueFalse
             if(not apply_broadcast(dims))

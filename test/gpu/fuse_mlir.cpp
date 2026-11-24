@@ -3395,6 +3395,73 @@ TEST_CASE(dyn_conv)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(fp8_dot_large_k)
+{
+    migraphx::shape s1{migraphx::shape::fp8e4m3fn_type, {1, 2, 2048}};
+    migraphx::shape s2{migraphx::shape::fp8e4m3fn_type, {1, 2048, 2}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto fused = add_mlir(
+            p2,
+            "mlir_dot0",
+            {a, b},
+            {"y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                return std::make_tuple(dot->get_operator(), dot);
+            },
+            "standalone_dot");
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(fp8_quant_dot_large_k)
+{
+    migraphx::shape s1{migraphx::shape::fp8e4m3fn_type, {1, 2, 2048}};
+    migraphx::shape s2{migraphx::shape::fp8e4m3fn_type, {1, 2048, 2}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto dot = mm->add_instruction(migraphx::make_op("quant_dot"), a, b);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto fused = add_mlir(
+            p2,
+            "mlir_quant_dot0",
+            {a, b},
+            {"y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot =
+                    pm->add_instruction(migraphx::make_op("quant_dot"), inputs[0], inputs[1]);
+                return std::make_tuple(dot->get_operator(), dot);
+            },
+            "standalone_quant_dot");
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[])
 {
     if(migraphx::gpu::mlir_enabled())

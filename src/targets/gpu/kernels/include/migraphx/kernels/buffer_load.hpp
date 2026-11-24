@@ -30,7 +30,7 @@
 
 namespace migraphx {
 
-// gfx12 buffer-resource word 3 (from composable_kernel): makes raw buffer loads
+// gfx11/gfx12 buffer-resource word 3 (from composable_kernel): makes raw buffer loads
 // return 0 for out-of-range byte offsets, so bounds/halo checks collapse to an
 // offset select against a sentinel instead of a per-load branch.
 constexpr uint32_t oob_buffer_rsrc_word3 = 0x31004000;

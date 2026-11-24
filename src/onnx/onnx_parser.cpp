@@ -452,6 +452,50 @@ parse_inputs(onnx_parser& parser,
     return mod_insts;
 }
 
+// Collect the names that nodes of a subgraph (or of its own subgraphs) read from an enclosing
+// scope, which are not passed to the node as inputs
+static void collect_outer_scope_inputs(const onnx::GraphProto& graph,
+                                       std::unordered_set<std::string>& result)
+{
+    std::unordered_set<std::string> defined;
+    auto name = [](const auto& x) { return x.name(); };
+    std::transform(
+        graph.input().begin(), graph.input().end(), std::inserter(defined, defined.end()), name);
+    std::transform(graph.initializer().begin(),
+                   graph.initializer().end(),
+                   std::inserter(defined, defined.end()),
+                   name);
+    for(auto&& node : graph.node())
+        defined.insert(node.output().begin(), node.output().end());
+
+    std::unordered_set<std::string> used;
+    for(auto&& node : graph.node())
+    {
+        used.insert(node.input().begin(), node.input().end());
+        for(auto&& attr : node.attribute())
+        {
+            if(attr.has_g())
+                collect_outer_scope_inputs(attr.g(), used);
+        }
+    }
+    std::copy_if(used.begin(),
+                 used.end(),
+                 std::inserter(result, result.end()),
+                 [&](const std::string& n) { return not n.empty() and not contains(defined, n); });
+}
+
+// The values a node reads through its subgraphs, so it has to be parsed after their producers
+static std::unordered_set<std::string> get_implicit_inputs(const onnx::NodeProto& node)
+{
+    std::unordered_set<std::string> result;
+    for(auto&& attr : node.attribute())
+    {
+        if(attr.has_g())
+            collect_outer_scope_inputs(attr.g(), result);
+    }
+    return result;
+}
+
 struct node_maps
 {
     std::unordered_map<std::string, std::vector<size_t>> input_to_node_map;
@@ -483,6 +527,9 @@ static node_maps create_node_maps(const onnx::GraphProto& graph)
                 continue;
             maps.input_to_node_map[input].push_back(node_index);
         }
+        // A subgraph reading a value from this graph depends on its producer as well
+        for(auto&& input : get_implicit_inputs(node))
+            maps.input_to_node_map[input].push_back(node_index);
 
         std::vector<std::string> node_outputs;
         std::transform(node.output().begin(),
@@ -572,6 +619,10 @@ static bool check_sorted(const onnx::GraphProto& graph,
     // propagate parent graph input nodes into visited nodes
     visited_nodes.insert(parent_input_nodes.begin(), parent_input_nodes.end());
 
+    std::unordered_set<std::string> node_outputs;
+    for(auto&& node : graph.node())
+        node_outputs.insert(node.output().begin(), node.output().end());
+
     for(auto&& node : graph.node())
     {
         for(auto&& input : node.input())
@@ -580,6 +631,12 @@ static bool check_sorted(const onnx::GraphProto& graph,
             if(not input.empty() and not contains(visited_nodes, input))
                 return false;
         }
+        // Values read by a subgraph must be produced before the node when they come from this graph
+        auto implicit_inputs = get_implicit_inputs(node);
+        if(std::any_of(implicit_inputs.begin(), implicit_inputs.end(), [&](const auto& input) {
+               return contains(node_outputs, input) and not contains(visited_nodes, input);
+           }))
+            return false;
         // node outputs struct is used to keep track of currently visited nodes
         visited_nodes.insert(node.output().begin(), node.output().end());
     }
@@ -972,19 +1029,15 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
     case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, t.float_data());
 
-    case onnx::TensorProto::FLOAT8E4M3FNUZ: {
-        std::vector<int32_t> data_int32(t.int32_data().begin(), t.int32_data().end());
-        std::vector<migraphx::fp8::fp8e4m3fnuz> data_fp8;
-        std::transform(data_int32.begin(),
-                       data_int32.end(),
-                       std::back_inserter(data_fp8),
-                       [](float raw_val) { return migraphx::fp8::fp8e4m3fnuz{raw_val}; });
-        return create_literal(shape::fp8e4m3fnuz_type, dims, data_fp8);
+    // ONNX stores each fp8 element of int32_data as its 8-bit pattern, not as a value
+    case onnx::TensorProto::FLOAT8E4M3FNUZ:
+    case onnx::TensorProto::FLOAT8E4M3FN:
+    case onnx::TensorProto::FLOAT8E5M2: {
+        std::vector<char> bits(t.int32_data().begin(), t.int32_data().end());
+        return create_literal(type, dims, bits.data(), bits.size());
     }
 
     case onnx::TensorProto::FLOAT8E5M2FNUZ:
-    case onnx::TensorProto::FLOAT8E5M2:
-    case onnx::TensorProto::FLOAT8E4M3FN:
     case onnx::TensorProto::UNDEFINED:
     case onnx::TensorProto::STRING:
     case onnx::TensorProto::COMPLEX64:
@@ -1126,15 +1179,15 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
+    case 17: return shape::fp8e4m3fn_type;
     case 18: return shape::fp8e4m3fnuz_type;
+    case 19: return shape::fp8e5m2_type;
     case 21: return shape::uint8_type;
     case 22: return shape::int8_type;
     case 23: return shape::fp4x2_type;
     case 14:
     case 15:
     case 16: return shape::bf16_type;
-    case 17:
-    case 19:
     case 20:
     default: {
         MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");

@@ -13,6 +13,8 @@ Full documentation for MIGraphX is available at
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
 * Added MXR recompiling: `migraphx-driver compile --recompilable` stores each GPU kernel's compile recipe in the MXR, and `migraphx-driver recompile` (`program::recompile`) recompiles the kernels of a compiled MXR for the same or a newer GPU generation, including cross-compiling with `--gpu-arch` and exhaustive tuning, without the original model. MXR files can be opened without loading their kernels (`file_options::finalize`).
+* Added OCP fp8 support for gfx1170, gfx1171, and gfx1172 (#5502).
+* Added ONNX parser support for the `FLOAT8E4M3FN` and `FLOAT8E5M2` tensor element types.
 
 ### Changed
 
@@ -22,11 +24,15 @@ Full documentation for MIGraphX is available at
 * Updated `eliminate_convert` to remove no-op and redundant nested `convert` instructions for dynamic and symbolic shapes (#5385).
 * Updated `nonmaxsuppression` kernel to use uint32_t bitmask instead of bool type to get around number of elements > uint32_t (#5302).
 * Enabled MLIR attention fusion by default on every GPU, not just gfx94x/gfx95x, gated per attention block on profitability: blocks whose head dim exceeds `attn_max_head_dim` (512 on wave64 devices, 256 on wave32) at kv lengths past `attn_wide_head_kv_len` (1024 on wave64, none on wave32), or with fewer than `attn_min_q_rows` total query rows (24 per CU), run as separate gemm and softmax kernels instead. The thresholds are configurable through the matching backend options, requesting `attention` in `MIGRAPHX_MLIR_USE_SPECIFIC_OPS` or the `mlir_use_specific_ops` backend option fuses every block regardless of the gate, and `!attention` in the backend option now disables the fusion on every device (#5405).
+* Changed fp8 `dot` and `quant_dot` to always run through MLIR on GPUs with fp8 support, instead of being converted to float when hipBLASLt is unavailable or left to hipBLASLt for large GEMMs (#5502).
 
 ### Resolved issues
 
 * Fixed `MIGRAPHX_SHARE_LITERALS` keeping every pooled weight in device and host memory until the process exited; a pooled weight is now freed with the last program that uses it (#5566).
+* Fixed `simplify_reshapes` generating an inverse shape transform that merges a split axis's sub-axes in the wrong order when a transpose separates the split from the merge, producing a correctly shaped output with its data permuted (#5563).
 * Fixed GPU kernel compilation aborting on HIP toolchains whose clang emits the experimental `-Wlifetime-safety-experimental-field-origin-escape` warning, which is treated as an error under the `-Weverything -Werror` flags used for JIT kernel compilation and is a false positive on `tensor_view`'s non-owning pointer accessors (ROCM-34291).
+* Fixed parsing ONNX models where a node with a subgraph (for example `Loop`) is listed before the producer of a value its subgraph reads from the outer scope, which failed with "unavailable due to unordered nodes" (#5507).
+* Fixed GPU `broadcast_with_dims` (ONNX `Expand` to a run-time shape) reading its dims on the host from GPU memory without a copy or a stream sync, which could give the output a wrong shape when a kernel computes the dims (#5531).
 * Fixed `compute_broadcasted_lens` broadcasting a dimension of 1 to 1 instead of 0 when the other dimension is 0, which made `broadcast_with_dims` produce one element for an empty target dimension (#5529).
 * Fixed the GPU `rewrite_reduce` pass's `mean(x^2) - mean(x)^2` rewrite of `LayerNormalization`-style variance reductions producing `NaN` outputs from catastrophic cancellation at large input magnitude, by clamping the computed variance to zero before it reaches `rsqrt` (AIMIGRAPHX-1376).
 * Fixed `lower_reshape` returning a strided view as a program output when a reshape of a non-standard input (for example the last row sliced out of a KV-cache `concat`) reaches `@return`, which made `run` reject standard caller-provided output buffers (#5237).
@@ -37,6 +43,9 @@ Full documentation for MIGraphX is available at
 * Fixed out-of-process hiprtc compiles hanging on Windows: the `migraphx-hiprtc-driver` child could stay alive after writing its reply, because DLL detach deadlocked on compiler-library locks, so the parent never returned. The child now exits without running DLL detach.
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
 * Fixed hiprtc kernel compiles on Clang 24, where `-Weverything` enables the experimental lifetime-safety analysis. Its field-origin-escape diagnostic fails the compile under `-Werror`, and suppressing only that diagnostic still makes the compile extremely slow. hiprtc now suppresses the whole `-Wlifetime-safety-experimental` group when the compiler accepts it.
+* Fixed `eliminate_concat` returning a strided view of the concat buffer as a program output when a concat input is also returned (for example a time cache kept as the last frames of a `concat`), which made integrations that allocate packed outputs, such as the ONNX Runtime MIGraphX EP, write past the end of the output buffer (#5484).
+* Fixed the ONNX parser decoding `FLOAT8E4M3FNUZ` tensors stored in `int32_data` as numeric values instead of as 8-bit patterns.
+* Fixed `fp8_ocp_to_fnuz` turning `fp8e4m3fn` negative zero into NaN on GPUs without OCP fp8 support.
 
 ### Optimized
 

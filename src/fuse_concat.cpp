@@ -33,6 +33,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/ranges.hpp>
+#include <memory>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -118,22 +119,33 @@ namespace {
 // The producer fuses the pointwise into its own kernel later
 bool is_epilogue(instruction_ref ins, const std::unordered_set<std::string>& epilogue_ops)
 {
-    if(ins->inputs().empty())
-        return false;
     auto producer = ins->inputs().front();
     return contains(epilogue_ops, producer->name()) and producer->outputs().size() == 1;
 }
 
+// A constant input is copied into the concat by a kernel of its own unless the concat is fused
+bool has_constant_input(instruction_ref concat)
+{
+    return std::any_of(concat->inputs().begin(), concat->inputs().end(), [](instruction_ref input) {
+        return input->can_eval();
+    });
+}
+
+// A pointwise input of a concat that is fused into the concat
 bool is_fusable_pointwise(instruction_ref ins, const std::unordered_set<std::string>& epilogue_ops)
 {
-    return ins->name() == "pointwise" and ins->outputs().size() == 1 and
-           ins->get_shape().type() != shape::tuple_type and not is_epilogue(ins, epilogue_ops);
+    if(ins->name() != "pointwise" or ins->outputs().size() != 1 or
+       ins->get_shape().type() == shape::tuple_type)
+        return false;
+    return not is_epilogue(ins, epilogue_ops) or has_constant_input(ins->outputs().front());
 }
 
 auto fusable_concat_input(const std::unordered_set<std::string>& epilogue_ops)
 {
+    // The set is shared since matchers are copied for every instruction visited
     return match::make_basic_pred_matcher(
-        [=](instruction_ref ins) { return is_fusable_pointwise(ins, epilogue_ops); });
+        [ops = std::make_shared<const std::unordered_set<std::string>>(epilogue_ops)](
+            instruction_ref ins) { return is_fusable_pointwise(ins, *ops); });
 }
 
 template <class... Ts>

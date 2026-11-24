@@ -5899,8 +5899,9 @@ TEST_CASE(conv_concat_split_fuse_no_fusion_mismatched_weights)
 
 TEST_CASE(conv_concat_split_fuse_prefix_concat_candidate)
 {
-    // The first input of the concat also feeds a different concat whose input list is a
-    // strict prefix of it
+    // Exercises find_conv_concat_split_fuse's prefix-concat branch: the first input of the
+    // matched concat also feeds a *different* concat whose input list is a strict prefix of
+    // the matched one. That candidate path is otherwise unreached by the suite.
     migraphx::shape xs{migraphx::shape::float_type, {1, 8, 4, 4}};
     migraphx::shape ws{migraphx::shape::float_type, {4, 8, 3, 3}};
     migraphx::shape w3s{migraphx::shape::float_type, {4, 16, 3, 3}};

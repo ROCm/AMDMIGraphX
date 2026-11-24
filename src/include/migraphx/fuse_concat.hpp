@@ -35,8 +35,9 @@ struct module_pass_manager;
 
 struct MIGRAPHX_EXPORT fuse_concat
 {
-    // Ops that fuse a pointwise consumer into their own kernel in a later pass. That pointwise
-    // is left for them instead of being fused into the concat.
+    // Ops that fuse a pointwise into their own kernel in a later pass. A pointwise that is the
+    // only user of such an op is left for it instead of being fused into the concat, unless
+    // the concat has a constant input, which needs a kernel to copy it anyway.
     std::unordered_set<std::string> epilogue_ops = {};
     std::string name() const { return "fuse_concat"; }
     void apply(module_pass_manager& mpm) const;

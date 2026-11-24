@@ -36,6 +36,7 @@
 
 #include <migraphx/dfor.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <cassert>
 #include <iterator>
 #include <numeric>
 #include <optional>
@@ -309,9 +310,9 @@ struct concat_optimizer
             ins->inputs().front()->get_shape().ndim(), concat_op->axis, concat_op->name());
     }
 
-    static std::vector<instruction_ref> data_inputs(instruction_ref ins)
+    static auto data_inputs(instruction_ref ins)
     {
-        return {ins->inputs().begin(), std::prev(ins->inputs().end())};
+        return range(ins->inputs().begin(), std::prev(ins->inputs().end()));
     }
 
     // The position in the inputs of `ins` where the inputs of the smaller concat `sub` appear
@@ -393,13 +394,12 @@ struct concat_optimizer
         return *it;
     }
 
-    // A concat whose inputs are the `size` inputs of a larger concat starting at `pos`
+    // A concat whose inputs are the inputs of a larger concat starting at `pos`
     struct sub_concat
     {
         instruction_ref ins;
-        std::size_t pos  = 0;
-        std::size_t size = 0;
-        operation slice  = {};
+        std::size_t pos = 0;
+        operation slice = {};
     };
 
     // The users of the concat can read it as a view of a larger buffer
@@ -416,41 +416,41 @@ struct concat_optimizer
     std::vector<sub_concat> find_sub_concats(instruction_ref ins, std::size_t axis) const
     {
         auto inputs = data_inputs(ins);
-        std::vector<std::size_t> ends(inputs.size());
-        transform_partial_sum(
-            inputs.begin(), inputs.end(), ends.begin(), std::plus<>{}, [&](instruction_ref input) {
-                return input->get_shape().lens()[axis];
-            });
-        std::vector<std::size_t> positions(inputs.size());
-        std::iota(positions.begin(), positions.end(), 0);
+        std::vector<std::size_t> starts(inputs.size());
+        // Qualified since ADL also finds std::transform_exclusive_scan where it exists
+        migraphx::transform_exclusive_scan(
+            inputs.begin(),
+            inputs.end(),
+            starts.begin(),
+            std::size_t{0},
+            std::plus<>{},
+            [&](instruction_ref input) { return input->get_shape().lens()[axis]; });
+        auto positions = range(inputs.size());
         std::vector<sub_concat> result;
         std::transform(
             positions.begin(), positions.end(), join_back_inserter(result), [&](std::size_t pos) {
-                auto users = concat_users(inputs[pos], ins, axis);
-                auto start = ends[pos] - inputs[pos]->get_shape().lens()[axis];
+                auto users = concat_users(ins->inputs()[pos], ins, axis);
                 std::vector<sub_concat> subs;
                 transform_if(
                     users.begin(),
                     users.end(),
                     std::back_inserter(subs),
                     [&](instruction_ref user) {
-                        // An input can repeat, so only take the concat at its run
+                        // Take a concat once, at the input where its run starts
                         if(find_run(ins, user) != pos)
                             return false;
                         return can_alias(
                             user, slice_shape_for(ins->get_shape(), user->get_shape()), axis);
                     },
                     [&](instruction_ref user) {
-                        return sub_concat{
-                            user, pos, user->inputs().size() - 1, make_slice(user, axis, start)};
+                        return sub_concat{user, pos, make_slice(user, axis, starts[pos])};
                     });
                 return subs;
             });
         return result;
     }
 
-    // Replace the concat, along with the smaller concats over the same inputs, which become
-    // views of its buffer
+    // Replaces the concat and turns its sub concats into views of its buffer
     void replace_concats(instruction_ref ins, std::size_t axis) const
     {
         auto subs  = find_sub_concats(ins, axis);
@@ -458,11 +458,13 @@ struct concat_optimizer
         auto super = args.front();
         for(const auto& sub : subs)
         {
+            auto size = sub.ins->inputs().size() - 1;
+            assert(sub.pos + size < args.size());
             auto view = m->insert_instruction(std::next(super), sub.slice, super);
-            // The inputs written into the buffer are kept as inputs to order the view after them
+            // The writers of the buffer stay as inputs so the view is read after they run
             std::vector<instruction_ref> inputs = {view};
             auto first                          = args.begin() + 1 + sub.pos;
-            inputs.insert(inputs.end(), first, first + sub.size);
+            inputs.insert(inputs.end(), first, first + size);
             m->replace_instruction(sub.ins, make_op("identity"), inputs);
         }
     }
@@ -470,6 +472,7 @@ struct concat_optimizer
     std::vector<instruction_ref> replace_concat(instruction_ref ins, std::size_t axis) const
     {
         auto last = ins->inputs().back();
+        assert(is_allocation(last));
         // Where are the allocations for the tensors to be concatenated?
         std::vector<instruction_ref> allocations;
 

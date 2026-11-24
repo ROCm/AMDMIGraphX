@@ -38,7 +38,6 @@
 #include <sstream>
 #include <utility>
 #include <string>
-#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -71,17 +70,16 @@ static void validate_pass(module& mod, const pass& p, tracer trace)
 #endif
 }
 
-// The submodules of a module are run first, so a control flow instruction that takes them, such
-// as an if or a loop, can still have the shape of the outputs they had before the pass changed
-// them. The submodules of fused ops are built by the passes that fuse them, and recomputing their
-// shapes before every pass would add to the compile time.
+// The submodules of a module are run first, so an instruction that takes them, such as an if or
+// a loop, can still have the shape of the outputs they had before the pass changed them. Bypassed
+// submodules, which the passes do not run on (eg those of fused ops), are left out.
 static void update_submodule_shapes(module& m)
 {
-    static const std::unordered_set<std::string> control_flow = {
-        "if", "loop", "select_module", "select_module_index"};
     for(auto ins : iterator_for(m))
     {
-        if(contains(control_flow, ins->name()))
+        const auto& mods = ins->module_inputs();
+        if(not mods.empty() and
+           std::none_of(mods.begin(), mods.end(), [](module_ref sm) { return sm->bypass(); }))
             ins->recompute_shape();
     }
 }

@@ -63,13 +63,10 @@ std::vector<shape::dynamic_dimension> own_symbolic_dims(const shape& s,
         return dims;
     // The common dims broadcast every input, so they have at least the input's rank
     const auto& in = s.dyn_dims();
-    auto offset    = dims.size() - in.size();
-    for(std::size_t i = 0; i < in.size(); ++i)
-    {
-        auto& d = dims[i + offset];
-        if(in[i] != d and not is_symbolic_literal(in[i]) and not is_symbolic_literal(d))
-            d = in[i];
-    }
+    auto tail      = dims.begin() + (dims.size() - in.size());
+    std::transform(in.begin(), in.end(), tail, tail, [](const auto& a, const auto& d) {
+        return a != d and not is_symbolic_literal(a) and not is_symbolic_literal(d) ? a : d;
+    });
     return dims;
 }
 
@@ -244,9 +241,6 @@ std::vector<instruction_ref> insert_common_args(module& m,
                    (s.symbolic() and
                     elementwise_dims_match_without_broadcast(s.dyn_dims(), c_dyn_dims)))
                     return input;
-                // Only the axes of length 1 are broadcast. An axis where the input has another
-                // non-literal symbol keeps it, so the op itself pairs the two symbols, which
-                // simplify_symbolic_dimensions then unifies.
                 auto own_dims = own_symbolic_dims(s, c_dyn_dims);
                 if(own_dims != c_dyn_dims)
                     return m.insert_instruction(

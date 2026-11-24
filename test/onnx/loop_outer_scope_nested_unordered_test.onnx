@@ -1,0 +1,71 @@
+&loop_outer_scope_nested_unordered_test:æ
+µ
+max_trip_count
+keep_going_cond
+bb_loop"Loop*€
+body2ô
+&
+keep_going_inp
+keep_going"Identity
+Â
+keep_going_inpmy_local"If*P
+else_branch2>
+
+a2
+b_inelse_out"Sub	else_bodyb
+else_out
+
+
+ *P
+then_branch2>
+
+a2
+b_inthen_out"Add	then_bodyb
+then_out
+
+
+ bodyZ
+iteration_num
+
+
+Z
+keep_going_inp
+
+	
+Z
+b_in
+
+
+b
+
+keep_going
+
+	
+b
+my_local
+
+
+ 
+
+a
+aa2"Add&loop_outer_scope_nested_unordered_testZ
+max_trip_count
+
+
+Z
+keep_going_cond
+
+	
+Z
+a
+
+
+Z
+b
+
+
+b
+b_loop
+
+
+B

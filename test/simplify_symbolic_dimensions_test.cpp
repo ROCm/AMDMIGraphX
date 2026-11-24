@@ -798,8 +798,8 @@ TEST_CASE(simplify_symbolic_dimensions_maskrcnn_postprocess)
 }
 
 // A mask of length m added to scores of length n + 1, as in attention: the add requires
-// m == n + 1, so after the pass every shape is in terms of n, and the mask parameter, whose
-// shape the caller gives, is read through an as_shape to n + 1.
+// m == n + 1, so after the pass every shape is in terms of the symbol of the first operand, and
+// the parameter of the other, whose shape the caller gives, is read through an as_shape to it.
 TEST_CASE(simplify_symbolic_dimensions_mask_parameter)
 {
     using migraphx::sym::lit;
@@ -807,33 +807,44 @@ TEST_CASE(simplify_symbolic_dimensions_mask_parameter)
 
     const auto m = var("m", {2, 9});
     const auto n = var("n", {1, 8});
-    migraphx::module m1;
-    auto mask = m1.add_parameter(
-        "mask",
-        migraphx::shape{migraphx::shape::float_type,
-                        std::vector<migraphx::shape::dynamic_dimension>{{lit(1)}, {lit(1)}, {m}}});
-    auto scores = m1.add_parameter("scores",
-                                   migraphx::shape{migraphx::shape::float_type,
-                                                   std::vector<migraphx::shape::dynamic_dimension>{
-                                                       {lit(1)}, {lit(12)}, {n + lit(1)}}});
-    auto add = migraphx::insert_common_op(m1, m1.end(), migraphx::make_op("add"), {scores, mask});
-    m1.add_return({add});
-    // Only the axis of length 1 is broadcast; the mask keeps m
-    auto bcast = add->inputs().back();
-    EXPECT(bcast->name() == "multibroadcast");
-    EXPECT(bcast->get_shape().dyn_dims().back() == migraphx::shape::dynamic_dimension{m});
-
-    run_pass(m1);
-    EXPECT(m1.validate() == m1.end());
-    auto ret = std::prev(m1.end())->inputs().front();
-    EXPECT(ret->get_shape().dyn_dims().back() == migraphx::shape::dynamic_dimension{n + lit(1)});
-    for(auto ins : migraphx::iterator_for(m1))
+    for(bool mask_first : {false, true})
     {
-        if(ins->name() == "@param" or ins->inputs().empty() or
-           ins->inputs().front()->name() == "@param")
-            continue;
-        for(const auto& d : ins->get_shape().dyn_dims())
-            EXPECT(not migraphx::contains(migraphx::sym::find_variables(d.sym_expr), m));
+        migraphx::module m1;
+        auto mask =
+            m1.add_parameter("mask",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             std::vector<migraphx::shape::dynamic_dimension>{
+                                                 {lit(1)}, {lit(1)}, {m}}});
+        auto scores =
+            m1.add_parameter("scores",
+                             migraphx::shape{migraphx::shape::float_type,
+                                             std::vector<migraphx::shape::dynamic_dimension>{
+                                                 {lit(1)}, {lit(12)}, {n + lit(1)}}});
+        std::vector<migraphx::instruction_ref> args{scores, mask};
+        if(mask_first)
+            std::swap(args.front(), args.back());
+        auto add = migraphx::insert_common_op(m1, m1.end(), migraphx::make_op("add"), args);
+        m1.add_return({add});
+        // Only the axis of length 1 is broadcast; the mask keeps m
+        auto bcast = mask_first ? add->inputs().front() : add->inputs().back();
+        EXPECT(bcast->name() == "multibroadcast");
+        EXPECT(bcast->get_shape().dyn_dims().back() == migraphx::shape::dynamic_dimension{m});
+
+        run_pass(m1);
+        EXPECT(m1.validate() == m1.end());
+        // The symbol of the first operand is kept
+        auto kept = mask_first ? m : n + lit(1);
+        auto gone = mask_first ? n : m;
+        auto ret  = std::prev(m1.end())->inputs().front();
+        EXPECT(ret->get_shape().dyn_dims().back() == migraphx::shape::dynamic_dimension{kept});
+        for(auto ins : migraphx::iterator_for(m1))
+        {
+            if(ins->name() == "@param" or ins->inputs().empty() or
+               ins->inputs().front()->name() == "@param")
+                continue;
+            for(const auto& d : ins->get_shape().dyn_dims())
+                EXPECT(not migraphx::contains(migraphx::sym::find_variables(d.sym_expr), gone));
+        }
     }
 }
 

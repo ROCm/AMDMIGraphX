@@ -222,18 +222,30 @@ std::vector<instruction_ref> insert_common_args(module& m,
                 return s.symbolic() and
                        elementwise_dims_match_without_broadcast(s.dyn_dims(), c_dyn_dims);
             });
-            instruction_ref common_input;
+            instruction_ref common_input = m.end();
             if(target == inputs.end())
             {
-                common_input = m.insert_instruction(
-                    ins,
-                    make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                    inputs);
-                inputs.front() = common_input;
+                // An input with its own symbol on an axis is broadcast to its own dims below, so
+                // only the others are broadcast to the common dims
+                std::vector<instruction_ref> sources;
+                std::copy_if(
+                    inputs.begin(), inputs.end(), std::back_inserter(sources), [&](auto input) {
+                        return own_symbolic_dims(input->get_shape(), c_dyn_dims) == c_dyn_dims;
+                    });
+                if(not sources.empty())
+                {
+                    common_input = m.insert_instruction(
+                        ins,
+                        make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                        sources);
+                    *std::find(inputs.begin(), inputs.end(), sources.front()) = common_input;
+                }
             }
             else
             {
                 common_input = *target;
+                // The target may have its own symbol where the common dims have another one
+                c_dyn_dims = common_input->get_shape().dyn_dims();
             }
             std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
                 const auto& s = input->get_shape();

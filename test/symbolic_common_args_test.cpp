@@ -120,4 +120,76 @@ TEST_CASE(symbolic_range_common_dims_mismatch)
         test::throws([&] { migraphx::compute_broadcasted_dyn_dims(range_dims, symbolic_dims); }));
 }
 
+// A mask of length m added to scores of length n + 1 keeps m in either operand order; only the
+// axis of length 1 is broadcast
+TEST_CASE(symbolic_binary_own_symbol_either_order)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto m = var("m", {2, 9});
+    const auto n = var("n", {1, 8});
+    std::vector<migraphx::shape::dynamic_dimension> mask_dims{{lit(1)}, {lit(1)}, {m}};
+    std::vector<migraphx::shape::dynamic_dimension> scores_dims{{lit(1)}, {lit(12)}, {n + lit(1)}};
+    std::vector<migraphx::shape::dynamic_dimension> bcast_dims{{lit(1)}, {lit(12)}, {m}};
+    for(bool mask_first : {false, true})
+    {
+        migraphx::module m1;
+        {
+            auto mask   = m1.add_parameter("mask", {migraphx::shape::float_type, mask_dims});
+            auto scores = m1.add_parameter("scores", {migraphx::shape::float_type, scores_dims});
+            std::vector<migraphx::instruction_ref> args{scores, mask};
+            if(mask_first)
+                std::swap(args.front(), args.back());
+            m1.add_return({migraphx::add_common_op(m1, migraphx::make_op("add"), args)});
+        }
+        migraphx::module m2;
+        {
+            auto mask   = m2.add_parameter("mask", {migraphx::shape::float_type, mask_dims});
+            auto scores = m2.add_parameter("scores", {migraphx::shape::float_type, scores_dims});
+            auto bcast  = m2.add_instruction(
+                migraphx::make_op("multibroadcast",
+                                  {{"out_dyn_dims", migraphx::to_value(bcast_dims)}}),
+                mask);
+            std::vector<migraphx::instruction_ref> args{scores, bcast};
+            if(mask_first)
+                std::swap(args.front(), args.back());
+            m2.add_return({m2.add_instruction(migraphx::make_op("add"), args)});
+        }
+        EXPECT(m1 == m2);
+    }
+}
+
+// Each input broadcasts the other's axis of length 1, and keeps its own symbol on the last axis
+TEST_CASE(symbolic_binary_mutual_broadcast_own_symbols)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    const auto b = var("b", {1, 4});
+    const auto m = var("m", {2, 9});
+    const auto n = var("n", {2, 9});
+    std::vector<migraphx::shape::dynamic_dimension> x_dims{{b}, {lit(1)}, {m}};
+    std::vector<migraphx::shape::dynamic_dimension> y_dims{{lit(1)}, {lit(12)}, {n}};
+    std::vector<migraphx::shape::dynamic_dimension> x_out{{b}, {lit(12)}, {m}};
+    std::vector<migraphx::shape::dynamic_dimension> y_out{{b}, {lit(12)}, {n}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, x_dims});
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, y_dims});
+        m1.add_return({migraphx::add_common_op(m1, migraphx::make_op("add"), {x, y})});
+    }
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, x_dims});
+        auto y  = m2.add_parameter("y", {migraphx::shape::float_type, y_dims});
+        auto bx = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(x_out)}}), x);
+        auto by = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(y_out)}}), y);
+        m2.add_return({m2.add_instruction(migraphx::make_op("add"), bx, by)});
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -59,12 +59,12 @@ struct analyze_allocate : analyzer<analyze_allocate>
     static instruction_ref freeze(module& m,
                                   instruction_ref source_ins,
                                   const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>& values)
+                                  const freezer_context& context)
     {
         auto source = symbolic_allocate_shape(source_ins->get_operator());
         assert(source.has_value());
         return m.add_instruction(
-            make_op("allocate", {{"shape", to_value(source->to_static(values))}}), args);
+            make_op("allocate", {{"shape", to_value(source->to_static(*context.values))}}), args);
     }
 };
 

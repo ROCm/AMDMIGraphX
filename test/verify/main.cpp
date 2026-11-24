@@ -84,6 +84,7 @@ int main(int argc, const char* argv[])
          "test_split_sym_dim_data_dependent_concat",
          "test_split_sym_dim_data_dependent_nonzero",
          "test_split_sym_dim_empty",
+         "test_split_sym_dim_integral_prefix_scan",
          "test_split_sym_dim_mask_rcnn_staged",
          "test_split_sym_dim_orders_merged_blocks_by_dependencies",
          "test_split_sym_dim_scatter_elements_with_sink",

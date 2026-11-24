@@ -43,6 +43,7 @@ struct cache_parameters
 {
     std::size_t batch_size              = 0; // Batch size used by input
     std::size_t sequence_length         = 0; // Sequence length used by input
+    std::size_t input_sequence_length   = 0; // Sequence capacity of the input buffer
     std::size_t head_size               = 0; // Head size
     std::size_t seqlen_present_kv_cache = 0; // Sequence length of present kv-cache
 };
@@ -61,7 +62,15 @@ struct concat_past_present
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(3);
+        check_shapes{inputs, *this, true}.has(3, 4);
+        if(inputs.size() == 4)
+        {
+            const auto& sequence_length = inputs.at(2);
+            if(not shape::is_integral(sequence_length.type()) or sequence_length.dynamic() or
+               sequence_length.elements() != 1)
+                MIGRAPHX_THROW(
+                    "CONCAT_PAST_PRESENT: runtime sequence length must be an integral scalar");
+        }
         return inputs.back();
     }
 
@@ -94,8 +103,10 @@ struct concat_past_present
         const std::size_t past_buffer_sequence_length    = params.seqlen_present_kv_cache;
         const std::size_t present_buffer_sequence_length = past_buffer_sequence_length;
 
-        const bool is_prompt                    = sequence_length != 1;
-        const std::size_t packed_batch_stride   = kv_num_heads * sequence_length * head_size;
+        const bool is_prompt = sequence_length != 1;
+        const std::size_t packed_batch_stride =
+            kv_num_heads * params.input_sequence_length * head_size;
+        const std::size_t input_head_stride     = params.input_sequence_length * head_size;
         const std::size_t kv_input_chunk_length = sequence_length * head_size; // L x H
         const std::size_t present_buff_chunk_length =
             present_buffer_sequence_length * head_size; // T x H
@@ -116,8 +127,8 @@ struct concat_past_present
                 return;
             const std::size_t past_seqlen       = static_cast<std::size_t>(signed_seqlen);
             const std::size_t past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
-            auto current                        = present_key + packed_batch_stride * batch_index +
-                           kv_input_chunk_length * head_index;
+            auto current =
+                present_key + packed_batch_stride * batch_index + input_head_stride * head_index;
             concat_state_chunk(current,
                                past_key,
                                present_buff_chunk_length,
@@ -129,21 +140,31 @@ struct concat_past_present
 
     argument compute(const shape& /* output_shape */, std::vector<argument> args) const
     {
-        auto present                      = args[0];
-        auto seqlens                      = args[1];
-        auto past                         = args[2];
-        auto present_shape                = present.get_shape();
-        const auto& present_lens          = present_shape.lens();
-        const std::size_t batch_size      = present_lens[0];
-        const std::size_t sequence_length = present_lens[2];
-        auto past_kv_shape                = past.get_shape();
-        const auto& past_kv_lens          = past_kv_shape.lens();
-        auto past_sequence_length         = past_kv_lens[2];
-        std::size_t head_size             = present_lens[3];
+        auto present                 = args[0];
+        auto seqlens                 = args[1];
+        auto past                    = args.back();
+        auto present_shape           = present.get_shape();
+        const auto& present_lens     = present_shape.lens();
+        const std::size_t batch_size = present_lens[0];
+        std::size_t sequence_length  = present_lens[2];
+        if(args.size() == 4)
+        {
+            visit_all(args.at(2))([&](auto runtime_sequence_length) {
+                const auto value = runtime_sequence_length.front();
+                if(value < 0 or static_cast<std::size_t>(value) > present_lens[2])
+                    MIGRAPHX_THROW("CONCAT_PAST_PRESENT: invalid runtime sequence length");
+                sequence_length = static_cast<std::size_t>(value);
+            });
+        }
+        auto past_kv_shape        = past.get_shape();
+        const auto& past_kv_lens  = past_kv_shape.lens();
+        auto past_sequence_length = past_kv_lens[2];
+        std::size_t head_size     = present_lens[3];
 
         cache_parameters cache_params        = {};
         cache_params.batch_size              = batch_size;
         cache_params.sequence_length         = sequence_length;
+        cache_params.input_sequence_length   = present_lens[2];
         cache_params.head_size               = head_size;
         cache_params.seqlen_present_kv_cache = past_sequence_length;
 

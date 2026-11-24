@@ -52,6 +52,33 @@ bool is_symbolic_broadcast(const operation& op, std::size_t ninputs)
     return ninputs == 2;
 }
 
+std::optional<std::vector<input_padding_requirement>>
+propagate_padding(instruction_ref ins, const padding_requirement& requirement)
+{
+    const auto& input_shape  = ins->inputs().front()->get_shape();
+    const auto& output_shape = ins->get_shape();
+    if(input_shape.ndim() > output_shape.ndim())
+        return std::nullopt;
+
+    const auto& op = ins->get_operator();
+    std::size_t offset;
+    if(op.name() == "broadcast")
+        offset = op.to_value().at("axis").to<std::size_t>();
+    else
+        offset = output_shape.ndim() - input_shape.ndim();
+
+    if(offset > output_shape.ndim() - input_shape.ndim() or requirement.axis < offset or
+       requirement.axis >= offset + input_shape.ndim())
+        return std::nullopt;
+    return propagate_padding_to_input(ins,
+                                      0,
+                                      requirement.axis - offset,
+                                      requirement,
+                                      requirement.fills,
+                                      requirement.semantics,
+                                      requirement.materializable);
+}
+
 struct analyze_broadcast : analyzer<analyze_broadcast>
 {
     bool matches(const operation& op) const { return is_broadcast_op(op); }
@@ -64,20 +91,21 @@ struct analyze_broadcast : analyzer<analyze_broadcast>
         auto shape_inputs = range(1, input_count);
         auto result =
             analyze_axes(ins, std::vector<std::size_t>{shape_inputs.begin(), shape_inputs.end()});
-        result.freezer = freeze;
+        result.freezer           = freeze;
+        result.propagate_padding = propagate_padding;
         return result;
     }
 
     static instruction_ref freeze(module& m,
                                   instruction_ref source,
                                   const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>& values)
+                                  const freezer_context& context)
     {
         const auto& op   = source->get_operator();
         auto output_dims = symbolic_broadcast_dims(op);
         std::vector<std::size_t> lens(output_dims.size());
         std::transform(output_dims.begin(), output_dims.end(), lens.begin(), [&](const auto& d) {
-            return d.sym_expr.eval_uint(values);
+            return d.sym_expr.eval_uint(*context.values);
         });
         if(op.name() == "broadcast")
         {

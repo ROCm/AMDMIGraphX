@@ -24,12 +24,12 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(symbolic_reshape_loop_test)
+namespace {
+
+void check_symbolic_reshape_loop(const migraphx::sym::expr& batch)
 {
     using migraphx::sym::lit;
-    using migraphx::sym::var;
 
-    const auto batch = var("batch", {1, 4});
     const auto input_shape =
         migraphx::shape{migraphx::shape::float_type, sym_dims({batch, lit(int64_t{4})})};
     const migraphx::shape iteration_shape{migraphx::shape::int64_type, {1}};
@@ -68,4 +68,17 @@ TEST_CASE(symbolic_reshape_loop_test)
     options.map_dyn_input_dims["x"] = input_shape.dyn_dims();
     options.use_symbolic_shapes     = true;
     EXPECT(p == read_onnx("symbolic_reshape_loop_test.onnx", options));
+}
+
+} // namespace
+
+TEST_CASE(symbolic_reshape_loop_test)
+{
+    check_symbolic_reshape_loop(migraphx::sym::var("batch", {1, 4}));
+}
+
+TEST_CASE(symbolic_reshape_loop_compound_input_test)
+{
+    check_symbolic_reshape_loop(migraphx::sym::var("sequence", {1, 4}) +
+                                migraphx::sym::lit(int64_t{16}));
 }

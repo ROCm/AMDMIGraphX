@@ -24,12 +24,12 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(symbolic_reshape_if_test)
+namespace {
+
+void check_symbolic_reshape_if(const migraphx::sym::expr& batch)
 {
     using migraphx::sym::lit;
-    using migraphx::sym::var;
 
-    const auto batch = var("batch", {1, 4});
     const auto input_shape =
         migraphx::shape{migraphx::shape::float_type, sym_dims({batch, lit(int64_t{4})})};
 
@@ -38,7 +38,7 @@ TEST_CASE(symbolic_reshape_if_test)
     auto cond = mm->add_parameter("cond", {migraphx::shape::bool_type});
     auto x    = mm->add_parameter("x", input_shape);
 
-    auto* then_mod = p.create_module("main_If_2_if");
+    auto* then_mod         = p.create_module("main_If_2_if");
     const auto expressions = migraphx::to_value(std::vector<migraphx::sym::expr>{batch, lit(4)});
     auto then_dims         = then_mod->add_instruction(
         migraphx::make_op("eval_expr_from_shape", {{"expressions", expressions}}), x);
@@ -63,4 +63,17 @@ TEST_CASE(symbolic_reshape_if_test)
     options.map_dyn_input_dims["x"] = input_shape.dyn_dims();
     options.use_symbolic_shapes     = true;
     EXPECT(p == read_onnx("symbolic_reshape_if_test.onnx", options));
+}
+
+} // namespace
+
+TEST_CASE(symbolic_reshape_if_test)
+{
+    check_symbolic_reshape_if(migraphx::sym::var("batch", {1, 4}));
+}
+
+TEST_CASE(symbolic_reshape_if_compound_input_test)
+{
+    check_symbolic_reshape_if(migraphx::sym::var("sequence", {1, 4}) +
+                              migraphx::sym::lit(int64_t{16}));
 }

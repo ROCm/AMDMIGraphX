@@ -28,6 +28,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/context.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/sym_argument.hpp>

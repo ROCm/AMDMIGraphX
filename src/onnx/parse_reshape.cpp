@@ -23,6 +23,7 @@
  */
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
+#include <migraphx/onnx/reshape_helpers.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
@@ -107,8 +108,12 @@ struct parse_reshape : op_parser<parse_reshape>
                 if(not symbolic_dims.empty() and
                    (not input_shape.dynamic() or input_shape.symbolic()))
                 {
-                    auto result =
-                        add_runtime_reshape(info, args[0], symbolic_dims.get().to_vector());
+                    auto shape_sources = info.mod->get_parameters();
+                    if(std::find(shape_sources.begin(), shape_sources.end(), args[0]) ==
+                       shape_sources.end())
+                        shape_sources.push_back(args[0]);
+                    auto result = try_add_runtime_reshape(
+                        info, args[0], symbolic_dims.get().to_vector(), shape_sources);
                     if(result.has_value())
                         return *result;
                 }

@@ -537,13 +537,26 @@ struct context
         return {shared_modules.try_emplace(module_id, code_object).first->second, symbol_name};
     }
 
+    /// Set the directory that the relative paths a program refers to are within: where the
+    /// program is saved while compiling, and where it was loaded from afterwards.
+    void set_relative_path(const fs::path& path) { relative_path = path; }
+
+    /// The path of a file the program refers to: as given when absolute, and otherwise within
+    /// the directory given to set_relative_path, or the current directory when none was.
+    fs::path resolve_path(const fs::path& path) const
+    {
+        return path.is_absolute() ? path : relative_path / path;
+    }
+
     /// The SQLite database at path, opened read-only on first use and kept open until
     /// after_finalize, so the ops that read from the same file while finalizing share one handle.
+    /// A relative path is resolved with resolve_path.
     sqlite& get_database(const fs::path& path)
     {
-        auto it = databases.find(path);
+        auto file = resolve_path(path);
+        auto it   = databases.find(file);
         if(it == databases.end())
-            it = databases.emplace(path, sqlite::read(path)).first;
+            it = databases.emplace(file, sqlite::read(file)).first;
         return it->second;
     }
 
@@ -567,8 +580,9 @@ struct context
     std::shared_ptr<binary_cache> bc            = make_binary_cache();
     // Loaded modules keyed by code_object_op::module_id, see load_kernel
     std::unordered_map<std::int64_t, code_module> shared_modules;
-    // Open databases keyed by path, see get_database
+    // Open databases keyed by resolved path, see get_database
     std::map<fs::path, sqlite> databases;
+    fs::path relative_path;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

@@ -52,7 +52,7 @@ Perform an exhaustive search to find the fastest version of generated kernels fo
 
 .. option::  --weights-file [std::string]
 
-Save the weights to this SQLite database instead of in the compiled program, which reads them back from this path when it is loaded. Only applies to the ``gpu`` target.
+Save the weights to this SQLite database instead of in the compiled program, which reads them back when it is loaded. A relative path is within the directory of the output file (``-o``), and the compiled program looks for it in the directory it is loaded from, so the two files can be moved together. Only applies to the ``gpu`` target.
 
 .. option::  --fp16
 

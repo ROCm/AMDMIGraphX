@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
 
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/filesystem.hpp>
 #include <string>
 
 namespace migraphx {
@@ -54,6 +55,9 @@ struct MIGRAPHX_GPU_EXPORT write_literals
     // program keeps only the key, loading the data back when it is finalized. Literals with the
     // same key share one copy.
     std::string weights_file{};
+    // Directory a relative weights_file is within. The program keeps weights_file as it is given,
+    // so a relative one is looked up within the directory of the program when that is loaded.
+    fs::path relative_path{};
     // Largest blob a literal is split into when saved to weights_file. SQLite limits a blob to
     // 1GB in decimal units and 953.7 MiB by default, and the default here is just under that.
     std::size_t weights_chunk_bytes = std::size_t{950} * 1024 * 1024;

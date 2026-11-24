@@ -31,6 +31,7 @@
 #include <type_traits>
 #include <utility>
 #include <migraphx/config.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/any_ptr.hpp>
 
@@ -49,6 +50,9 @@ struct context
     /// Called once all the instructions of a program have been finalized, to release what the
     /// context only needed while finalizing. Optional: does nothing when not defined.
     void after_finalize();
+    /// Set the directory that relative paths stored in a program, such as the path of a weights
+    /// file, are resolved against. Optional: does nothing when not defined.
+    void set_relative_path(const fs::path& path);
 };
 
 #else
@@ -94,6 +98,11 @@ void after_finalize_context(T&)
 }
 
 template <class T>
+void set_relative_path_context(T&, const fs::path&)
+{
+}
+
+template <class T>
 bool is_cross_compile_context(const T&)
 {
     return false;
@@ -110,6 +119,10 @@ bool is_cross_compile_context(const T&)
         virtual('wait_for', queue = 'any_ptr', returns = 'void', default = 'wait_for_context'),
         virtual('finish_on', queue = 'any_ptr', returns = 'void', default = 'finish_on_context'),
         virtual('after_finalize', returns = 'void', default = 'after_finalize_context'),
+        virtual('set_relative_path',
+                path    = 'const fs::path&',
+                returns = 'void',
+                default = 'set_relative_path_context'),
         virtual('is_cross_compile',
                 returns = 'bool',
                 const   = True,

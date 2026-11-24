@@ -113,13 +113,13 @@ std::vector<std::string> weights_keys(const std::vector<instruction_ref>& litera
 // back when the writer is destroyed without it, so a failed compile adds nothing to the file.
 struct weights_writer
 {
-    weights_writer(const std::string& path, std::size_t pchunk_bytes)
+    weights_writer(const fs::path& path, std::size_t pchunk_bytes)
         : db(sqlite::write(path)), chunk_bytes(pchunk_bytes)
     {
         assert(chunk_bytes > 0);
         // Opening for writing falls back to read-only on a write-protected file
         if(db.read_only())
-            MIGRAPHX_THROW("Cannot save weights to read-only database: " + path);
+            MIGRAPHX_THROW("Cannot save weights to read-only database: " + path.string());
         db.set_busy_timeout(weights_busy_timeout_ms);
         // IMMEDIATE takes the write lock up front, so no other process can store a key between
         // the check for it and its insert
@@ -563,7 +563,9 @@ void write_literals::apply(module& m) const
     if(not weights_file.empty() and not literals.empty())
     {
         keys = weights_keys(literals);
-        writer.emplace(weights_file, weights_chunk_bytes);
+        // The literals keep weights_file as given; only the file written here is resolved
+        fs::path file{weights_file};
+        writer.emplace(file.is_absolute() ? file : relative_path / file, weights_chunk_bytes);
     }
 
     for(auto i : range(literals.size()))

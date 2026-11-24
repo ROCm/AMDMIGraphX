@@ -235,13 +235,24 @@ static std::vector<context> make_contexts(const std::vector<target>& targets)
     return contexts;
 }
 
+// A target without a context returns an empty one, which cannot be called
+static bool has_context(const context& ctx) { return ctx.type_id() != typeid(std::nullptr_t); }
+
 static void after_finalize(std::vector<context>& contexts)
 {
     for(auto& ctx : contexts)
     {
-        // A target without a context returns an empty one, which cannot be called
-        if(ctx.type_id() != typeid(std::nullptr_t))
+        if(has_context(ctx))
             ctx.after_finalize();
+    }
+}
+
+static void set_relative_path(std::vector<context>& contexts, const fs::path& path)
+{
+    for(auto& ctx : contexts)
+    {
+        if(has_context(ctx))
+            ctx.set_relative_path(path);
     }
 }
 
@@ -1006,7 +1017,7 @@ static void mod_from_val(module_ref mod,
 
 void program::from_value(const value& v) { this->from_value(v, true); }
 
-void program::from_value(const value& v, bool finalize)
+void program::from_value(const value& v, bool finalize, const fs::path& relative_path)
 {
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
@@ -1038,6 +1049,7 @@ void program::from_value(const value& v, bool finalize)
         assert(ctx_vals.empty() or ctx_vals.size() >= this->impl->contexts.size());
         for(auto i : range(std::min(ctx_vals.size(), this->impl->contexts.size())))
             this->impl->contexts[i].from_value(ctx_vals[i]);
+        set_relative_path(this->impl->contexts, relative_path);
     }
 
     auto module_vals = v.at("modules");

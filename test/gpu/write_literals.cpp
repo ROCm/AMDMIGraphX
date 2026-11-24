@@ -1154,6 +1154,80 @@ TEST_CASE(context_after_finalize_closes_databases)
     EXPECT(test::throws<migraphx::exception>([&] { ctx.get_database(path); }, "error opening"));
 }
 
+TEST_CASE(context_resolves_relative_database_path)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "relative-weights.db";
+    migraphx::sqlite::write(path).execute("CREATE TABLE t (id INTEGER PRIMARY KEY);");
+
+    migraphx::gpu::context ctx;
+    // Without a directory a relative path is looked up in the current directory
+    EXPECT(test::throws<migraphx::exception>([&] { ctx.get_database("relative-weights.db"); },
+                                             "error opening"));
+    ctx.set_relative_path(td.path);
+    EXPECT(ctx.resolve_path("relative-weights.db") == path);
+    ctx.get_database("relative-weights.db");
+    ctx.after_finalize();
+
+    // An absolute path does not depend on the directory
+    ctx.set_relative_path(td.path / "missing");
+    EXPECT(ctx.resolve_path(path) == path);
+    ctx.get_database(path);
+}
+
+TEST_CASE(weights_file_relative_path)
+{
+    migraphx::tmp_dir td{};
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto lit = migraphx::generate_literal(s, 1);
+
+    migraphx::module m1;
+    {
+        m1.add_return({m1.add_literal(lit)});
+    }
+    run_pass(m1, {.weights_file = "relative-weights.db", .relative_path = td.path});
+
+    // The file is written in the directory and the literal keeps the path it was given
+    migraphx::module m2;
+    {
+        m2.add_return({add_external_literal(
+            m2, weights_key(lit, "float_type-2x3"), "relative-weights.db", s)});
+    }
+    EXPECT(m1 == m2);
+    EXPECT(weights_rows(td.path / "relative-weights.db").size() == 1);
+}
+
+TEST_CASE(weights_file_moves_with_program)
+{
+    migraphx::tmp_dir td{};
+    auto dir = td.path / "compiled";
+    migraphx::fs::create_directories(dir);
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto p   = make_weights_program(migraphx::generate_literal(s, 1));
+    auto ref = p;
+    ref.compile(migraphx::make_target("ref"));
+    auto expected = run_weights_program(ref);
+
+    auto options          = weights_options("relative-weights.db");
+    options.relative_path = dir;
+    p.compile(migraphx::make_target("gpu"), options);
+    EXPECT(migraphx::fs::exists(dir / "relative-weights.db"));
+    EXPECT(run_weights_program(p) == expected);
+    migraphx::save(p, (dir / "model.mxr").string());
+
+    // The program finds the weights beside the file it is loaded from, wherever the two are
+    auto moved = td.path / "moved";
+    migraphx::fs::rename(dir, moved);
+    EXPECT(run_weights_program(migraphx::load((moved / "model.mxr").string())) == expected);
+
+    // A program loaded from memory has no file, so it looks in the directory it is told to
+    auto buffer = migraphx::save_buffer(p);
+    EXPECT(
+        test::throws<migraphx::exception>([&] { migraphx::load_buffer(buffer); }, "error opening"));
+    EXPECT(run_weights_program(migraphx::load_buffer(buffer, {.relative_path = moved})) ==
+           expected);
+}
+
 TEST_CASE(weights_file_closed_after_finalize)
 {
     migraphx::tmp_dir td{};

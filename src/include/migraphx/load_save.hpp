@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_LOAD_SAVE_HPP
 
 #include <migraphx/program.hpp>
+#include <migraphx/filesystem.hpp>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,10 @@ struct file_options
     /// Load the kernels of a compiled program. When false, the program can be opened on a
     /// machine without the device it was compiled for, for example to recompile it.
     bool finalize = true;
+    /// Directory that relative paths the program refers to, such as a weights file, are resolved
+    /// against when it is finalized. When empty, `load` uses the directory of the file it loads,
+    /// and `load_buffer` the current directory.
+    fs::path relative_path{};
 };
 
 MIGRAPHX_EXPORT program load(const std::string& filename,

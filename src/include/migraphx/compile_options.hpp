@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/compile_modes.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/tracer.hpp>
 #include <migraphx/value.hpp>
 #include <string>
@@ -52,9 +53,17 @@ struct compile_options
     /**
      * Path of a SQLite database to save the weights to. When set, a target that supports it
      * stores the literals there instead of in the program, and the compiled program reads them
-     * back from this path whenever it is finalized, so the database must stay at this path.
+     * back from this path whenever it is finalized. A relative path is kept relative in the
+     * program: it is within relative_path while compiling, and within the directory of the
+     * program's file when that is loaded.
      */
     std::string weights_file{};
+    /**
+     * Directory that relative paths the compiled program refers to, such as weights_file, are
+     * resolved against while compiling: the directory the program will be saved in. The current
+     * directory when empty.
+     */
+    fs::path relative_path{};
 
     compile_modes compile_mode = compile_modes::balanced;
     /**

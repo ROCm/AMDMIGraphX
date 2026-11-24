@@ -447,7 +447,8 @@ struct pipeline_factory
             dead_code_elimination{},
             write_literals{.max_memory           = max_memory,
                            .staging_peak_percent = backend_opts.literal_staging_peak_percent,
-                           .weights_file         = options.weights_file},
+                           .weights_file         = options.weights_file,
+                           .relative_path        = options.relative_path},
             enable_pass(backend_opts.hip_graph, hipgraphify{}),
             dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
@@ -483,6 +484,7 @@ setup_context(context& ctx, const compile_options& options, const backend_option
         binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
+    ctx.set_relative_path(options.relative_path);
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);

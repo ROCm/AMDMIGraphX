@@ -25,6 +25,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -34,6 +35,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <migraphx/value.hpp>
 #include <test.hpp>
 
@@ -99,9 +101,11 @@ static recompile_record& last_recompile()
 struct recompile_test_context
 {
     std::string device = current_device();
+    migraphx::fs::path relative_path{};
 
     migraphx::value to_value() const { return migraphx::value{{"device", device}}; }
     void from_value(const migraphx::value& v) { device = v.at("device").to<std::string>(); }
+    void set_relative_path(const migraphx::fs::path& path) { relative_path = path; }
     void finish() const {}
 };
 
@@ -403,6 +407,42 @@ TEST_CASE(clear_context_uncompiles)
     auto p = reload(c, false);
     p.clear_context();
     EXPECT(not p.is_compiled());
+}
+
+static migraphx::program make_compiled_program()
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("neg"), x)});
+    p.compile(make_recompile_target());
+    return p;
+}
+
+static migraphx::fs::path context_relative_path(const migraphx::program& p)
+{
+    return p.get_context().any_cast<recompile_test_context>()->relative_path;
+}
+
+TEST_CASE(load_sets_relative_path_to_directory_of_file)
+{
+    migraphx::tmp_dir td{};
+    auto file = (td.path / "program.mxr").string();
+    migraphx::save(make_compiled_program(), file);
+
+    EXPECT(context_relative_path(migraphx::load(file)) == td.path);
+    // A directory given in the options is used instead
+    EXPECT(context_relative_path(migraphx::load(file, {.relative_path = "models"})) == "models");
+}
+
+TEST_CASE(load_buffer_sets_relative_path_from_options)
+{
+    auto buffer = migraphx::save_buffer(make_compiled_program());
+
+    // There is no file to take a directory from
+    EXPECT(context_relative_path(migraphx::load_buffer(buffer)).empty());
+    EXPECT(context_relative_path(migraphx::load_buffer(buffer, {.relative_path = "models"})) ==
+           "models");
 }
 
 TEST_CASE(bypass_survives_serialization)

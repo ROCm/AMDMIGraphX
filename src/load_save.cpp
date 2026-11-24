@@ -34,7 +34,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 program load(const std::string& filename, const file_options& options)
 {
-    return load_buffer(read_buffer(filename), options);
+    auto opts = options;
+    if(opts.relative_path.empty())
+        opts.relative_path = fs::path{filename}.parent_path();
+    return load_buffer(read_buffer(filename), opts);
 }
 program load_buffer(const std::vector<char>& buffer, const file_options& options)
 {
@@ -45,11 +48,11 @@ program load_buffer(const char* buffer, std::size_t size, const file_options& op
     program p;
     if(options.format == "msgpack")
     {
-        p.from_value(from_msgpack(buffer, size), options.finalize);
+        p.from_value(from_msgpack(buffer, size), options.finalize, options.relative_path);
     }
     else if(options.format == "json")
     {
-        p.from_value(from_json_string(buffer, size), options.finalize);
+        p.from_value(from_json_string(buffer, size), options.finalize, options.relative_path);
     }
     else
     {

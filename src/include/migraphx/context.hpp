@@ -31,6 +31,7 @@
 #include <type_traits>
 #include <utility>
 #include <migraphx/config.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/any_ptr.hpp>
 
@@ -49,6 +50,9 @@ struct context
     /// Called once all the instructions of a program have been finalized, to release what the
     /// context only needed while finalizing. Optional: does nothing when not defined.
     void after_finalize();
+    /// Set the directory that relative paths stored in a program, such as the path of a weights
+    /// file, are resolved against. Optional: does nothing when not defined.
+    void set_relative_path(const fs::path& path);
 };
 
 #else
@@ -96,6 +100,11 @@ void after_finalize_context(T&)
 }
 
 template <class T>
+void set_relative_path_context(T&, const fs::path&)
+{
+}
+
+template <class T>
 bool is_cross_compile_context(const T&)
 {
     return false;
@@ -122,6 +131,8 @@ struct MIGRAPHX_EXPORT context
     void finish_on(any_ptr queue);
     // (optional)
     void after_finalize();
+    // (optional)
+    void set_relative_path(const fs::path& path);
     // (optional)
     bool is_cross_compile() const;
     //
@@ -242,6 +253,23 @@ struct context
     }
 
     template <class T>
+    static auto private_detail_te_default_set_relative_path(char,
+                                                            T&& private_detail_te_self,
+                                                            const fs::path& path)
+        -> decltype(private_detail_te_self.set_relative_path(path))
+    {
+        private_detail_te_self.set_relative_path(path);
+    }
+
+    template <class T>
+    static void private_detail_te_default_set_relative_path(float,
+                                                            T&& private_detail_te_self,
+                                                            const fs::path& path)
+    {
+        set_relative_path_context(private_detail_te_self, path);
+    }
+
+    template <class T>
     static auto private_detail_te_default_is_cross_compile(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.is_cross_compile())
     {
@@ -287,6 +315,10 @@ struct context
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
                  private_detail_te_default_after_finalize(char(0),
                                                           std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_set_relative_path(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<const fs::path&>()),
                  private_detail_te_default_is_cross_compile(
                      char(0), std::declval<PrivateDetailTypeErasedT>()),
                  std::declval<PrivateDetailTypeErasedT>().finish(),
@@ -412,6 +444,12 @@ struct context
         (*this).private_detail_te_get_handle().after_finalize();
     }
 
+    void set_relative_path(const fs::path& path)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().set_relative_path(path);
+    }
+
     bool is_cross_compile() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -437,16 +475,17 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual value to_value() const          = 0;
-        virtual void from_value(const value& v) = 0;
-        virtual any_ptr get_queue()             = 0;
-        virtual void set_queue(any_ptr queue)   = 0;
-        virtual void restore_queue()            = 0;
-        virtual void wait_for(any_ptr queue)    = 0;
-        virtual void finish_on(any_ptr queue)   = 0;
-        virtual void after_finalize()           = 0;
-        virtual bool is_cross_compile() const   = 0;
-        virtual void finish() const             = 0;
+        virtual value to_value() const                       = 0;
+        virtual void from_value(const value& v)              = 0;
+        virtual any_ptr get_queue()                          = 0;
+        virtual void set_queue(any_ptr queue)                = 0;
+        virtual void restore_queue()                         = 0;
+        virtual void wait_for(any_ptr queue)                 = 0;
+        virtual void finish_on(any_ptr queue)                = 0;
+        virtual void after_finalize()                        = 0;
+        virtual void set_relative_path(const fs::path& path) = 0;
+        virtual bool is_cross_compile() const                = 0;
+        virtual void finish() const                          = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -522,6 +561,12 @@ struct context
         {
 
             private_detail_te_default_after_finalize(char(0), private_detail_te_value);
+        }
+
+        void set_relative_path(const fs::path& path) override
+        {
+
+            private_detail_te_default_set_relative_path(char(0), private_detail_te_value, path);
         }
 
         bool is_cross_compile() const override

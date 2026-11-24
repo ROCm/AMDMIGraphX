@@ -77,9 +77,8 @@ static void update_submodule_shapes(module& m)
 {
     for(auto ins : iterator_for(m))
     {
-        const auto& mods = ins->module_inputs();
-        if(not mods.empty() and
-           std::none_of(mods.begin(), mods.end(), [](module_ref sm) { return sm->bypass(); }))
+        if(not ins->module_inputs().empty() and
+           none_of(ins->module_inputs(), [](module_ref sm) { return sm->bypass(); }))
             ins->recompute_shape();
     }
 }

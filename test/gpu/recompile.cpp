@@ -165,15 +165,12 @@ static bool has_out_of_scope_kernel(const migraphx::program& p)
                                                           "gpu::conv_bias_relu",
                                                           "gpu::lrn",
                                                           "gpu::mlss_conv"};
-    for(const auto* mod : p.get_modules())
-    {
-        for(auto ins : migraphx::iterator_for(*mod))
-        {
-            if(migraphx::contains(out_of_scope, ins->name()))
-                return true;
-        }
-    }
-    return false;
+
+    auto mods = p.get_modules();
+    return migraphx::any_of(mods, [&](const auto* mod) {
+        return migraphx::any_of(
+            *mod, [&](const auto& ins) { return migraphx::contains(out_of_scope, ins.name()); });
+    });
 }
 
 static bool has_kernel(const migraphx::program& p, const std::string& symbol)

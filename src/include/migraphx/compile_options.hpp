@@ -51,11 +51,11 @@ struct compile_options
      */
     bool recompilable = false;
     /**
-     * Path of a SQLite database to save the weights to. When set, a target that supports it
-     * stores the literals there instead of in the program, and the compiled program reads them
-     * back from this path whenever it is finalized. A relative path is kept relative in the
-     * program: it is within relative_path while compiling, and within the directory of the
-     * program's file when that is loaded.
+     * Path of a file to save the weights to. When set, a target that supports it stores the
+     * literals there instead of in the program, in a format the target decides, and the compiled
+     * program reads them back from this path whenever it is finalized. A relative path is kept
+     * relative in the program: it is within relative_path while compiling, and within the
+     * directory of the program's file when that is loaded.
      */
     std::string weights_file{};
     /**

@@ -362,7 +362,7 @@ program
 
     :rtype: list[shape]
 
-.. py:method:: compile(t, offload_copy=True, fast_math=True, exhaustive_tune=False, advance_backend_options={})
+.. py:method:: compile(t, offload_copy=True, fast_math=True, exhaustive_tune=False, advance_backend_options={}, weights_file='', relative_path='')
 
     Compiles the program for the target and optimizes it.
 
@@ -370,7 +370,9 @@ program
     :param bool offload_copy: For targets with offloaded memory(such as the gpu), this will insert instructions during compilation to copy the input parameters to the offloaded memory and to copy the final result from the offloaded memory back to main memory.
     :param bool fast_math: Optimize math functions to use faster approximate versions. There may be slight accuracy degredation when enabled.
     :param exhaustive_tune: Flag to enable exhaustive search to find the fastest version of generated kernels for selected backend.
-    :param dict advance_backend_options: Backend-specific compilation options. Options unknown to the target are ignored. 
+    :param dict advance_backend_options: Backend-specific compilation options. Options unknown to the target are ignored.
+    :param str weights_file: Path of a file to save the weights to instead of keeping them in the compiled program, which reads them back whenever it is loaded. The target decides the format of the file. A relative path is kept relative: it is within ``relative_path`` while compiling, and within the directory of the program's file when that is loaded. Only applies to targets that support it.
+    :param str relative_path: Directory that relative paths the compiled program refers to, such as ``weights_file``, are resolved against while compiling: the directory the program will be saved in. Defaults to the current directory.
 
 .. py:method:: get_main_module()
     
@@ -493,12 +495,13 @@ parse_tf
 load
 ----
 
-.. py:function:: load(filename, format='msgpack')
+.. py:function:: load(filename, format='msgpack', relative_path='')
 
     Loads a MIGraphX program.
 
     :param str filename: Path to file.
     :param str format: Format of file. Valid options are msgpack or json.
+    :param str relative_path: Directory that relative paths the program refers to, such as a weights file, are resolved against. Defaults to the directory of the file.
 
     :rtype: program
 

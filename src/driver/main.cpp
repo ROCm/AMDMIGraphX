@@ -890,10 +890,11 @@ struct compiler
            ap.set_value(true));
         ap(co.weights_file,
            {"--weights-file"},
-           ap.help("Save the weights to this SQLite database instead of in the compiled "
-                   "program, which reads them back when it is loaded. A relative path is within "
-                   "the directory of the output file (-o), and the compiled program looks for "
-                   "it in the directory it is loaded from"));
+           ap.help("Save the weights to this file instead of in the compiled program, which "
+                   "reads them back when it is loaded. The target decides the format of the "
+                   "file. A relative path is within the directory of the output file (-o), and "
+                   "the compiled program looks for it in the directory it is loaded from. Only "
+                   "applies to targets that support it"));
         ap(co.compile_mode,
            {"--compile-mode"},
            ap.help("Set compilation mode: eager, balanced, max, or an integer 0-100"),

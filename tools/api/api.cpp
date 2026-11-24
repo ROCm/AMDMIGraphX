@@ -264,6 +264,22 @@ static void set_backend_options(compile_options& options, const char* options_js
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
 
+static void set_weights_file(compile_options& options, const char* path)
+{
+    if(path == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Weights file path cannot be null");
+    options.weights_file = path;
+}
+
+// For both compile_options and file_options
+template <class Options>
+static void set_relative_path(Options& options, const char* path)
+{
+    if(path == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Relative path cannot be null");
+    options.relative_path = path;
+}
+
 // Parse an expression string and bind each provided symbol name to the bounds/optimals
 // carried by its range dynamic_dimension, producing a symbolic dynamic_dimension.
 static shape::dynamic_dimension make_symbolic_dynamic_dimension(

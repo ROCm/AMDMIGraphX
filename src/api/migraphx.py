@@ -602,6 +602,9 @@ def file_options(h):
     h.method('set_file_format',
              api.params(format='const char*'),
              invoke='migraphx::set_file_format($@)')
+    h.method('set_relative_path',
+             api.params(path='const char*'),
+             invoke='migraphx::set_relative_path($@)')
 
 
 @auto_handle()
@@ -622,6 +625,12 @@ def compile_options(h):
     h.method('set_advance_backend_options',
              api.params(options_json='const char*', vlist='...'),
              invoke='migraphx::set_backend_options($@)')
+    h.method('set_weights_file',
+             api.params(path='const char*'),
+             invoke='migraphx::set_weights_file($@)')
+    h.method('set_relative_path',
+             api.params(path='const char*'),
+             invoke='migraphx::set_relative_path($@)')
 
 
 if 'enable_tensorflow' in globals():

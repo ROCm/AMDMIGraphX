@@ -142,8 +142,7 @@ struct resolved_input_padding_plan
 struct clone_input_plan
 {
     sliced_value clone_value;
-    std::optional<float> pad_value;
-    std::vector<axis_mask> masks;
+    operand_plan operand;
     std::optional<padding_variant_plan> padding_variant;
 };
 
@@ -280,8 +279,10 @@ struct block_assignment
             return true;
         if(is_assigned(ins))
             return false;
-        if(starts_with(ins->name(), "@") or ins->name() == "eval_expr_from_shape" or
-           not ins->module_inputs().empty())
+        if(ins->name() == "eval_expr_from_shape")
+            return all_of(ins->inputs(),
+                          [](instruction_ref input) { return input->name() == "@param"; });
+        if(starts_with(ins->name(), "@") or not ins->module_inputs().empty())
             return false;
         const auto& s = ins->get_shape();
         if(not s.dynamic())
@@ -483,6 +484,157 @@ struct find_eval_expr_from_intermediate_ins : match::supports_dynamic_shapes
             ins,
             make_op("eval_expr_from_shape", {{"expressions", to_value(expressions)}}),
             *expression_sources);
+    }
+};
+
+struct deduplicate_eval_expr_from_shape : match::supports_dynamic_shapes
+{
+    auto matcher() const { return match::name("eval_expr_from_shape"); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins         = mr.result;
+        auto expressions = ins->get_operator().to_value().at("expressions");
+        auto candidates  = find_all(iterator_for(m), [&](instruction_ref candidate) {
+            return candidate->name() == "eval_expr_from_shape" and
+                   candidate->get_operator().to_value().at("expressions") == expressions and
+                   all_of(candidate->inputs(),
+                          [](instruction_ref input) { return input->name() == "@param"; });
+        });
+        auto narrowest   = std::min_element(
+            candidates.begin(), candidates.end(), [](instruction_ref x, instruction_ref y) {
+                return x->inputs().size() < y->inputs().size();
+            });
+        if(narrowest == candidates.end() or *narrowest == ins)
+            return;
+        if((*narrowest)->inputs().size() > ins->inputs().size())
+            return;
+        if((*narrowest)->inputs().size() == ins->inputs().size() and
+           (*narrowest)->inputs() != ins->inputs())
+            return;
+        if(std::distance(m.begin(), *narrowest) > std::distance(m.begin(), ins))
+            m.move_instruction(*narrowest, ins);
+        m.replace_instruction(ins, *narrowest);
+    }
+};
+
+std::optional<std::vector<std::size_t>> read_literal_indices(instruction_ref ins,
+                                                             std::size_t expression_count)
+{
+    if(ins->name() != "@literal" or not shape::is_integral(ins->get_shape().type()))
+        return std::nullopt;
+    std::vector<std::size_t> result;
+    bool valid = true;
+    ins->get_literal().visit([&](auto values) {
+        result.reserve(values.size());
+        for(auto value : values)
+        {
+            auto index = static_cast<int64_t>(value);
+            if(index < 0)
+                index += static_cast<int64_t>(expression_count);
+            if(index < 0 or index >= static_cast<int64_t>(expression_count))
+            {
+                valid = false;
+                return;
+            }
+            result.push_back(static_cast<std::size_t>(index));
+        }
+    });
+    if(not valid)
+        return std::nullopt;
+    return result;
+}
+
+std::size_t normalize_slice_bound(int64_t value, std::size_t expression_count)
+{
+    auto count = static_cast<int64_t>(expression_count);
+    if(value < 0)
+        return value < -count ? 0 : static_cast<std::size_t>(count + value);
+    return static_cast<std::size_t>(std::min(value, count));
+}
+
+struct fold_eval_expr_projection : match::supports_dynamic_shapes
+{
+    symbol_source_map root_sources;
+    std::vector<instruction_ref> sources;
+
+    auto matcher() const
+    {
+        auto projection = match::any_of(match::name("gather"), match::name("slice"));
+        return projection(match::arg(0)(match::name("eval_expr_from_shape")));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins  = mr.result;
+        auto eval = ins->inputs().front();
+        auto expressions =
+            from_value<std::vector<sym::expr>>(eval->get_operator().to_value().at("expressions"));
+        std::vector<std::size_t> indices;
+        if(ins->name() == "gather")
+        {
+            const auto& inputs = ins->inputs();
+            if(inputs.size() != 2 or ins->get_shape().ndim() != 1 or
+               ins->get_operator().to_value().at("axis").to<int64_t>() != 0)
+                return;
+            auto literal = read_literal_indices(inputs.at(1), expressions.size());
+            if(not literal.has_value())
+                return;
+            indices = std::move(*literal);
+        }
+        else
+        {
+            if(ins->inputs().size() != 1 or ins->get_shape().ndim() != 1)
+                return;
+            auto attributes = ins->get_operator().to_value();
+            auto axes       = attributes.at("axes").to_vector<int64_t>();
+            auto starts     = attributes.at("starts").to_vector<int64_t>();
+            auto ends       = attributes.at("ends").to_vector<int64_t>();
+            if(axes != std::vector<int64_t>{0} or starts.size() != 1 or ends.size() != 1)
+                return;
+            auto start = normalize_slice_bound(starts.front(), expressions.size());
+            auto end   = normalize_slice_bound(ends.front(), expressions.size());
+            if(end < start)
+                return;
+            indices.resize(end - start);
+            std::iota(indices.begin(), indices.end(), start);
+        }
+        if(ins->get_shape().lens() != std::vector<std::size_t>{indices.size()})
+            return;
+
+        std::vector<sym::expr> projected;
+        std::transform(indices.begin(),
+                       indices.end(),
+                       std::back_inserter(projected),
+                       [&](auto index) { return expressions.at(index); });
+        instruction_ref replacement;
+        if(all_of(projected,
+                  [](const auto& expression) { return sym::find_variables(expression).empty(); }))
+        {
+            std::vector<int64_t> values;
+            std::transform(projected.begin(),
+                           projected.end(),
+                           std::back_inserter(values),
+                           [](const auto& expression) {
+                               return static_cast<int64_t>(expression.eval_uint({}));
+                           });
+            replacement = m.insert_literal(
+                ins, literal{shape{shape::int64_type, {values.size()}}, std::move(values)});
+        }
+        else
+        {
+            auto expression_sources = find_expression_sources(projected, root_sources, sources);
+            if(not expression_sources.has_value() or expression_sources->empty())
+                return;
+            replacement = m.insert_instruction(
+                ins,
+                make_op("eval_expr_from_shape", {{"expressions", to_value(projected)}}),
+                *expression_sources);
+        }
+        if(replacement->get_shape() != ins->get_shape())
+            replacement = m.insert_instruction(
+                ins, make_op("as_shape", {{"shape", to_value(ins->get_shape())}}), replacement);
+        m.replace_instruction(ins, replacement);
     }
 };
 
@@ -1234,9 +1386,13 @@ struct block_plan
                 const auto& operand = info.operands.at(index);
                 if(contains(included, source))
                 {
+                    // Unpadded internal edges from symbolic producers would retain a logical
+                    // slice inside the clone. Contracted/static producer outputs have no such
+                    // slice and can be consumed directly.
+                    const auto& source_info  = plans.at(source).info;
                     bool keeps_logical_slice = source->get_shape().type() != shape::tuple_type and
-                                               (not operand.pad_value.has_value() or
-                                                not operand.retained_slice_axes.empty());
+                                               not source_info.output_symbolic_axes.empty() and
+                                               not operand.pad_value.has_value();
                     if(keeps_logical_slice)
                         return false;
                     continue;
@@ -1823,21 +1979,19 @@ struct block_dependency_graph
             {
                 if(contains(info.shape_input_indices, input_index))
                     continue;
-                const auto& operand                         = info.operands.at(input_index);
+                auto operand                                = info.operands.at(input_index);
                 const resolved_input_padding_plan* resolved = nullptr;
                 auto resolved_plan                          = block.resolved_inputs.find(info.ins);
                 if(resolved_plan != block.resolved_inputs.end())
                     resolved = &resolved_plan->second.at(input_index);
 
-                auto pad_value = operand.pad_value;
-                auto masks     = operand.masks;
                 std::optional<padding_variant_plan> padding_variant;
                 if(resolved != nullptr)
                 {
                     if(resolved->variant.has_value())
                         padding_variant = resolved->variant->plan;
                     if(resolved->fill.has_value())
-                        pad_value = fill_value(*resolved->fill);
+                        operand.pad_value = fill_value(*resolved->fill);
                 }
 
                 auto source = args.at(input_index);
@@ -1858,15 +2012,15 @@ struct block_dependency_graph
                 // Also pad when fixed symbolic dims or strides change under the target
                 // substitution, so the clone sees a static shape.
                 bool emit_pad =
-                    pad_value.has_value() or
+                    operand.pad_value.has_value() or
                     needs_fixed_retarget(input_shapes.at(input_index), target_substitutions);
-                if(source_in_same_block and pad_value.has_value())
+                if(source_in_same_block and operand.pad_value.has_value())
                 {
                     // Internal edges already carry bucket-sized values.
                     input.slice_axes.clear();
                     emit_pad = false;
                 }
-                else if(source_in_other_block and pad_value.has_value() and
+                else if(source_in_other_block and operand.pad_value.has_value() and
                         not operand.retained_slice_axes.empty())
                 {
                     // Cross-block edges retain axes where padding can affect the consumer and axes
@@ -1891,11 +2045,11 @@ struct block_dependency_graph
                 // A retarget-only pad has no reachable padded region, so its fill value is
                 // irrelevant.
                 if(emit_pad)
-                    pad_value = pad_value.value_or(0.0f);
+                    operand.pad_value = operand.pad_value.value_or(0.0f);
                 else
-                    pad_value.reset();
+                    operand.pad_value.reset();
                 plan.clone_inputs.push_back(
-                    {std::move(input), pad_value, std::move(masks), std::move(padding_variant)});
+                    {std::move(input), std::move(operand), std::move(padding_variant)});
             }
         }
     }
@@ -2282,7 +2436,7 @@ struct clone_context
             }
             else if(padding_variant == nullptr)
             {
-                pad_value = clone_input.pad_value;
+                pad_value = clone_input.operand.pad_value;
             }
 
             if(pad_value.has_value())
@@ -2293,8 +2447,8 @@ struct clone_context
 
         for(auto&& [arg, clone_input] : views::zip(args, clone_inputs))
             arg = std::accumulate(
-                clone_input.masks.begin(),
-                clone_input.masks.end(),
+                clone_input.operand.masks.begin(),
+                clone_input.operand.masks.end(),
                 arg,
                 [&](instruction_ref masked, const auto& mask) {
                     return cache.add_mask(
@@ -2338,7 +2492,6 @@ struct clone_context
 
         if(clone->get_shape().dynamic())
             MIGRAPHX_THROW("SPLIT_SYM_DIM: clone body is not fully static: " + source->name());
-        values->set(source, clone);
         if(not source->get_debug_symbols().empty())
             clone_module->add_debug_symbols(clone, source->get_debug_symbols());
         return clone;
@@ -2710,6 +2863,7 @@ struct block_frame
                               .fixed_substitutions    = &fixed_substitutions};
         for(auto source : body)
             context.emit(source);
+        match::find_matches(clone_module, deduplicate_eval_expr_from_shape{});
         match::find_matches(
             clone_module,
             fold_fixed_clone_evaluations{.fixed_runtime_values = &fixed_runtime_values});
@@ -2906,6 +3060,9 @@ void split_sym_dim::apply(module_pass_manager& mpm) const
     match::find_matches(m,
                         find_eval_expr_from_intermediate_ins{.root_sources = root_info.symbols,
                                                              .sources      = root_info.ordered});
+    match::find_matches(
+        m,
+        fold_eval_expr_projection{.root_sources = root_info.symbols, .sources = root_info.ordered});
     run_passes(m, {dead_code_elimination{}});
     root_info          = find_root_sources(m);
     auto& root_sources = root_info.symbols;

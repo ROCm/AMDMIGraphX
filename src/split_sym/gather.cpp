@@ -24,7 +24,7 @@
 #include <migraphx/split_sym/analyzer.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <unordered_set>
+#include <migraphx/symbolic_shape_helpers.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,20 +34,29 @@ namespace {
 instruction_ref
 add_runtime_extent(module& m, const sym::expr& expression, const freezer_context& context)
 {
-    const auto variables = sym::find_variables(expression);
-    std::unordered_set<sym::expr> direct_variables;
-    for(auto runtime_source : *context.runtime_extent_sources)
+    auto add_evaluation = [&](const sym::expr& runtime_expression) {
+        auto expression_sources = find_expression_sources(
+            m, *context.runtime_extent_sources, std::vector<sym::expr>{runtime_expression});
+        if(not expression_sources.has_value() or expression_sources->empty())
+            return std::optional<instruction_ref>{};
+        return std::optional<instruction_ref>{m.add_instruction(
+            make_op("eval_expr_from_shape",
+                    {{"expressions", to_value(std::vector<sym::expr>{runtime_expression})}}),
+            *expression_sources)};
+    };
+
+    if(sym::find_variables(expression).empty())
     {
-        const auto& runtime_shape = runtime_source->get_shape();
-        if(not runtime_shape.symbolic())
-            continue;
-        for(const auto& dimension : runtime_shape.dyn_dims())
-            if(dimension.sym_expr.name() == "variable")
-                direct_variables.insert(sym::as_symbol(dimension.sym_expr));
+        const int64_t value = expression.eval_uint({});
+        return m.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{value}});
     }
 
+    if(auto result = add_evaluation(expression))
+        return *result;
+
+    auto direct_variables = make_symbol_source_map(*context.runtime_extent_sources);
     std::unordered_map<sym::expr, sym::expr> substitutions;
-    for(const auto& variable : variables)
+    for(const auto& variable : sym::find_variables(expression))
     {
         if(contains(direct_variables, variable))
             continue;
@@ -58,42 +67,14 @@ add_runtime_extent(module& m, const sym::expr& expression, const freezer_context
         substitutions.emplace(variable, sym::lit(value->second));
     }
     auto runtime_expression = expression.subs(substitutions);
-    auto runtime_variables  = sym::find_variables(runtime_expression);
-
-    std::unordered_set<sym::expr> resolved_variables;
-    std::vector<instruction_ref> expression_sources;
-    std::copy_if(context.runtime_extent_sources->begin(),
-                 context.runtime_extent_sources->end(),
-                 std::back_inserter(expression_sources),
-                 [&](instruction_ref runtime_source) {
-                     const auto& runtime_shape = runtime_source->get_shape();
-                     if(not runtime_shape.symbolic())
-                         return false;
-                     bool required = false;
-                     for(const auto& dimension : runtime_shape.dyn_dims())
-                     {
-                         if(dimension.sym_expr.name() != "variable")
-                             continue;
-                         auto variable = sym::as_symbol(dimension.sym_expr);
-                         if(contains(runtime_variables, variable))
-                         {
-                             resolved_variables.insert(variable);
-                             required = true;
-                         }
-                     }
-                     return required;
-                 });
-    if(resolved_variables.size() != runtime_variables.size())
-        MIGRAPHX_THROW("SPLIT_SYM_DIM: runtime extent has unresolved runtime variables");
-
-    if(not expression_sources.empty())
-        return m.add_instruction(
-            make_op("eval_expr_from_shape",
-                    {{"expressions", to_value(std::vector<sym::expr>{runtime_expression})}}),
-            expression_sources);
-
-    const int64_t value = runtime_expression.eval_uint({});
-    return m.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{value}});
+    if(sym::find_variables(runtime_expression).empty())
+    {
+        const int64_t value = runtime_expression.eval_uint({});
+        return m.add_literal(literal{shape{shape::int64_type, {1}}, std::vector<int64_t>{value}});
+    }
+    if(auto result = add_evaluation(runtime_expression))
+        return *result;
+    MIGRAPHX_THROW("SPLIT_SYM_DIM: runtime extent has unresolved runtime variables");
 }
 
 struct analyze_gather : analyzer<analyze_gather>

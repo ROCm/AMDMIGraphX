@@ -70,7 +70,7 @@ struct analyze_topk : analyzer<analyze_topk>
     static instruction_ref freeze(module& m,
                                   instruction_ref source,
                                   const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>&)
+                                  const freezer_context&)
     {
         assert(not args.empty());
         auto padded_args = args;

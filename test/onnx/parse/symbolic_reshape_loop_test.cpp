@@ -24,13 +24,12 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(symbolic_reshape_loop_test)
+namespace {
+
+void check_symbolic_reshape_loop(const migraphx::sym::expr& batch)
 {
     using migraphx::sym::lit;
-    using migraphx::sym::var;
 
-    const auto sequence = var("sequence", {1, 4});
-    const auto batch    = sequence + lit(16);
     const auto input_shape =
         migraphx::shape{migraphx::shape::float_type, sym_dims({batch, lit(int64_t{4})})};
     const migraphx::shape iteration_shape{migraphx::shape::int64_type, {1}};
@@ -44,8 +43,8 @@ TEST_CASE(symbolic_reshape_loop_test)
     auto carried       = mm->add_parameter("carried", carried_shape);
     auto x             = mm->add_parameter("x", input_shape);
 
-    auto* body          = p.create_module("main_Loop_4_loop");
-    auto iteration_num  = body->add_parameter("iteration_num", iteration_shape);
+    auto* body = p.create_module("main_Loop_4_loop");
+    body->add_parameter("iteration_num", iteration_shape);
     auto body_condition = body->add_parameter("body_cond", condition_shape);
     body->add_parameter("body_carried", carried_shape);
     const auto expressions = migraphx::to_value(std::vector<migraphx::sym::expr>{batch, lit(4)});
@@ -69,4 +68,17 @@ TEST_CASE(symbolic_reshape_loop_test)
     options.map_dyn_input_dims["x"] = input_shape.dyn_dims();
     options.use_symbolic_shapes     = true;
     EXPECT(p == read_onnx("symbolic_reshape_loop_test.onnx", options));
+}
+
+} // namespace
+
+TEST_CASE(symbolic_reshape_loop_test)
+{
+    check_symbolic_reshape_loop(migraphx::sym::var("batch", {1, 4}));
+}
+
+TEST_CASE(symbolic_reshape_loop_compound_input_test)
+{
+    check_symbolic_reshape_loop(migraphx::sym::var("sequence", {1, 4}) +
+                                migraphx::sym::lit(int64_t{16}));
 }

@@ -232,9 +232,8 @@ struct database_backend
     {
         auto codes = db_codes(p);
         std::vector<std::vector<char>> result(codes.size());
-        std::transform(codes.begin(), codes.end(), result.begin(), [](const auto& c) {
-            return c.second;
-        });
+        std::transform(
+            codes.begin(), codes.end(), result.begin(), [](const auto& c) { return c.second; });
         return result;
     }
     /// Flip a byte in the middle of every stored entry's code, which keeps its zstd magic number.

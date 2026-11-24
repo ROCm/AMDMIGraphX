@@ -26,6 +26,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <test.hpp>
+#include <algorithm>
+#include <iterator>
 
 // Transposes what a submodule returns, which changes the shape of its outputs
 struct transpose_submodule_outputs
@@ -37,9 +39,14 @@ struct transpose_submodule_outputs
             return;
         auto ret = std::prev(m.end());
         std::vector<migraphx::instruction_ref> outputs;
-        for(auto output : ret->inputs())
-            outputs.push_back(m.insert_instruction(
-                ret, migraphx::make_op("transpose", {{"permutation", {1, 0}}}), output));
+        std::transform(
+            ret->inputs().begin(),
+            ret->inputs().end(),
+            std::back_inserter(outputs),
+            [&](auto output) {
+                return m.insert_instruction(
+                    ret, migraphx::make_op("transpose", {{"permutation", {1, 0}}}), output);
+            });
         m.replace_return(outputs);
     }
 };

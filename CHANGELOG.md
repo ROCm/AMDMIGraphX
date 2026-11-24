@@ -68,6 +68,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `simplify_reshapes` generating an inverse shape transform that merges a split axis's sub-axes in the wrong order when a transpose separates the split from the merge, producing a correctly shaped output with its data permuted (#5563).
 * Fixed the reference `nonzero` operator to handle non-standard input layouts such as transposed or broadcasted tensors.
 * Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).

@@ -39,10 +39,12 @@
 #include <migraphx/config.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/sqlite.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/device_description.hpp>
 #include <migraphx/gpu/kernel.hpp>
+#include <map>
 #include <unordered_map>
 #include <memory>
 #include <optional>
@@ -537,7 +539,7 @@ struct context
 
     /// The SQLite database at path, opened read-only on first use and kept open, so the ops
     /// that read from the same file while finalizing share one handle.
-    sqlite& get_database(const std::string& path)
+    sqlite& get_database(const fs::path& path)
     {
         auto it = databases.find(path);
         if(it == databases.end())
@@ -563,7 +565,7 @@ struct context
     // Loaded modules keyed by code_object_op::module_id, see load_kernel
     std::unordered_map<std::int64_t, code_module> shared_modules;
     // Open databases keyed by path, see get_database
-    std::unordered_map<std::string, sqlite> databases;
+    std::map<fs::path, sqlite> databases;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

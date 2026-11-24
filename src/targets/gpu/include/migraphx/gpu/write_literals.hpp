@@ -49,6 +49,14 @@ struct MIGRAPHX_GPU_EXPORT write_literals
     // nothing net, so this bounds that waste. Larger literals are staged smallest-first, and only
     // when still needed.
     std::size_t staging_peak_percent = 5;
+    // Path of a SQLite database to save the literal data to. When set, each literal is stored
+    // there under a key made of the md5 of its data, its type and its dimensions, and the
+    // program keeps only the key, loading the data back when it is finalized. Literals with the
+    // same key share one copy.
+    std::string weights_file{};
+    // Largest blob a literal is split into when saved to weights_file. SQLite limits a blob to
+    // 1GB in decimal units and 953.7 MiB by default, and the default here is just under that.
+    std::size_t weights_chunk_bytes = std::size_t{950} * 1024 * 1024;
     std::string name() const { return "gpu::write_literals"; }
 
     void apply(module& m) const;

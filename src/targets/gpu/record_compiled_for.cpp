@@ -43,6 +43,7 @@ value compile_options_value(const compile_options& options, const value& backend
             {"fast_math", options.fast_math},
             {"exhaustive_tune", options.exhaustive_tune},
             {"recompilable", options.recompilable},
+            {"weights_file", options.weights_file},
             {"compile_mode", to_string(options.compile_mode)},
             {"backend_options", backend_options}};
 }

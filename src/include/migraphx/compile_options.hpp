@@ -49,6 +49,12 @@ struct compile_options
      * recompile them for the same or another device without the original model.
      */
     bool recompilable = false;
+    /**
+     * Path of a SQLite database to save the weights to. When set, a target that supports it
+     * stores the literals there instead of in the program, and the compiled program reads them
+     * back from this path whenever it is finalized, so the database must stay at this path.
+     */
+    std::string weights_file{};
 
     compile_modes compile_mode = compile_modes::balanced;
     /**

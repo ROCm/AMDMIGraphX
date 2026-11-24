@@ -50,6 +50,10 @@ Disable fast math optimization
 
 Perform an exhaustive search to find the fastest version of generated kernels for selected backend
 
+.. option::  --weights-file [std::string]
+
+Save the weights to this SQLite database instead of in the compiled program, which reads them back from this path when it is loaded. Only applies to the ``gpu`` target.
+
 .. option::  --fp16
 
 Quantize for fp16

@@ -29,7 +29,10 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/filesystem.hpp>
+#include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/md5.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/module.hpp>
@@ -39,12 +42,17 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
+#include <migraphx/sqlite.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <algorithm>
+#include <iterator>
 #include <numeric>
+#include <string>
+#include <vector>
 #include <test.hpp>
 
 static void run_pass(migraphx::module& m, migraphx::gpu::write_literals p = {})
@@ -875,6 +883,314 @@ TEST_CASE(scratch_overhead_accounts_for_coloring)
     // program fits within max_memory.
     EXPECT(padded.literal_on_host);
     EXPECT(padded.scratch + padded.gpu_literal <= max_memory);
+}
+
+// The key a literal is stored under in a weights file
+static std::string weights_key(const migraphx::literal& l, const std::string& type_and_dims)
+{
+    return migraphx::md5({l.data(), l.get_shape().bytes()}) + "-" + type_and_dims;
+}
+
+// The gpu::literal the pass produces when the literal is saved to a weights file.
+static migraphx::instruction_ref add_external_literal(migraphx::module& m,
+                                                      const std::string& key,
+                                                      const migraphx::fs::path& path,
+                                                      const migraphx::shape& s,
+                                                      bool host = false)
+{
+    return m.add_instruction(migraphx::make_op(
+        "gpu::literal",
+        {{"host", host}, {"key", key}, {"path", path.string()}, {"shape", migraphx::to_value(s)}}));
+}
+
+// Every chunk in a weights file, ordered by key and then by chunk
+static std::vector<migraphx::value> weights_rows(const migraphx::fs::path& path)
+{
+    auto db     = migraphx::sqlite::read(path);
+    auto select = db.prepare("SELECT key, chunk, data FROM weights_v1 ORDER BY key, chunk;");
+    auto rows   = select();
+    return {rows.begin(), rows.end()};
+}
+
+static migraphx::value::binary
+literal_bytes(const migraphx::literal& l, std::size_t offset, std::size_t n)
+{
+    return {l.data() + offset, n};
+}
+
+// Finalizes a program the pass has already run on and returns its outputs copied to the host
+static std::vector<migraphx::argument> eval_on_gpu(migraphx::program p)
+{
+    p.finalize(migraphx::make_target("gpu"));
+    auto results = p.eval({});
+    std::vector<migraphx::argument> host;
+    std::transform(results.begin(), results.end(), std::back_inserter(host), [](const auto& r) {
+        return migraphx::gpu::from_gpu(r);
+    });
+    return host;
+}
+
+TEST_CASE(weights_file_literal)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto lit = migraphx::generate_literal(s, 1);
+    auto key = weights_key(lit, "float_type-2x3");
+
+    migraphx::module m1;
+    {
+        m1.add_return({m1.add_literal(lit)});
+    }
+    run_pass(m1, {.weights_file = path.string()});
+
+    migraphx::module m2;
+    {
+        m2.add_return({add_external_literal(m2, key, path, s)});
+    }
+    EXPECT(m1 == m2);
+    // The module no longer holds the data
+    auto v = std::prev(m1.end(), 2)->get_operator().to_value();
+    EXPECT(v.at("key").to<std::string>() == key);
+    EXPECT(not v.at("data").contains("data"));
+
+    auto rows = weights_rows(path);
+    EXPECT(rows.size() == 1);
+    EXPECT(rows.front().at("key").get_string() == key);
+    EXPECT(rows.front().at("chunk").to<std::size_t>() == 0);
+    EXPECT(rows.front().at("data").get_binary() == literal_bytes(lit, 0, s.bytes()));
+}
+
+TEST_CASE(weights_file_shares_equal_literals)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    // The same bytes with other dimensions are another tensor
+    migraphx::shape t{migraphx::shape::float_type, {3, 2}};
+    auto lit   = migraphx::generate_literal(s, 1);
+    auto tlit  = migraphx::literal::from_raw_buffer(t, lit.data());
+    auto key   = weights_key(lit, "float_type-2x3");
+    auto tkey  = weights_key(lit, "float_type-3x2");
+    auto other = migraphx::generate_literal(s, 2);
+
+    migraphx::module m1;
+    {
+        m1.add_return({m1.add_literal(lit), m1.add_literal(lit), m1.add_literal(tlit)});
+    }
+    run_pass(m1, {.weights_file = path.string()});
+
+    migraphx::module m2;
+    {
+        m2.add_return({add_external_literal(m2, key, path, s),
+                       add_external_literal(m2, key, path, s),
+                       add_external_literal(m2, tkey, path, t)});
+    }
+    EXPECT(m1 == m2);
+    EXPECT(weights_rows(path).size() == 2);
+
+    // A later compile adds to the same file and reuses what is already there
+    migraphx::module m3;
+    {
+        m3.add_return({m3.add_literal(lit), m3.add_literal(other)});
+    }
+    run_pass(m3, {.weights_file = path.string()});
+    EXPECT(weights_rows(path).size() == 3);
+}
+
+TEST_CASE(weights_file_no_literals)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::module m;
+    {
+        auto x = m.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        m.add_return({m.add_instruction(migraphx::make_op("relu"), x)});
+    }
+    run_pass(m, {.weights_file = path.string()});
+    EXPECT(not migraphx::fs::exists(path));
+}
+
+TEST_CASE(weights_file_chunks)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    // 40 bytes, saved 16 bytes at a time
+    migraphx::shape s{migraphx::shape::float_type, {2, 5}};
+    auto lit = migraphx::generate_literal(s, 1);
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_return({mm->add_literal(lit)});
+    run_pass(*mm, {.weights_file = path.string(), .weights_chunk_bytes = 16});
+
+    auto rows = weights_rows(path);
+    EXPECT(rows.size() == 3);
+    EXPECT(rows[0].at("chunk").to<std::size_t>() == 0);
+    EXPECT(rows[0].at("data").get_binary() == literal_bytes(lit, 0, 16));
+    EXPECT(rows[1].at("chunk").to<std::size_t>() == 1);
+    EXPECT(rows[1].at("data").get_binary() == literal_bytes(lit, 16, 16));
+    EXPECT(rows[2].at("chunk").to<std::size_t>() == 2);
+    EXPECT(rows[2].at("data").get_binary() == literal_bytes(lit, 32, 8));
+
+    EXPECT(eval_on_gpu(p).front() == lit.get_argument());
+}
+
+TEST_CASE(weights_file_empty_literal)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::float_type, {0}};
+
+    migraphx::module m;
+    {
+        m.add_return({m.add_literal(migraphx::literal{s, std::vector<float>{}})});
+    }
+    run_pass(m, {.weights_file = path.string()});
+
+    // Stored as one empty chunk, so it is not mistaken for a missing tensor
+    auto rows = weights_rows(path);
+    EXPECT(rows.size() == 1);
+    EXPECT(rows.front().at("data").is_binary());
+    EXPECT(rows.front().at("data").get_binary().empty());
+}
+
+TEST_CASE(weights_file_staged_literal)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto lit = migraphx::generate_literal(s, 1);
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_return({mm->add_literal(lit)});
+    // A 1-byte limit forces the literal off the GPU, so it is loaded into host memory and copied
+    run_pass(*mm, {.max_memory = 1, .weights_file = path.string()});
+
+    migraphx::module m2;
+    {
+        auto host  = add_external_literal(m2, weights_key(lit, "float_type-2x3"), path, s, true);
+        auto alloc = m2.add_instruction(
+            migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s)}}));
+        m2.add_return({m2.add_instruction(migraphx::make_op("hip::copy"), host, alloc)});
+    }
+    EXPECT(*mm == m2);
+    EXPECT(eval_on_gpu(p).front() == lit.get_argument());
+}
+
+// A program with a weight too large to overlook in the size of the saved program
+static migraphx::program make_weights_program(const migraphx::literal& w)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", w.get_shape());
+    mm->add_return({mm->add_instruction(migraphx::make_op("add"), x, mm->add_literal(w))});
+    return p;
+}
+
+static migraphx::argument run_weights_program(const migraphx::program& p)
+{
+    auto s = p.get_parameter_shape("x");
+    return p.eval({{"x", migraphx::generate_argument(s, 3)}}).front();
+}
+
+// The attributes of each gpu::literal in the main module
+static std::vector<migraphx::value> gpu_literal_values(const migraphx::program& p)
+{
+    const auto* mm = p.get_main_module();
+    std::vector<migraphx::value> result;
+    migraphx::transform_if(
+        mm->begin(),
+        mm->end(),
+        std::back_inserter(result),
+        [](const migraphx::instruction& ins) { return ins.name() == "gpu::literal"; },
+        [](const migraphx::instruction& ins) { return ins.get_operator().to_value(); });
+    return result;
+}
+
+static migraphx::compile_options weights_options(const migraphx::fs::path& path)
+{
+    migraphx::compile_options options;
+    options.offload_copy = true;
+    options.weights_file = path.string();
+    return options;
+}
+
+TEST_CASE(weights_file_compile_save_load)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::float_type, {64, 64}};
+    auto p   = make_weights_program(migraphx::generate_literal(s, 1));
+    auto ref = p;
+    ref.compile(migraphx::make_target("ref"));
+    auto expected = run_weights_program(ref);
+
+    p.compile(migraphx::make_target("gpu"), weights_options(path));
+    EXPECT(run_weights_program(p) == expected);
+
+    // The saved program has the key in place of the weights and loads them from the file
+    auto loaded   = migraphx::load_buffer(migraphx::save_buffer(p));
+    auto literals = gpu_literal_values(loaded);
+    EXPECT(literals.size() == 1);
+    EXPECT(not literals.front().at("data").contains("data"));
+    EXPECT(not literals.front().at("key").to<std::string>().empty());
+    EXPECT(run_weights_program(loaded) == expected);
+}
+
+TEST_CASE(weights_file_missing_weights)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto p = make_weights_program(migraphx::generate_literal(s, 1));
+    p.compile(migraphx::make_target("gpu"), weights_options(path));
+    auto buffer = migraphx::save_buffer(p);
+
+    migraphx::sqlite::write(path).execute("DELETE FROM weights_v1;");
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::load_buffer(buffer); },
+                                             "no weights for"));
+
+    migraphx::fs::remove(path);
+    EXPECT(
+        test::throws<migraphx::exception>([&] { migraphx::load_buffer(buffer); }, "error opening"));
+}
+
+TEST_CASE(weights_file_read_only)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto lit = migraphx::generate_literal(s, 1);
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_return({mm->add_literal(lit)});
+    run_pass(*mm, {.weights_file = path.string()});
+
+    const auto writable = migraphx::fs::perms::owner_write | migraphx::fs::perms::group_write |
+                          migraphx::fs::perms::others_write;
+    migraphx::fs::permissions(path, migraphx::fs::status(path).permissions() & ~writable);
+    // Permissions do not stop root, so saving is only refused when the protection took
+    const bool protected_file = migraphx::sqlite::write(path).read_only();
+
+    // Loading the weights needs no write access to the file
+    EXPECT(eval_on_gpu(p).front() == lit.get_argument());
+
+    if(protected_file)
+    {
+        migraphx::module m;
+        {
+            m.add_return({add_literal(m, s, 2)});
+        }
+        EXPECT(test::throws<migraphx::exception>(
+            [&] { run_pass(m, {.weights_file = path.string()}); }, "read-only"));
+    }
+
+    // Restored so the temporary directory can be removed, which Windows refuses otherwise.
+    migraphx::fs::permissions(
+        path, migraphx::fs::status(path).permissions() | migraphx::fs::perms::owner_write);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

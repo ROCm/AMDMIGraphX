@@ -887,6 +887,10 @@ struct compiler
            ap.help("Keep each kernel's compile recipe, so the recompile command can recompile "
                    "the program for the same or a newer GPU generation"),
            ap.set_value(true));
+        ap(co.weights_file,
+           {"--weights-file"},
+           ap.help("Save the weights to this SQLite database instead of in the compiled "
+                   "program, which reads them back from this path when it is loaded"));
         ap(co.compile_mode,
            {"--compile-mode"},
            ap.help("Set compilation mode: eager, balanced, max, or an integer 0-100"),

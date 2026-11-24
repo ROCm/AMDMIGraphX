@@ -38,6 +38,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/sqlite.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/device_description.hpp>
@@ -534,6 +535,16 @@ struct context
         return {shared_modules.try_emplace(module_id, code_object).first->second, symbol_name};
     }
 
+    /// The SQLite database at path, opened read-only on first use and kept open, so the ops
+    /// that read from the same file while finalizing share one handle.
+    sqlite& get_database(const std::string& path)
+    {
+        auto it = databases.find(path);
+        if(it == databases.end())
+            it = databases.emplace(path, sqlite::read(path)).first;
+        return it->second;
+    }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -551,6 +562,8 @@ struct context
     std::shared_ptr<binary_cache> bc            = make_binary_cache();
     // Loaded modules keyed by code_object_op::module_id, see load_kernel
     std::unordered_map<std::int64_t, code_module> shared_modules;
+    // Open databases keyed by path, see get_database
+    std::unordered_map<std::string, sqlite> databases;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

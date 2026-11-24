@@ -34,12 +34,19 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/md5.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/par_for.hpp>
+#include <migraphx/sqlite.hpp>
+#include <migraphx/stringutils.hpp>
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <iostream>
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -51,31 +58,177 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_WRITE_LITERALS)
 
+namespace {
+
+// How long to wait for another process writing to the same weights file before failing the
+// compile. A writer holds the lock while it stores every literal of a module, so this is far
+// longer than what a cache waits.
+constexpr int weights_busy_timeout_ms = 60000;
+
+// The table name carries the schema version, so an incompatible change is a new table rather
+// than a migration.
+//
+// A tensor is split into chunks because SQLite limits the size of a blob (to 1GB in decimal
+// units and 953.7 MiB by default). Every tensor has a chunk 0, even one with no bytes, which
+// tells a stored tensor apart from a missing one.
+constexpr const char* weights_schema_sql = R"__migraphx__(
+CREATE TABLE IF NOT EXISTS weights_v1 (
+  key   TEXT    NOT NULL,
+  chunk INTEGER NOT NULL,
+  data  BLOB    NOT NULL,
+  PRIMARY KEY (key, chunk)
+);
+)__migraphx__";
+
+constexpr const char* weights_contains_sql =
+    "SELECT 1 FROM weights_v1 WHERE key = ?1 AND chunk = 0;";
+
+constexpr const char* weights_insert_sql =
+    "INSERT INTO weights_v1 (key, chunk, data) VALUES (?1, ?2, ?3);";
+
+constexpr const char* weights_load_sql =
+    "SELECT data FROM weights_v1 WHERE key = ?1 ORDER BY chunk;";
+
+// Identifies a tensor by its contents, so equal tensors share one copy in the weights file
+std::string weights_key(const literal& l)
+{
+    const auto& s = l.get_shape();
+    return md5({l.data(), s.bytes()}) + "-" + s.type_string() + "-" +
+           to_string_range(s.lens(), "x");
+}
+
+// The key of each literal. Hashing is most of the cost of saving the weights and each literal is
+// hashed on its own, so they are hashed in parallel.
+std::vector<std::string> weights_keys(const std::vector<instruction_ref>& literals)
+{
+    std::vector<std::string> keys(literals.size());
+    // A grain of one literal, since a single large literal can be most of the work
+    par_for(literals.size(), 1, [&](std::size_t i) {
+        keys[i] = weights_key(literals[i]->get_literal());
+    });
+    return keys;
+}
+
+// Saves literals to a weights file in one transaction, which is committed by commit() and rolled
+// back when the writer is destroyed without it, so a failed compile adds nothing to the file.
+struct weights_writer
+{
+    weights_writer(const std::string& path, std::size_t pchunk_bytes)
+        : db(sqlite::write(path)), chunk_bytes(pchunk_bytes)
+    {
+        assert(chunk_bytes > 0);
+        // Opening for writing falls back to read-only on a write-protected file
+        if(db.read_only())
+            MIGRAPHX_THROW("Cannot save weights to read-only database: " + path);
+        db.set_busy_timeout(weights_busy_timeout_ms);
+        // IMMEDIATE takes the write lock up front, so no other process can store a key between
+        // the check for it and its insert
+        db.execute("BEGIN IMMEDIATE;");
+        db.execute(weights_schema_sql);
+        contains_stmt = db.prepare(weights_contains_sql);
+        insert_stmt   = db.prepare(weights_insert_sql);
+    }
+
+    bool contains(const std::string& key) const
+    {
+        auto rows = contains_stmt(key);
+        return rows.begin() != rows.end();
+    }
+
+    // Stores the literal under key unless the file already has it
+    void save(const std::string& key, const literal& l)
+    {
+        if(contains(key))
+            return;
+        auto bytes         = l.get_shape().bytes();
+        std::size_t offset = 0;
+        std::int64_t chunk = 0;
+        // A literal with no bytes still writes chunk 0
+        do
+        {
+            auto n = std::min(chunk_bytes, bytes - offset);
+            insert_stmt(key, chunk, sqlite_blob_view{l.data() + offset, n});
+            offset += n;
+            chunk++;
+        } while(offset < bytes);
+    }
+
+    void commit() { db.execute("COMMIT;"); }
+
+    private:
+    sqlite db;
+    std::size_t chunk_bytes;
+    sqlite_stmt contains_stmt{};
+    sqlite_stmt insert_stmt{};
+};
+
+} // namespace
+
 struct gpu_literal
 {
     argument data{};
     bool host = false;
+    // Set when the data is in a weights file rather than in data: the key it is stored under,
+    // the path of the file, and the shape that the empty data no longer carries
+    std::string key{};
+    std::string path{};
+    shape external_shape{};
 
     argument gpu_data{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.data, "data"), f(self.host, "host"));
+        return pack(f(self.data, "data"),
+                    f(self.host, "host"),
+                    f(self.key, "key"),
+                    f(self.path, "path"),
+                    f(self.external_shape, "shape"));
     }
 
     std::string name() const { return "gpu::literal"; }
 
-    shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
+    shape compute_shape(const std::vector<shape>&) const
+    {
+        return data.empty() ? external_shape : data.get_shape();
+    }
 
     argument compute(const shape&, const std::vector<argument>&) const { return gpu_data; }
 
-    void finalize(context&, const shape&, const std::vector<shape>&)
+    argument load_data_from_file(context& ctx) const
     {
+        if(path.empty())
+            MIGRAPHX_THROW("gpu::literal: no data and no weights file to load it from");
+        auto stmt = ctx.get_database(path).prepare(weights_load_sql);
+        auto rows = stmt(key);
+        if(rows.begin() == rows.end())
+            MIGRAPHX_THROW("gpu::literal: no weights for " + key + " in " + path);
+        argument result{external_shape};
+        auto bytes  = external_shape.bytes();
+        auto loaded = std::accumulate(
+            rows.begin(), rows.end(), std::size_t{0}, [&](std::size_t offset, const value& row) {
+                const auto& chunk = row.at("data").get_binary();
+                if(chunk.size() > bytes - offset)
+                    MIGRAPHX_THROW("gpu::literal: weights for " + key + " in " + path +
+                                   " are larger than the literal");
+                std::copy(chunk.begin(), chunk.end(), result.data() + offset);
+                return offset + chunk.size();
+            });
+        if(loaded != bytes)
+            MIGRAPHX_THROW("gpu::literal: weights for " + key + " in " + path +
+                           " are smaller than the literal");
+        return result;
+    }
+
+    void finalize(context& ctx, const shape&, const std::vector<shape>&)
+    {
+        auto d = data;
+        if(d.empty())
+            d = load_data_from_file(ctx);
         if(host)
-            gpu_data = register_on_gpu(data);
+            gpu_data = register_on_gpu(d);
         else
-            gpu_data = to_gpu(data);
+            gpu_data = to_gpu(d);
     }
 
     friend std::ostream& operator<<(std::ostream& os, const gpu_literal& x)
@@ -85,6 +238,8 @@ struct gpu_literal
             os << ":host";
         else
             os << ":gpu";
+        if(not x.key.empty())
+            os << "[key=" << x.key << ",path=" << x.path << "]";
         return os;
     }
 };
@@ -397,23 +552,50 @@ void write_literals::apply(module& m) const
                   << " bytes, +" << plan.scratch_growth << " scratch)" << std::endl;
     }
 
-    for(auto ins : iterator_for(m))
+    std::vector<instruction_ref> literals;
+    copy_if(iterator_for(m), std::back_inserter(literals), [](instruction_ref ins) {
+        return ins->name() == "@literal";
+    });
+    // The writer is opened only for a module with literals, so one without them does not create
+    // the file, and after the keys are hashed, so the file is not locked while hashing
+    std::vector<std::string> keys;
+    optional<weights_writer> writer;
+    if(not weights_file.empty() and not literals.empty())
     {
-        if(ins->name() != "@literal")
-            continue;
-        auto data = ins->get_literal().get_argument();
-        if(enabled(MIGRAPHX_COPY_LITERALS{}) or contains(plan.staged, ins))
+        keys = weights_keys(literals);
+        writer.emplace(weights_file, weights_chunk_bytes);
+    }
+
+    for(auto i : range(literals.size()))
+    {
+        auto ins    = literals[i];
+        bool staged = enabled(MIGRAPHX_COPY_LITERALS{}) or contains(plan.staged, ins);
+        auto s      = ins->get_shape();
+        gpu_literal lit{.host = staged or contains(plan.zero_copy, ins)};
+        if(writer.has_value())
         {
-            auto lit = m.insert_instruction(ins, gpu_literal{.data = data, .host = true});
-            auto a   = m.insert_instruction(ins, hip_allocate{data.get_shape()});
-            m.replace_instruction(ins, hip_copy{}, lit, a);
+            writer->save(keys[i], ins->get_literal());
+            lit.key            = keys[i];
+            lit.path           = weights_file;
+            lit.external_shape = s;
         }
         else
         {
-            m.replace_instruction(ins,
-                                  gpu_literal{.data = data, .host = contains(plan.zero_copy, ins)});
+            lit.data = ins->get_literal().get_argument();
+        }
+        if(staged)
+        {
+            auto host_lit = m.insert_instruction(ins, lit);
+            auto a        = m.insert_instruction(ins, hip_allocate{s});
+            m.replace_instruction(ins, hip_copy{}, host_lit, a);
+        }
+        else
+        {
+            m.replace_instruction(ins, lit);
         }
     }
+    if(writer.has_value())
+        writer->commit();
 }
 
 } // namespace gpu

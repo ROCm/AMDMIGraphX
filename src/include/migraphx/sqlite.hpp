@@ -46,6 +46,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct sqlite_impl;
 struct sqlite_stmt_impl;
 
+/// Bytes to bind to a statement as a BLOB without copying them, for data too large to copy. They
+/// must stay valid until the rows of the call they are passed to are destroyed.
+struct sqlite_blob_view
+{
+    const char* data = nullptr;
+    std::size_t size = 0;
+};
+
 /// A prepared statement. It shares ownership of the connection it was prepared on, which stays
 /// open for as long as the statement exists. Copies share the same statement.
 ///
@@ -162,6 +170,7 @@ struct MIGRAPHX_EXPORT sqlite_stmt
     void bind(int i, std::string_view s) const;
     void bind(int i, std::int64_t x) const;
     void bind(int i, const std::vector<char>& blob) const;
+    void bind(int i, sqlite_blob_view blob) const;
 
     std::size_t parameter_count() const;
 

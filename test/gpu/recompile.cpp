@@ -208,6 +208,7 @@ TEST_CASE(compile_options_recorded_as_comment)
     EXPECT(rec.at("recompilable").to<bool>());
     EXPECT(not rec.at("exhaustive_tune").to<bool>());
     EXPECT(rec.at("compile_mode").to<std::string>() == "balanced");
+    EXPECT(rec.at("weights_file").to<std::string>().empty());
     EXPECT(recorded_staging(p) == 7);
     EXPECT(recorded_options(reload(p)) == rec);
 }

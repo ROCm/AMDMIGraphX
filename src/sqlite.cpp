@@ -209,6 +209,18 @@ void sqlite_stmt::bind(int i, const std::vector<char>& blob) const
         MIGRAPHX_THROW(impl->error_message());
 }
 
+void sqlite_stmt::bind(int i, sqlite_blob_view blob) const
+{
+    // SQLITE_STATIC makes sqlite read the caller's bytes when the statement is stepped rather
+    // than copy them here. An empty view may carry a null pointer, which would bind SQL NULL, so
+    // it binds a zero-length zeroblob like an empty vector does.
+    int rc = blob.size == 0
+                 ? sqlite3_bind_zeroblob(impl->get(), i, 0)
+                 : sqlite3_bind_blob64(impl->get(), i, blob.data, blob.size, SQLITE_STATIC);
+    if(rc != SQLITE_OK)
+        MIGRAPHX_THROW(impl->error_message());
+}
+
 std::size_t sqlite_stmt::parameter_count() const
 {
     return sqlite3_bind_parameter_count(impl->get());

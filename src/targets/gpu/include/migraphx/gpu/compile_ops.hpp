@@ -26,7 +26,10 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/optional.hpp>
 #include <string>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,9 +48,23 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
     /// Save each benchmark candidate here as an MXR file and exit instead of compiling; empty
     /// compiles normally.
     fs::path dump_mxr_dir = {};
+    /// Keep each kernel's precompile op in a recipe submodule, so it can be recompiled
+    bool recompilable = false;
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module_pass_manager& mpm) const;
 };
+
+/// The gpu::precompile_op instruction in the recipe module of a gpu::code_object instruction, or
+/// nothing when the kernel has no recipe
+MIGRAPHX_GPU_EXPORT optional<instruction_ref> find_recipe(instruction_ref ins);
+
+/// The inputs the precompile op in the recipe of a gpu::code_object instruction had, found from
+/// the kernel, or nothing when the kernel has no recipe or a recipe parameter is not a path to
+/// them
+MIGRAPHX_GPU_EXPORT optional<std::vector<instruction_ref>> recipe_inputs(instruction_ref ins);
+
+/// The name of the op a recipe compiles, for example "gpu::mlir_op"
+MIGRAPHX_GPU_EXPORT std::string recipe_op_name(instruction_ref recipe);
 
 } // namespace gpu
 

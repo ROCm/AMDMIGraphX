@@ -416,15 +416,22 @@ struct miopen_apply
         });
     }
 
+    // hip::load_scalar allocates its pinned host buffer once in finalize() instead of on every
+    // eval like hip::copy_from_gpu, but only supports static inputs that occupy a single element
+    instruction_ref insert_host_scalar(instruction_ref ins, instruction_ref input) const
+    {
+        const auto& s = input->get_shape();
+        if(s.dynamic() or s.element_space() != 1)
+            return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), input);
+        return mod->insert_instruction(ins, make_op("hip::load_scalar"), input);
+    }
+
     // add input and output argument for the if operator
     void add_if_op()
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
-            auto cpu_cond =
-                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.front());
-            inputs.front() = cpu_cond;
-
+            inputs.front()                      = insert_host_scalar(ins, inputs.front());
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });
     }
@@ -434,13 +441,8 @@ struct miopen_apply
     {
         apply_map.emplace("loop", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
-            // copy max_iter from gpu to cpu
-            auto cpu_max_iter =
-                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(0));
-            auto cpu_cond =
-                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
-            inputs.at(0)     = cpu_max_iter;
-            inputs.at(1)     = cpu_cond;
+            inputs.at(0)                        = insert_host_scalar(ins, inputs.at(0));
+            inputs.at(1)                        = insert_host_scalar(ins, inputs.at(1));
             auto copy_inputs = inputs;
             std::transform(copy_inputs.begin(),
                            copy_inputs.end(),
@@ -728,8 +730,8 @@ struct miopen_apply
             auto inputs = ins->inputs();
             if(inputs.size() > 1)
             {
-                // The data input stays on GPU since slice creates an aliased view into it.
-                // Copy only the runtime metadata inputs.
+                // The data input stays on GPU since slice and broadcast_with_dims create an aliased
+                // view into it. Copy only the runtime metadata inputs.
                 for(std::size_t i = 1; i < inputs.size(); ++i)
                 {
                     inputs[i] =
@@ -742,6 +744,8 @@ struct miopen_apply
         };
         apply_map.emplace("slice", lower_runtime_bounds);
         apply_map.emplace("dyn_slice", lower_runtime_bounds);
+        // The dims of broadcast_with_dims are run-time metadata as well, read on the host
+        apply_map.emplace("broadcast_with_dims", lower_runtime_bounds);
     }
 
     // Get the argument's shape dimensions on host and then copy to gpu

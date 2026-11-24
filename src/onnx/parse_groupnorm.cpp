@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -99,6 +99,13 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             MIGRAPHX_THROW("PARSE_GROUPNORM: num_groups must be available");
         }
 
+        // The contrib op has no stash_type and always computes in float.
+        bool stash_type = true;
+        if(not is_contrib and contains(info.attributes, "stash_type"))
+        {
+            stash_type = (1 == parser.parse_value(info.attributes.at("stash_type")).at<int64_t>());
+        }
+
         bool is_channels_last = false;
         if(is_contrib)
         { // default state for GroupNorm Contrib op
@@ -136,6 +143,11 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto x_shape = x->get_shape();
         auto x_dtype = x_shape.type();
         auto x_dims  = x_shape.lens();
+        const auto compute_dtype = stash_type ? shape::float_type : x_dtype;
+        const auto affine_dtype  = is_contrib ? compute_dtype : x_dtype;
+        // Half moments and normalization overflow half range for valid input; stash in float
+        // unless the model sets stash_type=0.
+        x = convert_tensor_type(info, x, compute_dtype);
 
         if(x_shape.ndim() <= 2)
         {
@@ -151,9 +163,9 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
 
         // Pre-process scale and bias
         auto scale = convert_tensor_type(
-            info, args.at(1), x_shape.type()); // gamma in the GroupNorm contrib case
+            info, args.at(1), affine_dtype); // gamma in the GroupNorm contrib case
         auto bias = convert_tensor_type(
-            info, args.at(2), x_shape.type()); // beta in the GroupNorm contrib case
+            info, args.at(2), affine_dtype); // beta in the GroupNorm contrib case
         validate_tensor_shape(scale, c, "scale");
         validate_tensor_shape(bias, c, "bias");
 
@@ -177,12 +189,11 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto x_sqdiff_mean = info.add_common_op("sqdiff", x_reshaped, mean);
         auto variance =
             info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x_sqdiff_mean);
-        epsilon =
-            (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
-        auto eps     = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
-        auto var_eps = info.add_common_op("add", variance, eps);
-        auto rsqrt   = info.add_instruction(make_op("rsqrt"), var_eps);
-        auto result  = info.add_common_op("mul", x_sub_mean, rsqrt);
+        auto eps = info.add_literal(migraphx::literal{migraphx::shape{compute_dtype}, {epsilon}});
+        auto var_eps         = info.add_common_op("add", variance, eps);
+        auto rsqrt           = info.add_instruction(make_op("rsqrt"), var_eps);
+        auto result          = info.add_common_op("mul", x_sub_mean, rsqrt);
+        result               = convert_tensor_type(info, result, affine_dtype);
         auto result_reshaped = info.add_instruction(make_op("reshape", {{"dims", x_dims}}), result);
         auto scale_bcast =
             info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), scale);
@@ -202,7 +213,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             auto sigmoid = info.add_instruction(make_op("sigmoid"), output);
             output       = info.add_instruction(make_op("mul"), output, sigmoid);
         }
-        return output;
+        return convert_tensor_type(info, output, x_dtype);
     }
 };
 

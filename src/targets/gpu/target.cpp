@@ -30,6 +30,7 @@
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
+#include <migraphx/eliminate_layout.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
@@ -56,6 +57,7 @@
 #include <migraphx/rewrite_convolution.hpp>
 #include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/rewrite_nd_convolution.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_reduce.hpp>
@@ -85,6 +87,7 @@
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/hipgraphify.hpp>
+#include <migraphx/gpu/precompile_op.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
@@ -308,7 +311,9 @@ struct pipeline_factory
             starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
         const bool bf16_missing_valu = not starts_with(gfx_name, "gfx125");
         return {
-            rewrite_convolution{},
+            // An upsampling convolution becomes one convolution for the direct kernel in
+            // prefuse_ops. rewrite_nd_convolution turns back the ones it leaves.
+            rewrite_convolution{.enable_nd_convolution = true},
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
@@ -321,6 +326,8 @@ struct pipeline_factory
             prefuse_ops{.ctx                 = get_context(),
                         .enable_direct_conv  = backend_opts.enable_direct_conv,
                         .disable_direct_conv = backend_opts.disable_direct_conv},
+            dead_code_elimination{},
+            rewrite_nd_convolution{},
             dead_code_elimination{},
             dead_code_elimination{},
             rewrite_reduce{.enable_skinny_dot = backend_opts.enable_skinny_dot,
@@ -392,6 +399,8 @@ struct pipeline_factory
             dead_code_elimination{},
             lowering{get_context(), options.offload_copy},
             eliminate_contiguous{"gpu::contiguous"},
+            dead_code_elimination{},
+            eliminate_layout{precompile_name("layout")},
             dead_code_elimination{},
             lower_reshape{},
             dead_code_elimination{},

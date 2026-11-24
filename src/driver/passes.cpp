@@ -30,6 +30,7 @@
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
+#include <migraphx/eliminate_layout.hpp>
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
@@ -45,6 +46,7 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/rewrite_nd_convolution.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_reduce.hpp>
@@ -74,6 +76,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         eliminate_common_subexpression{},
         eliminate_concat{},
         eliminate_contiguous{},
+        eliminate_layout{},
         eliminate_data_type{},
         eliminate_identity{},
         eliminate_pad{},
@@ -89,6 +92,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         propagate_constant{},
         rewrite_dot{},
         rewrite_gelu{},
+        rewrite_nd_convolution{},
         rewrite_pooling{},
         rewrite_quantization{},
         rewrite_reduce{},

@@ -330,6 +330,81 @@ TEST_CASE(direct_conv_partial_channel_vector)
                            config(4, 8, 1, 2, 8, 4, 2)));
 }
 
+// A pixel shuffle convolution over (H, 2, W, 2), with one input element along the dims of
+// size 2: a block covers one output along them and stages the filter tap it reads
+TEST_CASE(direct_conv_collapsed_dims)
+{
+    auto x_shape = channels_last(migraphx::shape::float_type, {2, 8, 9, 1, 10, 1});
+    auto w_shape = channels_last(migraphx::shape::float_type, {3, 8, 3, 2, 3, 2});
+    EXPECT(verify_solution("direct_conv_collapsed_dims",
+                           x_shape,
+                           w_shape,
+                           {{1, 1, 1, 1, 1, 1, 1, 1}},
+                           config(8, 8, 2, 2, 3, 3, 4)));
+}
+
+// The same with half channel pairs on channels-first tensors
+TEST_CASE(direct_conv_collapsed_dims_half)
+{
+    migraphx::shape x_shape{migraphx::shape::half_type, {1, 8, 9, 1, 10, 1}};
+    migraphx::shape w_shape{migraphx::shape::half_type, {4, 8, 3, 2, 3, 2}};
+    EXPECT(verify_solution("direct_conv_collapsed_dims_half",
+                           x_shape,
+                           w_shape,
+                           {{1, 1, 1, 1, 1, 1, 1, 1}},
+                           config(4, 16, 1, 2, 4, 4, 4)));
+}
+
+// A padding of 4 with a dilation of 2 puts taps 2, 1 and 0 on outputs 0, 2 and 4 of the
+// collapsed dim. The odd outputs read no input and are zero.
+TEST_CASE(direct_conv_collapsed_missing_taps)
+{
+    migraphx::shape x_shape{migraphx::shape::float_type, {1, 4, 1, 9, 10}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {2, 4, 3, 3, 3}};
+    EXPECT(verify_solution("direct_conv_collapsed_missing_taps",
+                           x_shape,
+                           w_shape,
+                           {{4, 1, 1, 4, 1, 1}, {1, 1, 1}, {2, 1, 1}},
+                           config(4, 16, 1, 2, 2, 2, 2)));
+}
+
+// A stride on the collapsed dim skips taps: outputs 0 and 1 read taps 2 and 0
+TEST_CASE(direct_conv_collapsed_stride)
+{
+    migraphx::shape x_shape{migraphx::shape::float_type, {1, 4, 9, 1, 10}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {2, 4, 3, 3, 3}};
+    EXPECT(verify_solution("direct_conv_collapsed_stride",
+                           x_shape,
+                           w_shape,
+                           {{1, 2, 1, 1, 2, 1}, {1, 2, 1}},
+                           config(4, 16, 1, 2, 2, 2, 2)));
+}
+
+// A 3-D convolution: rows and columns run along the last two dims and a block covers one
+// output of the first
+TEST_CASE(direct_conv_3d)
+{
+    migraphx::shape x_shape{migraphx::shape::float_type, {1, 4, 5, 9, 10}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {4, 4, 2, 3, 3}};
+    EXPECT(verify_solution("direct_conv_3d",
+                           x_shape,
+                           w_shape,
+                           {{1, 1, 1, 0, 1, 1}, {2, 1, 1}},
+                           config(4, 16, 1, 2, 4, 4, 2)));
+}
+
+// Only the first spatial dim has more than one input element, so the columns run along it
+TEST_CASE(direct_conv_single_tiled_dim)
+{
+    migraphx::shape x_shape{migraphx::shape::float_type, {2, 8, 101, 1}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {4, 8, 5, 3}};
+    EXPECT(verify_solution("direct_conv_single_tiled_dim",
+                           x_shape,
+                           w_shape,
+                           {{2, 1, 2, 1}, {2, 1}},
+                           config(1, 32, 2, 1, 4, 2, 4)));
+}
+
 // Without a solution the kernel compiles with the first default candidate
 TEST_CASE(direct_conv_default_solution)
 {

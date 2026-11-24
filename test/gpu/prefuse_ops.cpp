@@ -226,6 +226,36 @@ TEST_CASE(direct_conv_enabled)
     EXPECT(m1 == m2);
 }
 
+// The kernel takes convolutions over any number of spatial dims
+TEST_CASE(direct_conv_enabled_nd)
+{
+    migraphx::gpu::context ctx;
+    migraphx::shape xs{migraphx::shape::float_type, {1, 4, 16, 1, 16, 1}};
+    migraphx::shape ws{migraphx::shape::float_type, {3, 4, 3, 2, 3, 2}};
+    migraphx::value attrs = {{"padding", {1, 1, 1, 1, 1, 1, 1, 1}},
+                             {"stride", {1, 1, 1, 1}},
+                             {"dilation", {1, 1, 1, 1}}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", xs);
+        auto w    = m1.add_parameter("w", ws);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", attrs), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::run_passes(m1,
+                         {migraphx::gpu::prefuse_ops{.ctx = &ctx, .enable_direct_conv = true},
+                          migraphx::dead_code_elimination{}});
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", xs);
+        auto w    = m2.add_parameter("w", ws);
+        auto conv = m2.add_instruction(migraphx::make_op("gpu::direct_conv", attrs), x, w);
+        m2.add_return({conv});
+    }
+    EXPECT(m1 == m2);
+}
+
 // disable_direct_conv wins over enable_direct_conv
 TEST_CASE(direct_conv_disabled)
 {
@@ -431,6 +461,45 @@ TEST_CASE(direct_conv_heuristic_default_lowering)
     EXPECT(not offloads(
         nhwc(f16, {1, 32, 512, 512}), nhwc(f16, {8, 32, 7, 7}), {{"padding", {3, 3}}}));
     EXPECT(not offloads({f16, {1, 48, 128, 128}}, {f16, {3, 48, 5, 5}}, {{"padding", {2, 2}}}));
+}
+
+static migraphx::shape channels_last(migraphx::shape::type_t t,
+                                     const std::vector<std::size_t>& lens)
+{
+    std::vector<int64_t> perm(lens.size());
+    std::iota(perm.begin() + 1, perm.end() - 1, 2);
+    perm.back() = 1;
+    return migraphx::shape::from_permutation(t, lens, perm);
+}
+
+// A convolution over (H, 2, W, 2) with one input element along the dims of size 2 is the
+// pixel shuffle of a 3x3 convolution with four times the output channels, and is judged like
+// it: 3 output channels count 12, 8 count 32, and the filter has 9 taps, too few for fp16.
+// A 3-D convolution is left to the default lowering.
+TEST_CASE(direct_conv_heuristic_expanded_dims)
+{
+    migraphx::value attrs = {{"padding", {1, 1, 1, 1, 1, 1, 1, 1}},
+                             {"stride", {1, 1, 1, 1}},
+                             {"dilation", {1, 1, 1, 1}}};
+    auto f32              = migraphx::shape::float_type;
+    EXPECT(offloads_direct_conv(gfx1201(),
+                                channels_last(f32, {1, 48, 256, 1, 256, 1}),
+                                channels_last(f32, {3, 48, 3, 2, 3, 2}),
+                                attrs));
+    EXPECT(not offloads_direct_conv(gfx1201(),
+                                    channels_last(f32, {1, 48, 256, 1, 256, 1}),
+                                    channels_last(f32, {8, 48, 3, 2, 3, 2}),
+                                    attrs));
+    auto f16 = migraphx::shape::half_type;
+    EXPECT(not offloads_direct_conv(gfx1201(),
+                                    channels_last(f16, {1, 48, 512, 1, 512, 1}),
+                                    channels_last(f16, {1, 48, 3, 2, 3, 2}),
+                                    attrs));
+    EXPECT(not offloads_direct_conv(
+        gfx1201(),
+        {f32, {1, 8, 16, 256, 256}},
+        {f32, {3, 8, 5, 5, 5}},
+        {{"padding", {2, 2, 2}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}));
 }
 
 // With MFMA: fp32 with up to 3 output channels, or 6 for 7x7 filters; channels-first fp32

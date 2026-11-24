@@ -481,6 +481,63 @@ TEST_CASE(nhwc_conv_output_channels_last_small_k)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// A convolution over (H, 2, W, 2) with one input element along the dims of size 2 is laid
+// out like the 2-D convolution it folds to. Its 2 output channels count 8 with the outputs
+// along those dims, which reaches the threshold.
+TEST_CASE(nhwc_conv_expanded_dims_output_channels_last)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8, 16, 1, 16, 1}};
+    migraphx::shape ws{migraphx::shape::float_type, {2, 8, 3, 2, 3, 2}};
+    auto conv_op = migraphx::make_op("convolution",
+                                     {{"padding", {1, 1, 1, 1, 1, 1, 1, 1}},
+                                      {"stride", {1, 1, 1, 1}},
+                                      {"dilation", {1, 1, 1, 1}}});
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", xs);
+        auto w    = m1.add_literal(migraphx::generate_literal(ws));
+        auto conv = m1.add_instruction(conv_op, x, w);
+        m1.add_return({conv});
+    }
+    run_pass(m1,
+             {.order                          = migraphx::layout_convolution::channels_last,
+              .output_channels_last_threshold = 8});
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_instruction(layout({0, 2, 3, 4, 5, 1}), m2.add_parameter("x", xs));
+        auto w    = m2.add_instruction(layout({2, 3, 4, 5, 1, 0}),
+                                       m2.add_literal(migraphx::generate_literal(ws)));
+        auto conv = m2.add_instruction(conv_op, x, w);
+        auto conv_layout = m2.add_instruction(layout({0, 1, 2, 3, 4, 5}), conv);
+        m2.add_return({conv_layout});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Other convolutions over more than two spatial dims keep their layout
+TEST_CASE(nhwc_conv_3d_unchanged)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 16, 16}});
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 3, 3, 3}}));
+        auto conv = m1.add_instruction(
+            migraphx::make_op(
+                "convolution",
+                {{"padding", {1, 1, 1}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
+            x,
+            w);
+        m1.add_return({conv});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1,
+             {.order                          = migraphx::layout_convolution::channels_last,
+              .output_channels_last_threshold = 8});
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(nhwc_conv_output_channels_last_always)
 {
     // A threshold of 1 always stores the weights output-channels-last.
@@ -859,6 +916,45 @@ TEST_CASE(channels_auto_counts_nonlazy_reshapes)
     }
     migraphx::module m2 = m1;
     run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// A convolution over (H, 2, W, 2) writes its output in the order the merging reshape reads it
+// under either layout, so the reshape stays a view. channels_last then needs only the two
+// layouts at the ends, which the allowance covers, so auto selects it.
+TEST_CASE(channels_auto_expanded_dims_merging_reshape)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8, 16, 16}};
+    migraphx::shape ws{migraphx::shape::float_type, {2, 8, 3, 2, 3, 2}};
+    auto conv_op  = migraphx::make_op("convolution",
+                                      {{"padding", {1, 1, 1, 1, 1, 1, 1, 1}},
+                                       {"stride", {1, 1, 1, 1}},
+                                       {"dilation", {1, 1, 1, 1}}});
+    auto unit_op  = migraphx::make_op("reshape", {{"dims", {1, 8, 16, 1, 16, 1}}});
+    auto merge_op = migraphx::make_op("reshape", {{"dims", {1, 2, 32, 32}}});
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xs);
+        auto w     = m1.add_literal(migraphx::generate_literal(ws));
+        auto unit  = m1.add_instruction(unit_op, x);
+        auto conv  = m1.add_instruction(conv_op, unit, w);
+        auto merge = m1.add_instruction(merge_op, conv);
+        m1.add_return({merge});
+    }
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", xs);
+        auto w     = m2.add_literal(migraphx::generate_literal(ws));
+        auto unit  = m2.add_instruction(unit_op, x);
+        auto xl    = m2.add_instruction(layout({0, 2, 3, 4, 5, 1}), unit);
+        auto wl    = m2.add_instruction(layout({0, 2, 3, 4, 5, 1}), w);
+        auto conv  = m2.add_instruction(conv_op, xl, wl);
+        auto merge = m2.add_instruction(merge_op, conv);
+        auto out   = m2.add_instruction(layout(), merge);
+        m2.add_return({out});
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 

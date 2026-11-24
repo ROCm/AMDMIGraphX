@@ -30,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/math.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/serialize.hpp>
 #include <numeric>
@@ -82,6 +83,35 @@ static std::vector<std::size_t> divisors_up_to(std::size_t n, std::size_t max_va
 
 static bool is_power_of_2(std::size_t n) { return n > 0 and (n & (n - 1)) == 0; }
 
+// The kernel runs rows along the first spatial dim and columns along the last, and a dim with
+// one input element is not worth either. Returns the permutation of the dims of an input
+// with lens x_lens that puts its last two spatial dims with more elements there.
+static std::vector<int64_t> tiled_permutation(const std::vector<std::size_t>& x_lens)
+{
+    std::vector<int64_t> perm(x_lens.size());
+    std::iota(perm.begin(), perm.end(), 0);
+    const auto is_tiled = [&](auto d) { return x_lens[d] > 1; };
+    const auto spatial  = perm.rend() - 2;
+    auto col            = std::find_if(perm.rbegin(), spatial, is_tiled);
+    if(col == spatial)
+        return perm;
+    std::rotate(col.base() - 1, col.base(), perm.end());
+    auto row = std::find_if(perm.rbegin() + 1, spatial, is_tiled);
+    if(row != spatial)
+        std::rotate(perm.begin() + 2, row.base() - 1, row.base());
+    return perm;
+}
+
+// A per-spatial-dim attribute in the order of the dims of perm
+static std::vector<std::size_t> reorder_spatial(const std::vector<std::size_t>& values,
+                                                const std::vector<int64_t>& perm)
+{
+    std::vector<std::size_t> result(values.size());
+    std::transform(
+        perm.begin() + 2, perm.end(), result.begin(), [&](auto d) { return values[d - 2]; });
+    return result;
+}
+
 // One tuning solution: a lane computes kvec output channels of nrows rows by noutputs
 // columns spaced tile_w apart; a block covers tile_k output channels over a
 // (tile_h * nrows, tile_w * noutputs) spatial tile and stages tile_c input channels at a time
@@ -113,8 +143,11 @@ struct direct_conv_config
 
 struct direct_conv_problem
 {
+    // Shapes with the spatial dims in the order the kernel tiles them, like the attributes
     std::vector<shape> inputs;
     std::size_t num_spatial = 2;
+    // Whether the first spatial dim has rows to run along: more than one input element
+    bool rows = true;
     std::vector<std::size_t> stride;
     std::vector<std::size_t> dilation;
     // Begin padding per spatial dim followed by end padding
@@ -137,10 +170,23 @@ struct direct_conv_problem
         }
         if(padding.size() != 2 * num_spatial)
             MIGRAPHX_THROW("direct_conv: padding needs one or two values per spatial dim");
-        return {inputs,
+        const auto& x_lens = inputs.front().lens();
+        auto perm          = tiled_permutation(x_lens);
+        std::vector<shape> tiled_inputs;
+        std::transform(inputs.begin(),
+                       inputs.end(),
+                       std::back_inserter(tiled_inputs),
+                       [&](const shape& s) { return reorder_shape(s, perm); });
+        auto end_padding = reorder_spatial({padding.begin() + num_spatial, padding.end()}, perm);
+        padding.resize(num_spatial);
+        padding = reorder_spatial(padding, perm);
+        padding.insert(padding.end(), end_padding.begin(), end_padding.end());
+        auto tiled = std::count_if(x_lens.begin() + 2, x_lens.end(), [](auto n) { return n > 1; });
+        return {std::move(tiled_inputs),
                 num_spatial,
-                std::move(stride),
-                std::move(dilation),
+                tiled > 1,
+                reorder_spatial(stride, perm),
+                reorder_spatial(dilation, perm),
                 std::move(padding),
                 max_lds_bytes};
     }
@@ -168,18 +214,11 @@ struct direct_conv_problem
         return 1;
     }
 
-    // Filter taps per input channel
-    std::size_t taps() const
-    {
-        return std::accumulate(
-            weight_lens().begin() + 2, weight_lens().end(), std::size_t{1}, std::multiplies<>{});
-    }
-
     // Input extent one output reads along spatial dim i: the dilated filter
     std::size_t reach(std::size_t i) const { return (weight_lens()[i + 2] - 1) * dilation[i] + 1; }
 
     // Filter taps along the first spatial dim; more than one lets row runs reuse the halo
-    std::size_t row_taps() const { return num_spatial > 1 ? weight_lens()[2] : 1; }
+    std::size_t row_taps() const { return rows ? weight_lens()[2] : 1; }
 
     // Halo rows a lane keeps in registers per filter column and output column: those its
     // row run's taps read
@@ -193,7 +232,7 @@ struct direct_conv_problem
     std::vector<std::size_t> lane_tile(const direct_conv_config& c) const
     {
         std::vector<std::size_t> result(num_spatial, 1);
-        if(num_spatial > 1)
+        if(rows)
             result.front() = c.tile_h;
         result.back() = c.tile_w;
         return result;
@@ -203,9 +242,23 @@ struct direct_conv_problem
     std::vector<std::size_t> output_tile(const direct_conv_config& c) const
     {
         auto result = lane_tile(c);
-        if(num_spatial > 1)
+        if(rows)
             result.front() *= c.nrows;
         result.back() *= c.noutputs;
+        return result;
+    }
+
+    // Spatial dims the kernel collapses: one input element and one output per block. The
+    // block reads the input through one filter tap there.
+    std::vector<bool> collapsed(const direct_conv_config& c) const
+    {
+        auto tile          = output_tile(c);
+        const auto& x_lens = inputs.front().lens();
+        std::vector<bool> result(num_spatial);
+        std::transform(
+            tile.begin(), tile.end(), x_lens.begin() + 2, result.begin(), [](auto t, auto n) {
+                return t == 1 and n == 1;
+            });
         return result;
     }
 
@@ -214,17 +267,22 @@ struct direct_conv_problem
     std::size_t lds_bytes(const direct_conv_config& c) const
     {
         auto tile = output_tile(c);
+        auto skip = collapsed(c);
         auto dims = range(num_spatial);
         auto halo = transform_accumulate(
             dims.begin(), dims.end(), std::size_t{1}, std::multiplies<>{}, [&](auto i) {
-                return (tile[i] - 1) * stride[i] + reach(i);
+                return skip[i] ? 1 : (tile[i] - 1) * stride[i] + reach(i);
+            });
+        auto taps = transform_accumulate(
+            dims.begin(), dims.end(), std::size_t{1}, std::multiplies<>{}, [&](auto i) {
+                return skip[i] ? 1 : weight_lens()[i + 2];
             });
         std::size_t dot_size =
             inputs.front().type() == shape::half_type and c.tile_c % 2 == 0 ? 2 : 1;
         auto w_vec        = c.kvec * dot_size * type_size();
         std::size_t align = w_vec > 16 and is_power_of_2(w_vec) ? w_vec : 16;
         return ceil_mul_of(halo * c.tile_c * type_size(), align) +
-               ceil_mul_of(c.tile_k * taps() * c.tile_c * type_size(), align);
+               ceil_mul_of(c.tile_k * taps * c.tile_c * type_size(), align);
     }
 
     std::size_t num_blocks(const direct_conv_config& c) const
@@ -239,13 +297,24 @@ struct direct_conv_problem
                                   integer_divide_ceil);
     }
 
+    // Without rows the lanes of a block all run along the columns
+    direct_conv_config normalize(direct_conv_config c) const
+    {
+        if(rows)
+            return c;
+        c.tile_w *= c.tile_h;
+        c.tile_h = 1;
+        c.nrows  = 1;
+        return c;
+    }
+
     // Whether the kernel can run the configuration and keeps its registers in budget
     bool valid(const direct_conv_config& c, std::size_t wave) const
     {
         // A solution read from a problem cache may hold zeros
         if(c.kvec == 0 or c.tile_c == 0)
             return false;
-        if(num_spatial < 2 and (c.tile_h != 1 or c.nrows != 1))
+        if(not rows and (c.tile_h != 1 or c.nrows != 1))
             return false;
         if(c.tile_k % c.kvec != 0)
             return false;
@@ -273,12 +342,7 @@ struct direct_conv_solutions
 
     void add(direct_conv_config config)
     {
-        if(problem.num_spatial < 2)
-        {
-            config.tile_w *= config.tile_h;
-            config.tile_h = 1;
-            config.nrows  = 1;
-        }
+        config = problem.normalize(config);
         if(not problem.valid(config, wave))
             return;
         auto v = to_value(config);
@@ -430,7 +494,8 @@ struct direct_conv_compiler : compiler<direct_conv_compiler>
         direct_conv_config config;
         if(v.contains("tile_k"))
         {
-            config = from_value<direct_conv_config>(v);
+            // A solution tuned before the kernel stopped running rows along such a dim
+            config = problem.normalize(from_value<direct_conv_config>(v));
         }
         else
         {
@@ -447,7 +512,7 @@ struct direct_conv_compiler : compiler<direct_conv_compiler>
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.kernel_name    = v.get("kernel", std::string{"direct_conv_kernel"});
-        options.virtual_inputs = inputs;
+        options.virtual_inputs = problem.inputs;
         options.set_launch_params(
             v, problem.num_blocks(config) * config.block_size(), config.block_size());
 

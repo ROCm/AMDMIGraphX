@@ -24,6 +24,7 @@
 #include <migraphx/layout_convolution.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/functional.hpp>
@@ -34,6 +35,8 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/reshape_dims.hpp>
 #include <migraphx/stringutils.hpp>
+#include <functional>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -94,6 +97,24 @@ void preserve_output_layout(module& m)
     }
 }
 
+// Output lens of the spatial dims where one input element expands to several outputs. The
+// convolution is one over the other dims with an output channel for each output of these
+// (see rewrite_nd_convolution).
+std::vector<std::size_t> expanded_lens(instruction_ref ins)
+{
+    const auto& x_lens   = ins->inputs().front()->get_shape().lens();
+    const auto& out_lens = ins->get_shape().lens();
+    std::vector<std::size_t> result;
+    transform_if(
+        out_lens.begin() + 2,
+        out_lens.end(),
+        x_lens.begin() + 2,
+        std::back_inserter(result),
+        [](auto out, auto x) { return x == 1 and out > 1; },
+        [](auto out, auto) { return out; });
+    return result;
+}
+
 void transform_convolutions(module& m, const layout_convolution& options)
 {
     const bool weights_channels_last = options.output_channels_last_threshold > 0 and
@@ -104,8 +125,13 @@ void transform_convolutions(module& m, const layout_convolution& options)
             continue;
         if(ins->get_shape().dynamic())
             continue;
-        if(ins->get_shape().lens().size() != 4)
+        if(ins->inputs().front()->get_shape().dynamic())
             continue;
+        auto expanded = expanded_lens(ins);
+        if(ins->get_shape().lens().size() != 4 + expanded.size())
+            continue;
+        auto out_channels = std::accumulate(
+            expanded.begin(), expanded.end(), ins->get_shape().lens()[1], std::multiplies<>{});
         auto v = ins->get_operator().to_value();
         // Grouped convolutions use the same layout as the other convolutions
         bool is_group_conv = v.at("group").to<int>() > 1;
@@ -119,7 +145,7 @@ void transform_convolutions(module& m, const layout_convolution& options)
         if(weights_channels_last and not is_group_conv and not wshape.dynamic() and
            (options.output_channels_last_types.empty() or
             contains(options.output_channels_last_types, wshape.type())) and
-           wshape.lens().front() >= options.output_channels_last_threshold)
+           out_channels >= options.output_channels_last_threshold)
         {
             wperm = get_weight_permutation(ins);
             assert(wperm.size() == wshape.ndim());

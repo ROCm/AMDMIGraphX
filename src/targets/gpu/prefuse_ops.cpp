@@ -29,7 +29,6 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
@@ -299,16 +298,75 @@ struct direct_conv
 };
 MIGRAPHX_REGISTER_OP(direct_conv);
 
-// Filter taps per input channel of (K, C, k...) convolution weights
-std::size_t filter_taps(const shape& w)
+// Spatial dims of a dense convolution as the direct kernel sees them. A dim with one input
+// element is not tiled: each output along it reads that element through one filter tap, so
+// the dim acts as more output channels of a convolution over the tiled dims.
+struct direct_conv_dims
 {
-    const auto& lens = w.lens();
-    return std::accumulate(lens.begin() + 2, lens.end(), std::size_t{1}, std::multiplies<>{});
-}
+    // Tiled spatial dims: rows run along the second to last and columns along the last
+    std::vector<std::size_t> tiled;
+    // Output channels times the outputs along the other dims
+    std::size_t out_channels = 0;
+    // Filter taps per input channel over the tiled dims
+    std::size_t taps = 1;
+    // Filter taps along the rows
+    std::size_t row_taps = 1;
 
-// Dense 1-D and 2-D float or half convolutions with static shapes and explicit padding.
-// Filters past 256 taps per channel, or 32 rows (the halo rows a lane keeps in registers),
-// are left to the GEMM-based kernels.
+    static direct_conv_dims create(instruction_ref conv)
+    {
+        const auto& x_lens   = conv->inputs().front()->get_shape().lens();
+        const auto& w_lens   = conv->inputs().back()->get_shape().lens();
+        const auto& out_lens = conv->get_shape().lens();
+        direct_conv_dims result;
+        auto spatial = range(x_lens.size() - 2);
+        std::copy_if(spatial.begin(), spatial.end(), std::back_inserter(result.tiled), [&](auto i) {
+            return x_lens[i + 2] > 1;
+        });
+        // The columns need a dim
+        if(result.tiled.empty())
+            result.tiled.push_back(spatial.size() - 1);
+        result.taps         = transform_accumulate(result.tiled.begin(),
+                                                   result.tiled.end(),
+                                                   std::size_t{1},
+                                                   std::multiplies<>{},
+                                                   [&](auto i) { return w_lens[i + 2]; });
+        result.out_channels = conv->get_shape().elements() /
+                              transform_accumulate(result.tiled.begin(),
+                                                   result.tiled.end(),
+                                                   out_lens[0],
+                                                   std::multiplies<>{},
+                                                   [&](auto i) { return out_lens[i + 2]; });
+        if(result.tiled.size() > 1)
+            result.row_taps = w_lens[result.tiled[result.tiled.size() - 2] + 2];
+        return result;
+    }
+
+    // Shared memory the kernel stages for one input channel of an output tile of `rows` by
+    // `cols`: per tiled dim, the tile stepped by the stride plus the dilated filter
+    std::size_t halo_bytes(instruction_ref conv, std::size_t rows, std::size_t cols) const
+    {
+        auto v             = conv->get_operator().to_value();
+        auto stride        = v.at("stride").to_vector<std::size_t>();
+        auto dilation      = v.at("dilation").to_vector<std::size_t>();
+        const auto& w_lens = conv->inputs().back()->get_shape().lens();
+        std::vector<std::size_t> tile(stride.size(), 1);
+        if(tiled.size() > 1)
+            tile[tiled[tiled.size() - 2]] = rows;
+        tile[tiled.back()] = cols;
+        return transform_accumulate(tiled.begin(),
+                                    tiled.end(),
+                                    conv->inputs().front()->get_shape().type_size(),
+                                    std::multiplies<>{},
+                                    [&](auto i) {
+                                        return (tile[i] - 1) * stride[i] +
+                                               (w_lens[i + 2] - 1) * dilation[i] + 1;
+                                    });
+    }
+};
+
+// Dense float or half convolutions with static shapes and explicit padding. Filters past 256
+// taps per channel, or 32 rows (the halo rows a lane keeps in registers), are left to the
+// GEMM-based kernels.
 MIGRAPHX_PRED_MATCHER(conv_direct, instruction_ref ins)
 {
     if(ins->name() != "convolution")
@@ -319,11 +377,10 @@ MIGRAPHX_PRED_MATCHER(conv_direct, instruction_ref ins)
         return false;
     if(not contains({shape::float_type, shape::half_type}, x_shape.type()))
         return false;
-    if(x_shape.ndim() != 3 and x_shape.ndim() != 4)
+    if(x_shape.ndim() < 3)
         return false;
-    if(x_shape.ndim() == 4 and w_shape.lens()[2] > 32)
-        return false;
-    if(filter_taps(w_shape) > 256)
+    auto dims = direct_conv_dims::create(ins);
+    if(dims.row_taps > 32 or dims.taps > 256)
         return false;
     auto v = ins->get_operator().to_value();
     // Padding modes other than the default compute the padding at runtime
@@ -427,33 +484,6 @@ bool direct_conv_beats_mfma(const direct_conv_traits& p)
     return p.out_channels <= 3 and (p.positions_per_cu >= 400 or p.taps >= 25);
 }
 
-// View ops applied to the output of ins along its chain of single-use pointwise ops
-std::vector<operation> output_view_ops(instruction_ref ins)
-{
-    std::vector<operation> ops;
-    while(ins->outputs().size() == 1)
-    {
-        ins = ins->outputs().front();
-        if(contains({"reshape", "transpose", "squeeze", "unsqueeze", "flatten"}, ins->name()))
-            ops.push_back(ins->get_operator());
-        else if(not ins->get_operator().attributes().contains("pointwise"))
-            break;
-    }
-    return ops;
-}
-
-// A pixel shuffle after the convolution merges channel and spatial axes. MLIR fuses it with
-// the epilogue, while the direct kernel leaves a pointwise kernel that reads its output
-// across channels (gfx1201 fp32 48->12 3x3 at 512x512 with the epilogue 0.68x).
-bool output_collapses(instruction_ref ins)
-{
-    auto ops = output_view_ops(ins);
-    if(ops.empty())
-        return false;
-    auto desc = shape_transform_descriptor::create(ins->get_shape().lens(), ops);
-    return not desc.empty() and desc.is_collapsing();
-}
-
 // Heuristic for when the direct kernel beats the default lowering: MLIR, the winograd kernel
 // for the convolutions it takes, or MIOpen for channels-first dilated filters. The direct
 // kernel multiplies with FMAs (fp16 with dot2, two input channels per instruction), so it
@@ -469,28 +499,29 @@ bool output_collapses(instruction_ref ins)
 // alone, which can overstate the kernel (gfx942 fp16 16->1 3x3 2.2x alone, 1.2x in the
 // pipeline).
 // 1x1 and 1-D convolutions are mixed or lose, so they stay with the default lowering.
+// The traits are those of the convolution over the tiled dims: a convolution whose other dims
+// split the output channels of a 2-D one (a pixel shuffle) is judged like that 2-D one.
 bool direct_conv_profitable(instruction_ref ins,
                             const value& v,
                             const std::string& gfx_name,
                             std::size_t compute_units)
 {
-    const auto& x_shape = ins->inputs().front()->get_shape();
-    if(x_shape.ndim() != 4)
+    auto dims = direct_conv_dims::create(ins);
+    if(dims.tiled.size() != 2)
         return false;
-    const auto& w_shape = ins->inputs().back()->get_shape();
-    const auto is_one   = [](const value& x) { return x.to<std::size_t>() == 1; };
+    const auto& x_shape = ins->inputs().front()->get_shape();
+    const auto stride   = v.at("stride").to_vector<std::size_t>();
+    const auto dilation = v.at("dilation").to_vector<std::size_t>();
     direct_conv_traits p;
-    p.out_channels     = w_shape.lens()[0];
-    p.in_channels      = w_shape.lens()[1];
-    p.taps             = filter_taps(w_shape);
+    p.out_channels     = dims.out_channels;
+    p.in_channels      = x_shape.lens()[1];
+    p.taps             = dims.taps;
     p.positions_per_cu = ins->get_shape().elements() / p.out_channels / compute_units;
     p.nhwc             = x_shape.strides()[1] == 1;
     p.half             = x_shape.type() == shape::half_type;
-    p.unit_stride      = all_of(v.at("stride"), is_one);
-    p.dilated          = not all_of(v.at("dilation"), is_one);
+    p.unit_stride      = all_of(dims.tiled, [&](auto i) { return stride[i] == 1; });
+    p.dilated          = not all_of(dims.tiled, [&](auto i) { return dilation[i] == 1; });
     if(p.taps == 1)
-        return false;
-    if(output_collapses(ins))
         return false;
     switch(get_conv_matrix_instruction(gfx_name, x_shape.type()))
     {
@@ -521,9 +552,8 @@ struct find_direct_convolution
 
         // One input channel of an 8x64 output tile and its filter is the kernel's fallback
         // solution; larger halos lose to the GEMM-based kernels anyway
-        if(conv_halo_bytes(ins, 8, 64) +
-               filter_taps(weights->get_shape()) * input->get_shape().type_size() >
-           max_lds_bytes)
+        auto dims = direct_conv_dims::create(ins);
+        if(dims.halo_bytes(ins, 8, 64) + dims.taps * input->get_shape().type_size() > max_lds_bytes)
             return;
         auto v = ins->get_operator().to_value();
         if(not force and not direct_conv_profitable(ins, v, gfx_name, compute_units))

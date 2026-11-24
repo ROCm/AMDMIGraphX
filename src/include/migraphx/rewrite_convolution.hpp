@@ -44,6 +44,10 @@ struct module;
  */
 struct MIGRAPHX_EXPORT rewrite_convolution
 {
+    // Write a convolution that upsamples, which is a backward convolution or a convolution
+    // followed by a pixel shuffle, as one convolution over more spatial dims. Only for targets
+    // that handle those convolutions.
+    bool enable_nd_convolution = false;
     std::string name() const { return "rewrite_convolution"; }
     void apply(module& m) const;
 };

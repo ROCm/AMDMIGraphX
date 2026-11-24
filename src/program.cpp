@@ -235,6 +235,16 @@ static std::vector<context> make_contexts(const std::vector<target>& targets)
     return contexts;
 }
 
+static void after_finalize(std::vector<context>& contexts)
+{
+    for(auto& ctx : contexts)
+    {
+        // A target without a context returns an empty one, which cannot be called
+        if(ctx.type_id() != typeid(std::nullptr_t))
+            ctx.after_finalize();
+    }
+}
+
 // Why m is not valid after the passes of stage, or nothing
 static optional<std::string> module_error(const module& m, const std::string& stage)
 {
@@ -441,14 +451,22 @@ void program::compile(const target& t, compile_options options)
         if(not is_cross_compiling(this->impl->contexts.front()))
             mod->finalize(this->impl->contexts);
     }
+    if(not is_cross_compiling(this->impl->contexts.front()))
+        after_finalize(this->impl->contexts);
 }
 
 void program::finalize()
 {
     if(impl->contexts.empty())
         impl->contexts = make_contexts(impl->targets);
+    this->finalize_with_context(this->impl->contexts);
+}
+
+void program::finalize_with_context(std::vector<context>& ctx)
+{
     auto* mm = this->get_main_module();
-    mm->finalize(this->impl->contexts);
+    mm->finalize(ctx);
+    after_finalize(ctx);
 }
 
 void program::finalize(const target& t)

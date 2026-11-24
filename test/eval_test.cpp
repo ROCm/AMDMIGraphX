@@ -33,6 +33,8 @@
 #include <migraphx/execution_environment.hpp>
 #include <migraphx/any_ptr.hpp>
 #include <sstream>
+#include <string>
+#include <vector>
 #include "test.hpp"
 #include <basic_ops.hpp>
 
@@ -474,8 +476,8 @@ TEST_CASE(reverse_target_test)
     EXPECT(test::throws<migraphx::exception>([&] { p.compile(reverse_target{}); }));
 }
 
-// Check that the program doesnt modify the context directly, and only the operators modify the
-// context
+// Check that evaluating the program doesnt modify the context directly, and only the operators
+// modify the context
 TEST_CASE(eval_context1)
 {
     migraphx::program p;
@@ -486,9 +488,11 @@ TEST_CASE(eval_context1)
     auto two = mm->add_literal(2);
     mm->add_instruction(sum_op{}, one, two);
     p.compile(t);
-    EXPECT(is_shared(t.ctx, p.get_context()));
+    // Compiling calls after_finalize, which gives the program its own copy of the context
+    EXPECT(not is_shared(t.ctx, p.get_context()));
+    auto ctx    = p.get_context();
     std::ignore = p.eval({}).back();
-    EXPECT(is_shared(t.ctx, p.get_context()));
+    EXPECT(is_shared(ctx, p.get_context()));
 }
 
 TEST_CASE(eval_context2)
@@ -501,10 +505,11 @@ TEST_CASE(eval_context2)
     auto two = mm->add_literal(2);
     mm->add_instruction(id_ctx_op{}, one, two);
     p.compile(t);
-    EXPECT(is_shared(t.ctx, p.get_context()));
+    EXPECT(not is_shared(t.ctx, p.get_context()));
+    auto ctx    = p.get_context();
     std::ignore = p.eval({}).back();
     // id_ctx_op will modify the context
-    EXPECT(not is_shared(t.ctx, p.get_context()));
+    EXPECT(not is_shared(ctx, p.get_context()));
 }
 
 TEST_CASE(eval_context3)
@@ -782,6 +787,92 @@ TEST_CASE(finalize_target_runnable)
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
+}
+
+// Records the order in which finalizing reaches the context
+struct finalize_target
+{
+    struct context
+    {
+        std::vector<std::string> calls;
+        void finish() const {}
+        void after_finalize() { calls.emplace_back("after_finalize"); }
+    };
+
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return migraphx::pack();
+    }
+
+    std::string name() const { return "finalize"; }
+    std::vector<migraphx::pass> get_passes(migraphx::context&,
+                                           const migraphx::compile_options&) const
+    {
+        return {};
+    }
+    migraphx::context get_context() const { return context{}; }
+};
+
+struct record_finalize_op
+{
+    std::string name() const { return "record_finalize"; }
+    migraphx::argument compute(const migraphx::shape&, std::vector<migraphx::argument> args) const
+    {
+        return args.front();
+    }
+
+    void finalize(finalize_target::context& ctx,
+                  const migraphx::shape&,
+                  const std::vector<migraphx::shape>&) const
+    {
+        ctx.calls.emplace_back("finalize");
+    }
+
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        return inputs.front();
+    }
+};
+
+static migraphx::program make_record_finalize_program()
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_instruction(record_finalize_op{}, mm->add_literal(1));
+    mm->add_instruction(record_finalize_op{}, x);
+    return p;
+}
+
+static std::vector<std::string> finalize_calls(const migraphx::program& p)
+{
+    return p.get_context().any_cast<finalize_target::context>()->calls;
+}
+
+TEST_CASE(compile_calls_after_finalize_last)
+{
+    auto p = make_record_finalize_program();
+    p.compile(finalize_target{});
+    EXPECT(finalize_calls(p) == std::vector<std::string>{"finalize", "finalize", "after_finalize"});
+}
+
+TEST_CASE(finalize_target_calls_after_finalize_last)
+{
+    auto p = make_record_finalize_program();
+    p.finalize(finalize_target{});
+    EXPECT(finalize_calls(p) == std::vector<std::string>{"finalize", "finalize", "after_finalize"});
+}
+
+TEST_CASE(finalize_with_context_uses_given_contexts)
+{
+    auto p                                  = make_record_finalize_program();
+    std::vector<migraphx::context> contexts = {finalize_target{}.get_context()};
+    p.finalize_with_context(contexts);
+    // The program takes on neither a target nor the contexts
+    EXPECT(not p.is_compiled());
+    EXPECT(contexts.front().any_cast<finalize_target::context>()->calls ==
+           std::vector<std::string>{"finalize", "finalize", "after_finalize"});
+    EXPECT(p.eval_with_context(contexts, {}).back() == migraphx::literal{1});
 }
 
 TEST_CASE(finalize_target_no_passes)

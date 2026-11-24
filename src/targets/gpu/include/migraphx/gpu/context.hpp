@@ -537,8 +537,8 @@ struct context
         return {shared_modules.try_emplace(module_id, code_object).first->second, symbol_name};
     }
 
-    /// The SQLite database at path, opened read-only on first use and kept open, so the ops
-    /// that read from the same file while finalizing share one handle.
+    /// The SQLite database at path, opened read-only on first use and kept open until
+    /// after_finalize, so the ops that read from the same file while finalizing share one handle.
     sqlite& get_database(const fs::path& path)
     {
         auto it = databases.find(path);
@@ -546,6 +546,9 @@ struct context
             it = databases.emplace(path, sqlite::read(path)).first;
         return it->second;
     }
+
+    /// Close the databases opened while finalizing, which nothing reads once the program runs.
+    void after_finalize() { databases.clear(); }
 
     private:
     // TODO: Make this a vector to support multiple devices

@@ -46,6 +46,9 @@ struct context
 {
     /// Wait for any tasks in the context to complete
     void finish() const;
+    /// Called once all the instructions of a program have been finalized, to release what the
+    /// context only needed while finalizing. Optional: does nothing when not defined.
+    void after_finalize();
 };
 
 #else
@@ -88,6 +91,11 @@ void finish_on_context(T&, any_ptr)
 }
 
 template <class T>
+void after_finalize_context(T&)
+{
+}
+
+template <class T>
 bool is_cross_compile_context(const T&)
 {
     return false;
@@ -112,6 +120,8 @@ struct MIGRAPHX_EXPORT context
     void wait_for(any_ptr queue);
     // (optional)
     void finish_on(any_ptr queue);
+    // (optional)
+    void after_finalize();
     // (optional)
     bool is_cross_compile() const;
     //
@@ -219,6 +229,19 @@ struct context
     }
 
     template <class T>
+    static auto private_detail_te_default_after_finalize(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.after_finalize())
+    {
+        private_detail_te_self.after_finalize();
+    }
+
+    template <class T>
+    static void private_detail_te_default_after_finalize(float, T&& private_detail_te_self)
+    {
+        after_finalize_context(private_detail_te_self);
+    }
+
+    template <class T>
     static auto private_detail_te_default_is_cross_compile(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.is_cross_compile())
     {
@@ -262,6 +285,8 @@ struct context
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
                  private_detail_te_default_finish_on(
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
+                 private_detail_te_default_after_finalize(char(0),
+                                                          std::declval<PrivateDetailTypeErasedT>()),
                  private_detail_te_default_is_cross_compile(
                      char(0), std::declval<PrivateDetailTypeErasedT>()),
                  std::declval<PrivateDetailTypeErasedT>().finish(),
@@ -381,6 +406,12 @@ struct context
         (*this).private_detail_te_get_handle().finish_on(queue);
     }
 
+    void after_finalize()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().after_finalize();
+    }
+
     bool is_cross_compile() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -413,6 +444,7 @@ struct context
         virtual void restore_queue()            = 0;
         virtual void wait_for(any_ptr queue)    = 0;
         virtual void finish_on(any_ptr queue)   = 0;
+        virtual void after_finalize()           = 0;
         virtual bool is_cross_compile() const   = 0;
         virtual void finish() const             = 0;
     };
@@ -484,6 +516,12 @@ struct context
         {
 
             private_detail_te_default_finish_on(char(0), private_detail_te_value, queue);
+        }
+
+        void after_finalize() override
+        {
+
+            private_detail_te_default_after_finalize(char(0), private_detail_te_value);
         }
 
         bool is_cross_compile() const override

@@ -1139,6 +1139,46 @@ TEST_CASE(weights_file_compile_save_load)
     EXPECT(run_weights_program(loaded) == expected);
 }
 
+TEST_CASE(context_after_finalize_closes_databases)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::sqlite::write(path).execute("CREATE TABLE t (id INTEGER PRIMARY KEY);");
+
+    migraphx::gpu::context ctx;
+    // One handle is shared while finalizing
+    EXPECT(&ctx.get_database(path) == &ctx.get_database(path));
+    ctx.after_finalize();
+    // Nothing is kept afterwards, so the file is opened again, which fails once it is gone
+    migraphx::fs::remove(path);
+    EXPECT(test::throws<migraphx::exception>([&] { ctx.get_database(path); }, "error opening"));
+}
+
+TEST_CASE(weights_file_closed_after_finalize)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto p   = make_weights_program(migraphx::generate_literal(s, 1));
+    auto ref = p;
+    ref.compile(migraphx::make_target("ref"));
+    auto expected = run_weights_program(ref);
+
+    p.compile(migraphx::make_target("gpu"), weights_options(path));
+    auto buffer = migraphx::save_buffer(p);
+    auto loaded = migraphx::load_buffer(buffer);
+
+    // The weights are on the GPU once the programs are finalized, so neither holds the file open
+    // or needs it to run
+    migraphx::fs::remove(path);
+    for(const auto* q : {&p, &loaded})
+    {
+        auto& ctx = migraphx::any_cast<migraphx::gpu::context>(q->get_context());
+        EXPECT(test::throws<migraphx::exception>([&] { ctx.get_database(path); }, "error opening"));
+        EXPECT(run_weights_program(*q) == expected);
+    }
+}
+
 TEST_CASE(weights_file_missing_weights)
 {
     migraphx::tmp_dir td{};

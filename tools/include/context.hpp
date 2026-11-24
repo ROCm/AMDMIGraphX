@@ -46,6 +46,9 @@ struct context
 {
     /// Wait for any tasks in the context to complete
     void finish() const;
+    /// Called once all the instructions of a program have been finalized, to release what the
+    /// context only needed while finalizing. Optional: does nothing when not defined.
+    void after_finalize();
 };
 
 #else
@@ -86,6 +89,11 @@ template <class T>
 void finish_on_context(T&, any_ptr){}
 
 template <class T>
+void after_finalize_context(T&)
+{
+}
+
+template <class T>
 bool is_cross_compile_context(const T&)
 {
     return false;
@@ -101,6 +109,7 @@ bool is_cross_compile_context(const T&)
         virtual('restore_queue', returns = 'void', default = 'restore_queue_context'),
         virtual('wait_for', queue = 'any_ptr', returns = 'void', default = 'wait_for_context'),
         virtual('finish_on', queue = 'any_ptr', returns = 'void', default = 'finish_on_context'),
+        virtual('after_finalize', returns = 'void', default = 'after_finalize_context'),
         virtual('is_cross_compile',
                 returns = 'bool',
                 const   = True,

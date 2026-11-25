@@ -31,6 +31,7 @@
 #include <migraphx/msgpack.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/compression.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/md5.hpp>
@@ -130,28 +131,43 @@ static std::size_t row_count(const std::string& path)
 /// The full key of every stored entry, keyed by the key hash that addresses it.
 using stored_entries = std::map<std::string, std::string>;
 
-/// Every entry a cache directory holds. Each file is named by its key hash and holds the msgpack
-/// of the whole entry.
+/// Every entry a cache directory holds. Each file is named by its key hash and holds a zstd frame
+/// of the msgpack of the whole entry.
 static stored_entries dir_entries(const migraphx::fs::path& dir)
 {
     stored_entries result;
     auto files = entry_files(dir);
     std::transform(
         files.begin(), files.end(), std::inserter(result, result.end()), [](const auto& f) {
-            auto v = migraphx::from_msgpack(migraphx::read_buffer(f));
+            auto v = migraphx::from_msgpack(migraphx::zstd_decompress(migraphx::read_buffer(f)));
             return std::make_pair(f.stem().string(), v.at("key").get_string());
         });
     return result;
 }
 
-/// Every entry a cache database holds.
+/// Every entry a cache database holds. Each row's key column holds a zstd frame of the key.
 static stored_entries db_entries(const std::string& path)
 {
     stored_entries result;
     auto select = migraphx::sqlite::read(path).prepare("SELECT key_hash, key FROM cache_v1;");
     auto rows   = select();
     std::transform(rows.begin(), rows.end(), std::inserter(result, result.end()), [](auto row) {
-        return std::make_pair(row.at("key_hash").get_string(), row.at("key").get_string());
+        auto key = migraphx::zstd_decompress(row.at("key").get_binary());
+        return std::make_pair(row.at("key_hash").get_string(), std::string(key.begin(), key.end()));
+    });
+    return result;
+}
+
+/// The code column of every row in a cache database, keyed by the key hash that addresses it.
+static std::map<std::string, std::vector<char>> db_codes(const std::string& path)
+{
+    std::map<std::string, std::vector<char>> result;
+    auto select = migraphx::sqlite::read(path).prepare("SELECT key_hash, code FROM cache_v1;");
+    auto rows   = select();
+    std::transform(rows.begin(), rows.end(), std::inserter(result, result.end()), [](auto row) {
+        const auto& code = row.at("code").get_binary();
+        return std::make_pair(row.at("key_hash").get_string(),
+                              std::vector<char>(code.begin(), code.end()));
     });
     return result;
 }
@@ -179,6 +195,26 @@ struct directory_backend
             migraphx::write_buffer(file, std::vector<char>(8, 0));
         });
     }
+    /// What is stored for each entry: the whole file.
+    static std::vector<std::vector<char>> frames(const std::string& p)
+    {
+        auto files = entry_files(p);
+        std::vector<std::vector<char>> result(files.size());
+        std::transform(files.begin(), files.end(), result.begin(), [](const auto& file) {
+            return migraphx::read_buffer(file);
+        });
+        return result;
+    }
+    /// Flip a byte in the middle of every stored entry, which keeps its zstd magic number.
+    static void flip(const std::string& p)
+    {
+        auto files = entry_files(p);
+        std::for_each(files.begin(), files.end(), [](const auto& file) {
+            auto frame = migraphx::read_buffer(file);
+            frame[frame.size() / 2] ^= '\xff';
+            migraphx::write_buffer(file, frame);
+        });
+    }
 };
 
 struct database_backend
@@ -188,8 +224,28 @@ struct database_backend
     /// Overwrite every stored entry's code with bytes that do not decode.
     static void damage(const std::string& p)
     {
-        // 0xc1 is never used in msgpack, so the code cannot be decoded.
+        // Not a zstd frame, so the code cannot be decoded.
         migraphx::sqlite::write(p).execute("UPDATE cache_v1 SET code = X'c1c1c1c1';");
+    }
+    /// What is stored for each entry: the code column.
+    static std::vector<std::vector<char>> frames(const std::string& p)
+    {
+        auto codes = db_codes(p);
+        std::vector<std::vector<char>> result(codes.size());
+        std::transform(
+            codes.begin(), codes.end(), result.begin(), [](const auto& c) { return c.second; });
+        return result;
+    }
+    /// Flip a byte in the middle of every stored entry's code, which keeps its zstd magic number.
+    static void flip(const std::string& p)
+    {
+        auto db     = migraphx::sqlite::write(p);
+        auto update = db.prepare("UPDATE cache_v1 SET code = ?2 WHERE key_hash = ?1;");
+        for(auto& [key_hash, frame] : db_codes(p))
+        {
+            frame[frame.size() / 2] ^= '\xff';
+            update(key_hash, frame);
+        }
     }
 };
 
@@ -896,7 +952,8 @@ TEST_CASE(sqlite_records_the_full_version_id)
     EXPECT(rows.front().at("version") == migraphx::gpu::binary_cache::version_id(false));
 }
 
-// Each field of an entry has its own column, so a cache can be inspected with SQL.
+// Each field of an entry has its own column, so a cache can be inspected with SQL. The key is
+// compressed, so it is read back through db_entries.
 TEST_CASE(sqlite_records_what_each_entry_was_compiled_for)
 {
     migraphx::tmp_dir td{"binary-cache"};
@@ -907,11 +964,11 @@ TEST_CASE(sqlite_records_what_each_entry_was_compiled_for)
     cache.insert(ctx, {e});
 
     auto rows = migraphx::sqlite::read(path).execute(
-        "SELECT key_hash, key, op_name, problem, solution FROM cache_v1;");
+        "SELECT key_hash, op_name, problem, solution FROM cache_v1;");
     EXPECT(rows.size() == 1);
     const auto& row = rows.front();
     EXPECT(row.at("key_hash") == migraphx::md5(e.key));
-    EXPECT(row.at("key") == e.key);
+    EXPECT(db_entries(path) == stored_entries{{migraphx::md5(e.key), e.key}});
     EXPECT(row.at("op_name") == e.op_name);
     EXPECT(migraphx::from_json_string(row.at("problem")) == e.problem);
     EXPECT(migraphx::from_json_string(row.at("solution")) == e.solution);
@@ -1078,7 +1135,67 @@ TEST_CASE(sqlite_mismatched_key_is_a_miss)
     db->store("v", "dev", {make_entry("k")});
     EXPECT(db->load("v", "dev", "k").has_value());
 
-    migraphx::sqlite::write(path).execute("UPDATE cache_v1 SET key = 'another';");
+    // A well-formed frame of a different key, so the load reaches the comparison.
+    auto writer = migraphx::sqlite::write(path);
+    auto update = writer.prepare("UPDATE cache_v1 SET key = ?1;");
+    update(migraphx::zstd_compress(std::string{"another"}));
+    EXPECT(not db->load("v", "dev", "k").has_value());
+}
+
+TEST_CASE(sqlite_key_is_a_zstd_frame)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    auto db   = migraphx::gpu::sqlite_binary_cache::open(path);
+    EXPECT(db.has_value());
+    auto e = make_entry("framed key");
+    db->store("v", "dev", {e});
+
+    auto rows = migraphx::sqlite::read(path).execute("SELECT typeof(key) AS t FROM cache_v1;");
+    EXPECT(rows.size() == 1);
+    EXPECT(rows.front().at("t") == "blob");
+    EXPECT(db_entries(path) == stored_entries{{migraphx::md5(e.key), e.key}});
+}
+
+// A key that is not a zstd frame, or a frame damaged in place, is a miss rather than a crash or a
+// wrong kernel.
+TEST_CASE(sqlite_undecodable_key_is_a_miss)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    auto db   = migraphx::gpu::sqlite_binary_cache::open(path);
+    EXPECT(db.has_value());
+    auto e = make_entry("k");
+    db->store("v", "dev", {e});
+    EXPECT(db->load("v", "dev", "k").has_value());
+
+    migraphx::sqlite::write(path).execute("UPDATE cache_v1 SET key = 'k';");
+    EXPECT(not db->load("v", "dev", "k").has_value());
+
+    auto frame = migraphx::zstd_compress(e.key);
+    frame[frame.size() / 2] ^= '\xff';
+    auto writer = migraphx::sqlite::write(path);
+    auto update = writer.prepare("UPDATE cache_v1 SET key = ?1;");
+    update(frame);
+    EXPECT(not db->load("v", "dev", "k").has_value());
+}
+
+// SQLite keeps whatever type a value was stored with, so a column holding the wrong type is a
+// miss rather than a crash.
+TEST_CASE(sqlite_wrong_column_type_is_a_miss)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    auto path = db_path(td);
+    auto db   = migraphx::gpu::sqlite_binary_cache::open(path);
+    EXPECT(db.has_value());
+    db->store("v", "dev", {make_entry("k")});
+    EXPECT(db->load("v", "dev", "k").has_value());
+
+    migraphx::sqlite::write(path).execute("UPDATE cache_v1 SET code = 'text';");
+    EXPECT(not db->load("v", "dev", "k").has_value());
+
+    db->store("v", "dev", {make_entry("k")});
+    migraphx::sqlite::write(path).execute("UPDATE cache_v1 SET op_name = X'00';");
     EXPECT(not db->load("v", "dev", "k").has_value());
 }
 
@@ -1154,6 +1271,44 @@ TEST_CASE(key_covers_more_than_the_source)
                                             {migraphx::shape::float_type, {32}}};
     EXPECT(migraphx::gpu::hip_compile_key(ctx, changed_views) != base);
 }
+
+// Every entry is a zstd frame of msgpack: the whole entry in a file, the code in a database row.
+template <class Backend>
+static void stored_entries_are_zstd_frames()
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto path = Backend::path(td);
+    migraphx::gpu::binary_cache cache{migraphx::gpu::binary_cache_settings{path, false}};
+    cache.insert(ctx, {make_entry("framed")});
+
+    auto frames = Backend::frames(path);
+    EXPECT(frames.size() == 1);
+    EXPECT(not migraphx::from_msgpack(migraphx::zstd_decompress(frames.front())).empty());
+}
+TEST_CASE_REGISTER(stored_entries_are_zstd_frames<directory_backend>);
+TEST_CASE_REGISTER(stored_entries_are_zstd_frames<database_backend>);
+
+// Damage past the frame's magic number is caught by the decoder or the checksum, so it costs a
+// recompile rather than loading a wrong kernel.
+template <class Backend>
+static void damaged_frame_is_a_miss()
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto path = Backend::path(td);
+    migraphx::gpu::binary_cache_settings settings{path, false};
+
+    migraphx::gpu::binary_cache writer{settings};
+    writer.insert(ctx, {make_entry("flipped")});
+    Backend::flip(path);
+
+    migraphx::gpu::binary_cache reader{settings};
+    EXPECT(not reader.get(ctx, "flipped").has_value());
+    EXPECT(reader.get_stats().misses == 1);
+}
+TEST_CASE_REGISTER(damaged_frame_is_a_miss<directory_backend>);
+TEST_CASE_REGISTER(damaged_frame_is_a_miss<database_backend>);
 
 TEST_CASE(version_id_is_stable)
 {

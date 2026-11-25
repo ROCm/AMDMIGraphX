@@ -57,11 +57,19 @@ bool is_zstd_frame(const char* data, std::size_t size)
 
 } // namespace
 
-std::vector<char> zstd_compress(const char* data, std::size_t size)
+std::vector<char> zstd_compress(const char* data, std::size_t size, int level)
 {
+    // zstd clamps a level it does not have rather than refusing it
+    auto levels = ZSTD_cParam_getBounds(ZSTD_c_compressionLevel);
+    check(levels.error, "compression level bounds");
+    if(level < levels.lowerBound or level > levels.upperBound)
+        MIGRAPHX_THROW("zstd: compression level " + std::to_string(level) + " is not between " +
+                       std::to_string(levels.lowerBound) + " and " +
+                       std::to_string(levels.upperBound));
     cctx_ptr cctx{ZSTD_createCCtx()};
     if(cctx == nullptr)
         MIGRAPHX_THROW("zstd: cannot create a compression context");
+    check(ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_compressionLevel, level), "compression level");
     // The checksum turns damage into an error on decompression instead of wrong bytes, and the
     // content size lets the reader allocate once and check it against its limit up front.
     check(ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_checksumFlag, 1), "checksum flag");

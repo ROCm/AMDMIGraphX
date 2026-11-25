@@ -41,14 +41,19 @@ inline namespace MIGRAPHX_INLINE_NS {
 /// size, so this bounds what a damaged size field can make it allocate.
 constexpr std::size_t default_zstd_max_size = std::size_t{256} << 20u;
 
-/// Compress into one zstd frame, at zstd's default level.
-MIGRAPHX_EXPORT std::vector<char> zstd_compress(const char* data, std::size_t size);
+/// The level zstd_compress uses unless told otherwise, which is zstd's own default.
+constexpr int default_zstd_level = 3;
+
+/// Compress into one zstd frame. A higher level makes the frame smaller and takes longer, and a
+/// negative level is faster than level 1. Throws when zstd does not have the level.
+MIGRAPHX_EXPORT std::vector<char>
+zstd_compress(const char* data, std::size_t size, int level = default_zstd_level);
 
 /// Any contiguous container of bytes, such as std::vector<char>, std::string or value::binary.
 template <class Bytes, MIGRAPHX_REQUIRES(sizeof(*std::declval<const Bytes&>().data()) == 1)>
-std::vector<char> zstd_compress(const Bytes& data)
+std::vector<char> zstd_compress(const Bytes& data, int level = default_zstd_level)
 {
-    return zstd_compress(reinterpret_cast<const char*>(data.data()), data.size());
+    return zstd_compress(reinterpret_cast<const char*>(data.data()), data.size(), level);
 }
 
 /// Decompress exactly one zstd frame that records its content size, at most max_size bytes.

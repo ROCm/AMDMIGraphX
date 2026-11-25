@@ -32,6 +32,7 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/compression.hpp>
 #include <migraphx/md5.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
@@ -933,7 +934,8 @@ static migraphx::instruction_ref add_external_literal(migraphx::module& m,
 static std::vector<migraphx::value> weights_rows(const migraphx::fs::path& path)
 {
     auto db     = migraphx::sqlite::read(path);
-    auto select = db.prepare("SELECT key, chunk, data FROM weights_v1 ORDER BY key, chunk;");
+    auto select =
+        db.prepare("SELECT key, chunk, compressed, data FROM weights_v1 ORDER BY key, chunk;");
     auto rows   = select();
     return {rows.begin(), rows.end()};
 }
@@ -1155,8 +1157,9 @@ TEST_CASE(weights_file_longer_tensor_under_key)
     // What is stored under the key starts with the bytes of the literal and has more after them
     auto p = make_literal_program(lit);
     run_weights_pass(*p.get_main_module(), {.weights_file = path.string()});
-    migraphx::sqlite::write(path).execute("INSERT INTO weights_v1 (key, chunk, data) VALUES ('" +
-                                          key + "', 1, x'00');");
+    migraphx::sqlite::write(path).execute(
+        "INSERT INTO weights_v1 (key, chunk, compressed, data) VALUES ('" + key +
+        "', 1, 0, x'00');");
 
     auto q = make_literal_program(lit);
     run_weights_pass(*q.get_main_module(), {.weights_file = path.string()});
@@ -1203,6 +1206,97 @@ TEST_CASE(weights_file_chunks)
     EXPECT(rows[2].at("data").get_binary() == literal_bytes(lit, 32, 8));
 
     EXPECT(eval_on_gpu(p).front() == lit.get_argument());
+}
+
+// 1024 bytes of zeros, which zstd makes much smaller
+static migraphx::literal make_zeros_literal()
+{
+    migraphx::shape s{migraphx::shape::float_type, {16, 16}};
+    return migraphx::literal{s, std::vector<float>(s.elements(), 0.0f)};
+}
+
+TEST_CASE(weights_file_compressed)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    auto lit  = make_zeros_literal();
+    // Saved 256 bytes at a time, so each of the four chunks is compressed on its own
+    migraphx::gpu::write_literals pass{
+        .weights_file = path.string(), .weights_chunk_bytes = 256, .compress_weights_level = 3};
+
+    auto p = make_literal_program(lit);
+    run_weights_pass(*p.get_main_module(), pass);
+
+    auto rows = weights_rows(path);
+    EXPECT(rows.size() == 4);
+    EXPECT(std::all_of(rows.begin(), rows.end(), [](const migraphx::value& row) {
+        const auto& data = row.at("data").get_binary();
+        return row.at("compressed").to<bool>() and data.size() < 256 and
+               migraphx::zstd_decompress(data) == std::vector<char>(256, 0);
+    }));
+    EXPECT(eval_on_gpu(p).front() == lit.get_argument());
+
+    // Saving the literal again finds the same compressed chunks and adds nothing
+    auto q = make_literal_program(lit);
+    run_weights_pass(*q.get_main_module(), pass);
+    EXPECT(weights_rows(path).size() == 4);
+    EXPECT(eval_on_gpu(q).front() == lit.get_argument());
+}
+
+TEST_CASE(weights_file_compression_skips_chunks_it_does_not_shrink)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    // 24 bytes, which a zstd frame only makes larger
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto lit = migraphx::generate_literal(s, 1);
+
+    auto p = make_literal_program(lit);
+    run_weights_pass(*p.get_main_module(),
+                     {.weights_file = path.string(), .compress_weights_level = 3});
+
+    auto rows = weights_rows(path);
+    EXPECT(rows.size() == 1);
+    EXPECT(not rows.front().at("compressed").to<bool>());
+    EXPECT(rows.front().at("data").get_binary() == literal_bytes(lit, 0, s.bytes()));
+    EXPECT(eval_on_gpu(p).front() == lit.get_argument());
+}
+
+TEST_CASE(weights_file_unknown_compression_level)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    auto p    = make_literal_program(make_zeros_literal());
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            run_weights_pass(*p.get_main_module(),
+                             {.weights_file = path.string(), .compress_weights_level = 1000});
+        },
+        "compression level"));
+}
+
+TEST_CASE(weights_file_compressed_beside_uncompressed)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    auto lit  = make_zeros_literal();
+    auto key  = weights_key(lit, "float_type-16x16");
+
+    auto p = make_literal_program(lit);
+    run_weights_pass(*p.get_main_module(), {.weights_file = path.string()});
+    // The uncompressed copy is not taken for the compressed one, which is stored beside it
+    auto q = make_literal_program(lit);
+    run_weights_pass(*q.get_main_module(),
+                     {.weights_file = path.string(), .compress_weights_level = 3});
+
+    auto rows = weights_rows(path);
+    EXPECT(rows.size() == 2);
+    EXPECT(rows[0].at("key").get_string() == key);
+    EXPECT(not rows[0].at("compressed").to<bool>());
+    EXPECT(rows[1].at("key").get_string() == key + "-1");
+    EXPECT(rows[1].at("compressed").to<bool>());
+    EXPECT(eval_on_gpu(p).front() == lit.get_argument());
+    EXPECT(eval_on_gpu(q).front() == lit.get_argument());
 }
 
 TEST_CASE(weights_file_empty_literal)

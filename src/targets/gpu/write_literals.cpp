@@ -34,6 +34,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/compression.hpp>
 #include <migraphx/md5.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/par_for.hpp>
@@ -71,11 +72,15 @@ constexpr int weights_busy_timeout_ms = 60000;
 // A tensor is split into chunks because SQLite limits the size of a blob (to 1GB in decimal
 // units and 953.7 MiB by default). Every tensor has a chunk 0, even one with no bytes, which
 // tells a stored tensor apart from a missing one.
+//
+// The data of a chunk is a zstd frame when compressed is 1, and the bytes themselves otherwise,
+// so tensors saved with and without compression can be in one file.
 constexpr const char* weights_schema_sql = R"__migraphx__(
 CREATE TABLE IF NOT EXISTS weights_v1 (
-  key   TEXT    NOT NULL,
-  chunk INTEGER NOT NULL,
-  data  BLOB    NOT NULL,
+  key        TEXT    NOT NULL,
+  chunk      INTEGER NOT NULL,
+  compressed INTEGER NOT NULL,
+  data       BLOB    NOT NULL,
   PRIMARY KEY (key, chunk)
 );
 )__migraphx__";
@@ -84,13 +89,13 @@ constexpr const char* weights_has_chunk_sql =
     "SELECT 1 FROM weights_v1 WHERE key = ?1 AND chunk = ?2;";
 
 constexpr const char* weights_equal_chunk_sql =
-    "SELECT 1 FROM weights_v1 WHERE key = ?1 AND chunk = ?2 AND data = ?3;";
+    "SELECT 1 FROM weights_v1 WHERE key = ?1 AND chunk = ?2 AND compressed = ?3 AND data = ?4;";
 
 constexpr const char* weights_insert_sql =
-    "INSERT INTO weights_v1 (key, chunk, data) VALUES (?1, ?2, ?3);";
+    "INSERT INTO weights_v1 (key, chunk, compressed, data) VALUES (?1, ?2, ?3, ?4);";
 
 constexpr const char* weights_load_sql =
-    "SELECT data FROM weights_v1 WHERE key = ?1 ORDER BY chunk;";
+    "SELECT compressed, data FROM weights_v1 WHERE key = ?1 ORDER BY chunk;";
 
 // Finds the tensors that can share one copy in the weights file. Equal keys do not prove equal
 // tensors, since md5 collisions can be constructed, so the writer compares the bytes as well.
@@ -116,8 +121,8 @@ std::vector<std::string> weights_keys(const std::vector<instruction_ref>& litera
 // back when the writer is destroyed without it, so a failed compile adds nothing to the file.
 struct weights_writer
 {
-    weights_writer(const fs::path& path, std::size_t pchunk_bytes)
-        : db(sqlite::write(path)), chunk_bytes(pchunk_bytes)
+    weights_writer(const fs::path& path, std::size_t pchunk_bytes, int pcompress_level)
+        : db(sqlite::write(path)), chunk_bytes(pchunk_bytes), compress_level(pcompress_level)
     {
         assert(chunk_bytes > 0);
         // Opening for writing falls back to read-only on a write-protected file
@@ -149,7 +154,8 @@ struct weights_writer
     void commit() { db.execute("COMMIT;"); }
 
     private:
-    // Calls f with the number and the bytes of each chunk the literal is stored as
+    // Calls f with the number of each chunk the literal is stored as, whether it is compressed,
+    // and the data to store for it
     template <class F>
     void for_each_chunk(const literal& l, F f) const
     {
@@ -157,10 +163,17 @@ struct weights_writer
         std::int64_t chunk = 0;
         // A literal with no bytes has no groups, and is still stored as an empty chunk 0
         if(data.empty())
-            f(chunk, sqlite_blob_view{});
+            f(chunk, std::int64_t{0}, sqlite_blob_view{});
         group_n(data.begin(), data.end(), chunk_bytes, [&](auto first, auto last) {
             auto part = data.substr(first - data.begin(), last - first);
-            f(chunk, sqlite_blob_view{part.data(), part.size()});
+            // A chunk that compression does not shrink is stored as it is, which saves
+            // decompressing it and keeps it within the size limit of a blob
+            bool compress = compress_level != 0;
+            auto packed   = compress ? zstd_compress(part, compress_level) : std::vector<char>{};
+            if(compress and packed.size() < part.size())
+                f(chunk, std::int64_t{1}, sqlite_blob_view{packed.data(), packed.size()});
+            else
+                f(chunk, std::int64_t{0}, sqlite_blob_view{part.data(), part.size()});
             chunk++;
         });
     }
@@ -172,13 +185,14 @@ struct weights_writer
     }
 
     // True when the tensor stored under key has the same bytes as the literal. A tensor stored
-    // with another chunk size compares as different, which only costs a second copy of it.
+    // with another chunk size, or whose chunks another compression level stores differently,
+    // compares as different, which only costs a second copy of it.
     bool stored_equal(const std::string& key, const literal& l) const
     {
         std::int64_t chunks  = 0;
         std::int64_t matched = 0;
-        for_each_chunk(l, [&](std::int64_t chunk, sqlite_blob_view part) {
-            auto rows = equal_chunk_stmt(key, chunk, part);
+        for_each_chunk(l, [&](std::int64_t chunk, std::int64_t compressed, sqlite_blob_view part) {
+            auto rows = equal_chunk_stmt(key, chunk, compressed, part);
             if(rows.begin() != rows.end())
                 matched++;
             chunks++;
@@ -189,12 +203,15 @@ struct weights_writer
 
     void insert(const std::string& key, const literal& l)
     {
-        for_each_chunk(
-            l, [&](std::int64_t chunk, sqlite_blob_view part) { insert_stmt(key, chunk, part); });
+        for_each_chunk(l, [&](std::int64_t chunk, std::int64_t compressed, sqlite_blob_view part) {
+            insert_stmt(key, chunk, compressed, part);
+        });
     }
 
     sqlite db;
     std::size_t chunk_bytes;
+    // The zstd level chunks are compressed with, or 0 to store them as they are
+    int compress_level;
     sqlite_stmt has_chunk_stmt{};
     sqlite_stmt equal_chunk_stmt{};
     sqlite_stmt insert_stmt{};
@@ -232,6 +249,17 @@ struct gpu_literal
 
     argument compute(const shape&, const std::vector<argument>&) const { return gpu_data; }
 
+    // Copies the bytes of a chunk to offset in the result and returns the offset after them
+    template <class Chunk>
+    std::size_t append_chunk(const argument& result, std::size_t offset, const Chunk& chunk) const
+    {
+        if(chunk.size() > external_shape.bytes() - offset)
+            MIGRAPHX_THROW("gpu::literal: weights for " + key + " in " + path +
+                           " are larger than the literal");
+        std::copy(chunk.begin(), chunk.end(), result.data() + offset);
+        return offset + chunk.size();
+    }
+
     argument load_data_from_file(context& ctx) const
     {
         if(path.empty())
@@ -248,11 +276,10 @@ struct gpu_literal
             rows.begin(), rows.end(), std::size_t{0}, [&](std::size_t offset, const value& row) {
                 assert(offset <= bytes);
                 const auto& chunk = row.at("data").get_binary();
-                if(chunk.size() > bytes - offset)
-                    MIGRAPHX_THROW("gpu::literal: weights for " + key + " in " + path +
-                                   " are larger than the literal");
-                std::copy(chunk.begin(), chunk.end(), result.data() + offset);
-                return offset + chunk.size();
+                if(not row.at("compressed").to<bool>())
+                    return append_chunk(result, offset, chunk);
+                // What is left of the literal bounds what the chunk may decompress to
+                return append_chunk(result, offset, zstd_decompress(chunk, bytes - offset));
             });
         if(loaded != bytes)
             MIGRAPHX_THROW("gpu::literal: weights for " + key + " in " + path +
@@ -608,7 +635,8 @@ void write_literals::apply(module& m) const
         assert(ctx != nullptr);
         keys = weights_keys(literals);
         // The literals keep weights_file as given; only the file written here is resolved
-        writer.emplace(ctx->resolve_path(weights_file), weights_chunk_bytes);
+        writer.emplace(
+            ctx->resolve_path(weights_file), weights_chunk_bytes, compress_weights_level);
     }
     assert(not writer.has_value() or keys.size() == literals.size());
 

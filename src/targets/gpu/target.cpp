@@ -164,6 +164,10 @@ struct backend_options
     // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
     // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
     std::size_t literal_staging_peak_percent = 5;
+    // The zstd level to compress the weights saved to compile_options::weights_file with; 0
+    // does not compress. The file is smaller, and loading the program takes longer as the
+    // weights are decompressed.
+    int compress_weights_level = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -183,6 +187,7 @@ struct backend_options
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
                     f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
+                    f(self.compress_weights_level, "compress_weights_level"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
@@ -455,10 +460,11 @@ struct pipeline_factory
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{.max_memory           = max_memory,
-                           .staging_peak_percent = backend_opts.literal_staging_peak_percent,
-                           .weights_file         = options.weights_file,
-                           .ctx                  = get_context()},
+            write_literals{.max_memory             = max_memory,
+                           .staging_peak_percent   = backend_opts.literal_staging_peak_percent,
+                           .weights_file           = options.weights_file,
+                           .ctx                    = get_context(),
+                           .compress_weights_level = backend_opts.compress_weights_level},
             enable_pass(backend_opts.hip_graph, hipgraphify{}),
             dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},

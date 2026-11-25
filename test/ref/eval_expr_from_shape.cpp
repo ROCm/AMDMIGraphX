@@ -220,3 +220,31 @@ TEST_CASE(eval_expr_from_compound_shape_inconsistent)
                     {"y", migraphx::argument{{migraphx::shape::float_type, {6}}, y_data.data()}}});
     }));
 }
+TEST_CASE(eval_expr_from_shape_derived_dim)
+{
+    // y has the length n + 1, where x gives n
+    using dd = migraphx::shape::dynamic_dimension;
+    auto n   = migraphx::sym::var("N", {1, 16});
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto y   = mm->add_parameter(
+        "y", migraphx::shape{migraphx::shape::float_type, {dd{n + migraphx::sym::lit(1)}}});
+    mm->add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}}),
+        x,
+        y);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data(8);
+    auto run = [&](std::size_t y_len) {
+        return p.eval(
+            {{"x", migraphx::argument{{migraphx::shape::float_type, {7}}, data.data()}},
+             {"y", migraphx::argument{{migraphx::shape::float_type, {y_len}}, data.data()}}});
+    };
+    EXPECT(run(8).back().at<int64_t>() == 7);
+    EXPECT(test::throws([&] { std::ignore = run(5); }));
+}

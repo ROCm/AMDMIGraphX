@@ -34,6 +34,7 @@
 #include <migraphx/symbolic_shape_helpers.hpp>
 #include <migraphx/zip_view.hpp>
 #include <algorithm>
+#include <iterator>
 #include <unordered_map>
 #include <vector>
 
@@ -82,6 +83,7 @@ struct eval_expr_from_shape
             MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: input shapes not captured; op was not finalized");
 
         std::unordered_map<sym::expr, std::size_t> values;
+        std::vector<std::pair<sym::expr, std::size_t>> derived;
         for(auto&& [input_shape, arg] : views::zip(input_shapes, args))
         {
             const auto& lens = arg.get_shape().lens();
@@ -95,12 +97,32 @@ struct eval_expr_from_shape
             {
                 if(not dim.is_symbolic())
                     continue;
+                if(dim.sym_expr.name() != "variable")
+                    derived.emplace_back(dim.sym_expr, len);
                 auto [iter, inserted] = values.emplace(sym::as_symbol(dim.sym_expr), len);
                 if(not inserted and iter->second != len)
                     MIGRAPHX_THROW(
                         "EVAL_EXPR_FROM_SHAPE: Repeated expression has inconsistent runtime "
                         "dimensions");
             }
+        }
+
+        // A dim such as n + 1 agrees with the value of n that another dim gives
+        std::unordered_map<sym::expr, std::size_t> variables;
+        std::copy_if(values.begin(),
+                     values.end(),
+                     std::inserter(variables, variables.end()),
+                     [](const auto& value) { return value.first.name() == "variable"; });
+        for(const auto& [expression, len] : derived)
+        {
+            auto names = sym::find_variables(expression);
+            if(names.empty() or not std::all_of(names.begin(), names.end(), [&](const auto& v) {
+                   return variables.count(v) > 0;
+               }))
+                continue;
+            if(expression.eval_uint(variables) != len)
+                MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Repeated expression has inconsistent runtime "
+                               "dimensions");
         }
 
         argument result{shape{shape::int64_type, {expressions.size()}}};

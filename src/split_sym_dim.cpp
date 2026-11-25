@@ -380,6 +380,8 @@ struct root_collection
 {
     std::optional<std::unordered_map<sym::expr, root_spec>> specs =
         std::unordered_map<sym::expr, root_spec>{};
+    // Dims such as n + 1 that are derived from the roots
+    std::vector<sym::expr> derived;
 
     void append(const shape::dynamic_dimension& dimension)
     {
@@ -388,7 +390,7 @@ struct root_collection
         if(dimension.sym_expr.name() != "variable")
         {
             if(is_variable_axis(dimension))
-                specs.reset();
+                derived.push_back(dimension.sym_expr);
             return;
         }
         if(not has_bounded_interval(dimension.sym_expr))
@@ -451,6 +453,14 @@ std::optional<std::vector<root_spec>> collect_roots(const module& m)
     }
     auto& root_specs = *collected.specs;
     if(root_specs.empty())
+        return std::nullopt;
+    // Every symbol of a derived dim is a root given by another dim
+    if(not std::all_of(collected.derived.begin(), collected.derived.end(), [&](const auto& e) {
+           auto variables = sym::find_variables(e);
+           return std::all_of(variables.begin(), variables.end(), [&](const auto& v) {
+               return contains(root_specs, v);
+           });
+       }))
         return std::nullopt;
 
     std::vector<root_spec> roots;

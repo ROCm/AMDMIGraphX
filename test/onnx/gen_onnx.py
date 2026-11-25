@@ -17520,6 +17520,42 @@ def symbolic_reshape_data_root_test():
     return (nodes, [condition], [output])
 
 
+def symbolic_mask_add(mask_first):
+    # The scores of one query against the past keys and the new key, of length
+    # past_sequence_length + 1, plus an attention mask of its own length
+    heads, head_dim = 2, 4
+    q = helper.make_tensor_value_info('q', TensorProto.FLOAT,
+                                      [1, heads, 1, head_dim])
+    k = helper.make_tensor_value_info('k', TensorProto.FLOAT,
+                                      [1, heads, 1, head_dim])
+    past_key = helper.make_tensor_value_info(
+        'past_key', TensorProto.FLOAT,
+        [1, heads, 'past_sequence_length', head_dim])
+    mask = helper.make_tensor_value_info(
+        'mask', TensorProto.FLOAT, [1, 1, 1, 'attention_mask_sequence_length'])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                        [1, heads, 1, 'total_sequence_length'])
+    nodes = [
+        helper.make_node('Concat', ['past_key', 'k'], ['keys'], axis=2),
+        helper.make_node('Transpose', ['keys'], ['keys_t'], perm=[0, 1, 3, 2]),
+        helper.make_node('MatMul', ['q', 'keys_t'], ['scores']),
+        helper.make_node(
+            'Add', ['mask', 'scores'] if mask_first else ['scores', 'mask'],
+            ['out']),
+    ]
+    return (nodes, [q, k, past_key, mask], [out])
+
+
+@onnx_test()
+def symbolic_mask_add_test():
+    return symbolic_mask_add(False)
+
+
+@onnx_test()
+def symbolic_mask_add_mask_first_test():
+    return symbolic_mask_add(True)
+
+
 @onnx_test()
 def scatternd_nonpacked_indices_test():
     n = 16

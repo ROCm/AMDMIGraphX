@@ -23,9 +23,12 @@
  */
 
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/simplify_symbolic_dimensions.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/dim_like.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -5736,6 +5739,133 @@ TEST_CASE(split_sym_dim_memoizes_unchanged_shared_dependencies)
     expected_main.add_return({expected_output, expected_static_path});
 
     EXPECT(p.sort() == expected.sort());
+}
+
+TEST_CASE(split_sym_dim_freezes_one_input_multibroadcast)
+{
+    // A mask {1, n} broadcast to {4, n} by the one-input form, then used with scores {4, n}
+    auto n = var("n", {1, 8}, {2});
+    migraphx::program p;
+    auto& m = *p.get_main_module();
+    auto mask =
+        m.add_parameter("mask", migraphx::shape{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}});
+    auto scores = m.add_parameter(
+        "scores", migraphx::shape{migraphx::shape::float_type, {dd{lit(4)}, dd{n}}});
+    auto expanded = m.add_instruction(
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_dyn_dims", migraphx::to_value(std::vector<dd>{dd{lit(4)}, dd{n}})}}),
+        mask);
+    m.add_return({m.add_instruction(migraphx::make_op("add"), scores, expanded)});
+
+    run_pass(p);
+
+    // The broadcast is frozen in the clones; the main module keeps no symbolic broadcast
+    EXPECT(migraphx::none_of(migraphx::iterator_for(m),
+                             [](auto ins) { return ins->name() == "multibroadcast"; }));
+
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> mask_values = {1.0f, 2.0f, 3.0f};
+    std::vector<float> scores_values(12);
+    std::iota(scores_values.begin(), scores_values.end(), 0.0f);
+    migraphx::parameter_map params;
+    params["mask"]   = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {1, 3}},
+                                          mask_values.data()};
+    params["scores"] = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {4, 3}},
+                                          scores_values.data()};
+    std::vector<float> gold(12);
+    for(std::size_t i = 0; i < gold.size(); ++i)
+        gold[i] = scores_values[i] + mask_values[i % 3];
+    EXPECT(p.eval(params).back().to_vector<float>() == gold);
+}
+
+TEST_CASE(split_sym_dim_parameter_dim_derived_from_root)
+{
+    // y has the length n + 1 of x with one more element, as simplify_symbolic_dimensions gives a
+    // parameter added to it; n is the root, given by x
+    auto n = var("n", {1, 8}, {2});
+    migraphx::program p;
+    auto& m  = *p.get_main_module();
+    auto x   = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{n}}});
+    auto y   = m.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {dd{n + lit(1)}}});
+    auto one = m.add_literal(migraphx::literal{{migraphx::shape::float_type, {1}}, {1.0f}});
+    auto longer = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, one);
+    m.add_return({m.add_instruction(migraphx::make_op("add"), longer, y)});
+
+    run_pass(p);
+
+    EXPECT(migraphx::any_of(migraphx::iterator_for(m),
+                            [](auto ins) { return ins->name() == "select_module"; }));
+
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> x_values = {1.0f, 2.0f, 3.0f};
+    std::vector<float> y_values = {10.0f, 20.0f, 30.0f, 40.0f};
+    migraphx::parameter_map params;
+    params["x"] =
+        migraphx::argument{migraphx::shape{migraphx::shape::float_type, {3}}, x_values.data()};
+    params["y"] =
+        migraphx::argument{migraphx::shape{migraphx::shape::float_type, {4}}, y_values.data()};
+    EXPECT(p.eval(params).back().to_vector<float>() ==
+           std::vector<float>{11.0f, 22.0f, 33.0f, 41.0f});
+}
+
+TEST_CASE(split_sym_dim_where_mask_own_symbol)
+{
+    // A where selects between scores of the past n keys and a new one, of length n + 1, and a
+    // mask of length m; after simplify_symbolic_dimensions the mask has the length n + 1, and the
+    // blocks run on ref
+    auto m    = var("m", {2, 9}, {4});
+    auto n    = var("n", {1, 8}, {3});
+    using dds = std::vector<dd>;
+    migraphx::program p;
+    auto& mm = *p.get_main_module();
+    auto past =
+        mm.add_parameter("past", {migraphx::shape::float_type, dds{dd{lit(1)}, dd{lit(2)}, dd{n}}});
+    auto next   = mm.add_parameter("next", {migraphx::shape::float_type, {1, 2, 1}});
+    auto scores = mm.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), past, next);
+    auto cond   = mm.add_parameter(
+        "cond", {migraphx::shape::bool_type, dds{dd{lit(1)}, dd{lit(2)}, dd{n + lit(1)}}});
+    auto mask =
+        mm.add_parameter("mask", {migraphx::shape::float_type, dds{dd{lit(1)}, dd{lit(1)}, dd{m}}});
+    mm.add_return({migraphx::insert_common_op(
+        mm, mm.end(), migraphx::make_op("where"), {cond, scores, mask})});
+    migraphx::run_passes(p,
+                         {migraphx::simplify_symbolic_dimensions{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::split_sym_dim{},
+                          migraphx::dead_code_elimination{}});
+    p.compile(migraphx::make_target("ref"));
+
+    for(std::size_t keys : {2, 3, 5, 9})
+    {
+        std::vector<float> past_values(2 * (keys - 1));
+        std::vector<float> next_values = {50.0f, 60.0f};
+        std::vector<char> condition(2 * keys);
+        std::vector<float> mask_values(keys);
+        std::iota(past_values.begin(), past_values.end(), 0.0f);
+        std::iota(mask_values.begin(), mask_values.end(), 100.0f);
+        std::vector<float> gold(2 * keys);
+        for(std::size_t h = 0; h < 2; ++h)
+        {
+            for(std::size_t j = 0; j < keys; ++j)
+            {
+                auto i       = h * keys + j;
+                condition[i] = static_cast<char>(i % 2);
+                auto score   = j + 1 < keys ? past_values[h * (keys - 1) + j] : next_values[h];
+                gold[i]      = condition[i] != 0 ? score : mask_values[j];
+            }
+        }
+        migraphx::parameter_map params;
+        params["past"] =
+            migraphx::argument{{migraphx::shape::float_type, {1, 2, keys - 1}}, past_values.data()};
+        params["next"] =
+            migraphx::argument{{migraphx::shape::float_type, {1, 2, 1}}, next_values.data()};
+        params["cond"] =
+            migraphx::argument{{migraphx::shape::bool_type, {1, 2, keys}}, condition.data()};
+        params["mask"] =
+            migraphx::argument{{migraphx::shape::float_type, {1, 1, keys}}, mask_values.data()};
+        EXPECT(p.eval(params).back().to_vector<float>() == gold);
+    }
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -163,12 +163,10 @@ TEST_CASE(literal_raw_buffer_broadcast)
 TEST_CASE(literal_vector_too_many_values)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};
-    EXPECT(test::throws<migraphx::exception>([&] {
-        migraphx::literal{s, std::vector<float>{1, 2, 3, 4, 5}};
-    }));
-    EXPECT(test::throws<migraphx::exception>([&] {
-        migraphx::literal{s, {1.0f, 2.0f, 3.0f, 4.0f, 5.0f}};
-    }));
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::literal{s, std::vector<float>{1, 2, 3, 4, 5}}; }));
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::literal{s, {1.0f, 2.0f, 3.0f, 4.0f, 5.0f}}; }));
 }
 
 TEST_CASE(literal_vector_partial_fill)
@@ -365,15 +363,12 @@ TEST_CASE(literal_from_mapped_file_invalid)
     migraphx::write_buffer(p, std::vector<char>(16, 1));
     auto file = std::make_shared<migraphx::mapped_file>(p);
     migraphx::shape s{migraphx::shape::int32_type, {2}};
-    EXPECT(test::throws([&] {
-        migraphx::literal::from_mapped_file(s, nullptr, {p.string(), 0, s.bytes(), ""});
-    }));
-    EXPECT(test::throws([&] {
-        migraphx::literal::from_mapped_file(s, file, {p.string(), 0, 4, ""});
-    }));
-    EXPECT(test::throws([&] {
-        migraphx::literal::from_mapped_file(s, file, {p.string(), 12, s.bytes(), ""});
-    }));
+    EXPECT(test::throws(
+        [&] { migraphx::literal::from_mapped_file(s, nullptr, {p.string(), 0, s.bytes(), ""}); }));
+    EXPECT(test::throws(
+        [&] { migraphx::literal::from_mapped_file(s, file, {p.string(), 0, 4, ""}); }));
+    EXPECT(test::throws(
+        [&] { migraphx::literal::from_mapped_file(s, file, {p.string(), 12, s.bytes(), ""}); }));
 }
 
 TEST_CASE(literal_from_mapped_file_rejects_tuple_and_dynamic)
@@ -382,15 +377,14 @@ TEST_CASE(literal_from_mapped_file_rejects_tuple_and_dynamic)
     auto p = td.path / "weights.data";
     migraphx::write_buffer(p, std::vector<char>(16, 1));
     auto file = std::make_shared<migraphx::mapped_file>(p);
-    migraphx::shape tuple{{migraphx::shape{migraphx::shape::int32_type, {2}}}};
-    EXPECT(test::throws([&] {
-        migraphx::literal::from_mapped_file(tuple, file, {p.string(), 0, 8, ""});
-    }));
+    migraphx::shape tuple{std::vector<migraphx::shape>{{migraphx::shape::int32_type, {2}}}};
+    EXPECT(tuple.type() == migraphx::shape::tuple_type);
+    EXPECT(test::throws(
+        [&] { migraphx::literal::from_mapped_file(tuple, file, {p.string(), 0, 8, ""}); }));
     migraphx::shape dynamic{migraphx::shape::int32_type,
                             {migraphx::shape::dynamic_dimension{1, 4}}};
-    EXPECT(test::throws([&] {
-        migraphx::literal::from_mapped_file(dynamic, file, {p.string(), 0, 8, ""});
-    }));
+    EXPECT(test::throws(
+        [&] { migraphx::literal::from_mapped_file(dynamic, file, {p.string(), 0, 8, ""}); }));
 }
 
 TEST_CASE(literal_share_argument_aliases_data)

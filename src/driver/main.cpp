@@ -885,7 +885,7 @@ struct compiler
         ap(co.recompilable,
            {"--recompilable"},
            ap.help("Keep each kernel's compile recipe, so the recompile command can recompile "
-                   "the program for the same or a newer GPU generation"),
+                   "the program for another GPU, of a newer or an older generation"),
            ap.set_value(true));
         ap(co.compile_mode,
            {"--compile-mode"},

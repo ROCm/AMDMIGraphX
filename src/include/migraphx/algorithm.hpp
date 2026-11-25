@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cassert>
 #include <functional>
+#include <iterator>
 #include <numeric>
 #include <string>
 #include <utility>
@@ -200,6 +201,27 @@ void group_unique(Iterator start, Iterator last, Output out, Predicate pred)
         auto it = std::find_if(start, last, [&](auto&& x) { return not pred(*start, x); });
         out(start, it);
         start = it;
+    }
+}
+
+/// Groups consecutive elements n at a time, with what remains in the last group, passing each
+/// group's range to out
+template <class Iterator, class Output>
+void group_n(Iterator start,
+             Iterator last,
+             typename std::iterator_traits<Iterator>::difference_type n,
+             Output out)
+{
+    assert(n > 0);
+    // Counted once, so a forward range is not walked to its end again for every group
+    auto remaining = std::distance(start, last);
+    while(remaining > 0)
+    {
+        auto size = std::min(n, remaining);
+        auto it   = std::next(start, size);
+        out(start, it);
+        start = it;
+        remaining -= size;
     }
 }
 

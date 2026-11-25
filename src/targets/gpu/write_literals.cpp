@@ -138,16 +138,16 @@ struct weights_writer
     {
         if(contains(key))
             return;
-        std::string_view rest{l.data(), l.get_shape().bytes()};
+        std::string_view data{l.data(), l.get_shape().bytes()};
         std::int64_t chunk = 0;
-        // A literal with no bytes still writes chunk 0
-        do
-        {
-            auto part = rest.substr(0, chunk_bytes);
+        // A literal with no bytes has no groups, and still writes chunk 0
+        if(data.empty())
+            insert_stmt(key, chunk, sqlite_blob_view{});
+        group_n(data.begin(), data.end(), chunk_bytes, [&](auto first, auto last) {
+            auto part = data.substr(first - data.begin(), last - first);
             insert_stmt(key, chunk, sqlite_blob_view{part.data(), part.size()});
-            rest.remove_prefix(part.size());
             chunk++;
-        } while(not rest.empty());
+        });
     }
 
     void commit() { db.execute("COMMIT;"); }

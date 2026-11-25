@@ -34,9 +34,7 @@
 // Verifies MIGRAPHX_SHARE_LITERALS default (off) behavior: two programs with
 // identical weights each upload their own device copy, so weight VRAM is NOT
 // shared. The companion file share_literals_on.cpp checks the flag-on case.
-// They are separate processes because the pool is process-scoped: once a
-// literal is pooled it stays pooled, so an off-case assertion in the same
-// process as an on-case would see the on-case's residue.
+// They are separate processes because the flag is read once per process.
 //
 // Sharing is detected by the free-VRAM delta after compiling: a large weight
 // makes "one copy vs N copies" unmistakable regardless of allocator noise.

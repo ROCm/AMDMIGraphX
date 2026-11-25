@@ -28,6 +28,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `MIGRAPHX_SHARE_LITERALS` keeping every pooled weight in device and host memory until the process exited; a pooled weight is now freed with the last program that uses it (#5566).
 * Fixed `simplify_reshapes` generating an inverse shape transform that merges a split axis's sub-axes in the wrong order when a transpose separates the split from the merge, producing a correctly shaped output with its data permuted (#5563).
 * Fixed GPU kernel compilation aborting on HIP toolchains whose clang emits the experimental `-Wlifetime-safety-experimental-field-origin-escape` warning, which is treated as an error under the `-Weverything -Werror` flags used for JIT kernel compilation and is a false positive on `tensor_view`'s non-owning pointer accessors (ROCM-34291).
 * Fixed parsing ONNX models where a node with a subgraph (for example `Loop`) is listed before the producer of a value its subgraph reads from the outer scope, which failed with "unavailable due to unordered nodes" (#5507).

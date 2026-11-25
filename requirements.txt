@@ -31,4 +31,4 @@ facebook/zstd@v1.5.7 -X subdir -DCMAKE_DIR=build/cmake -DZSTD_BUILD_PROGRAMS=Off
 ROCm/rocm-cmake@6a7c5b73b8882c74f8f7060e2633f230dabb7b63 --build
 ROCm/composable_kernel@ad0db05b040bacda751c65c705261b8a0a7ed25d --cmake subdir -DCMAKE_DIR=codegen -DCMAKE_POSITION_INDEPENDENT_CODE=On -DBUILD_TESTING=Off -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 https://gitlab.com/libeigen/eigen/-/archive/5.0.1/eigen-5.0.1.tar.gz -DBUILD_TESTING=Off -DEIGEN_BUILD_DOC=Off -DEIGEN_BUILD_LAPACK=Off
-ROCm/rocmlirTriton,https://github.com/ROCm/rocmlirTriton/releases/download/source-90fde3b6e072942fadfb5ec84edb35e95964fa55/rocmlirTriton.tar.xz -DFETCHCONTENT_FULLY_DISCONNECTED=On -DBUILD_FAT_LIBROCKCOMPILER=On -DLLVM_INCLUDE_TESTS=Off -DMLIR_ENABLE_ROCM_RUNNER=Off -DMLIR_INCLUDE_TESTS=Off
+ROCm/rocmlirTriton,https://github.com/ROCm/rocmlirTriton/releases/download/source-6e1a08cb703ed2c83271b2b6d2501593df31f39d/rocmlirTriton.tar.xz -DFETCHCONTENT_FULLY_DISCONNECTED=On -DBUILD_FAT_LIBROCKCOMPILER=On -DLLVM_INCLUDE_TESTS=Off -DMLIR_ENABLE_ROCM_RUNNER=Off -DMLIR_INCLUDE_TESTS=Off

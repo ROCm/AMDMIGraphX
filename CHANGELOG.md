@@ -14,6 +14,7 @@ Full documentation for MIGraphX is available at
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
 * Added MXR recompiling: `migraphx-driver compile --recompilable` stores each GPU kernel's compile recipe in the MXR, and `migraphx-driver recompile` (`program::recompile`) recompiles the kernels of a compiled MXR for the same or a newer GPU generation, including cross-compiling with `--gpu-arch` and exhaustive tuning, without the original model. MXR files can be opened without loading their kernels (`file_options::finalize`).
+* Added ONNX parser support for the `FLOAT8E4M3FN` and `FLOAT8E5M2` tensor element types.
 
 ### Changed
 
@@ -39,6 +40,8 @@ Full documentation for MIGraphX is available at
 * Fixed mixed `uint8` and `int8` quantization (#5075).
 * Fixed flash-decoding rebuild for fused `@literal`/`@outline` and extra score-shaped `@param` inputs (#5114).
 * Fixed `eliminate_concat` returning a strided view of the concat buffer as a program output when a concat input is also returned (for example a time cache kept as the last frames of a `concat`), which made integrations that allocate packed outputs, such as the ONNX Runtime MIGraphX EP, write past the end of the output buffer (#5484).
+* Fixed the ONNX parser decoding `FLOAT8E4M3FNUZ` tensors stored in `int32_data` as numeric values instead of as 8-bit patterns.
+* Fixed `fp8_ocp_to_fnuz` turning `fp8e4m3fn` negative zero into NaN on GPUs without OCP fp8 support.
 
 ### Optimized
 

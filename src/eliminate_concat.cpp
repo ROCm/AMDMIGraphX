@@ -402,15 +402,20 @@ struct concat_optimizer
         operation slice = {};
     };
 
-    // The users of the concat can read it as a view of a larger buffer
+    // The users of the concat and of its allocation can read them as a view of a larger buffer
     bool can_alias(instruction_ref sub, const shape& view_shape, std::size_t axis) const
     {
-        if(not is_packed(view_shape, axis) and
-           not std::all_of(sub->outputs().begin(), sub->outputs().end(), [&](instruction_ref out) {
-               return opt->supports_non_packed_input(out, axis);
-           }))
-            return false;
-        return not makes_output_non_standard({{sub, view_shape}}, {});
+        auto alloc = sub->inputs().back();
+        if(not is_packed(view_shape, axis))
+        {
+            auto reads_view = [&](instruction_ref out) {
+                return out == sub or opt->supports_non_packed_input(out, axis);
+            };
+            if(not std::all_of(sub->outputs().begin(), sub->outputs().end(), reads_view) or
+               not std::all_of(alloc->outputs().begin(), alloc->outputs().end(), reads_view))
+                return false;
+        }
+        return not makes_output_non_standard({{alloc, view_shape}, {sub, view_shape}}, {});
     }
 
     std::vector<sub_concat> find_sub_concats(instruction_ref ins, std::size_t axis) const
@@ -453,29 +458,37 @@ struct concat_optimizer
     // Replaces the concat and turns its sub concats into views of its buffer
     void replace_concats(instruction_ref ins, std::size_t axis) const
     {
-        auto subs  = find_sub_concats(ins, axis);
-        auto args  = replace_concat(ins, axis);
+        auto subs = find_sub_concats(ins, axis);
+        std::vector<instruction_ref> allocations;
+        std::transform(subs.begin(),
+                       subs.end(),
+                       std::back_inserter(allocations),
+                       [](const sub_concat& sub) { return sub.ins->inputs().back(); });
+        auto args  = replace_concat(ins, axis, std::move(allocations));
         auto super = args.front();
         for(const auto& sub : subs)
         {
             auto size = sub.ins->inputs().size() - 1;
             assert(sub.pos + size < args.size());
-            auto view = m->insert_instruction(std::next(super), sub.slice, super);
+            auto alloc = sub.ins->inputs().back();
+            auto view  = m->insert_instruction(std::next(super), sub.slice, super);
             // The writers of the buffer stay as inputs so the view is read after they run
             std::vector<instruction_ref> inputs = {view};
             auto first                          = args.begin() + 1 + sub.pos;
             inputs.insert(inputs.end(), first, first + size);
             m->replace_instruction(sub.ins, make_op("identity"), inputs);
+            // Nothing writes to the allocation anymore, so its other users read the view
+            m->replace_instruction(alloc, view);
         }
     }
 
-    std::vector<instruction_ref> replace_concat(instruction_ref ins, std::size_t axis) const
+    // The super buffer is placed before `allocations` as well as the allocations of the inputs
+    std::vector<instruction_ref> replace_concat(instruction_ref ins,
+                                                std::size_t axis,
+                                                std::vector<instruction_ref> allocations) const
     {
         auto last = ins->inputs().back();
         assert(is_allocation(last));
-        // Where are the allocations for the tensors to be concatenated?
-        std::vector<instruction_ref> allocations;
-
         std::transform(ins->inputs().begin(),
                        std::prev(ins->inputs().end()),
                        std::back_inserter(allocations),

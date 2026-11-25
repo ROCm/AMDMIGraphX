@@ -34,6 +34,8 @@
 #include <cstdio>
 
 #ifdef _WIN32
+// cppcheck-suppress definePrefix
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <fcntl.h>
 #include <io.h>

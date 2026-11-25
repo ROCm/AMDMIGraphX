@@ -81,7 +81,7 @@ Step 2: Check what the file contains
 
 .. code-block:: shell
 
-   migraphx-driver read model.mxr --migraphx
+   migraphx-driver read model.mxr
 
 ``read`` opens the file without loading its kernels, so it works on a machine that does not have the GPU that
 the file was compiled for. Check two things:
@@ -99,13 +99,13 @@ was compiled for this GPU, this tunes it again:
 
 .. code-block:: shell
 
-   migraphx-driver recompile model.mxr --migraphx --gpu -o model_this_gpu.mxr
+   migraphx-driver recompile model.mxr --gpu -o model_this_gpu.mxr
 
 Or cross-compile for a GPU that is not in the machine:
 
 .. code-block:: shell
 
-   migraphx-driver recompile model.mxr --migraphx --gpu --gpu-arch gfx1201 -o model_gfx1201.mxr
+   migraphx-driver recompile model.mxr --gpu --gpu-arch gfx1201 -o model_gfx1201.mxr
 
 The ``-o`` option is required. If the recompile fails, nothing is written and the input file is not changed.
 
@@ -115,14 +115,15 @@ The command prints a short report:
 
    [INFO] Recompiling ...
    [INFO] recompile: recompiling 57 kernels for gfx1151
-   [INFO] recompile: left as compiled: gpu::code_object[...], ...
+   [INFO] recompile: left as compiled: gpu::hip_gemm
    [INFO] note: graph decisions were made for gfx90a; compile the model again for best performance on gfx1151.
 
 * ``recompiling N kernels``: the number of kernels that have a recipe and are rebuilt.
-* ``left as compiled``: kernels with no recipe, which are library calls such as rocBLAS or MIOpen. This line only
-  appears for a recompile on the same GPU. A library kernel is still valid on the GPU that it was built for, so
-  recompile keeps it and rebuilds the other kernels. On a different GPU it cannot be reused, so recompile stops
-  instead. See :ref:`recompile-limitations` for when a file can have kernels with no recipe.
+* ``left as compiled``: instructions that have no recipe, so recompile cannot rebuild them. These are library calls
+  such as rocBLAS, hipBLASLt or MIOpen, CK kernels, and any kernel that has no recipe link. This line only appears
+  for a recompile on the same GPU. They were built for this GPU, so they are still valid, and recompile keeps them
+  unchanged while it rebuilds the other kernels. On a different GPU they cannot be reused, so recompile stops
+  instead. See :ref:`recompile-limitations` for when a file can have them.
 * ``note: graph decisions ...``: printed when the GPU generation changes. See :ref:`recompile-limitations`.
 
 These options change how the recompile runs:
@@ -157,14 +158,14 @@ Step 4: Run and measure
 
 .. code-block:: shell
 
-   migraphx-driver perf model_this_gpu.mxr --migraphx
+   migraphx-driver perf model_this_gpu.mxr
 
 For a fair comparison, also compile the model directly for the new GPU and measure it:
 
 .. code-block:: shell
 
    migraphx-driver compile model.onnx --gpu -o model_this_gpu_direct.mxr
-   migraphx-driver perf model_this_gpu_direct.mxr --migraphx
+   migraphx-driver perf model_this_gpu_direct.mxr
 
 The recompiled file keeps the graph decisions that were made for the original GPU, so it can be slower than a direct
 compile, especially across generations.
@@ -224,8 +225,8 @@ What happens in each situation
    * - Recompile to
      - Result
    * - The same GPU that the file was compiled for
-     - Every kernel with a recipe is rebuilt and tuned again. Library kernels without a recipe are kept as they are,
-       because they are still valid on this GPU.
+     - Every kernel with a recipe is rebuilt and tuned again. Instructions without a recipe, such as library calls,
+       are kept as they are, because they are still valid on this GPU.
    * - A different GPU of the same generation, a newer one, or an older one
      - Every kernel is rebuilt for the new GPU, if all of them have a recipe. If one has not, recompile stops. Going to
        an older generation prints a warning.
@@ -239,23 +240,8 @@ The generation is the major number of the ``gfx`` name. ``gfx90a`` and ``gfx942`
 the thread limits, the wavefront size, and the shared memory size. The same architecture with a different compute unit
 count counts as a different GPU.
 
-How recompile works
-====================================================================
-
-The driver opens the file with ``file_options::finalize`` set to false, so the kernels are not loaded. This matters
-because they may be built for a GPU that is not in the machine. ``program::recompile(target, options)`` then makes a
-copy of the program and recompiles the kernels on the copy. The original program is replaced only if every step
-succeeds.
-
-Recompile puts each kernel back to the operation that is stored in its recipe, compiles it again for the new device
-with the options that you pass to ``recompile``, checks that the result fits the memory plan of the compiled program,
-and records the new device in the file. The options that the file was compiled with are not used.
-
-If the new device is not a cross-compile target, the program is finalized, which loads the new kernels. A cross-compile
-result is not finalized, the same as a cross-compile from a model.
-
 Use the C++ library API
---------------------------------------------------------------------
+====================================================================
 
 This is the C++ library API that ``migraphx-driver`` uses. The public C++ API in ``migraphx.hpp``, which wraps the C
 API, does not have ``recompile``.
@@ -278,8 +264,8 @@ API, does not have ``recompile``.
    migraphx::save(q, "model_gfx942.mxr");
 
 To recompile for the GPU in the machine, pass ``migraphx::make_target("gpu")``. To use exhaustive tuning, pass a second
-argument with ``exhaustive_tune`` set. A target that does not support recompile throws
-``recompile: the <name> target does not support recompile``.
+argument with ``exhaustive_tune`` set. If ``recompile`` fails, the program is left unchanged. A target that does not
+support recompile throws ``recompile: the <name> target does not support recompile``.
 
 .. _recompile-limitations:
 
@@ -298,9 +284,9 @@ Only the kernels that MIGraphX generates itself, which are JIT and rocMLIR kerne
 * Composable Kernel (CK) kernels
 * Operations whose compile did not produce a single kernel
 
-On the same GPU, these kernels are kept as compiled. A library kernel is still valid on the GPU that it was built for,
-so recompile keeps it and rebuilds the other kernels. On a different GPU a library kernel cannot be reused, so any one
-of them stops the whole recompile. If library kernels remain, compile the model from the source for the new GPU.
+On the same GPU, these are kept as compiled. Each was built for that GPU, so it is still valid, and recompile keeps it
+and rebuilds the other kernels. On a different GPU such an instruction cannot be reused, so any one of them stops the
+whole recompile. If any remain, compile the model from the source for the new GPU.
 
 Compiling with ``--recompilable`` avoids most of these kernels, as described in :ref:`recompile-prerequisites`, but not
 all of them. A file can still have kernels with no recipe when:

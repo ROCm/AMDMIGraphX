@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_PARSER_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/sym.hpp>
@@ -50,6 +51,8 @@ struct onnx_parser
     std::string filename;
     fs::path path;
     std::string external_data_path;
+    // External data files mapped so far, so every tensor stored in a file shares one mapping
+    mutable std::unordered_map<std::string, file_view> external_data_files;
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     struct node_info
     {

@@ -26,7 +26,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
@@ -40,8 +39,6 @@
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <optional>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -327,27 +324,13 @@ get_fusable_input_op_stream(instruction_ref lower_input)
     return {upper_input, op_stream};
 }
 
-// The instructions a fused module can take as inputs: those of the module being fused and of the
+// The modules whose instructions a fused module can take as inputs: the module being fused and the
 // modules that enclose it, as a branch of an `if` reads values of the main module
-std::unordered_set<instruction_ref> instructions_in_scope(module_pass_manager& mpm)
+static std::vector<const_module_ref> modules_in_scope(module_pass_manager& mpm)
 {
-    std::unordered_map<const_module_ref, const_module_ref> parents;
-    const_module_ref root = mpm.get_root_module();
-    auto modules          = root->get_sub_modules();
-    modules.push_back(mpm.get_root_module());
-    for(const_module_ref mod : modules)
-    {
-        for(const_module_ref sub : mod->get_sub_modules(true))
-            parents.emplace(sub, mod);
-    }
-    std::unordered_set<instruction_ref> result;
-    for(const_module_ref mod = &mpm.get_module(); mod != nullptr;)
-    {
-        for(auto ins : iterator_for(*mod))
-            result.insert(ins);
-        auto it = parents.find(mod);
-        mod     = it == parents.end() ? nullptr : it->second;
-    }
+    std::vector<const_module_ref> result{&mpm.get_module()};
+    auto parents = mpm.get_parent_modules();
+    result.insert(result.end(), parents.begin(), parents.end());
     return result;
 }
 
@@ -897,7 +880,7 @@ struct find_mlir_fused_ops
         }
         mm->add_return(rins);
 
-        auto inputs = find_inputs(map_ins, instructions_in_scope(mpm), mm);
+        auto inputs = find_inputs(map_ins, modules_in_scope(mpm), mm);
         mlir_op mlir{gemm_based_op->get_operator()};
         if(x_ins == gemm_based_op)
         {
@@ -1107,7 +1090,7 @@ struct find_mlir_fused_geg_ops
         // if second submodule has multi-outs, second_rins already contains [pointwise, gemm]
         // otherwise it just contains [final_output]
         mm->add_return(second_rins);
-        auto inputs = find_inputs(map_ins, instructions_in_scope(mpm), mm);
+        auto inputs = find_inputs(map_ins, modules_in_scope(mpm), mm);
 
         // replace the second gemm with the fused GEG operation
         auto fused_ins =
@@ -1421,7 +1404,7 @@ struct find_pointwise_mlir
         auto ret = m->fuse(*mm, ins->inputs(), &map_ins);
         m->add_return({ret});
 
-        auto inputs = find_inputs(map_ins, instructions_in_scope(mpm), m);
+        auto inputs = find_inputs(map_ins, modules_in_scope(mpm), m);
         mpm.get_module().replace_instruction(
             ins, ins->get_operator(), mlir_contiguous(mpm, inputs), {m});
     }
@@ -1587,7 +1570,7 @@ struct find_mlir_output_reshape_ops
         map_ins[mlir_op_ins]    = new_back;
         auto fused_instructions = fused_module->fuse(reshape_instructions, &map_ins);
         fused_module->add_return({fused_instructions.back()});
-        auto inputs = find_inputs(map_ins, instructions_in_scope(mpm), fused_module);
+        auto inputs = find_inputs(map_ins, modules_in_scope(mpm), fused_module);
         mpm.get_module().replace_instruction(
             last_reshape, mlir_op{last_reshape->get_operator()}, inputs, {fused_module});
     }

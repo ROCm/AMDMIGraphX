@@ -43,6 +43,7 @@ struct module_pass_manager
     virtual void rename_module(const std::string& old_name, const std::string& new_name) = 0;
     virtual module* get_common_parent()                    = 0;
     virtual module* get_root_module()                      = 0;
+    virtual std::vector<module*> get_parent_modules()                                    = 0;
     virtual void run_pass(const pass& p)                   = 0;
 
     protected:

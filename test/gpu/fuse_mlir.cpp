@@ -152,30 +152,61 @@ TEST_CASE(dot_outer_strided_view_in_if_branches)
 {
     // Each branch multiplies a strided view of the main module; the fused dot reads it after a
     // contiguous, which has to be in the branch
-    migraphx::program p;
-    auto* mm  = p.get_main_module();
-    auto cond = mm->add_parameter("cond", migraphx::shape{migraphx::shape::bool_type});
-    auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 2, 16}});
-    auto w    = mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 8, 16}});
-    auto view = mm->add_instruction(migraphx::make_op("step", {{"axes", {2}}, {"steps", {2}}}), x);
-    auto branch = [&](const std::string& name) {
-        auto* bm = p.create_module(name);
-        bm->add_return({bm->add_instruction(migraphx::make_op("dot"), view, w)});
-        return bm;
+    migraphx::shape xs{migraphx::shape::float_type, {1, 2, 16}};
+    migraphx::shape ws{migraphx::shape::float_type, {1, 8, 16}};
+    auto add_inputs = [&](migraphx::module& m) {
+        auto cond = m.add_parameter("cond", migraphx::shape{migraphx::shape::bool_type});
+        auto x    = m.add_parameter("x", xs);
+        auto w    = m.add_parameter("w", ws);
+        auto view =
+            m.add_instruction(migraphx::make_op("step", {{"axes", {2}}, {"steps", {2}}}), x);
+        return std::make_tuple(cond, view, w);
     };
-    auto* then_mod = branch("then");
-    auto* else_mod = branch("else");
-    auto ret       = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    mm->add_return({mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret)});
+    auto add_if = [](migraphx::module& m,
+                     migraphx::instruction_ref cond,
+                     migraphx::module_ref then_mod,
+                     migraphx::module_ref else_mod) {
+        auto ret = m.add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        m.add_return({m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret)});
+    };
 
-    run_pass(p);
-    EXPECT(migraphx::none_of(migraphx::iterator_for(*mm),
-                             [](auto ins) { return ins->name() == "contiguous"; }));
-    for(const auto* m : {then_mod, else_mod})
-        EXPECT(migraphx::any_of(migraphx::iterator_for(*m),
-                                [](auto ins) { return ins->name() == "contiguous"; }));
-    for(const auto* m : {mm, then_mod, else_mod})
-        EXPECT(m->validate() == m->end());
+    migraphx::program p1;
+    {
+        auto* mm             = p1.get_main_module();
+        auto [cond, view, w] = add_inputs(*mm);
+        auto branch          = [&](const std::string& name) {
+            auto* bm = p1.create_module(name);
+            bm->add_return({bm->add_instruction(migraphx::make_op("dot"), view, w)});
+            return bm;
+        };
+        add_if(*mm, cond, branch("then"), branch("else"));
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm             = p2.get_main_module();
+        auto [cond, view, w] = add_inputs(*mm);
+        auto branch          = [&](const std::string& name) {
+            auto* bm = p2.create_module(name);
+            auto* pm = p2.create_module(name + ":mlir_dot0");
+            pm->set_bypass();
+            auto y0  = pm->add_parameter("y0", view->get_shape().as_standard());
+            auto y1  = pm->add_parameter("y1", ws);
+            auto dot = pm->add_instruction(migraphx::make_op("dot"), y0, y1);
+            pm->add_return({dot});
+            auto packed = bm->add_instruction(migraphx::make_op("contiguous"), view);
+            bm->add_return({bm->add_instruction(
+                migraphx::make_op(
+                    "gpu::mlir_op",
+                    {{"op", migraphx::to_value(dot->get_operator())}, {"tag", "standalone_dot"}}),
+                {packed, w},
+                {pm})});
+            return bm;
+        };
+        add_if(*mm, cond, branch("then"), branch("else"));
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(dot_add)

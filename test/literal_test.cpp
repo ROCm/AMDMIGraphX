@@ -25,8 +25,10 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/serialize.hpp>
 #include <algorithm>
+#include <memory>
 #include <sstream>
 #include <string>
+#include <vector>
 #include "test.hpp"
 
 TEST_CASE(literal_test)
@@ -129,6 +131,41 @@ TEST_CASE(literal_standard_buffer_broadcast)
     auto l = migraphx::literal::from_standard_buffer(s, buf, s.elements() * s.type_size());
     EXPECT(l.get_shape() == s);
     EXPECT(l.to_vector<int32_t>() == data);
+}
+
+TEST_CASE(literal_shared_buffer)
+{
+    migraphx::shape s{migraphx::shape::int8_type, {2, 2}};
+    std::vector<char> data = {1, 2, 3, 4};
+    bool released          = false;
+    std::shared_ptr<const char> buffer{data.data(), [&](const char*) { released = true; }};
+
+    auto l1 = migraphx::literal::from_shared_buffer(s, buffer);
+    buffer.reset();
+    EXPECT(l1.get_shape() == s);
+    EXPECT(l1.data() == data.data());
+    EXPECT(l1.to_vector<int>() == std::vector<int>{1, 2, 3, 4});
+
+    // The buffer is released with the last literal sharing it
+    auto l2 = l1;
+    EXPECT(l2.data() == data.data());
+    l1 = migraphx::literal{};
+    EXPECT(not released);
+    l2 = migraphx::literal{};
+    EXPECT(released);
+}
+
+TEST_CASE(literal_shared_buffer_argument)
+{
+    migraphx::shape s{migraphx::shape::int8_type, {4}};
+    const std::vector<char> data = {1, 2, 3, 4};
+    auto l                       = migraphx::literal::from_shared_buffer(
+        s, std::shared_ptr<const char>{data.data(), [](const char*) {}});
+
+    // An argument is writable, so it gets its own copy of a shared buffer
+    auto arg = l.get_argument();
+    EXPECT(arg.data() != data.data());
+    EXPECT(arg.to_vector<int>() == std::vector<int>{1, 2, 3, 4});
 }
 
 TEST_CASE(literal_raw_buffer_transposed)

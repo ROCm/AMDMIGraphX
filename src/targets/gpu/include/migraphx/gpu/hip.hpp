@@ -330,7 +330,7 @@ struct hip_copy_literal
 
     void finalize(context& ctx, const shape&, const std::vector<shape>&) const
     {
-        argument a = to_gpu(l.get_argument());
+        argument a{l.get_shape(), write_to_gpu(l.data(), l.get_shape().bytes(), false)};
         store_preallocated_param(ctx, id, a);
     }
     friend std::ostream& operator<<(std::ostream& os, const hip_copy_literal& x)

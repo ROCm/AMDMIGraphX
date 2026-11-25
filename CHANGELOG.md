@@ -25,6 +25,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed the ONNX parser producing an empty literal for a scalar initializer stored as external data.
 * Fixed `simplify_reshapes` generating an inverse shape transform that merges a split axis's sub-axes in the wrong order when a transpose separates the split from the merge, producing a correctly shaped output with its data permuted (#5563).
 * Fixed GPU kernel compilation aborting on HIP toolchains whose clang emits the experimental `-Wlifetime-safety-experimental-field-origin-escape` warning, which is treated as an error under the `-Weverything -Werror` flags used for JIT kernel compilation and is a false positive on `tensor_view`'s non-owning pointer accessors (ROCM-34291).
 * Fixed parsing ONNX models where a node with a subgraph (for example `Loop`) is listed before the producer of a value its subgraph reads from the outer scope, which failed with "unavailable due to unordered nodes" (#5507).
@@ -41,6 +42,7 @@ Full documentation for MIGraphX is available at
 
 ### Optimized
 
+* Optimized ONNX models with external data: each external data file is memory mapped once and its tensors become literals that point into the mapping, rather than being read and copied into host memory, and the GPU target copies literals to the device straight from that data instead of from a second host copy. The files must stay unmodified while the program, including one compiled for the GPU, holds those literals.
 * Optimized `dot` with repeated broadcasted input rows to evaluate one row and broadcast the result, avoiding large duplicate literals during constant propagation.
 * Added a `simplify_algebra` rewrite that folds `dot(a, b) + dot(a, c)` into `dot(a, b + c)` when `b` and `c` are constant, so one GEMM with half the weights replaces two GEMMs (or a double-width horizontally fused GEMM plus slices and an add) (#5415).
 * Reduced compile-time heap allocations in `simplify_algebra`, `simplify_reshapes`, and `fuse_pointwise`: `match::name` shares its name set across matcher copies, and read-only uses of an instruction's inputs bind a reference or move instead of copying the vector (#5362).

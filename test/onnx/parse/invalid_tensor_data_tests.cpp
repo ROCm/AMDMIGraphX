@@ -60,3 +60,15 @@ TEST_CASE(external_data_shape_large_test)
     EXPECT(test::throws<migraphx::exception>(
         [&] { read_onnx("external_data_shape_large_test.onnx"); }));
 }
+
+TEST_CASE(external_data_offset_large_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { read_onnx("external_data_offset_large_test.onnx"); }));
+}
+
+TEST_CASE(external_data_offset_overlap_end_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { read_onnx("external_data_offset_overlap_end_test.onnx"); }));
+}

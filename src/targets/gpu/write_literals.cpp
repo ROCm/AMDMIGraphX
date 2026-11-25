@@ -53,7 +53,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_WRITE_LITERALS)
 
 struct gpu_literal
 {
-    argument data{};
+    literal data{};
     bool host = false;
 
     argument gpu_data{};
@@ -72,10 +72,12 @@ struct gpu_literal
 
     void finalize(context&, const shape&, const std::vector<shape>&)
     {
+        // Registered host memory is writable, so it cannot be the literal's own buffer
         if(host)
-            gpu_data = register_on_gpu(data);
+            gpu_data = register_on_gpu(data.get_argument());
         else
-            gpu_data = to_gpu(data);
+            gpu_data = {data.get_shape(),
+                        write_to_gpu(data.data(), data.get_shape().bytes(), false)};
     }
 
     friend std::ostream& operator<<(std::ostream& os, const gpu_literal& x)
@@ -401,7 +403,7 @@ void write_literals::apply(module& m) const
     {
         if(ins->name() != "@literal")
             continue;
-        auto data = ins->get_literal().get_argument();
+        auto data = ins->get_literal();
         if(enabled(MIGRAPHX_COPY_LITERALS{}) or contains(plan.staged, ins))
         {
             auto lit = m.insert_instruction(ins, gpu_literal{.data = data, .host = true});

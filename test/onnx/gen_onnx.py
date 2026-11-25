@@ -4556,6 +4556,98 @@ def external_data_shape_large_test():
     return ([node], [], [y], [tensor])
 
 
+def _external_tensor(name, weight_file, offset, values):
+    tensor = onnx.TensorProto()
+    tensor.name = name
+    tensor.data_type = TensorProto.FLOAT
+    tensor.dims.extend([len(values)])
+    tensor.data_location = TensorProto.EXTERNAL
+    for key, value in [('location', weight_file), ('offset', str(offset)),
+                       ('length', str(values.nbytes))]:
+        entry = tensor.external_data.add()
+        entry.key = key
+        entry.value = value
+    return tensor
+
+
+@onnx_test()
+def external_data_shared_file_test():
+    # two tensors stored in one file, the second on a later page
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4])
+
+    weight_file = 'external_data_shared_file_test.weight'
+    a = np.arange(4, dtype=np.float32)
+    b = np.arange(4, 8, dtype=np.float32)
+    with open(weight_file, 'wb') as f:
+        f.write(a.tobytes().ljust(8192, b'\0') + b.tobytes())
+
+    node = onnx.helper.make_node('Add', inputs=['a', 'b'], outputs=['y'])
+
+    return ([node], [], [y], [
+        _external_tensor('a', weight_file, 0, a),
+        _external_tensor('b', weight_file, 8192, b)
+    ])
+
+
+@onnx_test()
+def external_data_scalar_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [])
+
+    weight_file = 'external_data_scalar_test.weight'
+    x = np.array([7], dtype=np.float32)
+    x.tofile(weight_file)
+
+    tensor = _external_tensor('x', weight_file, 0, x)
+    tensor.ClearField('dims')
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
+def external_data_unaligned_offset_test():
+    # the offset is not a multiple of the element size
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4])
+
+    weight_file = 'external_data_unaligned_offset_test.weight'
+    x = np.arange(4, dtype=np.float32)
+    with open(weight_file, 'wb') as f:
+        f.write(b'\0\0\0' + x.tobytes())
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [_external_tensor('x', weight_file, 3, x)])
+
+
+@onnx_test()
+def external_data_offset_large_test():
+    # the offset is past the end of the file
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4])
+
+    weight_file = 'external_data_offset_large_test.weight'
+    x = np.arange(4, dtype=np.float32)
+    x.tofile(weight_file)
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [_external_tensor('x', weight_file, 4096, x)])
+
+
+@onnx_test()
+def external_data_offset_overlap_end_test():
+    # the offset is inside the file but the tensor runs past its end
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4])
+
+    weight_file = 'external_data_offset_overlap_end_test.weight'
+    x = np.arange(4, dtype=np.float32)
+    x.tofile(weight_file)
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [_external_tensor('x', weight_file, 8, x)])
+
+
 @onnx_test()
 def raw_data_short_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1024, 1024])

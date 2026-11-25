@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -35,6 +36,30 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_EXPORT std::vector<char>
 read_buffer(const fs::path& filename, size_t offset = 0, size_t nbytes = 0);
 MIGRAPHX_EXPORT std::string read_string(const fs::path& filename);
+
+// The contents of a whole file
+struct MIGRAPHX_EXPORT file_view
+{
+    file_view() = default;
+    file_view(std::shared_ptr<const char> ptr, std::size_t size);
+
+    const char* data() const;
+    std::size_t size() const;
+
+    const char* begin() const;
+    const char* end() const;
+
+    // Owns the contents, which stay valid until the last copy of it is destroyed
+    std::shared_ptr<const char> ptr() const;
+
+    private:
+    std::shared_ptr<const char> m_ptr = nullptr;
+    std::size_t m_size                = 0;
+};
+
+// Maps the file read-only rather than reading it, so its pages load on first use and can be
+// dropped again under memory pressure. The file must not be truncated while the view is alive.
+MIGRAPHX_EXPORT file_view map_file(const fs::path& filename);
 
 MIGRAPHX_EXPORT void write_string(const fs::path& filename, const std::string& buffer);
 MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const char* buffer, std::size_t size);

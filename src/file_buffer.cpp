@@ -26,6 +26,19 @@
 #include <migraphx/fileutils.hpp>
 #include <fstream>
 #include <iostream>
+#include <utility>
+
+#ifdef _WIN32
+#include <migraphx/manage_ptr.hpp>
+// cppcheck-suppress definePrefix
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#else
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -64,6 +77,102 @@ std::string read_string(const fs::path& filename)
 {
     return generic_read_file<std::string>(filename);
 }
+
+file_view::file_view(std::shared_ptr<const char> ptr, std::size_t size)
+    : m_ptr(std::move(ptr)), m_size(size)
+{
+}
+
+const char* file_view::data() const { return m_ptr.get(); }
+
+std::size_t file_view::size() const { return m_size; }
+
+const char* file_view::begin() const { return data(); }
+
+const char* file_view::end() const { return data() + size(); }
+
+std::shared_ptr<const char> file_view::ptr() const { return m_ptr; }
+
+// For a file that cannot be mapped, such as one on a filesystem without mapping support
+static file_view read_file_view(const fs::path& filename)
+{
+    auto buffer = std::make_shared<const std::vector<char>>(read_buffer(filename));
+    return {std::shared_ptr<const char>{buffer, buffer->data()}, buffer->size()};
+}
+
+#ifdef _WIN32
+
+using handle_ptr = MIGRAPHX_MANAGE_PTR(HANDLE, CloseHandle);
+
+file_view map_file(const fs::path& filename)
+{
+    HANDLE handle = CreateFileW(filename.c_str(),
+                                GENERIC_READ,
+                                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                nullptr,
+                                OPEN_EXISTING,
+                                FILE_ATTRIBUTE_NORMAL,
+                                nullptr);
+    if(handle == INVALID_HANDLE_VALUE)
+        MIGRAPHX_THROW("Failure opening file: " + filename);
+    handle_ptr file{handle};
+    LARGE_INTEGER file_size = {};
+    if(GetFileSizeEx(file.get(), &file_size) == 0)
+        MIGRAPHX_THROW("Failure reading size of file: " + filename);
+    std::size_t size = file_size.QuadPart;
+    // An empty file cannot be mapped
+    if(size == 0)
+        return {};
+    handle_ptr mapping{CreateFileMappingW(file.get(), nullptr, PAGE_READONLY, 0, 0, nullptr)};
+    if(mapping == nullptr)
+        return read_file_view(filename);
+    // The view keeps the file open, so it outlives both handles
+    void* mem = MapViewOfFile(mapping.get(), FILE_MAP_READ, 0, 0, 0);
+    if(mem == nullptr)
+        return read_file_view(filename);
+    std::shared_ptr<void> view{mem, [](void* p) { UnmapViewOfFile(p); }};
+    return {std::shared_ptr<const char>{view, static_cast<const char*>(mem)}, size};
+}
+
+#else
+
+struct file_descriptor
+{
+    int fd = -1;
+
+    explicit file_descriptor(int f) : fd(f) {}
+    file_descriptor(const file_descriptor&)            = delete;
+    file_descriptor& operator=(const file_descriptor&) = delete;
+    ~file_descriptor()
+    {
+        if(fd >= 0)
+            close(fd);
+    }
+};
+
+file_view map_file(const fs::path& filename)
+{
+    file_descriptor file{open(filename.c_str(), O_RDONLY | O_CLOEXEC)};
+    if(file.fd < 0)
+        MIGRAPHX_THROW("Failure opening file: " + filename);
+    struct stat info = {};
+    if(fstat(file.fd, &info) != 0)
+        MIGRAPHX_THROW("Failure reading size of file: " + filename);
+    if(not S_ISREG(info.st_mode))
+        MIGRAPHX_THROW("Not a regular file: " + filename);
+    std::size_t size = info.st_size;
+    // An empty file cannot be mapped
+    if(size == 0)
+        return {};
+    // The mapping keeps the file open, so it outlives the close of file
+    void* mem = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, file.fd, 0);
+    if(mem == MAP_FAILED)
+        return read_file_view(filename);
+    std::shared_ptr<void> mapping{mem, [size](void* p) { munmap(p, size); }};
+    return {std::shared_ptr<const char>{mapping, static_cast<const char*>(mem)}, size};
+}
+
+#endif
 
 void write_string(const fs::path& filename, const std::string& buffer)
 {

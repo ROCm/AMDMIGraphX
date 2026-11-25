@@ -55,31 +55,30 @@ struct literal : raw_data<literal>
     explicit literal(shape::type_t shape_type) : m_shape(shape_type, {}) {}
 
     template <class U, class T = deduce<U>, shape::type_t ShapeType = shape::get_type<T>{}>
-    literal(U x) : buffer(make_shared_array<char>(sizeof(T))), m_shape(ShapeType)
+    literal(U x) : m_shape(ShapeType)
     {
         static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
-        *(reinterpret_cast<T*>(buffer.get())) = x;
+        auto storage                           = make_shared_array<char>(sizeof(T));
+        *(reinterpret_cast<T*>(storage.get())) = x;
+        buffer                                 = std::move(storage);
     }
 
     template <class T>
-    literal(const shape& s, const std::vector<T>& x)
-        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+    literal(const shape& s, const std::vector<T>& x) : m_shape(s)
     {
         static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
     }
 
     template <class T>
-    literal(const shape& s, const std::initializer_list<T>& x)
-        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+    literal(const shape& s, const std::initializer_list<T>& x) : m_shape(s)
     {
         static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
     }
 
     template <class Iterator>
-    literal(const shape& s, Iterator start, Iterator end)
-        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+    literal(const shape& s, Iterator start, Iterator end) : m_shape(s)
     {
         fill(start, end);
     }
@@ -109,13 +108,22 @@ struct literal : raw_data<literal>
             result.buffer = make_shared_array<char>(x, x + nbytes);
             return result;
         }
-        result.buffer = make_shared_array<char>(s.bytes());
         // x may not be aligned for the element type, so copy it into typed storage first
         s.visit_type([&](auto as) {
             std::vector<typename decltype(as)::type> values(s.elements());
             std::copy(x, x + nbytes, reinterpret_cast<char*>(values.data()));
             result.fill(values.begin(), values.end());
         });
+        return result;
+    }
+
+    // Shares x rather than copying it. x holds s.bytes(): raw storage in the layout described by
+    // s's strides, aligned for s's type.
+    static literal from_shared_buffer(const shape& s, std::shared_ptr<const char> x)
+    {
+        literal result;
+        result.m_shape = s;
+        result.buffer  = std::move(x);
         return result;
     }
 
@@ -137,11 +145,12 @@ struct literal : raw_data<literal>
     }
 
     private:
-    std::shared_ptr<char> buffer;
+    // Const since the storage may be shared or read-only
+    std::shared_ptr<const char> buffer;
     shape m_shape;
 
-    // Keeps the same data ordering as the given container. Fewer values than the shape's
-    // elements fills only the leading elements; the rest remain zero.
+    // Allocates the buffer and keeps the same data ordering as the given container. Fewer values
+    // than the shape's elements fills only the leading elements; the rest remain zero.
     template <class Iterator>
     void fill(Iterator start, Iterator end)
     {
@@ -149,10 +158,12 @@ struct literal : raw_data<literal>
             MIGRAPHX_THROW("literal: number of values " +
                            std::to_string(std::distance(start, end)) + " exceeds shape elements " +
                            std::to_string(m_shape.elements()));
+        auto storage = make_shared_array<char>(m_shape.bytes());
         m_shape.visit_type([&](auto as) {
-            auto output = make_view(m_shape, as.from(buffer.get()));
+            auto output = make_view(m_shape, as.from(storage.get()));
             std::copy(start, end, output.begin());
         });
+        buffer = std::move(storage);
     }
 };
 

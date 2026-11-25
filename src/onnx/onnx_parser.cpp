@@ -936,13 +936,15 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
     if(not external_data.empty())
     {
-        if(tensor_shape.elements() == 0)
+        // A tensor without dims is a scalar
+        const shape data_shape = dims.empty() ? shape{type} : tensor_shape;
+        if(data_shape.elements() == 0)
             return literal{type};
 
         const std::string& data_file = external_data.at(0).value();
         size_t num_data_fields       = external_data.size();
         size_t offset                = 0;
-        size_t nbytes                = tensor_shape.bytes();
+        size_t nbytes                = data_shape.bytes();
 
         if(num_data_fields > 1) // if offset field is present
         {
@@ -956,17 +958,29 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
             // and the plugin EP copies that 0 into the proto. The tensor's own size
             // is the number of bytes to read.
             if(nbytes == 0)
-                nbytes = tensor_shape.bytes();
+                nbytes = data_shape.bytes();
         }
-        if(nbytes != tensor_shape.bytes())
+        if(nbytes != data_shape.bytes())
             MIGRAPHX_THROW("PARSE_TENSOR: external data length " + std::to_string(nbytes) + " of " +
                            t.name() + " does not match tensor bytes " +
-                           std::to_string(tensor_shape.bytes()));
+                           std::to_string(data_shape.bytes()));
 
         const fs::path base_dir  = external_data_path.empty() ? path : fs::path{external_data_path};
         const fs::path data_path = resolve_external_data_path(base_dir, data_file);
-        std::vector<char> raw_buffer = read_buffer(data_path, offset, nbytes);
-        return create_literal(type, dims, raw_buffer.data(), raw_buffer.size());
+        auto file_it             = external_data_files.find(data_path.string());
+        if(file_it == external_data_files.end())
+            file_it = external_data_files.emplace(data_path.string(), map_file(data_path)).first;
+        const file_view& file = file_it->second;
+        if(offset > file.size() or nbytes > file.size() - offset)
+            MIGRAPHX_THROW("PARSE_TENSOR: external data of " + t.name() + " reads " +
+                           std::to_string(nbytes) + " bytes at offset " + std::to_string(offset) +
+                           " past the end of " + data_file);
+        std::shared_ptr<const char> data{file.ptr(), file.data() + offset};
+        // The file's data is aligned for every element type, so only the offset can misalign the
+        // elements, which are read in place unless copied
+        if(offset % data_shape.type_size() != 0)
+            return create_literal(type, dims, data.get(), nbytes);
+        return literal::from_shared_buffer(data_shape, std::move(data));
     }
 
     if(t.has_raw_data())

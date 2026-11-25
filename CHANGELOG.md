@@ -13,6 +13,7 @@ Full documentation for MIGraphX is available at
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
 * Added MXR recompiling: `migraphx-driver compile --recompilable` stores each GPU kernel's compile recipe in the MXR, and `migraphx-driver recompile` (`program::recompile`) recompiles the kernels of a compiled MXR for the same or a newer GPU generation, including cross-compiling with `--gpu-arch` and exhaustive tuning, without the original model. MXR files can be opened without loading their kernels (`file_options::finalize`).
+* Added a `weights_file` compile option (`migraphx-driver compile --weights-file`) that saves the weights to a separate file instead of in the compiled program, on targets that support it, so the MXR is small and equal tensors are stored once. A relative path is resolved against the new `relative_path` compile option while compiling and against the directory of the MXR when it is loaded (or `file_options::relative_path`), so the two files can be moved together. The options are available in the C, C++ and Python APIs.
 
 ### Changed
 

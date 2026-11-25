@@ -77,6 +77,7 @@ add_library(migraphx
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp
+    filesystem.cpp
     fileutils.cpp
     fp_to_double.cpp
     fp8_ocp_to_fnuz.cpp

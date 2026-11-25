@@ -50,7 +50,6 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/filesystem.hpp>
-#include <migraphx/fileutils.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>

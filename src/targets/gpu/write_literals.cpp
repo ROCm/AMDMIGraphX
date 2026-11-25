@@ -80,8 +80,11 @@ CREATE TABLE IF NOT EXISTS weights_v1 (
 );
 )__migraphx__";
 
-constexpr const char* weights_contains_sql =
-    "SELECT 1 FROM weights_v1 WHERE key = ?1 AND chunk = 0;";
+constexpr const char* weights_has_chunk_sql =
+    "SELECT 1 FROM weights_v1 WHERE key = ?1 AND chunk = ?2;";
+
+constexpr const char* weights_equal_chunk_sql =
+    "SELECT 1 FROM weights_v1 WHERE key = ?1 AND chunk = ?2 AND data = ?3;";
 
 constexpr const char* weights_insert_sql =
     "INSERT INTO weights_v1 (key, chunk, data) VALUES (?1, ?2, ?3);";
@@ -89,7 +92,8 @@ constexpr const char* weights_insert_sql =
 constexpr const char* weights_load_sql =
     "SELECT data FROM weights_v1 WHERE key = ?1 ORDER BY chunk;";
 
-// Identifies a tensor by its contents, so equal tensors share one copy in the weights file
+// Finds the tensors that can share one copy in the weights file. Equal keys do not prove equal
+// tensors, since md5 collisions can be constructed, so the writer compares the bytes as well.
 std::string weights_key(const literal& l)
 {
     const auto& s = l.get_shape();
@@ -124,38 +128,75 @@ struct weights_writer
         // the check for it and its insert
         db.execute("BEGIN IMMEDIATE;");
         db.execute(weights_schema_sql);
-        contains_stmt = db.prepare(weights_contains_sql);
-        insert_stmt   = db.prepare(weights_insert_sql);
+        has_chunk_stmt   = db.prepare(weights_has_chunk_sql);
+        equal_chunk_stmt = db.prepare(weights_equal_chunk_sql);
+        insert_stmt      = db.prepare(weights_insert_sql);
     }
 
-    bool contains(const std::string& key) const
+    // Stores the literal and returns the key it is stored under: the given key, or the key with
+    // a counter appended when the file has a different tensor under it
+    std::string save(const std::string& key, const literal& l)
     {
-        auto rows = contains_stmt(key);
-        return rows.begin() != rows.end();
-    }
-
-    void save(const std::string& key, const literal& l)
-    {
-        if(contains(key))
-            return;
-        std::string_view data{l.data(), l.get_shape().bytes()};
-        std::int64_t chunk = 0;
-        // A literal with no bytes has no groups, and still writes chunk 0
-        if(data.empty())
-            insert_stmt(key, chunk, sqlite_blob_view{});
-        group_n(data.begin(), data.end(), chunk_bytes, [&](auto first, auto last) {
-            auto part = data.substr(first - data.begin(), last - first);
-            insert_stmt(key, chunk, sqlite_blob_view{part.data(), part.size()});
-            chunk++;
-        });
+        auto result   = key;
+        std::size_t n = 0;
+        while(has_chunk(result, 0) and not stored_equal(result, l))
+            result = key + "-" + std::to_string(++n);
+        if(not has_chunk(result, 0))
+            insert(result, l);
+        return result;
     }
 
     void commit() { db.execute("COMMIT;"); }
 
     private:
+    // Calls f with the number and the bytes of each chunk the literal is stored as
+    template <class F>
+    void for_each_chunk(const literal& l, F f) const
+    {
+        std::string_view data{l.data(), l.get_shape().bytes()};
+        std::int64_t chunk = 0;
+        // A literal with no bytes has no groups, and is still stored as an empty chunk 0
+        if(data.empty())
+            f(chunk, sqlite_blob_view{});
+        group_n(data.begin(), data.end(), chunk_bytes, [&](auto first, auto last) {
+            auto part = data.substr(first - data.begin(), last - first);
+            f(chunk, sqlite_blob_view{part.data(), part.size()});
+            chunk++;
+        });
+    }
+
+    bool has_chunk(const std::string& key, std::int64_t chunk) const
+    {
+        auto rows = has_chunk_stmt(key, chunk);
+        return rows.begin() != rows.end();
+    }
+
+    // True when the tensor stored under key has the same bytes as the literal. A tensor stored
+    // with another chunk size compares as different, which only costs a second copy of it.
+    bool stored_equal(const std::string& key, const literal& l) const
+    {
+        std::int64_t chunks  = 0;
+        std::int64_t matched = 0;
+        for_each_chunk(l, [&](std::int64_t chunk, sqlite_blob_view part) {
+            auto rows = equal_chunk_stmt(key, chunk, part);
+            if(rows.begin() != rows.end())
+                matched++;
+            chunks++;
+        });
+        // A further chunk means the stored tensor is longer than the literal
+        return matched == chunks and not has_chunk(key, chunks);
+    }
+
+    void insert(const std::string& key, const literal& l)
+    {
+        for_each_chunk(
+            l, [&](std::int64_t chunk, sqlite_blob_view part) { insert_stmt(key, chunk, part); });
+    }
+
     sqlite db;
     std::size_t chunk_bytes;
-    sqlite_stmt contains_stmt{};
+    sqlite_stmt has_chunk_stmt{};
+    sqlite_stmt equal_chunk_stmt{};
     sqlite_stmt insert_stmt{};
 };
 
@@ -577,8 +618,7 @@ void write_literals::apply(module& m) const
         gpu_literal lit{.host = staged or contains(plan.zero_copy, ins)};
         if(writer.has_value())
         {
-            writer->save(keys[i], ins->get_literal());
-            lit.key            = keys[i];
+            lit.key            = writer->save(keys[i], ins->get_literal());
             lit.path           = weights_file;
             lit.external_shape = s;
         }

@@ -49,6 +49,8 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <iterator>
 #include <numeric>
 #include <string>
@@ -942,6 +944,20 @@ literal_bytes(const migraphx::literal& l, std::size_t offset, std::size_t n)
     return {l.data() + offset, n};
 }
 
+// The attributes of each gpu::literal in the main module
+static std::vector<migraphx::value> gpu_literal_values(const migraphx::program& p)
+{
+    const auto* mm = p.get_main_module();
+    std::vector<migraphx::value> result;
+    migraphx::transform_if(
+        mm->begin(),
+        mm->end(),
+        std::back_inserter(result),
+        [](const migraphx::instruction& ins) { return ins.name() == "gpu::literal"; },
+        [](const migraphx::instruction& ins) { return ins.get_operator().to_value(); });
+    return result;
+}
+
 // Finalizes a program the pass has already run on and returns its outputs copied to the host
 static std::vector<migraphx::argument> eval_on_gpu(migraphx::program p)
 {
@@ -1020,6 +1036,136 @@ TEST_CASE(weights_file_shares_equal_literals)
     }
     run_weights_pass(m3, {.weights_file = path.string()});
     EXPECT(weights_rows(path).size() == 3);
+}
+
+// A published pair of 128-byte messages with the same md5 (Wang and Yu, 2004)
+static std::array<std::uint8_t, 128> md5_collision_first()
+{
+    return {0xd1, 0x31, 0xdd, 0x02, 0xc5, 0xe6, 0xee, 0xc4, 0x69, 0x3d, 0x9a, 0x06, 0x98,
+            0xaf, 0xf9, 0x5c, 0x2f, 0xca, 0xb5, 0x87, 0x12, 0x46, 0x7e, 0xab, 0x40, 0x04,
+            0x58, 0x3e, 0xb8, 0xfb, 0x7f, 0x89, 0x55, 0xad, 0x34, 0x06, 0x09, 0xf4, 0xb3,
+            0x02, 0x83, 0xe4, 0x88, 0x83, 0x25, 0x71, 0x41, 0x5a, 0x08, 0x51, 0x25, 0xe8,
+            0xf7, 0xcd, 0xc9, 0x9f, 0xd9, 0x1d, 0xbd, 0xf2, 0x80, 0x37, 0x3c, 0x5b, 0xd8,
+            0x82, 0x3e, 0x31, 0x56, 0x34, 0x8f, 0x5b, 0xae, 0x6d, 0xac, 0xd4, 0x36, 0xc9,
+            0x19, 0xc6, 0xdd, 0x53, 0xe2, 0xb4, 0x87, 0xda, 0x03, 0xfd, 0x02, 0x39, 0x63,
+            0x06, 0xd2, 0x48, 0xcd, 0xa0, 0xe9, 0x9f, 0x33, 0x42, 0x0f, 0x57, 0x7e, 0xe8,
+            0xce, 0x54, 0xb6, 0x70, 0x80, 0xa8, 0x0d, 0x1e, 0xc6, 0x98, 0x21, 0xbc, 0xb6,
+            0xa8, 0x83, 0x93, 0x96, 0xf9, 0x65, 0x2b, 0x6f, 0xf7, 0x2a, 0x70};
+}
+
+// The second message differs from the first in six bytes
+static std::array<std::uint8_t, 128> md5_collision_second()
+{
+    auto result = md5_collision_first();
+    result[19]  = 0x07;
+    result[45]  = 0xf1;
+    result[59]  = 0x72;
+    result[83]  = 0x34;
+    result[109] = 0x28;
+    result[123] = 0xab;
+    return result;
+}
+
+TEST_CASE(weights_file_md5_collision)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::uint8_type, {128}};
+    auto first_bytes  = md5_collision_first();
+    auto second_bytes = md5_collision_second();
+    migraphx::literal first{s, first_bytes.begin(), first_bytes.end()};
+    migraphx::literal second{s, second_bytes.begin(), second_bytes.end()};
+    auto key = weights_key(first, "uint8_type-128");
+    EXPECT(first != second);
+    EXPECT(weights_key(second, "uint8_type-128") == key);
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // The first literal is repeated to check it is still shared after the collision
+    auto l1 = mm->add_literal(first);
+    auto l2 = mm->add_literal(second);
+    auto l3 = mm->add_literal(first);
+    mm->add_return({l1, l2, l3});
+    run_weights_pass(*mm, {.weights_file = path.string()});
+
+    // The colliding literals are stored apart, each under a key of its own
+    auto literals = gpu_literal_values(p);
+    EXPECT(literals.size() == 3);
+    std::vector<std::string> keys;
+    std::transform(literals.begin(), literals.end(), std::back_inserter(keys), [](const auto& v) {
+        return v.at("key").template to<std::string>();
+    });
+    std::sort(keys.begin(), keys.end());
+    keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+    EXPECT(keys == std::vector<std::string>{key, key + "-1"});
+    EXPECT(weights_rows(path).size() == 2);
+
+    auto results = eval_on_gpu(p);
+    EXPECT(results.at(0) == first.get_argument());
+    EXPECT(results.at(1) == second.get_argument());
+    EXPECT(results.at(2) == first.get_argument());
+}
+
+TEST_CASE(weights_file_different_tensor_under_key)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto lit = migraphx::generate_literal(s, 1);
+    auto key = weights_key(lit, "float_type-2x3");
+
+    // Another tensor is stored, and then moved under the key of the literal
+    migraphx::module m1;
+    {
+        m1.add_return({add_literal(m1, s, 2)});
+    }
+    run_weights_pass(m1, {.weights_file = path.string()});
+    {
+        auto db     = migraphx::sqlite::write(path);
+        auto rename = db.prepare("UPDATE weights_v1 SET key = ?;");
+        rename(key);
+    }
+
+    // The literal is not taken to be the tensor under its key, and is stored beside it
+    auto p = make_literal_program(lit);
+    run_weights_pass(*p.get_main_module(), {.weights_file = path.string()});
+    migraphx::module m2;
+    {
+        m2.add_return({add_external_literal(m2, key + "-1", path, s)});
+    }
+    EXPECT(*p.get_main_module() == m2);
+    EXPECT(weights_rows(path).size() == 2);
+    EXPECT(eval_on_gpu(p).front() == lit.get_argument());
+
+    // The next compile finds the literal under the key with the counter
+    auto q = make_literal_program(lit);
+    run_weights_pass(*q.get_main_module(), {.weights_file = path.string()});
+    EXPECT(*q.get_main_module() == m2);
+    EXPECT(weights_rows(path).size() == 2);
+}
+
+TEST_CASE(weights_file_longer_tensor_under_key)
+{
+    migraphx::tmp_dir td{};
+    auto path = td.path / "weights.db";
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto lit = migraphx::generate_literal(s, 1);
+    auto key = weights_key(lit, "float_type-2x3");
+
+    // What is stored under the key starts with the bytes of the literal and has more after them
+    auto p = make_literal_program(lit);
+    run_weights_pass(*p.get_main_module(), {.weights_file = path.string()});
+    migraphx::sqlite::write(path).execute("INSERT INTO weights_v1 (key, chunk, data) VALUES ('" +
+                                          key + "', 1, x'00');");
+
+    auto q = make_literal_program(lit);
+    run_weights_pass(*q.get_main_module(), {.weights_file = path.string()});
+    migraphx::module m2;
+    {
+        m2.add_return({add_external_literal(m2, key + "-1", path, s)});
+    }
+    EXPECT(*q.get_main_module() == m2);
+    EXPECT(eval_on_gpu(q).front() == lit.get_argument());
 }
 
 TEST_CASE(weights_file_no_literals)
@@ -1119,20 +1265,6 @@ static migraphx::argument run_on_ref(migraphx::program p)
 {
     p.compile(migraphx::make_target("ref"));
     return run_weights_program(p);
-}
-
-// The attributes of each gpu::literal in the main module
-static std::vector<migraphx::value> gpu_literal_values(const migraphx::program& p)
-{
-    const auto* mm = p.get_main_module();
-    std::vector<migraphx::value> result;
-    migraphx::transform_if(
-        mm->begin(),
-        mm->end(),
-        std::back_inserter(result),
-        [](const migraphx::instruction& ins) { return ins.name() == "gpu::literal"; },
-        [](const migraphx::instruction& ins) { return ins.get_operator().to_value(); });
-    return result;
 }
 
 static migraphx::compile_options weights_options(const migraphx::fs::path& path)

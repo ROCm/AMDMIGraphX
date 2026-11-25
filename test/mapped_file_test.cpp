@@ -25,6 +25,8 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <cstdint>
+#include <type_traits>
+#include <utility>
 #include <vector>
 #include "test.hpp"
 
@@ -60,20 +62,44 @@ TEST_CASE(missing_file_throws)
     EXPECT(not migraphx::mapped_file::is_mapped(td.path / "missing.bin"));
 }
 
-TEST_CASE(writes_are_not_stored)
+// The mapping is read-only, so its data cannot be written through
+static_assert(
+    std::is_same<decltype(std::declval<const migraphx::mapped_file&>().data()), const char*>{});
+
+TEST_CASE(replace_unless_mapped_refuses_mapped_file)
 {
     migraphx::tmp_dir td{"mapped-file"};
     auto p = td.path / "data.bin";
     std::vector<char> content{'a', 'b', 'c'};
     migraphx::write_buffer(p, content);
+    bool replaced = false;
     {
         migraphx::mapped_file f{p};
-        f.data()[0] = 'z';
-        EXPECT(f.data()[0] == 'z');
-        EXPECT(migraphx::read_buffer(p) == content);
+        EXPECT(test::throws(
+            [&] { migraphx::mapped_file::replace_unless_mapped(p, [&] { replaced = true; }); }));
+        EXPECT(not replaced);
     }
+    migraphx::mapped_file::replace_unless_mapped(p, [&] { replaced = true; });
+    EXPECT(replaced);
     EXPECT(migraphx::read_buffer(p) == content);
 }
+
+TEST_CASE(replace_unless_mapped_missing_file)
+{
+    migraphx::tmp_dir td{"mapped-file"};
+    auto p = td.path / "new.bin";
+    migraphx::mapped_file::replace_unless_mapped(
+        p, [&] { migraphx::write_buffer(p, std::vector<char>{'a'}); });
+    EXPECT(migraphx::read_buffer(p) == std::vector<char>{'a'});
+}
+
+#ifdef __linux__
+TEST_CASE(write_buffer_reports_full_disk)
+{
+    // The write is buffered, so only the flush on close can fail
+    EXPECT(test::throws([] { migraphx::write_buffer("/dev/full", std::vector<char>(16, 'x')); }));
+}
+#endif
 
 TEST_CASE(is_mapped_tracks_lifetime)
 {

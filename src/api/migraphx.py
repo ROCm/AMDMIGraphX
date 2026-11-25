@@ -619,6 +619,9 @@ def file_options(h):
     h.method('set_external_data_path',
              api.params(path='const char*'),
              invoke='migraphx::set_external_data_path($@)')
+    h.method('add_external_data_allowed_path',
+             api.params(path='const char*'),
+             invoke='migraphx::add_external_data_allowed_path($@)')
     h.method('set_verify_external_weights',
              api.params(value='bool'),
              invoke='migraphx::set_verify_external_weights($@)')

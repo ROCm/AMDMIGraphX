@@ -26,6 +26,7 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/msgpack.hpp>
@@ -61,7 +62,6 @@ TEST_CASE(compiled_program_external_weights)
     migraphx::file_options save_options;
     save_options.external_weights_threshold = 1;
     migraphx::save(p1, filename, save_options);
-    EXPECT(migraphx::fs::exists(filename + ".data"));
 
     auto v = migraphx::from_msgpack(migraphx::read_buffer(filename));
     EXPECT(v.at("version").to<int>() == p1.get_program_file_version() + 1);
@@ -80,9 +80,12 @@ TEST_CASE(compiled_program_external_weights)
                 node.at("operator").at("data").at("external"));
         });
     EXPECT(not refs.empty());
-    EXPECT(std::all_of(refs.begin(), refs.end(), [](const auto& ref) {
+    EXPECT(migraphx::is_weights_generation(td.path / "model.mxr.data",
+                                           td.path / refs.front().file_path));
+    EXPECT(migraphx::fs::exists(td.path / refs.front().file_path));
+    EXPECT(std::all_of(refs.begin(), refs.end(), [&](const auto& ref) {
         return ref.offset % migraphx::external_data_alignment == 0 and
-               ref.file_path == "model.mxr.data";
+               ref.file_path == refs.front().file_path;
     }));
 
     migraphx::program p2 = migraphx::load(filename);
@@ -98,5 +101,28 @@ TEST_CASE(compiled_program_external_weights)
     migraphx::program p3 = migraphx::load(inline_file);
     EXPECT(p3.eval(params).back() == r1);
 }
+
+// A gpu::literal saved before external weights held an argument, which serializes the same as
+// an inline literal
+template <bool Host>
+static void loads_old_gpu_literal()
+{
+    migraphx::shape s{migraphx::shape::float_type, {5, 3}};
+    auto l = migraphx::generate_literal(s, 4);
+    migraphx::value data;
+    data["shape"] = migraphx::to_value(s);
+    data["data"]  = migraphx::value::binary{l.data(), s.bytes()};
+    migraphx::value v;
+    v["data"] = data;
+    v["host"] = Host;
+
+    auto op  = migraphx::make_op("gpu::literal", v);
+    auto ctx = migraphx::make_target("gpu").get_context();
+    op.finalize(ctx, s, {});
+    auto result = migraphx::gpu::from_gpu(op.compute(ctx, s, {}));
+    EXPECT(result == l.get_argument());
+}
+TEST_CASE_REGISTER(loads_old_gpu_literal<true>);
+TEST_CASE_REGISTER(loads_old_gpu_literal<false>);
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

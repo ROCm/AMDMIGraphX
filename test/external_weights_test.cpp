@@ -36,7 +36,9 @@
 #include <migraphx/tmp_dir.hpp>
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <iterator>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -110,12 +112,14 @@ TEST_CASE(round_trip_with_threshold)
     options.external_weights_threshold = big->get_shape().bytes();
     migraphx::save(p1, filename, options);
 
-    EXPECT(migraphx::fs::exists(filename + ".data"));
+    EXPECT(not migraphx::fs::exists(filename + ".data"));
     auto v = migraphx::from_msgpack(migraphx::read_buffer(filename));
     EXPECT(v.at("version").to<int>() == p1.get_program_file_version() + 1);
     auto refs = saved_external_refs(filename);
     EXPECT(refs.size() == 1);
-    EXPECT(refs.front().file_path == "model.mxr.data");
+    EXPECT(migraphx::is_weights_generation(td.path / "model.mxr.data",
+                                           td.path / refs.front().file_path));
+    EXPECT(migraphx::fs::exists(td.path / refs.front().file_path));
     EXPECT(refs.front().size == big->get_shape().bytes());
 
     migraphx::program p2 = migraphx::load(filename);
@@ -144,11 +148,13 @@ TEST_CASE(weights_file_override)
     options.external_weights_file      = (td.path / "custom.data").string();
     migraphx::save(p1, filename, options);
 
-    EXPECT(migraphx::fs::exists(td.path / "custom.data"));
+    EXPECT(not migraphx::fs::exists(td.path / "custom.data"));
     EXPECT(not migraphx::fs::exists(filename + ".data"));
     auto refs = saved_external_refs(filename);
     EXPECT(refs.size() == 1);
-    EXPECT(refs.front().file_path == "custom.data");
+    EXPECT(
+        migraphx::is_weights_generation(td.path / "custom.data", td.path / refs.front().file_path));
+    EXPECT(migraphx::fs::exists(td.path / refs.front().file_path));
     migraphx::program p2 = migraphx::load(filename);
     EXPECT(p1.sort() == p2.sort());
 }
@@ -187,7 +193,12 @@ TEST_CASE(json_round_trip)
     options.external_weights_threshold = 1;
     migraphx::save(p1, filename, options);
 
-    EXPECT(migraphx::fs::exists(filename + ".data"));
+    EXPECT(std::any_of(migraphx::fs::directory_iterator{td.path},
+                       migraphx::fs::directory_iterator{},
+                       [&](const migraphx::fs::directory_entry& e) {
+                           return migraphx::is_weights_generation(td.path / "model.json.data",
+                                                                  e.path());
+                       }));
     EXPECT(migraphx::read_string(filename).find("\"external\"") != std::string::npos);
     migraphx::program p2 = migraphx::load(filename, options);
     EXPECT(p1.sort() == p2.sort());
@@ -207,9 +218,10 @@ TEST_CASE(checksum_verification)
     options.external_weights_threshold = 1;
     migraphx::save(p1, filename, options);
 
-    auto weights = migraphx::read_buffer(filename + ".data");
+    auto weights_file = td.path / saved_external_refs(filename).front().file_path;
+    auto weights      = migraphx::read_buffer(weights_file);
     weights.at(5)++;
-    migraphx::write_buffer(filename + ".data", weights);
+    migraphx::write_buffer(weights_file, weights);
 
     migraphx::file_options verify;
     verify.verify_external_weights = true;
@@ -234,12 +246,13 @@ TEST_CASE(truncated_weights_file_throws)
     options.external_weights_threshold = 1;
     migraphx::save(p1, filename, options);
 
-    auto weights = migraphx::read_buffer(filename + ".data");
+    auto weights_file = td.path / saved_external_refs(filename).front().file_path;
+    auto weights      = migraphx::read_buffer(weights_file);
     weights.resize(weights.size() / 2);
-    migraphx::write_buffer(filename + ".data", weights);
+    migraphx::write_buffer(weights_file, weights);
     EXPECT(test::throws([&] { migraphx::load(filename); }));
 
-    migraphx::fs::remove(filename + ".data");
+    migraphx::fs::remove(weights_file);
     EXPECT(test::throws([&] { migraphx::load(filename); }));
 }
 
@@ -271,7 +284,8 @@ TEST_CASE(reuse_keeps_original_reference)
     auto other_refs = saved_external_refs(other);
     EXPECT(other_refs.size() == 1);
     EXPECT(migraphx::fs::path{other_refs.front().file_path}.is_absolute());
-    EXPECT(migraphx::fs::equivalent(other_refs.front().file_path, original + ".data"));
+    EXPECT(migraphx::fs::equivalent(other_refs.front().file_path,
+                                    td.path / "a" / original_refs.front().file_path));
     EXPECT(other_refs.front().offset == original_refs.front().offset);
     EXPECT(other_refs.front().size == original_refs.front().size);
     EXPECT(other_refs.front().checksum == original_refs.front().checksum);
@@ -281,15 +295,19 @@ TEST_CASE(reuse_keeps_original_reference)
     migraphx::save(p2, sibling, reuse);
     auto sibling_refs = saved_external_refs(sibling);
     EXPECT(sibling_refs.size() == 1);
-    EXPECT(sibling_refs.front().file_path == "model.mxr.data");
+    EXPECT(sibling_refs.front().file_path == original_refs.front().file_path);
 
-    migraphx::program p3 = migraphx::load(other);
+    // The absolute reference leaves other.mxr's directory, so loading it needs a/ allowed
+    EXPECT(test::throws([&] { migraphx::load(other); }));
+    migraphx::file_options allow;
+    allow.external_data_allowed_paths = {(td.path / "a").string()};
+    migraphx::program p3              = migraphx::load(other, allow);
     EXPECT(p1.sort() == p3.sort());
     migraphx::program p4 = migraphx::load(sibling);
     EXPECT(p1.sort() == p4.sort());
 }
 
-TEST_CASE(overwrite_mapped_weights_throws)
+TEST_CASE(save_over_mapped_weights_writes_new_generation)
 {
     migraphx::tmp_dir td{"external-weights"};
     auto filename = (td.path / "model.mxr").string();
@@ -301,18 +319,241 @@ TEST_CASE(overwrite_mapped_weights_throws)
     migraphx::file_options options;
     options.external_weights_threshold = 1;
     migraphx::save(p1, filename, options);
-    auto program_bytes = migraphx::read_buffer(filename);
+    auto first = td.path / saved_external_refs(filename).front().file_path;
+    migraphx::fs::path second;
     {
         migraphx::program p2 = migraphx::load(filename);
-        EXPECT(migraphx::mapped_file::is_mapped(filename + ".data"));
-        EXPECT(test::throws([&] { migraphx::save(p2, filename, options); }));
-        EXPECT(migraphx::read_buffer(filename) == program_bytes);
+        EXPECT(migraphx::mapped_file::is_mapped(first));
+        migraphx::save(p2, filename, options);
+        second = td.path / saved_external_refs(filename).front().file_path;
+        EXPECT(second != first);
+        // The replaced generation is still mapped by p2, so it is kept
+        EXPECT(migraphx::fs::exists(first));
         EXPECT(p1.sort() == p2.sort());
     }
-    EXPECT(not migraphx::mapped_file::is_mapped(filename + ".data"));
+    EXPECT(not migraphx::mapped_file::is_mapped(first));
     migraphx::save(p1, filename, options);
+    auto third = td.path / saved_external_refs(filename).front().file_path;
+    EXPECT(third != second);
+    EXPECT(not migraphx::fs::exists(second));
+    EXPECT(migraphx::fs::exists(third));
     migraphx::program p3 = migraphx::load(filename);
     EXPECT(p1.sort() == p3.sort());
+}
+
+TEST_CASE(save_removes_replaced_generation)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {32}}));
+    mm->add_return({l});
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(p1, filename, options);
+    auto first = td.path / saved_external_refs(filename).front().file_path;
+    migraphx::save(p1, filename, options);
+    auto second = td.path / saved_external_refs(filename).front().file_path;
+    EXPECT(first != second);
+    EXPECT(not migraphx::fs::exists(first));
+    EXPECT(std::count_if(migraphx::fs::directory_iterator{td.path},
+                         migraphx::fs::directory_iterator{},
+                         [&](const migraphx::fs::directory_entry& e) {
+                             return migraphx::is_weights_generation(td.path / "model.mxr.data",
+                                                                    e.path());
+                         }) == 1);
+    migraphx::program p2 = migraphx::load(filename);
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(weights_file_same_as_program_throws)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {32}}));
+    mm->add_return({l});
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    options.external_weights_file      = (td.path / "." / "model.mxr").string();
+    EXPECT(test::throws([&] { migraphx::save(p1, filename, options); }));
+    EXPECT(migraphx::fs::is_empty(td.path));
+}
+
+TEST_CASE(failed_publish_removes_new_generation)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    // A directory cannot be replaced by the program file
+    auto filename = td.path / "model.mxr";
+    migraphx::fs::create_directories(filename / "keep");
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {32}}));
+    mm->add_return({l});
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    EXPECT(test::throws([&] { migraphx::save(p1, filename.string(), options); }));
+    EXPECT(migraphx::fs::is_directory(filename / "keep"));
+    EXPECT(std::distance(migraphx::fs::directory_iterator{td.path},
+                         migraphx::fs::directory_iterator{}) == 1);
+}
+
+TEST_CASE(save_over_mapped_file_throws)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {32}}));
+    mm->add_return({l});
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(p1, filename, options);
+    auto weights_file  = td.path / saved_external_refs(filename).front().file_path;
+    auto weights_bytes = migraphx::read_buffer(weights_file);
+
+    migraphx::program p2 = migraphx::load(filename);
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::save(p2, weights_file.string()); },
+                                             "while a loaded program maps it"));
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::save(p2, weights_file.string(), options); },
+        "while a loaded program maps it"));
+    EXPECT(migraphx::read_buffer(weights_file) == weights_bytes);
+
+    // A save that only reuses the mapped data is still fine
+    migraphx::file_options reuse;
+    reuse.reuse_external_data = true;
+    auto other                = (td.path / "other.mxr").string();
+    migraphx::save(p2, other, reuse);
+    EXPECT(saved_external_refs(other).front().file_path ==
+           saved_external_refs(filename).front().file_path);
+    migraphx::program p3 = migraphx::load(other);
+    EXPECT(p1.sort() == p3.sort());
+}
+
+TEST_CASE(load_confines_external_data)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    migraphx::fs::create_directories(td.path / "a");
+    migraphx::fs::create_directories(td.path / "b");
+    auto original = (td.path / "a" / "model.mxr").string();
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {32}}));
+    mm->add_return({l});
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(p1, original, options);
+    auto generation = saved_external_refs(original).front().file_path;
+
+    auto v      = migraphx::from_msgpack(migraphx::read_buffer(original));
+    auto& nodes = v.at("modules").at("main").at("nodes");
+    auto node   = std::find_if(nodes.begin(), nodes.end(), [](const migraphx::value& n) {
+        return n.contains("literal") and n.at("literal").contains("external");
+    });
+    EXPECT(node != nodes.end());
+    auto& file_path = (*node)["literal"]["external"]["file_path"];
+
+    migraphx::file_options allow_a;
+    allow_a.external_data_allowed_paths = {(td.path / "a").string()};
+
+    auto escaped = (td.path / "b" / "escaped.mxr").string();
+    file_path    = "../a/" + generation;
+    migraphx::write_buffer(escaped, migraphx::to_msgpack(v));
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::load(escaped); }, "is outside"));
+    EXPECT(p1.sort() == migraphx::load(escaped, allow_a).sort());
+
+    auto absolute = (td.path / "b" / "absolute.mxr").string();
+    file_path     = (td.path / "a" / generation).string();
+    migraphx::write_buffer(absolute, migraphx::to_msgpack(v));
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::load(absolute); }, "is outside"));
+    EXPECT(p1.sort() == migraphx::load(absolute, allow_a).sort());
+
+#ifndef _WIN32
+    auto linked = (td.path / "b" / "linked.mxr").string();
+    migraphx::fs::create_symlink(td.path / "a" / generation, td.path / "b" / "link.data");
+    file_path = "link.data";
+    migraphx::write_buffer(linked, migraphx::to_msgpack(v));
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::load(linked); }, "is outside"));
+    EXPECT(p1.sort() == migraphx::load(linked, allow_a).sort());
+#endif
+
+    migraphx::file_options missing_dir;
+    missing_dir.external_data_allowed_paths = {(td.path / "missing").string()};
+    EXPECT(test::throws([&] { migraphx::load(original, missing_dir); }));
+}
+
+TEST_CASE(verify_rejects_missing_checksum)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {32}}));
+    mm->add_return({l});
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(p1, filename, options);
+    auto v      = migraphx::from_msgpack(migraphx::read_buffer(filename));
+    auto& nodes = v.at("modules").at("main").at("nodes");
+    auto node   = std::find_if(nodes.begin(), nodes.end(), [](const migraphx::value& n) {
+        return n.contains("literal") and n.at("literal").contains("external");
+    });
+    EXPECT(node != nodes.end());
+    (*node)["literal"]["external"]["checksum"] = "";
+    migraphx::write_buffer(filename, migraphx::to_msgpack(v));
+
+    EXPECT(p1.sort() == migraphx::load(filename).sort());
+    migraphx::file_options verify;
+    verify.verify_external_weights = true;
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::load(filename, verify); },
+                                             "has no checksum"));
+}
+
+TEST_CASE(malformed_references_throw)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::shape s{migraphx::shape::float_type, {32}};
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal(s));
+    mm->add_return({l});
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(p1, filename, options);
+    const auto v = migraphx::from_msgpack(migraphx::read_buffer(filename));
+
+    const std::size_t max = std::numeric_limits<std::size_t>::max();
+    const std::vector<std::function<void(migraphx::value&)>> corruptions = {
+        [&](migraphx::value& lit) {
+            lit["shape"] = migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{s}});
+        },
+        [&](migraphx::value& lit) { lit["external"]["offset"] = max; },
+        [&](migraphx::value& lit) { lit["external"]["size"] = max; },
+        [&](migraphx::value& lit) { lit["external"]["size"] = s.bytes() - 4; },
+        [&](migraphx::value& lit) { lit["external"]["file_path"] = ""; },
+    };
+    auto bad = (td.path / "bad.mxr").string();
+    EXPECT(std::all_of(corruptions.begin(), corruptions.end(), [&](const auto& corrupt) {
+        auto c      = v;
+        auto& nodes = c.at("modules").at("main").at("nodes");
+        auto node   = std::find_if(nodes.begin(), nodes.end(), [](const migraphx::value& n) {
+            return n.contains("literal") and n.at("literal").contains("external");
+        });
+        corrupt((*node)["literal"]);
+        migraphx::write_buffer(bad, migraphx::to_msgpack(c));
+        return test::throws([&] { migraphx::load(bad); });
+    }));
 }
 
 TEST_CASE(program_file_versions)
@@ -396,7 +637,13 @@ TEST_CASE(save_buffer_with_weights_file)
     options.external_weights_file      = (td.path / "weights.data").string();
     options.external_data_path         = td.path.string();
     auto buffer                        = migraphx::save_buffer(p1, options);
-    EXPECT(migraphx::fs::exists(td.path / "weights.data"));
+    EXPECT(not migraphx::fs::exists(td.path / "weights.data"));
+    EXPECT(std::any_of(migraphx::fs::directory_iterator{td.path},
+                       migraphx::fs::directory_iterator{},
+                       [&](const migraphx::fs::directory_entry& e) {
+                           return migraphx::is_weights_generation(td.path / "weights.data",
+                                                                  e.path());
+                       }));
     migraphx::program p2 = migraphx::load_buffer(buffer, options);
     EXPECT(p1.sort() == p2.sort());
 }
@@ -417,9 +664,10 @@ TEST_CASE(alignment_int8_padding)
     migraphx::save(p1, filename, options);
 
     // add_literal inserts at the front, so the module holds them in reverse
-    check_weights_layout(saved_external_refs(filename),
+    auto refs = saved_external_refs(filename);
+    check_weights_layout(refs,
                          {l3->get_literal(), l2->get_literal(), l1->get_literal()},
-                         migraphx::read_buffer(filename + ".data"),
+                         migraphx::read_buffer(td.path / refs.front().file_path),
                          migraphx::external_data_alignment);
 }
 
@@ -438,9 +686,10 @@ TEST_CASE(alignment_half_odd_elements)
     options.external_weights_threshold = 1;
     migraphx::save(p1, filename, options);
 
-    check_weights_layout(saved_external_refs(filename),
+    auto refs = saved_external_refs(filename);
+    check_weights_layout(refs,
                          {l3->get_literal(), l2->get_literal(), l1->get_literal()},
-                         migraphx::read_buffer(filename + ".data"),
+                         migraphx::read_buffer(td.path / refs.front().file_path),
                          migraphx::external_data_alignment);
 }
 
@@ -460,10 +709,11 @@ TEST_CASE(alignment_mixed_types)
     options.external_weights_threshold = 1;
     migraphx::save(p1, filename, options);
 
+    auto refs = saved_external_refs(filename);
     check_weights_layout(
-        saved_external_refs(filename),
+        refs,
         {l4->get_literal(), l3->get_literal(), l2->get_literal(), l1->get_literal()},
-        migraphx::read_buffer(filename + ".data"),
+        migraphx::read_buffer(td.path / refs.front().file_path),
         migraphx::external_data_alignment);
 }
 
@@ -484,7 +734,7 @@ TEST_CASE(alignment_already_aligned_sizes)
     migraphx::save(p1, filename, options);
 
     auto refs    = saved_external_refs(filename);
-    auto weights = migraphx::read_buffer(filename + ".data");
+    auto weights = migraphx::read_buffer(td.path / refs.front().file_path);
     check_weights_layout(
         refs, {l2->get_literal(), l1->get_literal()}, weights, migraphx::external_data_alignment);
     EXPECT(refs.at(1).offset == refs.at(0).offset + refs.at(0).size);
@@ -510,7 +760,7 @@ TEST_CASE(alignment_custom)
     auto refs = saved_external_refs(filename);
     check_weights_layout(refs,
                          {l3->get_literal(), l2->get_literal(), l1->get_literal()},
-                         migraphx::read_buffer(filename + ".data"),
+                         migraphx::read_buffer(td.path / refs.front().file_path),
                          4096);
     migraphx::program p2 = migraphx::load(filename);
     EXPECT(p1.sort() == p2.sort());
@@ -594,18 +844,20 @@ TEST_CASE(alignment_with_reuse)
     options.reuse_external_data = true;
     migraphx::save(p2, second, options);
 
-    auto refs = saved_external_refs(second);
+    auto first_file = saved_external_refs(first).front().file_path;
+    auto refs       = saved_external_refs(second);
     EXPECT(refs.size() == 3);
     std::vector<migraphx::external_data> written;
-    std::copy_if(refs.begin(), refs.end(), std::back_inserter(written), [](const auto& ref) {
-        return ref.file_path == "second.mxr.data";
+    std::copy_if(refs.begin(), refs.end(), std::back_inserter(written), [&](const auto& ref) {
+        return migraphx::is_weights_generation(td.path / "second.mxr.data",
+                                               td.path / ref.file_path);
     });
-    EXPECT(std::count_if(refs.begin(), refs.end(), [](const auto& ref) {
-               return ref.file_path == "first.mxr.data";
+    EXPECT(std::count_if(refs.begin(), refs.end(), [&](const auto& ref) {
+               return ref.file_path == first_file;
            }) == 1);
     check_weights_layout(written,
                          {n2->get_literal(), n1->get_literal()},
-                         migraphx::read_buffer(second + ".data"),
+                         migraphx::read_buffer(td.path / written.front().file_path),
                          migraphx::external_data_alignment);
 
     migraphx::program p3 = migraphx::load(second);

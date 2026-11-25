@@ -77,8 +77,10 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     parser.max_loop_iterations    = options.max_loop_iterations;
     parser.limit_max_iterations   = options.limit_max_iterations;
 
-    // Tensors stored in the same external file share one mapping
-    scoped_external_data_reader reader{external_data_load_options{}};
+    // Tensors stored in the same external file share one mapping; the parser confines the paths
+    external_data_load_options reader_options;
+    reader_options.confine = false;
+    scoped_external_data_reader reader{reader_options};
 
     if(options.print_program_on_error)
     {

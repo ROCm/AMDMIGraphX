@@ -98,10 +98,10 @@ struct mapped_file_impl
         if(size == 0)
             return;
         // The view keeps the file mapped after both handles are closed
-        handle_ptr mapping{CreateFileMappingW(file.get(), nullptr, PAGE_WRITECOPY, 0, 0, nullptr)};
+        handle_ptr mapping{CreateFileMappingW(file.get(), nullptr, PAGE_READONLY, 0, 0, nullptr)};
         if(mapping == nullptr)
             MIGRAPHX_THROW("Failure mapping file: " + p.string() + " (" + last_error() + ")");
-        data = static_cast<char*>(MapViewOfFile(mapping.get(), FILE_MAP_COPY, 0, 0, 0));
+        data = static_cast<const char*>(MapViewOfFile(mapping.get(), FILE_MAP_READ, 0, 0, 0));
         if(data == nullptr)
             MIGRAPHX_THROW("Failure mapping file: " + p.string() + " (" + last_error() + ")");
     }
@@ -117,7 +117,7 @@ struct mapped_file_impl
 
     fs::path path;
     std::string key;
-    char* data       = nullptr;
+    const char* data = nullptr;
     std::size_t size = 0;
 };
 
@@ -142,12 +142,12 @@ struct mapped_file_impl
             close(fd);
             return;
         }
-        void* m = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0); // NOLINT
+        void* m = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0); // NOLINT
         // The mapping stays valid after the descriptor is closed
         close(fd);
         if(m == MAP_FAILED) // NOLINT
             MIGRAPHX_THROW("Failure mapping file: " + p.string());
-        data = static_cast<char*>(m);
+        data = static_cast<const char*>(m);
     }
 
     mapped_file_impl(const mapped_file_impl&)            = delete;
@@ -156,22 +156,24 @@ struct mapped_file_impl
     ~mapped_file_impl()
     {
         if(data != nullptr)
-            munmap(data, size);
+            munmap(const_cast<char*>(data), size); // NOLINT(cppcoreguidelines-pro-type-const-cast)
     }
 
     fs::path path;
     std::string key;
-    char* data       = nullptr;
+    const char* data = nullptr;
     std::size_t size = 0;
 };
 
 #endif
 
-// The key is kept from construction since the file may be renamed or removed while mapped
-mapped_file::mapped_file(const fs::path& p) : impl(std::make_unique<mapped_file_impl>(p))
+// The key is kept from construction since the file may be renamed or removed while mapped. The
+// lock is held while mapping so replace_unless_mapped cannot replace the file in between.
+mapped_file::mapped_file(const fs::path& p)
 {
-    impl->key = registry_key(p);
     std::lock_guard<std::mutex> lock(registry().mutex);
+    impl      = std::make_unique<mapped_file_impl>(p);
+    impl->key = registry_key(p);
     registry().counts[impl->key]++;
 }
 
@@ -185,7 +187,7 @@ mapped_file::~mapped_file()
         registry().counts.erase(it);
 }
 
-char* mapped_file::data() const { return impl->data; }
+const char* mapped_file::data() const { return impl->data; }
 
 std::size_t mapped_file::size() const { return impl->size; }
 
@@ -198,6 +200,15 @@ bool mapped_file::is_mapped(const fs::path& p)
         return false;
     std::lock_guard<std::mutex> lock(registry().mutex);
     return registry().counts.count(key) > 0;
+}
+
+void mapped_file::replace_unless_mapped(const fs::path& p, const std::function<void()>& replace)
+{
+    std::lock_guard<std::mutex> lock(registry().mutex);
+    auto key = registry_key(p);
+    if(not key.empty() and registry().counts.count(key) > 0)
+        MIGRAPHX_THROW("Cannot overwrite " + p.string() + " while a loaded program maps it");
+    replace();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

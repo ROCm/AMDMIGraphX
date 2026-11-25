@@ -494,14 +494,15 @@ parse_tf
 load
 ----
 
-.. py:function:: load(filename, format='msgpack', external_data_path='', verify_external_weights=False)
+.. py:function:: load(filename, format='msgpack', external_data_path='', verify_external_weights=False, external_data_allowed_paths=[])
 
     Loads a MIGraphX program.
 
     :param str filename: Path to file.
     :param str format: Format of file. Valid options are msgpack or json.
     :param str external_data_path: Directory that relative references to external weights resolve against. Defaults to the directory of the file.
-    :param bool verify_external_weights: Check the MD5 checksum of each externally stored literal.
+    :param bool verify_external_weights: Check the MD5 checksum of each externally stored literal, and reject literals saved without one. MD5 detects corruption, not tampering.
+    :param list external_data_allowed_paths: Additional directories that external data files may be in. Otherwise a file whose real location, after following symbolic links, is outside ``external_data_path`` is rejected.
 
     :rtype: program
 
@@ -516,6 +517,6 @@ save
     :param str filename: Path to file.
     :param str format: Format of file. Valid options are msgpack or json.
     :param int external_weights: Save literals of at least this many bytes to a separate weights file, at 64-byte aligned offsets. None stores every literal in the program file.
-    :param str external_weights_file: Weights file to write. Defaults to the file name with ``.data`` appended.
+    :param str external_weights_file: Base name of the weights file. Defaults to the file name with ``.data`` appended. Each save writes a new file ``<stem>.<id><extension>`` beside it, before the program file, and then deletes the weights files of the replaced program that are no longer referenced.
     :param bool reuse_external_data: Save a reference to the file each literal was read from instead of its data.
 

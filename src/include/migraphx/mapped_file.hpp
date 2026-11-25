@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
 #include <cstddef>
+#include <functional>
 #include <memory>
 
 namespace migraphx {
@@ -35,9 +36,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct mapped_file_impl;
 
 /**
- * @brief A whole file mapped into memory
- * @details The mapping is private and copy-on-write: writes through data() are never stored in
- * the file. The data stays valid for the lifetime of the object.
+ * @brief A whole file mapped read-only into memory
+ * @details The data stays valid for the lifetime of the object.
  */
 struct MIGRAPHX_EXPORT mapped_file
 {
@@ -48,12 +48,16 @@ struct MIGRAPHX_EXPORT mapped_file
     mapped_file& operator=(const mapped_file&) = delete;
 
     /// Start of the mapping; nullptr for an empty file
-    char* data() const;
+    const char* data() const;
     std::size_t size() const;
     const fs::path& path() const;
 
     /// Whether any live mapped_file in this process maps the file at p
     static bool is_mapped(const fs::path& p);
+
+    /// Run replace, which overwrites p, unless a live mapped_file maps p; no mapping of p can be
+    /// created while it runs
+    static void replace_unless_mapped(const fs::path& p, const std::function<void()>& replace);
 
     private:
     std::unique_ptr<mapped_file_impl> impl;

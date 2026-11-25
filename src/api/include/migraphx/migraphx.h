@@ -775,6 +775,9 @@ migraphx_file_options_set_reuse_external_data(migraphx_file_options_t file_optio
 MIGRAPHX_C_EXPORT migraphx_status migraphx_file_options_set_external_data_path(
     migraphx_file_options_t file_options, const char* path);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_file_options_add_external_data_allowed_path(
+    migraphx_file_options_t file_options, const char* path);
+
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_set_verify_external_weights(migraphx_file_options_t file_options, bool value);
 

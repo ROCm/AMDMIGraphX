@@ -31,17 +31,19 @@
 #include <migraphx/raw_data.hpp>
 #include <migraphx/make_shared_array.hpp>
 #include <migraphx/errors.hpp>
-#include <migraphx/external_data.hpp>
 #include <migraphx/config.hpp>
 
 #include <algorithm>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct external_data;
+struct external_data_source;
+struct mapped_file;
 
 /**
  * @brief Represents a raw literal
@@ -57,31 +59,30 @@ struct literal : raw_data<literal>
     explicit literal(shape::type_t shape_type) : m_shape(shape_type, {}) {}
 
     template <class U, class T = deduce<U>, shape::type_t ShapeType = shape::get_type<T>{}>
-    literal(U x) : buffer(make_shared_array<char>(sizeof(T))), m_shape(ShapeType)
+    literal(U x) : m_shape(ShapeType)
     {
         static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
-        *(reinterpret_cast<T*>(buffer.get())) = x;
+        auto b                           = make_shared_array<char>(sizeof(T));
+        *(reinterpret_cast<T*>(b.get())) = x;
+        buffer                           = std::move(b);
     }
 
     template <class T>
-    literal(const shape& s, const std::vector<T>& x)
-        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+    literal(const shape& s, const std::vector<T>& x) : m_shape(s)
     {
         static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
     }
 
     template <class T>
-    literal(const shape& s, const std::initializer_list<T>& x)
-        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+    literal(const shape& s, const std::initializer_list<T>& x) : m_shape(s)
     {
         static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
     }
 
     template <class Iterator>
-    literal(const shape& s, Iterator start, Iterator end)
-        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+    literal(const shape& s, Iterator start, Iterator end) : m_shape(s)
     {
         fill(start, end);
     }
@@ -111,7 +112,6 @@ struct literal : raw_data<literal>
             result.buffer = make_shared_array<char>(x, x + nbytes);
             return result;
         }
-        result.buffer = make_shared_array<char>(s.bytes());
         // x may not be aligned for the element type, so copy it into typed storage first
         s.visit_type([&](auto as) {
             std::vector<typename decltype(as)::type> values(s.elements());
@@ -136,12 +136,13 @@ struct literal : raw_data<literal>
     const shape& get_shape() const { return this->m_shape; }
 
     /// Whether the data was read from an external file
-    bool is_external() const { return this->m_external.has_value(); }
+    bool is_external() const { return this->m_source != nullptr; }
 
-    /// Where the data is stored outside the program file, if anywhere
-    const std::optional<external_data>& get_external_data() const { return this->m_external; }
+    /// Where the data is stored outside the program file, or nullptr when it is inline
+    MIGRAPHX_EXPORT const external_data* get_external_data() const;
 
-    const std::shared_ptr<mapped_file>& get_mapped_file() const { return this->m_file; }
+    /// The mapping the external data was read from, or nullptr when it is inline
+    MIGRAPHX_EXPORT std::shared_ptr<mapped_file> get_mapped_file() const;
 
     std::vector<literal> get_sub_objects() const { return {}; }
 
@@ -152,11 +153,14 @@ struct literal : raw_data<literal>
         return {m_shape, [b]() { return b.get(); }};
     }
 
+    /// An argument aliasing the data without copying it. The data may be a read-only mapping, so
+    /// the argument must only be read.
+    MIGRAPHX_EXPORT argument share_argument() const;
+
     private:
-    std::shared_ptr<char> buffer;
+    std::shared_ptr<const char> buffer;
     shape m_shape;
-    std::optional<external_data> m_external = std::nullopt;
-    std::shared_ptr<mapped_file> m_file     = nullptr;
+    std::shared_ptr<const external_data_source> m_source = nullptr;
 
     // Keeps the same data ordering as the given container. Fewer values than the shape's
     // elements fills only the leading elements; the rest remain zero.
@@ -167,10 +171,12 @@ struct literal : raw_data<literal>
             MIGRAPHX_THROW("literal: number of values " +
                            std::to_string(std::distance(start, end)) + " exceeds shape elements " +
                            std::to_string(m_shape.elements()));
+        auto b = make_shared_array<char>(m_shape.bytes());
         m_shape.visit_type([&](auto as) {
-            auto output = make_view(m_shape, as.from(buffer.get()));
+            auto output = make_view(m_shape, as.from(b.get()));
             std::copy(start, end, output.begin());
         });
+        buffer = std::move(b);
     }
 };
 

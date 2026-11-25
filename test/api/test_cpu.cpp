@@ -269,4 +269,28 @@ TEST_CASE(set_external_data_path)
     CHECK(shapes_before.front() == outputs.front().get_shape());
 }
 
+TEST_CASE(set_reuse_external_data)
+{
+    std::string model_path = "ext_path/external_data_test.onnx";
+    auto onnx_buffer       = migraphx::read_string(model_path);
+    migraphx::onnx_options copy_options;
+    copy_options.set_external_data_path("ext_path");
+    migraphx::onnx_options reuse_options;
+    reuse_options.set_external_data_path("ext_path");
+    reuse_options.set_reuse_external_data();
+    auto copied = migraphx::parse_onnx_buffer(onnx_buffer, copy_options);
+    auto reused = migraphx::parse_onnx_buffer(onnx_buffer, reuse_options);
+    EXPECT(copied.sort() == reused.sort());
+
+    copied.compile(migraphx::target("ref"));
+    reused.compile(migraphx::target("ref"));
+    migraphx::program_parameters pp;
+    auto param_shapes = copied.get_parameter_shapes();
+    for(auto&& name : param_shapes.names())
+    {
+        pp.add(name, migraphx::argument::generate(param_shapes[name]));
+    }
+    EXPECT(copied.eval(pp).front() == reused.eval(pp).front());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

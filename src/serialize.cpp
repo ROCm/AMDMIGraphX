@@ -31,12 +31,12 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static const std::optional<external_data>& original_external_data(const literal& l)
+static const external_data* original_external_data(const literal& l)
 {
     return l.get_external_data();
 }
 
-static std::optional<external_data> original_external_data(const argument&) { return std::nullopt; }
+static const external_data* original_external_data(const argument&) { return nullptr; }
 
 template <class RawData>
 static void raw_data_to_value(value& v, const RawData& rd)

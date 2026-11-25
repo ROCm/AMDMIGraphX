@@ -93,13 +93,13 @@ std::string compute_type_name()
 
     name = __PRETTY_FUNCTION__;
 
-    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
-#if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
+    auto begin = name.find(parameter_name) + sizeof(parameter_name);
+#if (defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
     auto length = name.find_last_of(",") - begin;
 #else
     auto length = name.find_first_of("];", begin) - begin;
 #endif
-    name        = name.substr(begin, length);
+    name = name.substr(begin, length);
 #endif
     return name;
 }
@@ -1654,7 +1654,8 @@ struct file_options : MIGRAPHX_HANDLE_BASE(file_options)
         call(&migraphx_file_options_set_external_weights_threshold, this->get_handle_ptr(), value);
     }
 
-    /// Weights file to save to; by default the program file name with ".data" appended
+    /// Base name of the weights file; each save writes a new <stem>.<id><extension> beside it. By
+    /// default the program file name with ".data" appended
     void set_external_weights_file(const std::string& path)
     {
         call(
@@ -1667,13 +1668,23 @@ struct file_options : MIGRAPHX_HANDLE_BASE(file_options)
         call(&migraphx_file_options_set_reuse_external_data, this->get_handle_ptr(), value);
     }
 
-    /// Directory relative external references resolve against when loading
+    /// Directory relative external references resolve against, and which every reference must
+    /// lie within, when loading
     void set_external_data_path(const std::string& path)
     {
         call(&migraphx_file_options_set_external_data_path, this->get_handle_ptr(), path.c_str());
     }
 
-    /// Check the checksum of each external literal when loading
+    /// Further directory external references may point into when loading
+    void add_external_data_allowed_path(const std::string& path)
+    {
+        call(&migraphx_file_options_add_external_data_allowed_path,
+             this->get_handle_ptr(),
+             path.c_str());
+    }
+
+    /// Check the md5 checksum of each external literal when loading, rejecting literals that
+    /// have none; this detects corruption, not tampering
     void set_verify_external_weights(bool value = true)
     {
         call(&migraphx_file_options_set_verify_external_weights, this->get_handle_ptr(), value);

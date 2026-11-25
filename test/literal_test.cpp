@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/literal.hpp>
+#include <migraphx/external_data.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/mapped_file.hpp>
 #include <migraphx/serialize.hpp>
@@ -362,12 +363,59 @@ TEST_CASE(literal_from_mapped_file_invalid)
     migraphx::write_buffer(p, std::vector<char>(16, 1));
     auto file = std::make_shared<migraphx::mapped_file>(p);
     migraphx::shape s{migraphx::shape::int32_type, {2}};
-    EXPECT(test::throws(
-        [&] { migraphx::literal::from_mapped_file(s, nullptr, {p.string(), 0, s.bytes(), ""}); }));
-    EXPECT(test::throws(
-        [&] { migraphx::literal::from_mapped_file(s, file, {p.string(), 0, 4, ""}); }));
-    EXPECT(test::throws(
-        [&] { migraphx::literal::from_mapped_file(s, file, {p.string(), 12, s.bytes(), ""}); }));
+    EXPECT(test::throws([&] {
+        migraphx::literal::from_mapped_file(s, nullptr, {p.string(), 0, s.bytes(), ""});
+    }));
+    EXPECT(test::throws([&] {
+        migraphx::literal::from_mapped_file(s, file, {p.string(), 0, 4, ""});
+    }));
+    EXPECT(test::throws([&] {
+        migraphx::literal::from_mapped_file(s, file, {p.string(), 12, s.bytes(), ""});
+    }));
+}
+
+TEST_CASE(literal_from_mapped_file_rejects_tuple_and_dynamic)
+{
+    migraphx::tmp_dir td{"literal"};
+    auto p = td.path / "weights.data";
+    migraphx::write_buffer(p, std::vector<char>(16, 1));
+    auto file = std::make_shared<migraphx::mapped_file>(p);
+    migraphx::shape tuple{{migraphx::shape{migraphx::shape::int32_type, {2}}}};
+    EXPECT(test::throws([&] {
+        migraphx::literal::from_mapped_file(tuple, file, {p.string(), 0, 8, ""});
+    }));
+    migraphx::shape dynamic{migraphx::shape::int32_type,
+                            {migraphx::shape::dynamic_dimension{1, 4}}};
+    EXPECT(test::throws([&] {
+        migraphx::literal::from_mapped_file(dynamic, file, {p.string(), 0, 8, ""});
+    }));
+}
+
+TEST_CASE(literal_share_argument_aliases_data)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    migraphx::literal l{s, {1.0f, 2.0f, 3.0f}};
+    auto shared = l.share_argument();
+    EXPECT(shared.get_shape() == s);
+    EXPECT(shared.data() == l.data());
+    auto copied = l.get_argument();
+    EXPECT(copied.data() != l.data());
+    EXPECT(shared == copied);
+}
+
+TEST_CASE(literal_share_argument_mapped_file)
+{
+    migraphx::tmp_dir td{"literal"};
+    auto p = td.path / "weights.data";
+    std::vector<float> values{1.5f, 2.5f};
+    migraphx::write_buffer(
+        p, reinterpret_cast<const char*>(values.data()), values.size() * sizeof(float));
+    auto file = std::make_shared<migraphx::mapped_file>(p);
+    migraphx::shape s{migraphx::shape::float_type, {2}};
+    auto shared = migraphx::literal::from_mapped_file(s, file, {p.string(), 0, s.bytes(), ""})
+                      .share_argument();
+    EXPECT(shared.data() == file->data());
+    EXPECT(shared.to_vector<float>() == values);
 }
 
 TEST_CASE(literal_from_mapped_file_serializes_inline)

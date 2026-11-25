@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,11 @@ MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const std::vector<ch
 
 /// Publish by rename so a reader never sees a half-written file
 MIGRAPHX_EXPORT void write_atomically(const fs::path& dest, const std::vector<char>& content);
+
+/// As above, with publish moving the fully written temporary to dest
+MIGRAPHX_EXPORT void write_atomically(const fs::path& dest,
+                                      const std::vector<char>& content,
+                                      const std::function<void(const fs::path& tmp)>& publish);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

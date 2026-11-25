@@ -74,10 +74,12 @@ struct gpu_literal
 
     void finalize(context&, const shape&, const std::vector<shape>&)
     {
+        // hipHostRegister cannot pin a read-only file mapping, so file-backed data is copied
         if(host)
-            gpu_data = register_on_gpu(data.get_argument());
+            gpu_data =
+                register_on_gpu(data.is_external() ? data.get_argument() : data.share_argument());
         else
-            gpu_data = to_gpu(data.get_argument());
+            gpu_data = to_gpu(data.share_argument());
     }
 
     friend std::ostream& operator<<(std::ostream& os, const gpu_literal& x)

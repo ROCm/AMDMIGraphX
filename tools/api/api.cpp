@@ -271,7 +271,9 @@ static void set_external_weights_threshold(file_options& options, size_t value)
 
 static void set_external_weights_file(file_options& options, const char* path)
 {
-    options.external_weights_file = std::string(path);
+    if(path == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "External weights file path cannot be null");
+    options.external_weights_file = path;
 }
 
 static void set_reuse_external_data(file_options& options, bool value)
@@ -281,7 +283,16 @@ static void set_reuse_external_data(file_options& options, bool value)
 
 static void set_external_data_path(file_options& options, const char* path)
 {
-    options.external_data_path = std::string(path);
+    if(path == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "External data path cannot be null");
+    options.external_data_path = path;
+}
+
+static void add_external_data_allowed_path(file_options& options, const char* path)
+{
+    if(path == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "External data allowed path cannot be null");
+    options.external_data_allowed_paths.emplace_back(path);
 }
 
 static void set_verify_external_weights(file_options& options, bool value)

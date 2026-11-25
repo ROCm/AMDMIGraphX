@@ -79,7 +79,9 @@ void write_buffer(const fs::path& filename, const char* buffer, std::size_t size
     if(os.fail())
         MIGRAPHX_THROW("Failure opening file: " + filename);
     os.write(buffer, size);
-    if(os.bad())
+    // Buffered data may only fail to reach the disk when flushed by the close
+    os.close();
+    if(os.fail())
         MIGRAPHX_THROW("Error writing file: " + filename);
 }
 
@@ -93,12 +95,19 @@ void write_buffer(const fs::path& filename, const std::vector<char>& buffer)
 // already deep path, which on Windows must stay under MAX_PATH for std::ofstream to open it.
 void write_atomically(const fs::path& dest, const std::vector<char>& content)
 {
+    write_atomically(dest, content, [&](const fs::path& tmp) { fs::rename(tmp, dest); });
+}
+
+void write_atomically(const fs::path& dest,
+                      const std::vector<char>& content,
+                      const std::function<void(const fs::path& tmp)>& publish)
+{
     auto suffix = md5(unique_string("atomic")).substr(0, 16);
     auto tmp    = dest.parent_path() / (dest.stem().string() + "." + suffix + ".tmp");
     try
     {
         write_buffer(tmp, content);
-        fs::rename(tmp, dest);
+        publish(tmp);
     }
     catch(...)
     {

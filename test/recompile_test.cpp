@@ -514,12 +514,13 @@ TEST_CASE(recompile_external_weights)
     migraphx::file_options options;
     options.external_weights_threshold = 1;
     migraphx::save(c, filename, options);
-    EXPECT(migraphx::fs::exists(filename + ".data"));
     auto v = migraphx::from_msgpack(migraphx::read_buffer(filename));
     EXPECT(v.at("version").to<int>() == c.get_program_file_version() + 1);
     auto refs = saved_external_refs(filename);
     EXPECT(refs.size() == 1);
-    EXPECT(refs.front().file_path == "model.mxr.data");
+    EXPECT(migraphx::is_weights_generation(td.path / "model.mxr.data",
+                                           td.path / refs.front().file_path));
+    EXPECT(migraphx::fs::exists(td.path / refs.front().file_path));
 
     // Opening the program without its kernels still maps the weights
     auto p      = migraphx::load(filename, {.finalize = false});
@@ -562,7 +563,8 @@ TEST_CASE(recompile_shares_external_weights)
     options.external_weights_threshold = 1;
     migraphx::save(c, filename, options);
     auto original_refs = saved_external_refs(filename);
-    auto weights_bytes = migraphx::read_buffer(filename + ".data");
+    auto weights_file  = td.path / original_refs.front().file_path;
+    auto weights_bytes = migraphx::read_buffer(weights_file);
 
     auto p           = migraphx::load(filename, {.finalize = false});
     auto original    = p;
@@ -588,9 +590,9 @@ TEST_CASE(recompile_shares_external_weights)
     EXPECT(v.at("version").to<int>() == p.get_program_file_version() + 1);
     auto recompiled_refs = saved_external_refs(recompiled);
     EXPECT(recompiled_refs.size() == 1);
-    EXPECT(recompiled_refs.front().file_path == "model.mxr.data");
+    EXPECT(recompiled_refs.front().file_path == original_refs.front().file_path);
     EXPECT(migraphx::to_value(recompiled_refs) == migraphx::to_value(original_refs));
-    EXPECT(migraphx::read_buffer(filename + ".data") == weights_bytes);
+    EXPECT(migraphx::read_buffer(weights_file) == weights_bytes);
     auto q = migraphx::load(recompiled, {.finalize = false});
     EXPECT(recorded_device(*q.get_main_module()) == "dev_b");
     EXPECT(main_literals(q).front().get_external_data()->offset == original_refs.front().offset);
@@ -626,23 +628,26 @@ TEST_CASE(recompile_in_place_shares_external_weights)
     options.external_weights_threshold = 1;
     migraphx::save(c, filename, options);
     auto original_refs = saved_external_refs(filename);
-    auto weights_bytes = migraphx::read_buffer(filename + ".data");
+    auto weights_file  = td.path / original_refs.front().file_path;
+    auto weights_bytes = migraphx::read_buffer(weights_file);
     {
         auto p           = migraphx::load(filename, {.finalize = false});
         current_device() = "dev_b";
         p.recompile(make_recompile_target());
 
-        // Writing new weights over the file the program maps is refused
-        auto program_bytes = migraphx::read_buffer(filename);
-        EXPECT(test::throws<migraphx::exception>([&] { migraphx::save(p, filename, options); },
-                                                 "while a loaded program maps it"));
-        EXPECT(migraphx::read_buffer(filename) == program_bytes);
+        // New weights go to a new generation, and the one the program maps is kept
+        migraphx::save(p, filename, options);
+        auto written = td.path / saved_external_refs(filename).front().file_path;
+        EXPECT(written != weights_file);
+        EXPECT(migraphx::read_buffer(weights_file) == weights_bytes);
 
+        // Saved with reuse, the unreferenced new generation is removed again
         migraphx::file_options reuse;
         reuse.reuse_external_data = true;
         migraphx::save(p, filename, reuse);
+        EXPECT(not migraphx::fs::exists(written));
     }
-    EXPECT(migraphx::read_buffer(filename + ".data") == weights_bytes);
+    EXPECT(migraphx::read_buffer(weights_file) == weights_bytes);
     EXPECT(migraphx::to_value(saved_external_refs(filename)) == migraphx::to_value(original_refs));
     auto q = migraphx::load(filename, {.finalize = false});
     EXPECT(recorded_device(*q.get_main_module()) == "dev_b");

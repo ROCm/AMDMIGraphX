@@ -32,6 +32,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/external_data.hpp>
 #include <migraphx/mapped_file.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <algorithm>
@@ -334,25 +335,44 @@ TEST_CASE(promote_keeps_external_reference)
 
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_parameter("x", s);
-    auto c   = mm->add_parameter("c", {migraphx::shape::bool_type, {1}});
+    {
+        auto x = mm->add_parameter("x", s);
+        auto c = mm->add_parameter("c", {migraphx::shape::bool_type, {1}});
 
-    auto* then_mod = p.create_module("then");
-    auto l         = then_mod->add_literal(
-        migraphx::literal::from_mapped_file(s, file, {path.string(), 0, s.bytes(), ""}));
-    then_mod->add_return({then_mod->add_instruction(migraphx::make_op("add"), x, l)});
+        auto* then_mod = p.create_module("then");
+        auto l         = then_mod->add_literal(
+            migraphx::literal::from_mapped_file(s, file, {path.string(), 0, s.bytes(), ""}));
+        then_mod->add_return({then_mod->add_instruction(migraphx::make_op("add"), x, l)});
 
-    auto* else_mod = p.create_module("else");
-    else_mod->add_return({else_mod->add_instruction(migraphx::make_op("neg"), x)});
+        auto* else_mod = p.create_module("else");
+        else_mod->add_return({else_mod->add_instruction(migraphx::make_op("neg"), x)});
 
-    auto r = mm->add_instruction(migraphx::make_op("if"), {c}, {then_mod, else_mod});
-    mm->add_return({mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r)});
-
+        auto r = mm->add_instruction(migraphx::make_op("if"), {c}, {then_mod, else_mod});
+        mm->add_return(
+            {mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r)});
+    }
     run_promote(p);
 
-    EXPECT(std::none_of(then_mod->begin(), then_mod->end(), [](const migraphx::instruction& ins) {
-        return ins.name() == "@literal";
-    }));
+    migraphx::program expected;
+    {
+        auto* emm = expected.get_main_module();
+        auto x    = emm->add_parameter("x", s);
+        auto c    = emm->add_parameter("c", {migraphx::shape::bool_type, {1}});
+        auto l    = emm->add_literal(
+            migraphx::literal::from_mapped_file(s, file, {path.string(), 0, s.bytes(), ""}));
+
+        auto* then_mod = expected.create_module("then");
+        then_mod->add_return({then_mod->add_instruction(migraphx::make_op("add"), x, l)});
+
+        auto* else_mod = expected.create_module("else");
+        else_mod->add_return({else_mod->add_instruction(migraphx::make_op("neg"), x)});
+
+        auto r = emm->add_instruction(migraphx::make_op("if"), {c}, {then_mod, else_mod});
+        emm->add_return(
+            {emm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r)});
+    }
+    EXPECT(p == expected);
+
     auto promoted = std::find_if(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
         return ins.name() == "@literal";
     });

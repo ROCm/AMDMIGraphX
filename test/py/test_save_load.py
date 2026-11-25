@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import migraphx, array, os, tempfile, sys
+import migraphx, array, json, os, tempfile, sys
 
 
 def test_conv_relu(format):
@@ -47,9 +47,50 @@ def test_external_weights(format):
     with tempfile.TemporaryDirectory() as d:
         name = os.path.join(d, "model.mxr")
         migraphx.save(p1, name, format=format, external_weights=1)
-        assert os.path.exists(name + ".data")
+        # Each save writes a new generation named model.mxr.<id>.data
+        generations = [
+            f for f in os.listdir(d)
+            if f.startswith("model.mxr.") and f.endswith(".data")
+        ]
+        assert len(generations) == 1
+        assert not os.path.exists(name + ".data")
 
         p2 = migraphx.load(name, format=format, verify_external_weights=True)
+        assert p1.sort() == p2.sort()
+        del p2
+
+
+def external_refs(v):
+    if isinstance(v, dict):
+        refs = [v["external"]] if "external" in v else []
+        return refs + [r for x in v.values() for r in external_refs(x)]
+    if isinstance(v, list):
+        return [r for x in v for r in external_refs(x)]
+    return []
+
+
+def test_reuse_onnx_external_data(p1):
+    ext_dir = os.path.abspath("ext_path")
+    with tempfile.TemporaryDirectory() as d:
+        name = os.path.join(d, "model.json")
+        migraphx.save(p1, name, format="json", reuse_external_data=True)
+        assert os.listdir(d) == ["model.json"]
+
+        with open(name) as f:
+            refs = external_refs(json.load(f))
+        assert refs
+        assert all(
+            os.path.basename(r["file_path"]) == "conv.weight" for r in refs)
+
+        # The ONNX data lies outside the program's directory
+        try:
+            migraphx.load(name, format="json")
+            assert False, "load outside the allowed directories succeeded"
+        except RuntimeError:
+            pass
+        p2 = migraphx.load(name,
+                           format="json",
+                           external_data_allowed_paths=[ext_dir])
         assert p1.sort() == p2.sort()
         del p2
 
@@ -96,4 +137,12 @@ if __name__ == "__main__":
     test_conv_relu('json')
     test_external_weights('msgpack')
     test_external_weights('json')
+    test_reuse_onnx_external_data(
+        migraphx.parse_onnx("ext_path/external_data_test.onnx",
+                            reuse_external_data=True))
+    with open("ext_path/external_data_test.onnx", "rb") as f:
+        test_reuse_onnx_external_data(
+            migraphx.parse_onnx_buffer(f.read(),
+                                       external_data_path="ext_path",
+                                       reuse_external_data=True))
     test_save_load_buffer()

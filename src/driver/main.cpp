@@ -78,6 +78,7 @@
 #include <optional>
 #include <set>
 #include <sstream>
+#include <system_error>
 
 namespace {
 
@@ -228,6 +229,7 @@ struct loader
     std::string external_weights_file;
     bool reuse_external_data     = false;
     bool verify_external_weights = false;
+    std::vector<std::string> external_data_allow;
 
     void parse(argument_parser& ap)
     {
@@ -356,11 +358,12 @@ struct loader
                    "next value is taken as N."),
            ap.write_action([](auto&, auto& x, const auto& params) {
                x = params.empty() ? default_external_data_threshold
-                                  : parse_byte_size(params.back());
+                                  : parse_external_weights_size(params.back());
            }));
         ap(external_weights_file,
            {"--external-weights-file"},
-           ap.help("Weights file used by --external-weights (default: <output>.data)"));
+           ap.help("Base name of the weights file written by --external-weights; each save "
+                   "writes a new <stem>.<id><extension> beside it (default: <output>.data)"));
         ap(reuse_external_data,
            {"--reuse-external-data"},
            ap.help("Map ONNX external data files instead of copying them, and save a reference to "
@@ -372,6 +375,22 @@ struct loader
            {"--verify-external-weights"},
            ap.help("Check the checksum of each external literal when loading a MIGraphX program"),
            ap.set_value(true));
+        ap(external_data_allow,
+           {"--external-data-allow"},
+           ap.help("Directory outside the program file's directory that the external data of a "
+                   "loaded MIGraphX program may be read from; repeat for several"),
+           ap.append());
+    }
+
+    // The flag's optional value precedes the input file, which would otherwise be taken as it
+    static std::size_t parse_external_weights_size(const std::string& s)
+    {
+        std::error_code ec;
+        if(fs::is_regular_file(s, ec))
+            throw std::runtime_error("Invalid size: " + s +
+                                     " (--external-weights takes the next value as its size; put "
+                                     "it after the input file)");
+        return parse_byte_size(s);
     }
 
     // Bytes with an optional K, M or G suffix (base 1024)
@@ -589,10 +608,11 @@ struct loader
             if(file_type == "json")
             {
                 file_options options;
-                options.format                  = "json";
-                options.finalize                = finalize;
-                options.verify_external_weights = verify_external_weights;
-                p                               = migraphx::load(file, options);
+                options.format                      = "json";
+                options.finalize                    = finalize;
+                options.verify_external_weights     = verify_external_weights;
+                options.external_data_allowed_paths = external_data_allow;
+                p                                   = migraphx::load(file, options);
             }
 #ifdef MIGRAPHX_ENABLE_ONNX
             else if(file_type == "onnx")
@@ -615,9 +635,10 @@ struct loader
             else if(file_type == "migraphx")
             {
                 file_options options;
-                options.verify_external_weights = verify_external_weights;
-                options.finalize                = finalize;
-                p                               = migraphx::load(file, options);
+                options.verify_external_weights     = verify_external_weights;
+                options.external_data_allowed_paths = external_data_allow;
+                options.finalize                    = finalize;
+                p                                   = migraphx::load(file, options);
             }
         }
         if(trim > 0)
@@ -672,7 +693,7 @@ struct loader
                 type = "binary";
         }
 
-        if(output.empty() and type == "text")
+        if(output.empty() and type == "text" and not external_weights.has_value())
         {
             std::cout << p << std::endl;
             return;

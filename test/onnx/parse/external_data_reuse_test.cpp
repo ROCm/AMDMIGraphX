@@ -25,6 +25,7 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/external_data.hpp>
 #include <migraphx/mapped_file.hpp>
 #include <algorithm>
 

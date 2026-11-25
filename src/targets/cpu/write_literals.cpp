@@ -52,7 +52,10 @@ struct cpu_literal
 
     argument compute(const shape&, const std::vector<argument>&) const { return host; }
 
-    void finalize(context&, const shape&, const std::vector<shape>&) { host = data.get_argument(); }
+    void finalize(context&, const shape&, const std::vector<shape>&)
+    {
+        host = data.share_argument();
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const cpu_literal& x)
     {

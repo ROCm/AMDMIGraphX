@@ -985,6 +985,16 @@ struct compiler
         timer c{};
         // Files the program refers to by a relative path go beside the program
         co.relative_path = fs::path{l.output}.parent_path();
+        if(not co.weights_file.empty() and not l.output.empty())
+        {
+            auto weights_path = fs::path{co.weights_file};
+            if(not weights_path.is_absolute())
+                weights_path = co.relative_path / weights_path;
+            if(fs::weakly_canonical(weights_path) == fs::weakly_canonical(l.output) or
+               (fs::exists(weights_path) and fs::exists(l.output) and
+                fs::equivalent(weights_path, l.output)))
+                MIGRAPHX_THROW("compile: weights file and output file must be different");
+        }
         p.compile(t, co);
         auto r = c.record<std::chrono::milliseconds>();
         log::info() << "Compilation time: " << r << "ms";

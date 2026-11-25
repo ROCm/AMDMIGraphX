@@ -48,7 +48,7 @@
 #include <algorithm>
 #include <limits>
 
-static void run_pass(migraphx::program& p, migraphx::fuse_attention fa = {})
+static void run_pass(migraphx::program& p, const migraphx::fuse_attention& fa = {})
 {
     migraphx::run_passes(p, {fa, migraphx::dead_code_elimination{}});
 }
@@ -4350,6 +4350,37 @@ TEST_CASE(fp8_quant_gemm_softmax_gemm)
         return ins.name() == "group" and
                ins.get_operator().to_value()["tag"].template to<std::string>() == "attention";
     }));
+}
+
+TEST_CASE(fp8_gemm_softmax_gemm)
+{
+    migraphx::shape s1{migraphx::shape::fp8e4m3fn_type, {1, 12, 256, 256}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("1", s1);
+        auto b   = mm->add_parameter("2", s1);
+        auto b1  = mm->add_parameter("3", s1);
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                 b1);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
+        mm->add_return({gemm2});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1, {.attn_enabled = true, .unsupported_types = {migraphx::shape::fp8e4m3fn_type}});
+    EXPECT(p1.sort() == p2.sort());
 }
 
 // Quantized attention with a head dim past attn_max_head_dim will not be fused, so the

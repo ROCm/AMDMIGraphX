@@ -26,6 +26,8 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_FUSE_ATTENTION_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/shape.hpp>
+#include <set>
 #include <string>
 #include <optional>
 #include <cstddef>
@@ -48,6 +50,9 @@ struct MIGRAPHX_EXPORT fuse_attention
     // Longest kv length where head dims past attn_max_head_dim still fuse: a
     // short kv loop keeps the wide accumulator profitable; 0 allows none
     std::size_t attn_wide_head_kv_len         = 0;
+    // Input types of dots the target cannot compile as part of an attention kernel; those
+    // dots are left unfused
+    std::set<shape::type_t> unsupported_types;
     bool flash_decoding_enabled               = false;
     std::size_t flash_decoding_num_splits     = 0;
     std::size_t flash_decoding_threshold      = 32;

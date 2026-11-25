@@ -471,7 +471,10 @@ struct concat_optimizer
             auto size = sub.ins->inputs().size() - 1;
             assert(sub.pos + size < args.size());
             auto alloc = sub.ins->inputs().back();
-            auto view  = m->insert_instruction(std::next(super), sub.slice, super);
+            // The concat was given a part of the buffer to write, so it has to stay
+            if(not is_allocation(alloc))
+                continue;
+            auto view = m->insert_instruction(std::next(super), sub.slice, super);
             // The writers of the buffer stay as inputs so the view is read after they run
             std::vector<instruction_ref> inputs = {view};
             auto first                          = args.begin() + 1 + sub.pos;

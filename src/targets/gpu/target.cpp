@@ -448,7 +448,7 @@ struct pipeline_factory
             write_literals{.max_memory           = max_memory,
                            .staging_peak_percent = backend_opts.literal_staging_peak_percent,
                            .weights_file         = options.weights_file,
-                           .relative_path        = options.relative_path},
+                           .ctx                  = get_context()},
             enable_pass(backend_opts.hip_graph, hipgraphify{}),
             dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},

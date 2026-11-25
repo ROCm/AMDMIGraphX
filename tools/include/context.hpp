@@ -50,8 +50,8 @@ struct context
     /// Called once all the instructions of a program have been finalized, to release what the
     /// context only needed while finalizing. Optional: does nothing when not defined.
     void after_finalize();
-    /// Set the directory that relative paths stored in a program, such as the path of a weights
-    /// file, are resolved against. Optional: does nothing when not defined.
+    /// Set the directory used to resolve relative paths stored in a program, such as the path of
+    /// a weights file. Optional: does nothing when not defined.
     void set_relative_path(const fs::path& path);
 };
 
@@ -130,12 +130,13 @@ bool is_cross_compile_context(const T&)
         virtual('finish', returns = 'void', const = True))
 %>
 
+/// True iff `c` holds a concrete context impl. A default-constructed (empty) context holds none,
+/// and its methods cannot be called.
+inline bool has_context(const context& c) { return c.type_id() != typeid(std::nullptr_t); }
+
 /// True iff `c` holds a concrete context impl and that impl reports cross-compiling.
 /// Safe to call on default-constructed (empty) contexts, unlike `c.is_cross_compile()`.
-inline bool is_cross_compiling(const context& c)
-{
-    return c.type_id() != typeid(std::nullptr_t) and c.is_cross_compile();
-}
+inline bool is_cross_compiling(const context& c) { return has_context(c) and c.is_cross_compile(); }
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
 

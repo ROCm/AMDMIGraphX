@@ -133,8 +133,8 @@ struct MIGRAPHX_EXPORT program
     // instructions.
     void finalize(const target& t);
 
-    /// Finalize for the given contexts instead of the program's own, which leaves the program
-    /// as it is and ready for eval_with_context with the same contexts.
+    /// Finalize the instructions with the given contexts instead of the program's own. The
+    /// program keeps its targets and contexts; run it with eval_with_context and these contexts.
     void finalize_with_context(std::vector<context>& ctx);
 
     void perf_report(std::ostream& os,

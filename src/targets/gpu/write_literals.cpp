@@ -47,6 +47,7 @@
 #include <limits>
 #include <numeric>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -61,8 +62,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_WRITE_LITERALS)
 namespace {
 
 // How long to wait for another process writing to the same weights file before failing the
-// compile. A writer holds the lock while it stores every literal of a module, so this is far
-// longer than what a cache waits.
+// compile. A writer holds the lock while it stores every literal of a module.
 constexpr int weights_busy_timeout_ms = 60000;
 
 // The table name carries the schema version, so an incompatible change is a new table rather
@@ -97,8 +97,7 @@ std::string weights_key(const literal& l)
            to_string_range(s.lens(), "x");
 }
 
-// The key of each literal. Hashing is most of the cost of saving the weights and each literal is
-// hashed on its own, so they are hashed in parallel.
+// Hashing is most of the cost of saving the weights, so the literals are hashed in parallel
 std::vector<std::string> weights_keys(const std::vector<instruction_ref>& literals)
 {
     std::vector<std::string> keys(literals.size());
@@ -135,22 +134,20 @@ struct weights_writer
         return rows.begin() != rows.end();
     }
 
-    // Stores the literal under key unless the file already has it
     void save(const std::string& key, const literal& l)
     {
         if(contains(key))
             return;
-        auto bytes         = l.get_shape().bytes();
-        std::size_t offset = 0;
+        std::string_view rest{l.data(), l.get_shape().bytes()};
         std::int64_t chunk = 0;
         // A literal with no bytes still writes chunk 0
         do
         {
-            auto n = std::min(chunk_bytes, bytes - offset);
-            insert_stmt(key, chunk, sqlite_blob_view{l.data() + offset, n});
-            offset += n;
+            auto part = rest.substr(0, chunk_bytes);
+            insert_stmt(key, chunk, sqlite_blob_view{part.data(), part.size()});
+            rest.remove_prefix(part.size());
             chunk++;
-        } while(offset < bytes);
+        } while(not rest.empty());
     }
 
     void commit() { db.execute("COMMIT;"); }
@@ -168,8 +165,7 @@ struct gpu_literal
 {
     argument data{};
     bool host = false;
-    // Set when the data is in a weights file rather than in data: the key it is stored under,
-    // the path of the file, and the shape that the empty data no longer carries
+    // Set when the data is in a weights file instead of data; an empty data carries no shape
     std::string key{};
     std::string path{};
     shape external_shape{};
@@ -207,6 +203,7 @@ struct gpu_literal
         auto bytes  = external_shape.bytes();
         auto loaded = std::accumulate(
             rows.begin(), rows.end(), std::size_t{0}, [&](std::size_t offset, const value& row) {
+                assert(offset <= bytes);
                 const auto& chunk = row.at("data").get_binary();
                 if(chunk.size() > bytes - offset)
                     MIGRAPHX_THROW("gpu::literal: weights for " + key + " in " + path +
@@ -316,6 +313,15 @@ static std::size_t extra_needed(std::size_t available, std::size_t used)
 }
 
 static std::size_t literal_bytes(instruction_ref ins) { return ins->get_shape().bytes(); }
+
+static std::vector<instruction_ref> find_literals(const module& m)
+{
+    std::vector<instruction_ref> literals;
+    copy_if(iterator_for(m), std::back_inserter(literals), [](instruction_ref ins) {
+        return ins->name() == "@literal";
+    });
+    return literals;
+}
 
 static std::size_t total_bytes(const std::unordered_set<instruction_ref>& literals)
 {
@@ -482,10 +488,7 @@ static literal_plan plan_literals(const module& m,
     if(needed == 0)
         return plan;
 
-    std::vector<instruction_ref> literals;
-    copy_if(iterator_for(m), std::back_inserter(literals), [](instruction_ref ins) {
-        return ins->name() == "@literal";
-    });
+    auto literals = find_literals(m);
     auto staged_first =
         std::stable_partition(literals.begin(), literals.end(), &is_zero_copy_literal);
     std::stable_sort(literals.begin(), staged_first, by(std::greater<>{}, &literal_bytes));
@@ -552,21 +555,19 @@ void write_literals::apply(module& m) const
                   << " bytes, +" << plan.scratch_growth << " scratch)" << std::endl;
     }
 
-    std::vector<instruction_ref> literals;
-    copy_if(iterator_for(m), std::back_inserter(literals), [](instruction_ref ins) {
-        return ins->name() == "@literal";
-    });
+    auto literals = find_literals(m);
     // The writer is opened only for a module with literals, so one without them does not create
     // the file, and after the keys are hashed, so the file is not locked while hashing
     std::vector<std::string> keys;
     optional<weights_writer> writer;
     if(not weights_file.empty() and not literals.empty())
     {
+        assert(ctx != nullptr);
         keys = weights_keys(literals);
         // The literals keep weights_file as given; only the file written here is resolved
-        fs::path file{weights_file};
-        writer.emplace(file.is_absolute() ? file : relative_path / file, weights_chunk_bytes);
+        writer.emplace(ctx->resolve_path(weights_file), weights_chunk_bytes);
     }
+    assert(not writer.has_value() or keys.size() == literals.size());
 
     for(auto i : range(literals.size()))
     {

@@ -1292,18 +1292,17 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     /// Save the weights to this file instead of in the compiled program, on
     /// targets that support it. The target decides the format of the file,
     /// and the compiled program reads the weights back whenever it is loaded.
-    /// A relative path is kept relative: it is within the directory given to
-    /// set_relative_path while compiling, and within the directory of the
-    /// program's file when that is loaded.
+    /// A relative path is stored as given: it is resolved against the
+    /// set_relative_path directory while compiling, and against the directory
+    /// of the program's file when the program is loaded.
     void set_weights_file(const char* path)
     {
         call(&migraphx_compile_options_set_weights_file, this->get_handle_ptr(), path);
     }
 
-    /// Set the directory that relative paths the compiled program refers to,
-    /// such as the weights file, are resolved against while compiling: the
-    /// directory the program will be saved in. Defaults to the current
-    /// directory.
+    /// Set the directory used to resolve relative paths stored in the compiled
+    /// program, such as the weights file, while compiling. Set it to the
+    /// directory the program will be saved in. Defaults to the current directory.
     void set_relative_path(const char* path)
     {
         call(&migraphx_compile_options_set_relative_path, this->get_handle_ptr(), path);
@@ -1668,9 +1667,9 @@ struct file_options : MIGRAPHX_HANDLE_BASE(file_options)
         call(&migraphx_file_options_set_file_format, this->get_handle_ptr(), format);
     }
 
-    /// Set the directory that relative paths the loaded program refers to,
-    /// such as a weights file, are resolved against. Defaults to the directory
-    /// of the file being loaded.
+    /// Set the directory used to resolve relative paths stored in the loaded
+    /// program, such as a weights file. Defaults to the directory of the file
+    /// being loaded.
     void set_relative_path(const char* path)
     {
         call(&migraphx_file_options_set_relative_path, this->get_handle_ptr(), path);

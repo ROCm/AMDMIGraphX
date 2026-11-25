@@ -488,7 +488,7 @@ TEST_CASE(eval_context1)
     auto two = mm->add_literal(2);
     mm->add_instruction(sum_op{}, one, two);
     p.compile(t);
-    // Compiling calls after_finalize, which gives the program its own copy of the context
+    // after_finalize is non-const, so compiling detaches the program's context from the target's
     EXPECT(not is_shared(t.ctx, p.get_context()));
     auto ctx    = p.get_context();
     std::ignore = p.eval({}).back();
@@ -844,23 +844,29 @@ static migraphx::program make_record_finalize_program()
     return p;
 }
 
-static std::vector<std::string> finalize_calls(const migraphx::program& p)
+static std::vector<std::string> finalize_calls(const migraphx::context& ctx)
 {
-    return p.get_context().any_cast<finalize_target::context>()->calls;
+    return ctx.any_cast<finalize_target::context>()->calls;
+}
+
+// What finalizing the program of make_record_finalize_program calls on its context
+static std::vector<std::string> expected_finalize_calls()
+{
+    return {"finalize", "finalize", "after_finalize"};
 }
 
 TEST_CASE(compile_calls_after_finalize_last)
 {
     auto p = make_record_finalize_program();
     p.compile(finalize_target{});
-    EXPECT(finalize_calls(p) == std::vector<std::string>{"finalize", "finalize", "after_finalize"});
+    EXPECT(finalize_calls(p.get_context()) == expected_finalize_calls());
 }
 
 TEST_CASE(finalize_target_calls_after_finalize_last)
 {
     auto p = make_record_finalize_program();
     p.finalize(finalize_target{});
-    EXPECT(finalize_calls(p) == std::vector<std::string>{"finalize", "finalize", "after_finalize"});
+    EXPECT(finalize_calls(p.get_context()) == expected_finalize_calls());
 }
 
 TEST_CASE(finalize_with_context_uses_given_contexts)
@@ -870,8 +876,7 @@ TEST_CASE(finalize_with_context_uses_given_contexts)
     p.finalize_with_context(contexts);
     // The program takes on neither a target nor the contexts
     EXPECT(not p.is_compiled());
-    EXPECT(contexts.front().any_cast<finalize_target::context>()->calls ==
-           std::vector<std::string>{"finalize", "finalize", "after_finalize"});
+    EXPECT(finalize_calls(contexts.front()) == expected_finalize_calls());
     EXPECT(p.eval_with_context(contexts, {}).back() == migraphx::literal{1});
 }
 

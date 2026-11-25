@@ -22,8 +22,6 @@
  * THE SOFTWARE.
  */
 #include <algorithm>
-#include <cstdio>
-#include <filesystem>
 #include <functional>
 #include <numeric>
 #include <string>
@@ -32,6 +30,7 @@
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <read_onnx.hpp>
 #include "test.hpp"
 
@@ -79,10 +78,9 @@ static std::vector<float> run_weights_program(const migraphx::program& p, const 
 
 TEST_CASE(weights_file_load_and_run)
 {
-    namespace fs = std::filesystem;
-    auto dir     = fs::temp_directory_path() / "migraphx_api_weights_file";
-    fs::remove_all(dir);
-    fs::create_directories(dir);
+    migraphx::tmp_dir td{};
+    auto dir = td.path / "weights";
+    migraphx::fs::create_directories(dir);
     auto dir_name = dir.string();
 
     migraphx::shape s{migraphx_shape_float_type, {2, 3}};
@@ -99,7 +97,7 @@ TEST_CASE(weights_file_load_and_run)
     options.set_relative_path(dir_name.c_str());
     p.compile(migraphx::target("gpu"), options);
     // The weights are written within the relative path
-    CHECK(fs::exists(dir / "migraphx_api_weights.db"));
+    CHECK(migraphx::fs::exists(dir / "migraphx_api_weights.db"));
     CHECK(run_weights_program(p, s) == expected);
 
     // A program saved beside its weights finds them when it is loaded
@@ -108,15 +106,12 @@ TEST_CASE(weights_file_load_and_run)
     CHECK(run_weights_program(migraphx::load(beside.c_str()), s) == expected);
 
     // A program saved elsewhere has to be told where they are
-    std::string elsewhere = "migraphx_api_weights_file.mxr";
+    auto elsewhere = (td.path / "model.mxr").string();
     migraphx::save(p, elsewhere.c_str());
     CHECK(test::throws([&] { migraphx::load(elsewhere.c_str()); }));
     migraphx::file_options file_options;
     file_options.set_relative_path(dir_name.c_str());
     CHECK(run_weights_program(migraphx::load(elsewhere.c_str(), file_options), s) == expected);
-
-    std::remove(elsewhere.c_str());
-    fs::remove_all(dir);
 }
 
 using hip_ptr    = MIGRAPHX_MANAGE_PTR(void, hipFree);

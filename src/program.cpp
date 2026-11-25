@@ -235,9 +235,8 @@ static std::vector<context> make_contexts(const std::vector<target>& targets)
     return contexts;
 }
 
-// A target without a context returns an empty one, which cannot be called
-static bool has_context(const context& ctx) { return ctx.type_id() != typeid(std::nullptr_t); }
-
+// A target without a context returns an empty one, so each hook is only called where
+// has_context holds
 static void after_finalize(std::vector<context>& contexts)
 {
     for(auto& ctx : contexts)
@@ -453,16 +452,17 @@ void program::compile(const target& t, compile_options options)
     options.trace();
     auto&& passes = t.get_passes(this->impl->contexts.front(), options);
     run_passes(*this, passes, options.trace);
-    auto mods = this->get_modules();
+    auto mods             = this->get_modules();
+    const bool finalizing = not is_cross_compiling(this->impl->contexts.front());
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {
         if(auto error = module_error(*mod, "compilation"))
             MIGRAPHX_THROW(*error);
-        if(not is_cross_compiling(this->impl->contexts.front()))
+        if(finalizing)
             mod->finalize(this->impl->contexts);
     }
-    if(not is_cross_compiling(this->impl->contexts.front()))
+    if(finalizing)
         after_finalize(this->impl->contexts);
 }
 

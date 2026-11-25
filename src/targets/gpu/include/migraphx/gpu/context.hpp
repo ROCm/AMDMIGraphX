@@ -537,12 +537,10 @@ struct context
         return {shared_modules.try_emplace(module_id, code_object).first->second, symbol_name};
     }
 
-    /// Set the directory that the relative paths a program refers to are within: where the
-    /// program is saved while compiling, and where it was loaded from afterwards.
+    /// Directory that relative paths stored in a program are resolved against.
     void set_relative_path(const fs::path& path) { relative_path = path; }
 
-    /// The path of a file the program refers to: as given when absolute, and otherwise within
-    /// the directory given to set_relative_path, or the current directory when none was.
+    /// Relative paths resolve against relative_path, or the current directory when it is empty.
     fs::path resolve_path(const fs::path& path) const
     {
         return path.is_absolute() ? path : relative_path / path;
@@ -550,7 +548,6 @@ struct context
 
     /// The SQLite database at path, opened read-only on first use and kept open until
     /// after_finalize, so the ops that read from the same file while finalizing share one handle.
-    /// A relative path is resolved with resolve_path.
     sqlite& get_database(const fs::path& path)
     {
         auto file = resolve_path(path);

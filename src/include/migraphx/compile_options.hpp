@@ -53,15 +53,15 @@ struct compile_options
     /**
      * Path of a file to save the weights to. When set, a target that supports it stores the
      * literals there instead of in the program, in a format the target decides, and the compiled
-     * program reads them back from this path whenever it is finalized. A relative path is kept
-     * relative in the program: it is within relative_path while compiling, and within the
-     * directory of the program's file when that is loaded.
+     * program reads them back whenever it is finalized. A relative path is stored as given: it
+     * is resolved against relative_path while compiling, and against the directory of the
+     * program's file when the program is loaded.
      */
     std::string weights_file{};
     /**
-     * Directory that relative paths the compiled program refers to, such as weights_file, are
-     * resolved against while compiling: the directory the program will be saved in. The current
-     * directory when empty.
+     * Directory used to resolve relative paths stored in the compiled program, such as
+     * weights_file, while compiling. Set it to the directory the program will be saved in. The
+     * current directory when empty.
      */
     fs::path relative_path{};
 

@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
 
 #include <migraphx/gpu/config.hpp>
-#include <migraphx/filesystem.hpp>
 #include <string>
 
 namespace migraphx {
@@ -33,6 +32,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 namespace gpu {
+
+struct context;
 
 // Places literals in GPU memory. When they do not fit in max_memory (free GPU memory by default),
 // literals that only feed index-selected kernel inputs are left in host memory for the kernel to
@@ -51,13 +52,12 @@ struct MIGRAPHX_GPU_EXPORT write_literals
     // when still needed.
     std::size_t staging_peak_percent = 5;
     // Path of a SQLite database to save the literal data to. When set, each literal is stored
-    // there under a key made of the md5 of its data, its type and its dimensions, and the
-    // program keeps only the key, loading the data back when it is finalized. Literals with the
-    // same key share one copy.
+    // there under a key of the md5 of its data, its type and its dimensions, and the program
+    // keeps the key, path and shape, loading the data back when it is finalized.
     std::string weights_file{};
-    // Directory a relative weights_file is within. The program keeps weights_file as it is given,
-    // so a relative one is looked up within the directory of the program when that is loaded.
-    fs::path relative_path{};
+    // Resolves a relative weights_file the same way as when the literals are loaded back. The
+    // program keeps weights_file as it is given. Required when weights_file is set.
+    context* ctx = nullptr;
     // Largest blob a literal is split into when saved to weights_file. SQLite limits a blob to
     // 1GB in decimal units and 953.7 MiB by default, and the default here is just under that.
     std::size_t weights_chunk_bytes = std::size_t{950} * 1024 * 1024;

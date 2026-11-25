@@ -442,8 +442,9 @@ struct concat_optimizer
                     std::back_inserter(subs),
                     [&](instruction_ref user) {
                         // Take a concat once, at the input where its run starts
-                        if(find_run(ins, user) != pos)
-                            return false;
+                            if(user->inputs().front() != ins->inputs()[pos] or
+                               find_run(ins, user) != pos)
+                                return false;
                         return can_alias(
                             user, slice_shape_for(ins->get_shape(), user->get_shape()), axis);
                     },

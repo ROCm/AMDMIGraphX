@@ -2565,10 +2565,21 @@ struct find_splits
         for(int i = 0; i < groups.size(); ++i)
         {
             const auto& group_i = groups.at(i);
-            if(std::any_of(group_i.begin(), group_i.end(), [&](auto ins_a) {
-                   return std::any_of(group_i.begin(), group_i.end(), [&](auto ins_b) {
-                       return ins_a != ins_b and is_dependent(m, root, ins_a, ins_b);
-                   });
+            const std::unordered_set<instruction_ref> members(group_i.begin(), group_i.end());
+            if(std::any_of(group_i.begin(), group_i.end(), [&](auto ins) {
+                   std::unordered_set<instruction_ref> visited;
+                   return std::any_of(
+                       ins->inputs().begin(),
+                       ins->inputs().end(),
+                       fix<bool>([&](auto self, instruction_ref input) -> bool {
+                           if(not m.has_instruction(input))
+                               return false;
+                           if(contains(members, input))
+                               return true;
+                           if(input == root or not visited.insert(input).second)
+                               return false;
+                           return std::any_of(input->inputs().begin(), input->inputs().end(), self);
+                       }));
                }))
             {
                 return true;

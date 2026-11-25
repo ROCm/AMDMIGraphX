@@ -181,15 +181,14 @@ def test_weights_file():
         mm = p.get_main_module()
         x = mm.add_parameter("x", migraphx.shape(lens=[2, 3], type="float"))
         w = mm.add_literal(
-            migraphx.create_argument(
-                migraphx.shape(lens=[2, 3], type="float"),
-                [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
+            migraphx.create_argument(migraphx.shape(lens=[2, 3], type="float"),
+                                     [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
         mm.add_return([mm.add_instruction(migraphx.op("add"), [x, w])])
         return p
 
     def run(p):
-        x = migraphx.create_argument(
-            migraphx.shape(lens=[2, 3], type="float"), [10.0] * 6)
+        x = migraphx.create_argument(migraphx.shape(lens=[2, 3], type="float"),
+                                     [10.0] * 6)
         return p.run({"x": x})[-1].tolist()
 
     expected = [11.0, 12.0, 13.0, 14.0, 15.0, 16.0]

@@ -236,7 +236,9 @@ struct gpu_literal
     {
         if(path.empty())
             MIGRAPHX_THROW("gpu::literal: no data and no weights file to load it from");
-        auto stmt = ctx.get_database(path).prepare(weights_load_sql);
+        auto& db = ctx.get_database(path);
+        db.set_busy_timeout(weights_busy_timeout_ms);
+        auto stmt = db.prepare(weights_load_sql);
         auto rows = stmt(key);
         if(rows.begin() == rows.end())
             MIGRAPHX_THROW("gpu::literal: no weights for " + key + " in " + path);

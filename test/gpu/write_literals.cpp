@@ -933,10 +933,10 @@ static migraphx::instruction_ref add_external_literal(migraphx::module& m,
 // Every chunk in a weights file, ordered by key and then by chunk
 static std::vector<migraphx::value> weights_rows(const migraphx::fs::path& path)
 {
-    auto db     = migraphx::sqlite::read(path);
+    auto db = migraphx::sqlite::read(path);
     auto select =
         db.prepare("SELECT key, chunk, compressed, data FROM weights_v1 ORDER BY key, chunk;");
-    auto rows   = select();
+    auto rows = select();
     return {rows.begin(), rows.end()};
 }
 

@@ -37,6 +37,15 @@ if(NOT TARGET_FILE OR NOT ARCHS)
 endif()
 string(REPLACE "," ";" _archs "${ARCHS}")
 
+# Match an arch as a whole processor name rather than a substring, so that gfx1250 does not
+# match inside gfx1250-strict. A following ':' is still allowed so that asking for gfx942
+# keeps matching a gfx942:xnack+ target id. '+' and '.' occur in target ids and are regex
+# metacharacters, so escape them.
+function(arch_token_regex _arch _out)
+    string(REGEX REPLACE "([.+])" "\\\\\\1" _escaped "${_arch}")
+    set(${_out} "(^|[^a-zA-Z0-9_])${_escaped}([^a-zA-Z0-9_-]|$)" PARENT_SCOPE)
+endfunction()
+
 if(WIN32)
     if(NOT OBJCOPY OR NOT BUNDLER OR NOT READOBJ)
         message(FATAL_ERROR "verify_offload_archs: OBJCOPY, BUNDLER and READOBJ required on Windows")
@@ -72,8 +81,9 @@ if(WIN32)
         # Search only the amdhsa.target line to avoid false positives from
         # arch names appearing elsewhere in kernel metadata or symbol names.
         string(REGEX MATCH "amdhsa\\.target:[^\r\n]*" _target_line "${_notes}")
-        string(FIND "${_target_line}" "${_a}" _pos)
-        if(_pos EQUAL -1)
+        arch_token_regex("${_a}" _arch_re)
+        string(REGEX MATCH "${_arch_re}" _found "${_target_line}")
+        if(_found STREQUAL "")
             list(APPEND _missing "${_a}")
         endif()
     endforeach()
@@ -90,8 +100,9 @@ else()
     endif()
     set(_missing "")
     foreach(_a IN LISTS _archs)
-        string(FIND "${_dump}" "${_a}" _pos)
-        if(_pos EQUAL -1)
+        arch_token_regex("${_a}" _arch_re)
+        string(REGEX MATCH "${_arch_re}" _found "${_dump}")
+        if(_found STREQUAL "")
             list(APPEND _missing "${_a}")
         endif()
     endforeach()

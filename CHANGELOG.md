@@ -8,11 +8,12 @@ Full documentation for MIGraphX is available at
 ### Added
 
 * Added a binary cache for compiled GPU kernels: identical kernels within a model compile once, and setting the `MIGRAPHX_BINARY_CACHE` environment variable (or the `binary_cache` backend option) also persists them on disk so later compiles of the same kernels skip compilation entirely, in a directory or, for a path ending in `.db` or `.sqlite`, in a single SQLite database; a `binary_cache_verify` backend option recompiles reused kernels and fails if they differ.
+* The binary cache is compressed with zstd, which makes a directory cache about half and a SQLite cache about 40% of the uncompressed size. MIGraphX now requires zstd to build.
 * Optimized GridSample by adding a GPU JIT kernel for the ONNX `nearest`, `linear`/`bilinear`, and `cubic`/`bicubic` modes, replacing the `concat`+`gathernd` decomposition in the ONNX parser for those modes (#5139).
 * Added the `split_sym_dim` pass, which specializes bounded symbolic dimensions into static `select_module` submodules (#5123).
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
-* Added MXR recompiling: `migraphx-driver compile --recompilable` stores each GPU kernel's compile recipe in the MXR, and `migraphx-driver recompile` (`program::recompile`) recompiles the kernels of a compiled MXR for the same or a newer GPU generation, including cross-compiling with `--gpu-arch` and exhaustive tuning, without the original model. MXR files can be opened without loading their kernels (`file_options::finalize`).
+* Added MXR recompiling: `migraphx-driver compile --recompilable` stores each GPU kernel's compile recipe in the MXR, and `migraphx-driver recompile` (`program::recompile`) recompiles the kernels of a compiled MXR for another GPU, of a newer or an older generation, including cross-compiling with `--gpu-arch` and exhaustive tuning, without the original model. MXR files can be opened without loading their kernels (`file_options::finalize`). Setting `MIGRAPHX_GPU_DUMP_BENCHMARK_MXR` also dumps the unresolved benchmark candidates of a recompile as standalone MXRs for external tuning (#5466, #5581).
 
 ### Changed
 

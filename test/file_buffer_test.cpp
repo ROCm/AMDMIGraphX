@@ -41,8 +41,9 @@ TEST_CASE(map_file_contents)
     migraphx::write_buffer(filename, data);
 
     auto view = migraphx::map_file(filename);
-    EXPECT(view.size == data.size());
-    EXPECT(std::equal(data.begin(), data.end(), view.data.get()));
+    EXPECT(view.size() == data.size());
+    EXPECT(view.begin() == view.data());
+    EXPECT(std::equal(view.begin(), view.end(), data.begin(), data.end()));
 }
 
 TEST_CASE(map_file_outlives_view)
@@ -55,7 +56,7 @@ TEST_CASE(map_file_outlives_view)
 
     // The mapping lasts as long as any pointer into it, not only the view that made it
     auto view = migraphx::map_file(filename);
-    std::shared_ptr<const char> tail{view.data, view.data.get() + 5000};
+    std::shared_ptr<const char> tail{view.ptr(), view.data() + 5000};
     view = {};
     EXPECT(std::equal(data.begin() + 5000, data.end(), tail.get()));
 }
@@ -67,8 +68,9 @@ TEST_CASE(map_file_empty)
     migraphx::write_buffer(filename, std::vector<char>{});
 
     auto view = migraphx::map_file(filename);
-    EXPECT(view.size == 0);
-    EXPECT(view.data == nullptr);
+    EXPECT(view.size() == 0);
+    EXPECT(view.data() == nullptr);
+    EXPECT(view.begin() == view.end());
 }
 
 TEST_CASE(map_file_missing)

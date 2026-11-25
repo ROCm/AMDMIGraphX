@@ -971,11 +971,11 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
         if(file_it == external_data_files.end())
             file_it = external_data_files.emplace(data_path.string(), map_file(data_path)).first;
         const file_view& file = file_it->second;
-        if(offset > file.size or nbytes > file.size - offset)
+        if(offset > file.size() or nbytes > file.size() - offset)
             MIGRAPHX_THROW("PARSE_TENSOR: external data of " + t.name() + " reads " +
                            std::to_string(nbytes) + " bytes at offset " + std::to_string(offset) +
                            " past the end of " + data_file);
-        std::shared_ptr<const char> data{file.data, file.data.get() + offset};
+        std::shared_ptr<const char> data{file.ptr(), file.data() + offset};
         // The file's data is aligned for every element type, so only the offset can misalign the
         // elements, which are read in place unless copied
         if(offset % data_shape.type_size() != 0)

@@ -26,6 +26,7 @@
 #include <migraphx/fileutils.hpp>
 #include <fstream>
 #include <iostream>
+#include <utility>
 
 #ifdef _WIN32
 #include <migraphx/manage_ptr.hpp>
@@ -76,6 +77,21 @@ std::string read_string(const fs::path& filename)
 {
     return generic_read_file<std::string>(filename);
 }
+
+file_view::file_view(std::shared_ptr<const char> ptr, std::size_t size)
+    : m_ptr(std::move(ptr)), m_size(size)
+{
+}
+
+const char* file_view::data() const { return m_ptr.get(); }
+
+std::size_t file_view::size() const { return m_size; }
+
+const char* file_view::begin() const { return data(); }
+
+const char* file_view::end() const { return data() + size(); }
+
+std::shared_ptr<const char> file_view::ptr() const { return m_ptr; }
 
 // For a file that cannot be mapped, such as one on a filesystem without mapping support
 static file_view read_file_view(const fs::path& filename)

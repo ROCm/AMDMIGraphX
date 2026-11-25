@@ -50,6 +50,7 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/fileutils.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
@@ -990,7 +991,10 @@ struct compiler
             auto weights_path = fs::path{co.weights_file};
             if(not weights_path.is_absolute())
                 weights_path = co.relative_path / weights_path;
-            if(fs::weakly_canonical(weights_path) == fs::weakly_canonical(l.output) or
+            // Made absolute first, as a relative path with no leading part that exists is left
+            // relative
+            if(migraphx::weakly_canonical(fs::absolute(weights_path)) ==
+                   migraphx::weakly_canonical(fs::absolute(l.output)) or
                (fs::exists(weights_path) and fs::exists(l.output) and
                 fs::equivalent(weights_path, l.output)))
                 MIGRAPHX_THROW("compile: weights file and output file must be different");

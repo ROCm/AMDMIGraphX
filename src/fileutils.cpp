@@ -24,8 +24,10 @@
 
 #include <migraphx/fileutils.hpp>
 #include <algorithm>
+#include <numeric>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -76,6 +78,54 @@ std::string sanitize_filename(std::string s)
         s.begin(), s.end(), [](char c) { return invalid.find(c) != std::string_view::npos; }, '_');
     return s;
 }
+
+#if MIGRAPHX_HAS_FILESYSTEM
+
+fs::path weakly_canonical(const fs::path& path) { return fs::weakly_canonical(path); }
+
+#else
+
+// path::lexically_normal, which std::experimental::filesystem does not have either
+static fs::path lexically_normal(const fs::path& path)
+{
+    auto parts = std::accumulate(
+        path.begin(), path.end(), std::vector<fs::path>{}, [](auto acc, const fs::path& part) {
+            // A trailing separator is an empty or a "." element
+            if(part.empty() or part == ".")
+                return acc;
+            if(part != ".." or acc.empty() or acc.back() == "..")
+                acc.push_back(part);
+            // The parent of the root is the root, so a ".." after it is dropped
+            else if(not acc.back().has_root_path())
+                acc.pop_back();
+            return acc;
+        });
+    if(parts.empty())
+        return path.empty() ? "" : ".";
+    return std::accumulate(parts.begin(), parts.end(), fs::path{}, [](fs::path acc, const auto& p) {
+        return acc /= p;
+    });
+}
+
+fs::path weakly_canonical(const fs::path& path)
+{
+    if(fs::exists(fs::status(path)))
+        return fs::canonical(path);
+    // The leading elements of the path that exist are resolved, and the rest appended to them
+    fs::path head;
+    auto missing  = std::find_if(path.begin(), path.end(), [&](const fs::path& part) {
+        auto next = head / part;
+        if(not fs::exists(fs::status(next)))
+            return true;
+        head = next;
+        return false;
+    });
+    auto resolved = head.empty() ? head : fs::canonical(head);
+    return lexically_normal(std::accumulate(
+        missing, path.end(), resolved, [](fs::path acc, const auto& p) { return acc /= p; }));
+}
+
+#endif
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

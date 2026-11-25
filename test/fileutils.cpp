@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/fileutils.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <test.hpp>
 #include <string_view>
 
@@ -113,5 +114,76 @@ TEST_CASE(sanitize_filename_no_invalid_chars)
     EXPECT(migraphx::sanitize_filename("gpu_mlir_op_8_123.mxr") == "gpu_mlir_op_8_123.mxr");
     EXPECT(migraphx::sanitize_filename("") == "");
 }
+
+TEST_CASE(weakly_canonical_existing_path)
+{
+    migraphx::tmp_dir td{};
+    fs::create_directories(td.path / "a" / "b");
+    EXPECT(migraphx::weakly_canonical(td.path / "a" / "b") == fs::canonical(td.path) / "a" / "b");
+    // The . and .. of a path that exists are resolved
+    EXPECT(migraphx::weakly_canonical(td.path / "a" / "." / "b" / "..") ==
+           fs::canonical(td.path) / "a");
+}
+
+TEST_CASE(weakly_canonical_missing_file)
+{
+    migraphx::tmp_dir td{};
+    // The directory is resolved and the name of the file that does not exist is kept
+    EXPECT(migraphx::weakly_canonical(td.path / "missing.txt") ==
+           fs::canonical(td.path) / "missing.txt");
+}
+
+TEST_CASE(weakly_canonical_missing_directories)
+{
+    migraphx::tmp_dir td{};
+    EXPECT(migraphx::weakly_canonical(td.path / "x" / "y" / "z.txt") ==
+           fs::canonical(td.path) / "x" / "y" / "z.txt");
+}
+
+TEST_CASE(weakly_canonical_normalizes_the_missing_part)
+{
+    migraphx::tmp_dir td{};
+    fs::create_directories(td.path / "a");
+    auto base = fs::canonical(td.path);
+    EXPECT(migraphx::weakly_canonical(td.path / "a" / "x" / "." / "y.txt") ==
+           base / "a" / "x" / "y.txt");
+    EXPECT(migraphx::weakly_canonical(td.path / "a" / "x" / ".." / "y.txt") ==
+           base / "a" / "y.txt");
+    // A .. can take the path back above the part that exists
+    EXPECT(migraphx::weakly_canonical(td.path / "a" / "x" / ".." / ".." / "y.txt") ==
+           base / "y.txt");
+}
+
+TEST_CASE(weakly_canonical_two_names_for_a_file)
+{
+    migraphx::tmp_dir td{};
+    fs::create_directories(td.path / "a");
+    auto direct   = td.path / "a" / "model.mxr";
+    auto indirect = td.path / "a" / ".." / "b" / ".." / "a" / "." / "model.mxr";
+    EXPECT(migraphx::weakly_canonical(direct) == migraphx::weakly_canonical(indirect));
+    EXPECT(migraphx::weakly_canonical(direct) !=
+           migraphx::weakly_canonical(td.path / "a" / "weights.db"));
+}
+
+TEST_CASE(weakly_canonical_relative_path_with_nothing_existing)
+{
+    // No leading part exists to resolve, so the path stays relative and is only normalized
+    fs::path missing{"migraphx-weakly-canonical-missing-dir"};
+    EXPECT(migraphx::weakly_canonical(missing / "file.txt") == missing / "file.txt");
+    EXPECT(migraphx::weakly_canonical(missing / "x" / ".." / "file.txt") == missing / "file.txt");
+    EXPECT(migraphx::weakly_canonical(missing / "..") == ".");
+    EXPECT(migraphx::weakly_canonical("").empty());
+}
+
+#ifndef _WIN32
+TEST_CASE(weakly_canonical_resolves_symlinks)
+{
+    migraphx::tmp_dir td{};
+    fs::create_directories(td.path / "real");
+    fs::create_directory_symlink(td.path / "real", td.path / "link");
+    EXPECT(migraphx::weakly_canonical(td.path / "link" / "missing.txt") ==
+           fs::canonical(td.path) / "real" / "missing.txt");
+}
+#endif
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

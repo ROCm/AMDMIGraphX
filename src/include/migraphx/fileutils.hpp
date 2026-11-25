@@ -40,6 +40,12 @@ MIGRAPHX_EXPORT fs::path make_static_library_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path append_extension(const fs::path& path, std::string_view ext);
 MIGRAPHX_EXPORT std::string sanitize_filename(std::string s);
 
+/// fs::weakly_canonical, which std::experimental::filesystem does not have. The leading part of
+/// the path that exists is resolved as fs::canonical does and the rest is normalized lexically,
+/// so the path itself does not have to exist. Call it as migraphx::weakly_canonical: an
+/// unqualified call is ambiguous where the filesystem library has one of its own.
+MIGRAPHX_EXPORT fs::path weakly_canonical(const fs::path& path);
+
 inline std::string operator+(std::string l, const fs::path& r) { return std::move(l) + r.string(); }
 
 inline std::string operator+(const fs::path& l, std::string r) { return l.string() + std::move(r); }

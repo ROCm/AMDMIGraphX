@@ -80,7 +80,7 @@ html_theme_options = {
     "flavor": "rocm-extras",
     "header_title": f"ROCm™ MIGraphX {version_number}",
     "version_list_link":
-    f"https://rocm.docs.amd.com/projects/AMDMIGraphX/en/latest/versions.html",
+    "https://rocm.docs.amd.com/projects/AMDMIGraphX/en/latest/versions.html",
     "link_main_doc": False,
     "repository_url": "https://github.com/ROCm/AMDMIGraphX",
     "use_repository_button": True,

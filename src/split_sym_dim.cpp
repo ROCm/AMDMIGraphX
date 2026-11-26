@@ -1826,7 +1826,8 @@ struct block_frame
             MIGRAPHX_THROW("SPLIT_SYM_DIM: failed to collect every block input");
     }
 
-    void collect_body(instruction_ref ins,
+    void collect_body(const module& m,
+                      instruction_ref ins,
                       const block_dependency_graph& graph,
                       const symbolic_op_plans& plans,
                       const std::unordered_set<instruction_ref>& planned_instructions,
@@ -1838,9 +1839,12 @@ struct block_frame
         if(plan != nullptr and plan->info.force_static_parameters)
             force_static_parameters = true;
         auto ins_inputs = plans.clone_inputs_for(ins, graph.is_planned(ins));
+        // An instruction of an enclosing module, read by a submodule, stays an input of the block
         for(const auto& input : ins_inputs)
-            if(graph.assignment.is_absorbable(input.source, planned_instructions, plans))
-                collect_body(input.source, graph, plans, planned_instructions, body_instructions);
+            if(m.has_instruction(input.source) and
+               graph.assignment.is_absorbable(input.source, planned_instructions, plans))
+                collect_body(
+                    m, input.source, graph, plans, planned_instructions, body_instructions);
         for(auto input : ins_inputs)
             add_input(std::move(input));
     }
@@ -1879,7 +1883,7 @@ struct block_frame
         std::unordered_set<instruction_ref> body_instructions;
         for(const auto* plan : block.ops)
             result.collect_body(
-                plan->info.ins, graph, plans, planned_instructions, body_instructions);
+                m, plan->info.ins, graph, plans, planned_instructions, body_instructions);
 
         std::size_t next_input = 0;
         while(next_input < result.inputs.size())
@@ -1887,7 +1891,8 @@ struct block_frame
             auto source       = result.inputs.at(next_input++).clone_value.source;
             auto source_block = graph.find_block(source);
             if(source_block == block_number and not contains(body_instructions, source))
-                result.collect_body(source, graph, plans, planned_instructions, body_instructions);
+                result.collect_body(
+                    m, source, graph, plans, planned_instructions, body_instructions);
         }
         auto module_instructions = iterator_for(m);
         std::copy_if(module_instructions.begin(),
@@ -1961,10 +1966,17 @@ struct block_frame
         for(const auto& [parameter_name, input_index] : params)
         {
             const auto& input = inputs.at(input_index);
-            auto parameter    = clone_module.add_parameter(
-                parameter_name,
-                clone_parameter_shape(
-                    input.select_input->get_shape(), subrange_symbols, frozen_symbols));
+            // A static view that another instruction computes gets the standard layout: passes
+            // after this one can still change the layout of that instruction, and lowering
+            // copies it into this layout. A module parameter, or an input whose strides depend
+            // on the symbols, keeps its strides.
+            const auto& input_shape = input.select_input->get_shape();
+            auto parameter_shape =
+                clone_parameter_shape(input_shape, subrange_symbols, frozen_symbols);
+            if(input.select_input->name() != "@param" and not input_shape.dynamic() and
+               not input_shape.standard())
+                parameter_shape = shape{parameter_shape.type(), parameter_shape.lens()};
+            auto parameter = clone_module.add_parameter(parameter_name, parameter_shape);
             values.set(input.clone_value, parameter);
         }
         for(auto input_index : literals)

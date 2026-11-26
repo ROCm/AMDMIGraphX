@@ -177,9 +177,10 @@ void restore_recipes::apply(module_pass_manager& mpm) const
             MIGRAPHX_THROW("recompile: the program was not compiled to be recompilable; "
                            "compile the model again with recompilable (--recompilable)");
         if(to_gen < from_gen)
-            MIGRAPHX_THROW("recompile: MXR compiled for gfx" + std::to_string(from_gen) + " (" +
-                           from_gfx + "); " + to_gfx + " is gfx" + std::to_string(to_gen) +
-                           "; retargeting to an older generation is not supported");
+            log::warn() << "recompile: retargeting from gfx" << from_gen << " (" << from_gfx
+                        << ") to the older gfx" << to_gen << " (" << to_gfx
+                        << "); kernels that use features the older arch lacks may fail to "
+                           "compile.";
         if(not scan.unsupported.empty())
             MIGRAPHX_THROW("recompile: cannot retarget to " + to_gfx +
                            ": these instructions are compiled for " + from_gfx +

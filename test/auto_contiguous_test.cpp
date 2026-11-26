@@ -24,6 +24,7 @@
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/program.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 
@@ -412,6 +413,33 @@ TEST_CASE(mixed_layout_no_contiguous_input)
     }
 
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(if_branches_return_transposes)
+{
+    // Each branch returns a transposed view; once the branches return standard tensors, the if
+    // has their standard shapes too
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto cond   = mm->add_parameter("cond", migraphx::shape{migraphx::shape::bool_type});
+    auto x      = mm->add_parameter("x", s);
+    auto branch = [&](const std::string& name, const std::string& op) {
+        auto* bm = p.create_module(name);
+        auto y   = bm->add_instruction(migraphx::make_op(op), x);
+        bm->add_return(
+            {bm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), y)});
+        return bm;
+    };
+    auto* then_mod = branch("If_0_if", "relu");
+    auto* else_mod = branch("If_0_else", "neg");
+    auto ret       = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret)});
+
+    migraphx::run_passes(p, {migraphx::auto_contiguous{}});
+    EXPECT(mm->validate() == mm->end());
+    EXPECT(ret->get_shape().sub_shapes().front() ==
+           migraphx::shape{migraphx::shape::float_type, {3, 2}});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

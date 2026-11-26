@@ -325,14 +325,21 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     auto args_hpp = make_args_hpp(options);
     options.additional_src_files.emplace_back("args.hpp", args_hpp);
 
-    return code_object_op{value::binary{compile_hip_raw(ctx, content, options)},
-                          options.kernel_name,
-                          options.global,
-                          options.local,
-                          options.inputs,
-                          options.output,
-                          options.output_arg,
-                          options.annotations};
+    // Named-field construction, not positional aggregate-init: code_object_op has several fields
+    // after output_arg (lds_carveout, cluster_size, warp_specialize, ...) that this generic HIP
+    // compile path does not set, and positional init is fragile against field reordering (it
+    // previously relied on options.annotations landing exactly in code_object_op's own
+    // now-reordered annotations slot).
+    code_object_op op;
+    op.code_object  = value::binary{compile_hip_raw(ctx, content, options)};
+    op.symbol_name  = options.kernel_name;
+    op.global       = options.global;
+    op.local        = options.local;
+    op.expected_inputs = options.inputs;
+    op.output       = options.output;
+    op.output_arg   = options.output_arg;
+    op.annotations  = options.annotations;
+    return op;
 }
 
 operation compile_hip_code_object(context& ctx, hip_src src)

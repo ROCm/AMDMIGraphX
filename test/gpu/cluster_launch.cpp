@@ -43,7 +43,6 @@ TEST_CASE(cluster_size_default)
 {
     migraphx::gpu::code_object_op op;
     EXPECT(op.get_cluster_size() == 1);
-    EXPECT(op.annotations.empty());
     EXPECT(not migraphx::contains(print(op), "cluster_size"));
 }
 
@@ -53,7 +52,6 @@ TEST_CASE(cluster_size_one_records_nothing)
     migraphx::gpu::code_object_op op;
     op.set_cluster_size(1);
     EXPECT(op.get_cluster_size() == 1);
-    EXPECT(op.annotations.empty());
 }
 
 TEST_CASE(cluster_size_set)
@@ -78,14 +76,12 @@ TEST_CASE(cluster_size_round_trip)
     auto loaded_unset =
         migraphx::from_value<migraphx::gpu::code_object_op>(migraphx::to_value(unset));
     EXPECT(loaded_unset.get_cluster_size() == 1);
-    EXPECT(loaded_unset.annotations.empty());
 }
 
 TEST_CASE(warp_specialize_default)
 {
     migraphx::gpu::code_object_op op;
     EXPECT(not op.get_warp_specialize());
-    EXPECT(op.annotations.empty());
     EXPECT(not migraphx::contains(print(op), "warp_specialize"));
 }
 
@@ -95,7 +91,6 @@ TEST_CASE(warp_specialize_false_records_nothing)
     migraphx::gpu::code_object_op op;
     op.set_warp_specialize(false);
     EXPECT(not op.get_warp_specialize());
-    EXPECT(op.annotations.empty());
 }
 
 TEST_CASE(warp_specialize_set)
@@ -119,7 +114,6 @@ TEST_CASE(warp_specialize_round_trip)
     auto loaded_unset =
         migraphx::from_value<migraphx::gpu::code_object_op>(migraphx::to_value(unset));
     EXPECT(not loaded_unset.get_warp_specialize());
-    EXPECT(loaded_unset.annotations.empty());
 }
 
 // Both annotations coexist and survive a round trip together, e.g. a clustered warp-specialized

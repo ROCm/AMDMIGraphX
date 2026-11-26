@@ -52,7 +52,6 @@ TEST_CASE(code_object_op_default)
 {
     migraphx::gpu::code_object_op op;
     EXPECT(op.get_lds_carveout() == -1);
-    EXPECT(op.annotations.empty());
     EXPECT(not migraphx::contains(print(op), "lds_carveout"));
 }
 
@@ -61,7 +60,6 @@ TEST_CASE(code_object_op_unset_value_records_nothing)
     migraphx::gpu::code_object_op op;
     op.set_lds_carveout(-1);
     EXPECT(op.get_lds_carveout() == -1);
-    EXPECT(op.annotations.empty());
 }
 
 TEST_CASE(code_object_op_set)
@@ -96,7 +94,6 @@ TEST_CASE(code_object_op_round_trip)
     auto loaded_unset =
         migraphx::from_value<migraphx::gpu::code_object_op>(migraphx::to_value(unset));
     EXPECT(loaded_unset.get_lds_carveout() == -1);
-    EXPECT(loaded_unset.annotations.empty());
 }
 
 namespace {

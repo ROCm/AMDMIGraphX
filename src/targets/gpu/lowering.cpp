@@ -730,8 +730,8 @@ struct miopen_apply
             auto inputs = ins->inputs();
             if(inputs.size() > 1)
             {
-                // The data input stays on GPU since slice creates an aliased view into it.
-                // Copy only the runtime metadata inputs.
+                // The data input stays on GPU since slice and broadcast_with_dims create an aliased
+                // view into it. Copy only the runtime metadata inputs.
                 for(std::size_t i = 1; i < inputs.size(); ++i)
                 {
                     inputs[i] =
@@ -744,6 +744,8 @@ struct miopen_apply
         };
         apply_map.emplace("slice", lower_runtime_bounds);
         apply_map.emplace("dyn_slice", lower_runtime_bounds);
+        // The dims of broadcast_with_dims are run-time metadata as well, read on the host
+        apply_map.emplace("broadcast_with_dims", lower_runtime_bounds);
     }
 
     // Get the argument's shape dimensions on host and then copy to gpu

@@ -37,13 +37,13 @@ if(NOT TARGET_FILE OR NOT ARCHS)
 endif()
 string(REPLACE "," ";" _archs "${ARCHS}")
 
-# Match an arch as a whole processor name rather than a substring, so that gfx1250 does not
-# match inside gfx1250-strict. A following ':' is still allowed so that asking for gfx942
-# keeps matching a gfx942:xnack+ target id. '+' and '.' occur in target ids and are regex
-# metacharacters, so escape them.
+# Match an arch only where a target id puts it, after "amdhsa-<env>-": the tool output also
+# contains the library path, which can name an arch directory. It must end there or at ':'
+# so gfx1250 does not match gfx1250-strict, while gfx942 still matches gfx942:xnack+.
+# '+' and '.' occur in target ids and are regex metacharacters, so escape them.
 function(arch_token_regex _arch _out)
     string(REGEX REPLACE "([.+])" "\\\\\\1" _escaped "${_arch}")
-    set(${_out} "(^|[^a-zA-Z0-9_])${_escaped}([^a-zA-Z0-9_-]|$)" PARENT_SCOPE)
+    set(${_out} "amdhsa-[a-z0-9]*-${_escaped}([:\r\n]|$)" PARENT_SCOPE)
 endfunction()
 
 if(WIN32)

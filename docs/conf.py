@@ -33,7 +33,7 @@ import re
 html_theme = "rocm_docs_theme"
 html_theme_options = {
     "flavor": "rocm-extras",
-    "header_title": f"ROCm™ MIGraphX {version_number}",
+    "header_title": f"ROCm™ MIGraphX 2.17.0",
     "version_list_link": f"https://rocm.docs.amd.com/projects/AMDMIGraphX/en/latest/versions.html",
     "link_main_doc": False,
     "repository_url": "https://github.com/ROCm/AMDMIGraphX",

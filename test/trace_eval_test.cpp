@@ -28,6 +28,7 @@
 #include <stdexcept>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/reflect.hpp>
@@ -99,6 +100,43 @@ TEST_CASE(trace_eval_level_2)
     }
     EXPECT(out.str().find("Run instruction") != std::string::npos);
     EXPECT(out.str().find("Output has") != std::string::npos);
+}
+
+// Returns an empty tensor and a tuple with an empty element
+struct empty_outputs_op
+{
+    std::string name() const { return "empty_outputs"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        return migraphx::shape{{migraphx::shape{migraphx::shape::float_type, {0}},
+                                migraphx::shape{migraphx::shape::float_type, {2}}}};
+    }
+    migraphx::argument compute(const migraphx::shape& output_shape,
+                               const std::vector<migraphx::argument>&) const
+    {
+        const auto& shapes = output_shape.sub_shapes();
+        return migraphx::argument{{migraphx::argument{shapes.front()},
+                                   migraphx::literal{shapes.back(), {1.0f, 2.0f}}.get_argument()}};
+    }
+};
+
+TEST_CASE(trace_eval_level_2_empty)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {0}});
+    auto empty = mm->add_instruction(migraphx::make_op("relu"), x);
+    auto tuple = mm->add_instruction(empty_outputs_op{});
+    mm->add_return({empty, tuple});
+    p.compile(test_target{});
+    std::stringstream out;
+    {
+        cout_redirect cr{out};
+        p.eval({{"x", migraphx::argument{migraphx::shape{migraphx::shape::float_type, {0}}}}});
+    }
+    // The empty tensor and the empty element of the tuple, in the preview and the statistics
+    EXPECT(out.str().find("Output: empty\nEmpty\n") != std::string::npos);
+    EXPECT(out.str().find("Output: {empty}{1, 2}\nEmpty\nMin value: 1") != std::string::npos);
 }
 
 TEST_CASE(trace_eval_migraphx_exception)

@@ -24,6 +24,7 @@
  */
 #include <migraphx/gpu/file_binary_cache.hpp>
 #include <migraphx/gpu/binary_cache_backend.hpp>
+#include <migraphx/compression.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/md5.hpp>
@@ -86,7 +87,7 @@ optional<binary_cache_entry> file_binary_cache::load(const std::string& version,
     {
         if(not fs::exists(path))
             return nullopt;
-        migraphx::from_value(from_msgpack(read_buffer(path)), e);
+        migraphx::from_value(from_msgpack(zstd_decompress(read_buffer(path))), e);
     }
     catch(const std::exception& ex)
     {
@@ -113,7 +114,7 @@ void file_binary_cache::store(const std::string& version,
     // The content is decided entirely by the key, so a writer that loses the publish race
     // replaces the file with the same bytes and no locking is needed.
     for(const auto& e : entries)
-        write_atomically(entry_path(dir, e.key), to_msgpack(migraphx::to_value(e)));
+        write_atomically(entry_path(dir, e.key), zstd_compress(to_msgpack(migraphx::to_value(e))));
 }
 
 } // namespace gpu

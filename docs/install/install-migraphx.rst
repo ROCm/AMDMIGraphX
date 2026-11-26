@@ -13,8 +13,6 @@ Installing MIGraphX using prebuilt packages is sufficient for most users
 who want to use the MIGraphX API. If you plan to develop for MIGraphX or
 contribute to the source code, see `Developing for MIGraphX <../dev/contributing-to-migraphx.html>`_.
 
-MIGraphX |MIGRAPHX_VERSION| is installed using pip.
-
 Prerequisites
 =============
 

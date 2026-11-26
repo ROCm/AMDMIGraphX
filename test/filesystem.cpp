@@ -84,7 +84,9 @@ TEST_CASE(weakly_canonical_relative_path_with_nothing_existing)
     fs::path missing{"migraphx-weakly-canonical-missing-dir"};
     EXPECT(migraphx::weakly_canonical(missing / "file.txt") == missing / "file.txt");
     EXPECT(migraphx::weakly_canonical(missing / "x" / ".." / "file.txt") == missing / "file.txt");
-    EXPECT(migraphx::weakly_canonical(missing / "..") == ".");
+    // Windows removes the .. before it looks the path up, so there the path exists and the result
+    // is the absolute path of the current directory rather than "."
+    EXPECT(fs::equivalent(migraphx::weakly_canonical(missing / ".."), fs::current_path()));
     EXPECT(migraphx::weakly_canonical("").empty());
 }
 

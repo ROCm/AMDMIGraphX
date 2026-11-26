@@ -55,9 +55,9 @@ dyn_concat_copy(index idx, Input input, index_int count, index_int offset, Outpu
     });
 }
 
-//NOTE: this only runs with one block.
-//TODO: investigate if we get better performance by doing multiple kernel launches such
-//that we concatenate inputs i and i+1 until all the inputs are concatenated.
+// NOTE: this only runs with one block.
+// TODO: investigate if we get better performance by doing multiple kernel launches such
+// that we concatenate inputs i and i+1 until all the inputs are concatenated.
 template <index_int Axis, class Counts, class Output, class Total, class... Inputs>
 __device__ void dyn_concat(Counts counts, Output output, Total total, Inputs... inputs)
 {
@@ -67,6 +67,8 @@ __device__ void dyn_concat(Counts counts, Output output, Total total, Inputs... 
     constexpr array<index_int, ninputs> capacities = {get_shape_c<Inputs>{}.lens[Axis]...};
 
     auto idx = make_index();
+    MIGRAPHX_ASSERT(idx.nglobal() == idx.nlocal());
+    MIGRAPHX_ASSERT(idx.nglobal() == idx.nlocal());
     __shared__ uninitialized_buffer<index_int, ninputs> valid_counts;
     __shared__ uninitialized_buffer<index_int, ninputs> offsets;
     auto get_count = [&](auto i) {
@@ -89,9 +91,8 @@ __device__ void dyn_concat(Counts counts, Output output, Total total, Inputs... 
         total[0] = total_count;
 
     auto input_pack = make_tuple(inputs...);
-    sequence_c<ninputs>([&](auto... is) {
-        swallow{(dyn_concat_copy<Axis>(idx, input_pack[is], valid_counts[is], offsets[is], output),
-                 0)...};
+    repeat_c<ninputs>([&](auto i) {
+        dyn_concat_copy<Axis>(idx, input_pack[i], valid_counts[i], offsets[i], output);
     });
 }
 

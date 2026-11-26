@@ -47,18 +47,17 @@ std::vector<instruction_ref> insert_select_module(module_pass_manager& mpm,
             return mpm.create_module(name, std::move(clone));
         });
 
-    value attributes{{"output_dyn_shapes", to_value(shape{output_shapes})}};
-    auto selection = m.add_instruction(make_op("select_module", attributes), inputs, submodules);
+    auto selection = m.add_instruction(
+        make_op("select_module", {{"output_dyn_shapes", to_value(shape{output_shapes})}}),
+        inputs,
+        submodules);
     std::vector<instruction_ref> outputs;
     outputs.reserve(output_shapes.size());
-    auto logical_indices = range(output_shapes.size());
-    std::transform(logical_indices.begin(),
-                   logical_indices.end(),
-                   std::back_inserter(outputs),
-                   [&](auto index) {
-                       return m.add_instruction(make_op("get_tuple_elem", {{"index", index}}),
-                                                selection);
-                   });
+    auto output_indices = range(output_shapes.size());
+    std::transform(
+        output_indices.begin(), output_indices.end(), std::back_inserter(outputs), [&](auto index) {
+            return m.add_instruction(make_op("get_tuple_elem", {{"index", index}}), selection);
+        });
     return outputs;
 }
 

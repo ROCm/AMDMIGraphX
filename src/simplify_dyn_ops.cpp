@@ -93,36 +93,29 @@ struct find_static_dyn_concat : match::supports_dynamic_shapes
     {
         auto ins    = mr.result;
         auto inputs = ins->inputs();
-        if(inputs.size() < 2)
-            return;
-        const auto n = inputs.size() - 1;
         std::vector<instruction_ref> data(inputs.begin() + 1, inputs.end());
         if(any_of(data, [](auto input) { return input->get_shape().dynamic(); }))
             return;
 
         auto axis         = tune_axis(data.front()->get_shape().ndim(),
-                              ins->get_operator().to_value().at("axis").to<int64_t>(),
-                              ins->name());
+                                      ins->get_operator().to_value().at("axis").to<int64_t>(),
+                                      ins->name());
         auto count_values = inputs.front()->sym_eval();
         if(count_values.empty())
             return;
-        auto values = count_values.get();
-        if(values.size() != n)
+        auto fixed_counts = sym::fixed_values<int64_t>(count_values.get());
+        if(not fixed_counts.has_value() or
+           not std::equal(fixed_counts->begin(),
+                          fixed_counts->end(),
+                          data.begin(),
+                          data.end(),
+                          [&](int64_t count, instruction_ref input) {
+                              const int64_t len = input->get_shape().lens().at(axis);
+                              return count == len;
+                          }))
             return;
-
-        int64_t total = 0;
-        for(std::size_t i = 0; i < n; ++i)
-        {
-            auto fixed = sym::fixed_value(values[i]);
-            if(not fixed.has_value())
-                return;
-            auto value = sym::to<int64_t>(*fixed);
-            if(value < 0 or
-               static_cast<std::size_t>(value) != data.at(i)->get_shape().lens().at(axis) or
-               value > std::numeric_limits<int64_t>::max() - total)
-                return;
-            total += value;
-        }
+        // Every count is the full extent of its input, so the total is the output capacity.
+        auto total = ins->get_shape().sub_shapes().front().lens().at(axis);
 
         auto concat = data.size() == 1
                           ? data.front()

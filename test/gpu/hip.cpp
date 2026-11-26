@@ -75,6 +75,15 @@ TEST_CASE(tuple_to_gpu)
     EXPECT(result2 == p2_data);
 }
 
+TEST_CASE(to_gpu_empty)
+{
+    migraphx::shape s{migraphx::shape::float_type, {0, 4}};
+    auto result = migraphx::gpu::to_gpu(migraphx::argument{s});
+
+    EXPECT(result.get_shape() == s);
+    EXPECT(result.data() != nullptr);
+}
+
 TEST_CASE(copy_from_gpu_empty_packed)
 {
     migraphx::gpu::context ctx{};

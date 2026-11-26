@@ -91,8 +91,8 @@ struct parse_topk : op_parser<parse_topk>
             int64_t k = arg_k.at<int>();
             return add_topk_and_gets(info, args, k, axis, largest);
         }
-        // Variable `k` is supported only for static or symbolic data. Run TopK at the axis
-        // maximum, then slice both outputs to the runtime `k`.
+        // Variable `k` is supported only for static or symbolic data. Run TopK at the largest
+        // possible `k`, then slice both outputs to the runtime `k`.
         const auto& input_shape = args.at(0)->get_shape();
         if(input_shape.dynamic() and not input_shape.symbolic())
             MIGRAPHX_THROW("PARSE_TOPK: a runtime `k` needs a static or symbolic data shape; "
@@ -105,8 +105,8 @@ struct parse_topk : op_parser<parse_topk>
         if(not symbolic_k.empty() and symbolic_k.get_shape().elements() == 1 and
            shape::is_integral(symbolic_k.get_shape().type()))
         {
-            const auto& expression = symbolic_k.get()[0];
-            auto interval          = expression.eval_interval_default();
+            const auto expression = symbolic_k.get()[0];
+            auto interval         = expression.eval_interval_default();
             if(interval.valid())
             {
                 auto min_k          = sym::to<int64_t>(interval.min);

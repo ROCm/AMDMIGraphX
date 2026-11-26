@@ -27,7 +27,6 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
 #include <algorithm>
-#include <limits>
 #include <numeric>
 
 namespace migraphx {
@@ -43,9 +42,7 @@ slice_to_lens(module& m, instruction_ref input, const std::vector<std::size_t>& 
     std::vector<int64_t> axes(lens.size());
     std::iota(axes.begin(), axes.end(), int64_t{0});
     std::vector<int64_t> starts(lens.size(), 0);
-    std::vector<int64_t> ends(lens.size());
-    std::transform(
-        lens.begin(), lens.end(), ends.begin(), [](auto x) { return static_cast<int64_t>(x); });
+    std::vector<int64_t> ends(lens.begin(), lens.end());
     return m.add_instruction(make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
                              input);
 }
@@ -78,7 +75,7 @@ struct analyze_scatter : analyzer<analyze_scatter>
         auto result    = analyze_axes(ins);
         result.freezer = freeze;
         // Index and update extents are equal at runtime but can have independent symbolic roots.
-        // Keep this operation isolated to avoid cloning their producer blocks cartesianly.
+        // Keep this operation in its own block so their producers are not cloned per combination.
         result.allow_block_merge = false;
         return result;
     }
@@ -99,15 +96,16 @@ struct analyze_scatter : analyzer<analyze_scatter>
         const auto& original_indices = source->inputs().at(1)->get_shape();
         auto index_lens              = indices->get_shape().lens();
         auto update_lens             = updates->get_shape().lens();
+        assert(index_lens.size() == update_lens.size());
+        // Independent roots can select different buckets. Their common prefix still contains every
+        // valid runtime update because ScatterElements requires indices and updates to have equal
+        // runtime shapes.
         std::vector<std::size_t> common_lens(index_lens.size());
         std::transform(index_lens.begin(),
                        index_lens.end(),
                        update_lens.begin(),
                        common_lens.begin(),
                        [](auto x, auto y) { return std::min(x, y); });
-        // Independent roots can select different buckets. Their common prefix still contains every
-        // valid runtime update because ScatterElements requires indices and updates to have equal
-        // runtime shapes.
         if(contains(common_lens, std::size_t{0}))
             return data;
         indices = slice_to_lens(m, indices, common_lens);
@@ -115,11 +113,7 @@ struct analyze_scatter : analyzer<analyze_scatter>
         if(not updates->get_shape().standard())
             updates = m.add_instruction(make_op("contiguous"), updates);
 
-        std::vector<std::pair<std::size_t, sym::expr>> prefix_axes;
-        if(original_indices.symbolic())
-            for(std::size_t axis = 0; axis < original_indices.ndim(); ++axis)
-                if(is_variable_axis(original_indices.dyn_dims().at(axis)))
-                    prefix_axes.emplace_back(axis, original_indices.dyn_dims().at(axis).sym_expr);
+        auto prefix_axes = variable_prefix_axes(original_indices, original_indices.ndim());
 
         if(prefix_axes.empty())
         {
@@ -132,8 +126,6 @@ struct analyze_scatter : analyzer<analyze_scatter>
                                    data->get_shape().ndim());
         assert(axis.has_value());
         auto data_lens = data->get_shape().lens();
-        if(data_lens.at(*axis) == std::numeric_limits<std::size_t>::max())
-            MIGRAPHX_THROW("SPLIT_SYM_DIM: scatter sink dimension overflows");
 
         // Zero-padded tail indices would overwrite a valid element zero. Append a disposable sink
         // element and redirect every tail update there instead.
@@ -142,8 +134,7 @@ struct analyze_scatter : analyzer<analyze_scatter>
         auto padded_data = m.add_instruction(make_op("pad", {{"pads", pads}}), data);
 
         auto valid = make_prefix_mask(m, common_lens, prefix_axes);
-        auto sink  = m.add_literal(
-            literal{shape{shape::int64_type, {1}}, {static_cast<int64_t>(data_lens.at(*axis))}});
+        auto sink  = m.add_literal(literal{shape{shape::int64_type, {1}}, {data_lens.at(*axis)}});
         if(indices->get_shape().type() != shape::int64_type)
             sink = m.add_instruction(
                 make_op("convert", {{"target_type", indices->get_shape().type()}}), sink);
@@ -151,12 +142,9 @@ struct analyze_scatter : analyzer<analyze_scatter>
         indices = m.add_instruction(make_op("where"), valid, indices, sink);
 
         auto scattered = m.add_instruction(source->get_operator(), padded_data, indices, updates);
-        auto result =
-            m.add_instruction(make_op("slice",
-                                      {{"axes", {static_cast<int64_t>(*axis)}},
-                                       {"starts", {0}},
-                                       {"ends", {static_cast<int64_t>(data_lens.at(*axis))}}}),
-                              scattered);
+        auto result    = m.add_instruction(
+            make_op("slice", {{"axes", {*axis}}, {"starts", {0}}, {"ends", {data_lens.at(*axis)}}}),
+            scattered);
         return m.add_instruction(make_op("contiguous"), result);
     }
 };

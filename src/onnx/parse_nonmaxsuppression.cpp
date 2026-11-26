@@ -25,8 +25,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sat_ops.hpp>
 #include <algorithm>
-#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -62,19 +62,14 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
             const auto& scores_shape = args.at(1)->get_shape();
             if(not max_output.empty() and scores_shape.ndim() == 3)
             {
-                auto per_class = max_output.at<int64_t>();
-                if(per_class > 0)
+                auto max_per_class = max_output.at<int64_t>();
+                if(max_per_class > 0)
                 {
-                    auto scores_max = scores_shape.max_lens();
-                    auto batch      = scores_max.at(0);
-                    auto classes    = scores_max.at(1);
-                    auto limit      = std::numeric_limits<std::size_t>::max();
-                    if(classes > 0 and batch <= limit / classes and
-                       batch * classes <= limit / static_cast<std::size_t>(per_class))
-                    {
-                        max_selected = std::min(
-                            max_selected, batch * classes * static_cast<std::size_t>(per_class));
-                    }
+                    const std::size_t per_class = max_per_class;
+                    auto scores_max             = scores_shape.max_lens();
+                    auto batch                  = scores_max.at(0);
+                    auto classes                = scores_max.at(1);
+                    max_selected = std::min(max_selected, mul_sat(batch, classes, per_class));
                 }
             }
         }

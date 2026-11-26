@@ -26,9 +26,9 @@
 
 #include <migraphx/argument.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/checked_ops.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/par.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/tune_axis.hpp>
@@ -36,7 +36,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <limits>
 #include <numeric>
 #include <string>
 #include <vector>
@@ -47,7 +46,7 @@ namespace op {
 
 /**
  * Concatenate inputs over a symbolic dimension.
- * Originally created to handle the concatenation of mutiple region proposals in MaskRCNN.
+ * Used to concatenate multiple region proposals in Mask R-CNN.
  *
  * Inputs are ordered as:
  *   num_elements, data_0, ..., data_n
@@ -68,7 +67,10 @@ struct dyn_concat
 
     std::string name() const { return "dyn_concat"; }
 
-    shape normalize_compute_shape(std::vector<shape> inputs) const
+    // Kernels only write the valid extents, so targets zero the output buffer first.
+    value attributes() const { return {{"prefill", 0}}; }
+
+    shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.size() < 2)
             MIGRAPHX_THROW("DYN_CONCAT: expected a count tensor followed by data inputs");
@@ -101,26 +103,21 @@ struct dyn_concat
         auto output_lens                = inputs.at(1).max_lens();
         output_lens.at(normalized_axis) = std::accumulate(
             inputs.begin() + 1, inputs.end(), std::size_t{0}, [&](auto total, const shape& s) {
-                const auto length = s.max_lens().at(normalized_axis);
-                if(length > std::numeric_limits<std::size_t>::max() - total)
-                    MIGRAPHX_THROW("DYN_CONCAT: maximum output dimension overflow");
-                return total + length;
+                return checked_add(total, s.max_lens().at(normalized_axis));
             });
         return shape{{shape{inputs.at(1).type(), output_lens}, shape{shape::int64_type, {1}}}};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        const auto n               = args.size() - 1;
-        const auto& output_shapes  = output_shape.sub_shapes();
+        assert(args.size() >= 2);
+        const auto n              = args.size() - 1;
+        const auto& output_shapes = output_shape.sub_shapes();
+        assert(output_shapes.size() == 2);
         const auto normalized_axis = tune_axis(output_shapes.front().ndim(), axis, name());
+        // A new argument is zero-initialized, which provides the zero padding.
         argument output{output_shapes.front()};
         argument total_output{output_shapes.back()};
-
-        output.visit([](auto values) {
-            using value_type = typename decltype(values)::value_type;
-            std::fill(values.begin(), values.end(), value_type{0});
-        });
 
         auto indices            = range(n);
         const auto num_elements = args.front().to_vector<int64_t>();
@@ -128,13 +125,13 @@ struct dyn_concat
         std::transform(indices.begin(), indices.end(), counts.begin(), [&](std::size_t i) {
             if(num_elements.at(i) < 0)
                 MIGRAPHX_THROW("DYN_CONCAT: count cannot be negative");
-            const auto count = static_cast<std::size_t>(num_elements.at(i));
+            const std::size_t count = num_elements.at(i);
             if(count > args.at(i + 1).get_shape().lens().at(normalized_axis))
                 MIGRAPHX_THROW("DYN_CONCAT: count exceeds the input dimension");
             return count;
         });
         std::vector<std::size_t> offsets(n);
-        std::exclusive_scan(counts.begin(), counts.end(), offsets.begin(), std::size_t{0});
+        std::partial_sum(counts.begin(), counts.end() - 1, offsets.begin() + 1);
         const auto output_offset = std::accumulate(counts.begin(), counts.end(), std::size_t{0});
         if(output_offset > output_shapes.front().lens().at(normalized_axis))
             MIGRAPHX_THROW("DYN_CONCAT: counts exceed the output capacity");
@@ -162,9 +159,7 @@ struct dyn_concat
                     std::copy(input_slice.begin(), input_slice.end(), output_slice.begin());
                 });
             });
-        total_output.visit([&](auto total) {
-            total.front() = static_cast<typename decltype(total)::value_type>(output_offset);
-        });
+        total_output.get<int64_t>().front() = output_offset;
         return {{output, total_output}};
     }
 };

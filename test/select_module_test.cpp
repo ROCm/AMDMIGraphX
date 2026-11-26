@@ -585,10 +585,10 @@ TEST_CASE(select_module_empty_logical_output_returns_output_allocation)
     auto result  = op.compute(migraphx::shape{std::vector<migraphx::shape>{output_s}},
                               {data_arg, output_arg},
                               {&submod},
-                             [&](const migraphx::module_ref&, const auto&) {
+                              [&](const migraphx::module_ref&, const auto&) {
                                  invoked = true;
                                  return std::vector<migraphx::argument>{};
-                             });
+                              });
 
     EXPECT(not invoked);
     EXPECT(result.get_sub_objects().size() == 1);
@@ -629,10 +629,10 @@ TEST_CASE(select_module_empty_logical_output_builds_empty_arguments)
     auto result  = op.compute(migraphx::shape{output_shapes},
                               {empty_arg, tuple_arg},
                               {&submod},
-                             [&](const migraphx::module_ref&, const auto&) {
+                              [&](const migraphx::module_ref&, const auto&) {
                                  invoked = true;
                                  return std::vector<migraphx::argument>{};
-                             });
+                              });
 
     EXPECT(not invoked);
     auto outputs = result.get_sub_objects();
@@ -754,10 +754,10 @@ TEST_CASE(select_module_mixed_logical_outputs_runs)
     auto result  = op.compute(migraphx::shape{std::vector<migraphx::shape>{data_s}},
                               {data_arg, empty_arg, output_arg},
                               {&submod},
-                             [&](const migraphx::module_ref&, const auto& params) {
+                              [&](const migraphx::module_ref&, const auto& params) {
                                  invoked = true;
                                  return std::vector<migraphx::argument>{params.at("sub:#output_0")};
-                             });
+                              });
 
     EXPECT(invoked);
     EXPECT(result.get_sub_objects().size() == 1);

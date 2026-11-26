@@ -35,30 +35,31 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+// The nested callbacks mirror the host launch, block scan, and device copy hierarchy.
+// NOLINTNEXTLINE(readability-function-size)
 void dyn_concat(hipStream_t stream,
-                std::int64_t axis,
+                std::size_t axis,
                 const argument& counts,
                 const std::vector<argument>& inputs,
                 const argument& output,
                 const argument& total)
 {
     assert(not inputs.empty());
-    const std::int64_t rank = inputs.front().get_shape().ndim();
-    if(axis < 0)
-        axis += rank;
-    assert(axis >= 0 and axis < rank);
-    const index_int normalized_axis = axis;
-    const index_int ninputs         = inputs.size();
+    // The kernel indexes the counts and the total through raw pointers.
+    assert(counts.get_shape().standard() and total.get_shape().standard());
+    assert(axis < inputs.front().get_shape().ndim());
+    const index_int ninputs        = inputs.size();
     constexpr index_int block_size = 256;
-    const auto n_aligned           = ((ninputs + block_size - 1) / block_size) * block_size;
+    const index_int n_aligned      = ceil_mul_of(ninputs, block_size);
 
     hip_pointer_visit_all(counts, total)([&](auto counts_ptr, auto total_ptr) {
         for(std::size_t input_index = 0; input_index < inputs.size(); ++input_index)
         {
-            const auto& input = inputs.at(input_index);
+            const auto& input             = inputs.at(input_index);
             const index_int current_input = input_index;
             const index_int elements      = input.get_shape().elements();
-            const auto nblocks = std::max<index_int>(1, (elements + block_size - 1) / block_size);
+            const index_int nblocks =
+                std::max<std::size_t>(1, integer_divide_ceil(elements, block_size));
             hip_visit_all(output, input)([&](auto output_view, auto input_view) {
                 launch(stream, nblocks * block_size, block_size)([=](auto idx) __device__ {
                     MIGRAPHX_DEVICE_SHARED int64_t offset;
@@ -66,9 +67,7 @@ void dyn_concat(hipStream_t stream,
                         idx,
                         sum{},
                         int64_t{0},
-                        [&](auto f) -> decltype(f(index_int{})) {
-                            return idx.local_stride(n_aligned, f);
-                        },
+                        n_aligned,
                         [&](auto i) { return i < ninputs ? counts_ptr[i] : int64_t{0}; },
                         [&](auto i, auto inclusive_value) {
                             if(i == current_input)
@@ -80,14 +79,14 @@ void dyn_concat(hipStream_t stream,
                         });
                     __syncthreads();
                     auto count = counts_ptr[current_input];
+                    if(count <= 0)
+                        return;
                     idx.global_stride(elements, [&](auto i) {
-                        if(count <= 0)
-                            return;
                         auto input_pos = input_view.get_shape().multi(i);
-                        if(input_pos[normalized_axis] >= count)
+                        if(input_pos[axis] >= count)
                             return;
                         auto output_pos = input_pos;
-                        output_pos[normalized_axis] += offset;
+                        output_pos[axis] += offset;
                         output_view[output_pos] = input_view[input_pos];
                     });
                 });

@@ -23,9 +23,6 @@ MI355X and MI350X data center GPUs and ``gfx942`` MI325X and MI300X GPUs.
 
 See the |ROCM_COMPAT_DOC| for more information.
 
-* Ensure your system has Python 3.10, 3.11, 3.12, 3.13, or 3.14 installed
-  and accessible.
-
 .. _migraphx-package-install:
 
 Install MIGraphX on Linux
@@ -36,9 +33,10 @@ MIGraphX requires ROCm to be installed on your system first.
 Install ROCm
 ------------
 
-For instructions, see |ROCM_INSTALL_DOC|. Use the selector
-panel on that page to view instructions appropriate for your system
-environment.
+For instructions, see |ROCM_INSTALL_DOC|. Select **pip** as the
+installation method and install ROCm |ROCM_VERSION| into a Python virtual
+environment. Use the selector panel on that page to view instructions
+appropriate for your system environment.
 
 Install MIGraphX using pip
 ---------------------------
@@ -46,18 +44,17 @@ Install MIGraphX using pip
 After installing ROCm, install MIGraphX. This method installs MIGraphX |MIGRAPHX_VERSION| into
 a Python virtual environment.
 
-1. Create and activate a virtual environment or activate an existing ROCm
-   |ROCM_VERSION| environment.
+1. Activate the ROCm |ROCM_VERSION| virtual environment you created
+   while installing ROCm using pip.
 
    .. code-block:: bash
 
-      python3 -m venv .venv
       source .venv/bin/activate
 
    .. note::
 
-      This command may vary depending on the Python version installed on
-      your system (for example, ``python3.12 -m venv .venv``).
+      Substitute ``.venv`` with the path to your virtual environment if
+      you used a different name or location.
 
 2. Install the MIGraphX and ``migraphx-libs`` wheels.
 
@@ -69,42 +66,21 @@ a Python virtual environment.
           |WHL_LIBS_URL|
 
 3. Importing MIGraphX may fail with a missing shared library error, such
-   as ``libhiprtc.so.7: cannot open shared object file`` or
-   ``libhsa-runtime64.so.1: cannot open shared object file``. As a
-   workaround, update ``LD_LIBRARY_PATH`` to link to the required ROCm
-   libraries. Select the tab that matches how you installed ROCm.
+   as ``libhiprtc.so.7: cannot open shared object file``. ROCm's pip
+   wheels place their shared libraries inside your virtual environment's
+   ``site-packages`` instead of ``/opt/rocm``. As a workaround, update
+   ``LD_LIBRARY_PATH`` to link to the required ROCm libraries. Set the
+   environment variable for the current shell session with the virtual
+   environment active, so the paths resolve correctly. Run this command
+   again in each new shell session after activating the virtual
+   environment.
 
-   .. tab-set::
+   .. code-block:: bash
 
-      .. tab-item:: Installed ROCm using pip
-         :sync: rocm-pip
-
-         ROCm's pip wheels place their shared libraries inside your
-         virtual environment's ``site-packages`` instead of
-         ``/opt/rocm``. Set the environment variable for the current
-         shell session with the virtual environment active, so the
-         paths resolve correctly. Run this command again in each new
-         shell session after activating the virtual environment.
-
-         .. code-block:: bash
-
-            # MIGraphX Environment Setup
-            ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
-            ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
-            export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:$LD_LIBRARY_PATH
-
-      .. tab-item:: Installed ROCm using a package manager
-         :sync: rocm-pkgman
-
-         Set the environment variable for the current shell session.
-         Run this command again in each new shell session.
-
-         .. code-block:: bash
-            :substitutions:
-
-            # MIGraphX Environment Setup
-            export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-            export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
+      # MIGraphX Environment Setup
+      ROCM_SDK_CORE=$(python3 -c "import _rocm_sdk_core, os; print(os.path.dirname(_rocm_sdk_core.__file__))")
+      ROCM_SDK_LIBRARIES=$(python3 -c "import _rocm_sdk_libraries, os; print(os.path.dirname(_rocm_sdk_libraries.__file__))")
+      export LD_LIBRARY_PATH=$ROCM_SDK_CORE/lib:$ROCM_SDK_CORE/lib/rocm_sysdeps/lib:$ROCM_SDK_LIBRARIES/lib:$LD_LIBRARY_PATH
 
 4. Verify your installation.
 

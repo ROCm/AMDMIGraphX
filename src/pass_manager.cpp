@@ -69,6 +69,20 @@ static void validate_pass(module& mod, const pass& p, tracer trace)
     trace();
 #endif
 }
+
+// The submodules of a module are run first, so an instruction that takes them, such as an if or
+// a loop, can still have the shape of the outputs they had before the pass changed them. Bypassed
+// submodules, which the passes do not run on (eg those of fused ops), are left out.
+static void update_submodule_shapes(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(not ins->module_inputs().empty() and
+           none_of(ins->module_inputs(), [](module_ref sm) { return sm->bypass(); }))
+            ins->recompute_shape();
+    }
+}
+
 static void run_pass(program& prog, const pass& p, tracer trace)
 {
     trace("Pass: ", p.name());
@@ -141,6 +155,7 @@ struct module_pm : module_pass_manager
             return;
         trace("Pass: ", p.name());
         assert(mod);
+        update_submodule_shapes(*mod);
         assert(mod->validate() == mod->end());
         try_and_dump_on_error(p, [&] {
             if(enabled(MIGRAPHX_TIME_PASSES{}))

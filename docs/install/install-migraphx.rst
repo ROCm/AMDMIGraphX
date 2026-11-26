@@ -916,7 +916,6 @@ environment.
       To uninstall MIGraphX, remove your MIGraphX installation directory.
 
       .. important::
-         :substitutions:
 
          The following command assumes you're working with the
          ``MIGRAPHX_INSTALL_PATH`` directory set to

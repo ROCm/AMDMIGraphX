@@ -94,7 +94,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_FP16_ACCUMULATION);
 
 #ifdef MIGRAPHX_MLIR
 template <class T, class F, F f> // NOLINT
@@ -642,9 +641,10 @@ struct mlir_program
         {
             ops.add_attributes({{"rock.enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
         }
-        if(enabled(MIGRAPHX_MLIR_ENABLE_FP16_ACCUMULATION{}))
+        // rocMLIR only enables it for an i64 value of 1; a bool attribute would be an i1.
+        if(float16_accumulation)
         {
-            ops.add_attributes({{"rock.fp16_accumulation", mlirUnitAttrGet(ctx.get())}});
+            ops.add_attributes({{"rock.float16_accumulation", std::uint64_t{1}}});
         }
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
@@ -975,10 +975,11 @@ struct mlir_program
 
     void set_gpu_properties(const context& migraphx_ctx)
     {
-        const auto& device = migraphx_ctx.get_current_device();
-        target_arch        = device.get_device_name();
-        num_cu             = device.get_cu_count();
-        num_chiplets       = device.get_chiplet_count();
+        const auto& device   = migraphx_ctx.get_current_device();
+        target_arch          = device.get_device_name();
+        num_cu               = device.get_cu_count();
+        num_chiplets         = device.get_chiplet_count();
+        float16_accumulation = migraphx_ctx.get_mlir_float16_accumulation();
     }
 
     std::tuple<std::size_t, std::size_t, std::size_t> get_launch_params() const
@@ -1045,7 +1046,12 @@ struct mlir_program
         if(tuning_key_bytes > tuning_key.size())
             MIGRAPHX_THROW("Tuning table key was " + std::to_string(tuning_key_bytes) +
                            " bytes and thus too long");
-        tc.problem = std::string(tuning_key.begin(), tuning_key.begin() + tuning_key_bytes);
+        std::string problem(tuning_key.begin(), tuning_key.begin() + tuning_key_bytes);
+        // rocMLIR's key omits the accumulation mode, so keep the two modes' tuning apart. The
+        // suffix is the matching rocmlir-gen flag, so the key still reproduces the kernel.
+        if(float16_accumulation)
+            problem += " -float16-accumulation";
+        tc.problem = std::move(problem);
         return tc;
     }
 
@@ -1144,9 +1150,10 @@ struct mlir_program
     mlir_logger logger;
     problem_params pp;
     std::deque<std::string> strings{};
-    std::string target_arch  = "";
-    std::size_t num_cu       = 0;
-    std::size_t num_chiplets = 0;
+    std::string target_arch   = "";
+    std::size_t num_cu        = 0;
+    std::size_t num_chiplets  = 0;
+    bool float16_accumulation = false;
     std::string sym_name;
 };
 

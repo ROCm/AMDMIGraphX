@@ -363,6 +363,12 @@ struct context
 
     void set_disable_processes(bool v) { disable_processes = v; }
 
+    // When true, MLIR kernels request 16-bit accumulation from rocMLIR.
+    // Set via compile_options::backend_options["mlir_float16_accumulation"].
+    bool get_mlir_float16_accumulation() const { return mlir_float16_accumulation; }
+
+    void set_mlir_float16_accumulation(bool v) { mlir_float16_accumulation = v; }
+
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
 
@@ -538,9 +544,10 @@ struct context
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool exhaustive_tune   = false;
-    bool disable_processes = false;
-    bool measure_perf      = false;
+    bool exhaustive_tune           = false;
+    bool disable_processes         = false;
+    bool mlir_float16_accumulation = false;
+    bool measure_perf              = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;

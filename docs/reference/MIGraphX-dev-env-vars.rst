@@ -203,15 +203,6 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Split-k performance configurations are turned off.
 
-  * - | ``MIGRAPHX_MLIR_ENABLE_FP16_ACCUMULATION``
-      | Requests 16-bit accumulation for MLIR GEMM kernels by setting the ``rock.fp16_accumulation`` attribute.
-      | rocMLIR currently honors it only on gfx1250, for f16/bf16 GEMMs with an output of the same type and for fp8/bf8 GEMMs with an f16 output. Trades accuracy for performance.
-
-    - | ``1``: Turns on 16-bit accumulation.
-      | ``0``: Returns to default behavior.
-
-      | Default: GEMMs accumulate in 32-bit.
-
   * - | ``MIGRAPHX_FLASH_DECODING_ENABLED``
       | When set, flash decoding optimization for attention fusion is enabled, which splits the key-value sequence dimension for improved performance on long sequences.
       

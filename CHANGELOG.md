@@ -14,7 +14,7 @@ Full documentation for MIGraphX is available at
 * Added a `select_module_index` operator that runs one submodule chosen by a host integer. On GPU the index is a shared `hip::load_scalar`, and the select stays outside HIP graph capture (#5364).
 * Added support for elementwise operations whose corresponding non-literal symbolic dimensions use different expressions, while requiring literal dimensions to match exactly (#5388).
 * Added MXR recompiling: `migraphx-driver compile --recompilable` stores each GPU kernel's compile recipe in the MXR, and `migraphx-driver recompile` (`program::recompile`) recompiles the kernels of a compiled MXR for another GPU, of a newer or an older generation, including cross-compiling with `--gpu-arch` and exhaustive tuning, without the original model. MXR files can be opened without loading their kernels (`file_options::finalize`). Setting `MIGRAPHX_GPU_DUMP_BENCHMARK_MXR` also dumps the unresolved benchmark candidates of a recompile as standalone MXRs for external tuning (#5466, #5581).
-* Added the `MIGRAPHX_MLIR_ENABLE_FP16_ACCUMULATION` environment variable, which sets the `rock.fp16_accumulation` attribute on MLIR kernels so rocMLIR can use WMMA instructions with 16-bit accumulation on gfx1250.
+* Added the `mlir_float16_accumulation` GPU backend option, also settable through `MIGRAPHX_GPU_OPTIONS`, which sets the `rock.float16_accumulation` attribute on MLIR kernels so rocMLIR can use WMMA instructions with 16-bit accumulation for GEMMs and convolutions on gfx1250 (#5605).
 
 ### Changed
 

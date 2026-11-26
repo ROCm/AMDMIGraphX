@@ -44,7 +44,6 @@
 #include <test.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_FP16_ACCUMULATION);
 
 struct mlir_gpu_target : migraphx::gpu::target
 {
@@ -245,13 +244,11 @@ static bool verify_mlir(const migraphx::module& mmlir, const migraphx::parameter
 
 static std::string get_attrs()
 {
-    std::string attrs = R"({rock.arch = "", )";
     if(migraphx::enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
-        attrs += "rock.enable_splitk_for_tuning, ";
-    if(migraphx::enabled(MIGRAPHX_MLIR_ENABLE_FP16_ACCUMULATION{}))
-        attrs += "rock.fp16_accumulation, ";
-    attrs += R"(rock.kernel = "mixr", rock.num_chiplets = 0 : i64, rock.num_cu = 0 : i64})";
-    return attrs;
+    {
+        return R"({rock.arch = "", rock.enable_splitk_for_tuning, rock.kernel = "mixr", rock.num_chiplets = 0 : i64, rock.num_cu = 0 : i64})";
+    }
+    return R"({rock.arch = "", rock.kernel = "mixr", rock.num_chiplets = 0 : i64, rock.num_cu = 0 : i64})";
 }
 
 TEST_CASE(conv)
@@ -1101,6 +1098,34 @@ TEST_CASE_SKIP(prefill_float_reduce, "temporarily disabled")
         return v.is_int64() and v.to<int>() == 0;
     }));
 }
+
+// The f16 and bf16 GEMMs that rocMLIR can accumulate in 16 bits must still compile with the
+// option on every architecture, including those where rocMLIR ignores it.
+template <migraphx::shape::type_t T>
+static void float16_accumulation_compiles()
+{
+    migraphx::module m;
+    auto a   = m.add_parameter("a", {T, {1, 64, 32}});
+    auto b   = m.add_parameter("b", {T, {1, 32, 48}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), a, b);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx;
+    auto tc_default = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    ctx.set_mlir_float16_accumulation(true);
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    // Tuning for one accumulation mode must not be reused for the other
+    EXPECT(tc.problem != tc_default.problem);
+    auto mco = compile_mlir(ctx, create_mlir_submodule(m), shapes, tc.solutions.front());
+    EXPECT(not mco.cop.code_object.empty());
+}
+TEST_CASE_REGISTER(float16_accumulation_compiles<migraphx::shape::half_type>);
+TEST_CASE_REGISTER(float16_accumulation_compiles<migraphx::shape::bf16_type>);
 
 TEST_CASE_SKIP(prefill_integer_reduce, "temporarily disabled")
 {

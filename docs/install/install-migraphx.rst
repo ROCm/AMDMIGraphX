@@ -194,7 +194,7 @@ environment.
       .. selector:: SLES version
          :key: sles-ver
 
-         .. selector-option:: 16
+         .. selector-option:: 16.0
             :width: 6
 
          .. selector-option:: 15.7

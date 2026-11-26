@@ -45,11 +45,6 @@ MIGraphX |MIGRAPHX_VERSION| is currently supported on:
 
 See the |ROCM_COMPAT_DOC| for more information.
 
-.. selected:: i=pip
-
-   * Ensure your system has Python 3.10, 3.11, 3.12, 3.13, or 3.14 installed
-     and accessible.
-
 .. _migraphx-package-install:
 
 Install MIGraphX on Linux
@@ -63,6 +58,24 @@ Install ROCm
 For instructions, see |ROCM_INSTALL_DOC|. Use the selector
 panel on that page to view instructions appropriate for your system
 environment.
+
+.. selected:: i=pkgman
+
+   Select your Linux distribution's package manager (``apt``, ``dnf``, or
+   ``zypper``) as the installation method. The package manager MIGraphX
+   packages below require ROCm |ROCM_VERSION| installed the same way.
+
+.. selected:: i=pip
+
+   Select **pip** as the installation method and install ROCm
+   |ROCM_VERSION| into a Python virtual environment. The pip MIGraphX
+   wheels below require ROCm installed using pip in the same virtual
+   environment.
+
+.. selected:: i=tar
+
+   Select **Tarball** (or your Linux distribution's package manager) as
+   the installation method.
 
 .. selected:: i=pkgman
    :heading: Install MIGraphX via package manager
@@ -565,20 +578,6 @@ environment.
          previous step aren't set in your current shell. Re-run the
          ``source`` command or open a new shell session.
 
-   .. seealso::
-
-      ONNX Runtime with ``onnxruntime-ep-migraphx`` accelerates machine
-      learning inference using the MIGraphX execution provider on
-      ROCm-supported GPUs. See the `ONNX Runtime installation guide`_.
-
-      The ONNX Runtime MIGraphX execution provider requires MIGraphX to
-      be installed using pip. The ``onnxruntime-ep-migraphx`` wheel
-      depends on ``migraphx-libs``, which pip can't resolve from a
-      package manager installation. To use the execution provider,
-      install MIGraphX using pip instead.
-
-.. _ONNX Runtime installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html
-
 .. selected:: i=pkgman
    :heading: Uninstall MIGraphX
    :heading-level: 3
@@ -682,18 +681,17 @@ environment.
    After installing ROCm, install MIGraphX. This method installs MIGraphX |MIGRAPHX_VERSION| into
    a Python virtual environment.
 
-   1. Create and activate a virtual environment or activate an existing ROCm
-      |ROCM_VERSION| environment.
+   1. Activate the ROCm |ROCM_VERSION| virtual environment you created
+      while installing ROCm using pip.
 
       .. code-block:: bash
 
-         python3 -m venv .venv
          source .venv/bin/activate
 
       .. note::
 
-         This command may vary depending on the Python version installed on
-         your system (for example, ``python3.12 -m venv .venv``).
+         Substitute ``.venv`` with the path to your virtual environment if
+         you used a different name or location.
 
    2. Install the MIGraphX and ``migraphx-libs`` wheels.
 
@@ -704,22 +702,7 @@ environment.
              "migraphx==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|" \
              "migraphx-libs==|MIGRAPHX_VERSION|+rocm|ROCM_VERSION|"
 
-   3. **If you installed ROCm using your Linux distribution's package
-      manager** instead of pip, importing MIGraphX fails with
-      ``libhsa-runtime64.so.1: cannot open shared object file``. As
-      a workaround, update ``LD_LIBRARY_PATH`` to link to the required ROCm
-      libraries in your installation path. Set the environment variable
-      for the current shell session and run this command again in each
-      new shell session:
-
-      .. code-block:: bash
-         :substitutions:
-
-         # MIGraphX Environment Setup
-         export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-         export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-
-   4. Verify your installation.
+   3. Verify your installation.
 
       Confirm that ``migraphx-driver`` and the ``migraphx`` Python module are
       available in your virtual environment and report the expected version.
@@ -742,6 +725,8 @@ environment.
       ONNX Runtime with ``onnxruntime-ep-migraphx`` accelerates machine
       learning inference using the MIGraphX execution provider on
       ROCm-supported GPUs. See the `ONNX Runtime installation guide`_.
+
+.. _ONNX Runtime installation guide: https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/inference/onnxruntime.html
 
 .. selected:: i=pip
    :heading: Uninstall MIGraphX

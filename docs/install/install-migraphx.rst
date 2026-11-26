@@ -42,10 +42,11 @@ environment.
 
 .. note::
 
-   Installing MIGraphX using pip requires ROCm |ROCM_VERSION| installed using
-   pip in the same virtual environment. Select **pip** as the ROCm
-   installation method and install ROCm |ROCM_VERSION| into a Python virtual
-   environment.
+   Installing MIGraphX using pip requires a ROCm |ROCM_VERSION|
+   installation using pip in the same virtual environment. When
+   selecting the ROCm installation method, choose **pip** as the ROCm
+   installation method and install ROCm |ROCM_VERSION| into a Python
+   virtual environment.
 
 Install MIGraphX using pip
 ---------------------------

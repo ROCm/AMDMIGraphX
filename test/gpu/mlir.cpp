@@ -44,6 +44,7 @@
 #include <test.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_FP16_ACCUMULATION);
 
 struct mlir_gpu_target : migraphx::gpu::target
 {
@@ -244,11 +245,13 @@ static bool verify_mlir(const migraphx::module& mmlir, const migraphx::parameter
 
 static std::string get_attrs()
 {
+    std::string attrs = R"({rock.arch = "", )";
     if(migraphx::enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
-    {
-        return R"({rock.arch = "", rock.enable_splitk_for_tuning, rock.kernel = "mixr", rock.num_chiplets = 0 : i64, rock.num_cu = 0 : i64})";
-    }
-    return R"({rock.arch = "", rock.kernel = "mixr", rock.num_chiplets = 0 : i64, rock.num_cu = 0 : i64})";
+        attrs += "rock.enable_splitk_for_tuning, ";
+    if(migraphx::enabled(MIGRAPHX_MLIR_ENABLE_FP16_ACCUMULATION{}))
+        attrs += "rock.fp16_accumulation, ";
+    attrs += R"(rock.kernel = "mixr", rock.num_chiplets = 0 : i64, rock.num_cu = 0 : i64})";
+    return attrs;
 }
 
 TEST_CASE(conv)

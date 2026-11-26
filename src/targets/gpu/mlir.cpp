@@ -94,6 +94,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_FP16_ACCUMULATION);
 
 #ifdef MIGRAPHX_MLIR
 template <class T, class F, F f> // NOLINT
@@ -640,6 +641,10 @@ struct mlir_program
         if(enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
         {
             ops.add_attributes({{"rock.enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
+        }
+        if(enabled(MIGRAPHX_MLIR_ENABLE_FP16_ACCUMULATION{}))
+        {
+            ops.add_attributes({{"rock.fp16_accumulation", mlirUnitAttrGet(ctx.get())}});
         }
         ops.add_region(std::move(region));
         insert(body, std::move(ops));

@@ -455,7 +455,7 @@ TEST_CASE(load_confines_external_data)
 
     auto v      = migraphx::from_msgpack(migraphx::read_buffer(original));
     auto& nodes = v.at("modules").at("main").at("nodes");
-    auto node   = std::find_if(nodes.begin(), nodes.end(), [](const migraphx::value& n) {
+    auto* node  = std::find_if(nodes.begin(), nodes.end(), [](const migraphx::value& n) {
         return n.contains("literal") and n.at("literal").contains("external");
     });
     EXPECT(node != nodes.end());
@@ -504,7 +504,7 @@ TEST_CASE(verify_rejects_missing_checksum)
     migraphx::save(p1, filename, options);
     auto v      = migraphx::from_msgpack(migraphx::read_buffer(filename));
     auto& nodes = v.at("modules").at("main").at("nodes");
-    auto node   = std::find_if(nodes.begin(), nodes.end(), [](const migraphx::value& n) {
+    auto* node  = std::find_if(nodes.begin(), nodes.end(), [](const migraphx::value& n) {
         return n.contains("literal") and n.at("literal").contains("external");
     });
     EXPECT(node != nodes.end());
@@ -547,7 +547,7 @@ TEST_CASE(malformed_references_throw)
     EXPECT(std::all_of(corruptions.begin(), corruptions.end(), [&](const auto& corrupt) {
         auto c      = v;
         auto& nodes = c.at("modules").at("main").at("nodes");
-        auto node   = std::find_if(nodes.begin(), nodes.end(), [](const migraphx::value& n) {
+        auto* node  = std::find_if(nodes.begin(), nodes.end(), [](const migraphx::value& n) {
             return n.contains("literal") and n.at("literal").contains("external");
         });
         corrupt((*node)["literal"]);

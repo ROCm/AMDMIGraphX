@@ -26,6 +26,7 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
@@ -103,7 +104,7 @@ TEST_CASE(compiled_program_external_weights)
 }
 
 // A gpu::literal saved before external weights held an argument, which serializes the same as
-// an inline literal
+// an inline literal, so the old format still loads and uploads in both host and device modes
 template <bool Host>
 static void loads_old_gpu_literal()
 {
@@ -119,8 +120,12 @@ static void loads_old_gpu_literal()
     auto op  = migraphx::make_op("gpu::literal", v);
     auto ctx = migraphx::make_target("gpu").get_context();
     op.finalize(ctx, s, {});
-    auto result = migraphx::gpu::from_gpu(op.compute(ctx, s, {}));
-    EXPECT(result == l.get_argument());
+    auto* gctx = ctx.any_cast<migraphx::gpu::context>();
+    EXPECT(gctx != nullptr);
+    // from_gpu rejects registered host memory, so the host-mode literal is copied to the device
+    auto result = migraphx::gpu::allocate_gpu(s);
+    migraphx::gpu::gpu_copy(*gctx, op.compute(s, {}), result);
+    EXPECT(migraphx::gpu::from_gpu(result) == l.get_argument());
 }
 TEST_CASE_REGISTER(loads_old_gpu_literal<true>);
 TEST_CASE_REGISTER(loads_old_gpu_literal<false>);

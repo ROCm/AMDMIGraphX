@@ -63,26 +63,29 @@ environment.
 
    .. note::
 
-      Installing MIGraphX using a package manager requires ROCm |ROCM_VERSION|
-      installed using the same method. Select your Linux distribution's package
-      manager (``apt``, ``dnf``, or ``zypper``) as the ROCm installation method.
+      Installing MIGraphX using a package manager requires a ROCm
+      |ROCM_VERSION| installation using the same method. When selecting
+      the ROCm installation method, choose your Linux distribution's
+      package manager (``apt``, ``dnf``, or ``zypper``).
 
 .. selected:: i=pip
 
    .. note::
 
-      Installing MIGraphX using pip requires ROCm |ROCM_VERSION| installed using
-      pip in the same virtual environment. Select **pip** as the ROCm
-      installation method and install ROCm |ROCM_VERSION| into a Python virtual
-      environment.
+      Installing MIGraphX using pip requires a ROCm |ROCM_VERSION|
+      installation using pip in the same virtual environment. When
+      selecting the ROCm installation method, choose **pip** as the ROCm
+      installation method and install ROCm |ROCM_VERSION| into a Python
+      virtual environment.
 
 .. selected:: i=tar
 
    .. note::
 
-      Installing MIGraphX using a tarball requires ROCm |ROCM_VERSION|
-      installed using a tarball or your Linux distribution's package manager.
-      Select **Tarball** or your Linux distribution's package manager as the
+      Installing MIGraphX using a tarball requires a ROCm |ROCM_VERSION|
+      installation using a tarball or your Linux distribution's package
+      manager. When selecting the ROCm installation method, choose
+      **Tarball** or your Linux distribution's package manager as the
       ROCm installation method.
 
 .. selected:: i=pkgman

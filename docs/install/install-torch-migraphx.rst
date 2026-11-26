@@ -22,9 +22,6 @@ MIGraphX |MIGRAPHX_VERSION|. See the :doc:`MIGraphX installation page
 <install-migraphx>` for the list of supported architectures and the
 |ROCM_COMPAT_DOC| for more information.
 
-* Ensure your system has Python 3.10, 3.11, 3.12, 3.13, or 3.14 installed
-  and accessible.
-
 * A ROCm-enabled PyTorch build must be installed in the same environment.
 
 Install Torch-MIGraphX on Linux
@@ -33,9 +30,10 @@ Install Torch-MIGraphX on Linux
 Install ROCm
 ------------
 
-For instructions, see |ROCM_INSTALL_DOC|. Use the selector
-panel on that page to view instructions appropriate for your system
-environment.
+For instructions, see |ROCM_INSTALL_DOC|. Select **pip** as the
+installation method and install ROCm |ROCM_VERSION| into a Python virtual
+environment. Use the selector panel on that page to view instructions
+appropriate for your system environment.
 
 Install Torch-MIGraphX 1.2 using pip
 --------------------------------------
@@ -43,24 +41,23 @@ Install Torch-MIGraphX 1.2 using pip
 After installing ROCm, install Torch-MIGraphX. This method installs
 Torch-MIGraphX into a Python virtual environment.
 
-1. Create and activate a virtual environment or activate an existing ROCm
-   |ROCM_VERSION| environment.
+1. Activate the ROCm |ROCM_VERSION| virtual environment you created
+   while installing ROCm using pip.
 
    .. code-block:: bash
 
-      python3 -m venv .venv
       source .venv/bin/activate
 
    .. note::
 
-      This command may vary depending on the Python version installed on
-      your system (for example, ``python3.12 -m venv .venv``).
+      Substitute ``.venv`` with the path to your virtual environment if
+      you used a different name or location.
 
 2. Install a ROCm-enabled PyTorch release into the environment. See
-   |TORCH_INSTALL_DOC| and select ROCm |ROCM_VERSION| on the selector
-   panel. The ``torch_migraphx`` wheel in the next step, and the
-   workaround in step 4, require a matching ROCm |ROCM_VERSION|
-   installation.
+   |TORCH_INSTALL_DOC|, select **pip** and ROCm |ROCM_VERSION| on the
+   selector panel, and install into the same virtual environment. The
+   ``torch_migraphx`` wheel in the next step requires a matching ROCm
+   |ROCM_VERSION| installation.
 
 3. Install the ``torch_migraphx`` wheel. This also installs the matching
    MIGraphX |MIGRAPHX_VERSION| wheels.
@@ -82,24 +79,6 @@ Torch-MIGraphX into a Python virtual environment.
       python -c "import torch, torch_migraphx; print('migraphx' in torch._dynamo.list_backends())"
 
    This prints ``True`` if the MIGraphX backend is registered as expected.
-
-   .. important::
-      :substitutions:
-
-      If you installed ROCm using your Linux distribution's package manager
-      instead of pip, both commands fail with ``libhsa-runtime64.so.1:
-      cannot open shared object file``. The ROCm libraries are in
-      :substitution-code:`/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|/lib`,
-      which isn't on the default linker path, so add it before running
-      them:
-
-      .. code-block:: bash
-         :substitutions:
-
-         export ROCM_PATH=/opt/rocm/core-|ROCM_VERSION_PKG_SUFFIX|
-         export LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH
-
-      To make this permanent, add these lines to your shell startup script.
 
 Uninstall Torch-MIGraphX
 --------------------------

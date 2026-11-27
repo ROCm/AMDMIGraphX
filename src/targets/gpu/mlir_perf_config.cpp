@@ -157,13 +157,13 @@ apply_num_ctas(const std::vector<std::string>& solutions, long request, long max
         return result;
     }
 
-    // A tile-splittable candidate gets its clustered copy offered first (so it is preferred when
-    // only the first candidate is used, e.g. eager compiles), with the unclustered original kept
-    // right after as a fallback: nothing here asks whether the device can actually honor
+    // The unclustered original is always kept first, with a tile-splittable candidate's clustered
+    // copy offered right after: nothing here asks whether the device can actually honor
     // clustering (no device check happens in this file), so rocMLIR may reject every clustered
-    // candidate it is handed. Without the unclustered original still in the pool, that would leave
-    // zero compilable candidates and abort the whole compile instead of just losing the benchmark
-    // to (or falling back to) an unclustered winner.
+    // candidate it is handed. Eager/skip-benchmark compiles use only the first candidate with no
+    // fallback of their own (compile_ops.cpp's add_cells), so the safe, always-compilable
+    // unclustered candidate must be first; exhaustive/benchmarked compiles still race the
+    // clustered candidate fairly and drop it gracefully if rocMLIR rejects it.
     auto clamped = std::min(request, max_cluster);
     std::vector<std::string> result;
     std::unordered_set<std::string> seen;
@@ -173,6 +173,7 @@ apply_num_ctas(const std::vector<std::string>& solutions, long request, long max
     };
     for(const auto& s : solutions)
     {
+        add(s);
         if(is_named_perf_config(s) and perf_config_prefix(s) == "gemm" and
            get_perf_config_field(s, "numCTAs").value_or(1) == 1)
         {
@@ -181,7 +182,6 @@ apply_num_ctas(const std::vector<std::string>& solutions, long request, long max
             if(m.has_value() and n.has_value() and is_tile_splittable(*m, *n, clamped))
                 add(set_perf_config_field(s, "numCTAs", clamped));
         }
-        add(s);
     }
     return result;
 }

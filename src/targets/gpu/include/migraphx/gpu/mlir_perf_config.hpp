@@ -68,13 +68,14 @@ MIGRAPHX_GPU_EXPORT bool is_tile_splittable(long m_per_block, long n_per_block, 
 // `mlir_num_ctas` backend option:
 //   0: left unchanged (rocMLIR's own list; clusters only ever appear in exhaustive tuning)
 //   1: keep only the candidates whose numCTAs is already 1 (the default: no clusters)
-//   N (2, 4, 8 or 16): each named "gemm:" candidate at numCTAs=1 whose tile is splittable by N
-//      gets a numCTAs=N copy offered first (preferred when only the first candidate is used,
-//      e.g. an eager compile), with the unclustered original kept right after as a fallback.
-//      Every other original candidate is kept unchanged too. Nothing here checks whether the
-//      device can actually honor clustering, so rocMLIR may reject every clustered candidate;
-//      keeping the originals means that still leaves a compilable kernel instead of zero
-//      candidates. Duplicate strings are removed, preserving first appearance.
+//   N (2, 4, 8 or 16): every original candidate is kept first, and each named "gemm:" candidate
+//      at numCTAs=1 whose tile is splittable by N additionally gets a numCTAs=N copy offered
+//      right after it. Nothing here checks whether the device can actually honor clustering, so
+//      rocMLIR may reject every clustered candidate; an unclustered original is always first so
+//      an eager/skip-benchmark compile (which uses only the first candidate, with no fallback of
+//      its own) still gets a compilable kernel, and a benchmarked compile still races the
+//      clustered candidate fairly and drops it gracefully if rocMLIR rejects it. Duplicate
+//      strings are removed, preserving first appearance.
 MIGRAPHX_GPU_EXPORT std::vector<std::string>
 apply_num_ctas(const std::vector<std::string>& solutions, long request, long max_cluster);
 

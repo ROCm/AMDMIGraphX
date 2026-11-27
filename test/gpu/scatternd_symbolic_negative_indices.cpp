@@ -89,7 +89,7 @@ TEST_CASE(scatternd_symbolic_negative_indices_gpu_test)
 {
     // Symbolic data and symbolic indices: n updates go to rows n - 1, n - 2, ..., 0, so the
     // result is the updates in reverse order.
-    auto n = var("n", {1, 4}, {2});
+    auto n = var("n", {2, 4}, {2});
     migraphx::program p;
     auto& m            = *p.get_main_module();
     auto data_buffer   = m.add_parameter("data_buffer", {migraphx::shape::float_type, {dd{n}}});
@@ -104,7 +104,6 @@ TEST_CASE(scatternd_symbolic_negative_indices_gpu_test)
 
     migraphx::target t = migraphx::make_target("gpu");
     p.compile(t);
-    // n = 1 is left out: that clone faults for positive indices too, which is a separate problem
     for(std::size_t len : {2, 3, 4})
     {
         std::vector<float> updates(len);
@@ -176,7 +175,7 @@ TEST_CASE(scatternd_symbolic_data_derived_constant_negative_indices_gpu_test)
 TEST_CASE(scatternd_static_data_symbolic_negative_indices_gpu_test)
 {
     // Static data of 8 rows and a symbolic number of indices: -1, -2, ... address rows 7, 6, ...
-    auto n = var("n", {1, 4}, {2});
+    auto n = var("n", {2, 4}, {2});
     migraphx::program p;
     auto& m            = *p.get_main_module();
     auto update_buffer = m.add_parameter("update_buffer", {migraphx::shape::float_type, {dd{n}}});
@@ -189,7 +188,6 @@ TEST_CASE(scatternd_static_data_symbolic_negative_indices_gpu_test)
 
     migraphx::target t = migraphx::make_target("gpu");
     p.compile(t);
-    // n = 1 is left out, as above
     for(std::size_t len : {2, 3, 4})
     {
         std::vector<float> updates(len);

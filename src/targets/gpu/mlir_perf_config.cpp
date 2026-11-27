@@ -157,6 +157,13 @@ apply_num_ctas(const std::vector<std::string>& solutions, long request, long max
         return result;
     }
 
+    // A tile-splittable candidate gets its clustered copy offered first (so it is preferred when
+    // only the first candidate is used, e.g. eager compiles), with the unclustered original kept
+    // right after as a fallback: nothing here asks whether the device can actually honor
+    // clustering (no device check happens in this file), so rocMLIR may reject every clustered
+    // candidate it is handed. Without the unclustered original still in the pool, that would leave
+    // zero compilable candidates and abort the whole compile instead of just losing the benchmark
+    // to (or falling back to) an unclustered winner.
     auto clamped = std::min(request, max_cluster);
     std::vector<std::string> result;
     std::unordered_set<std::string> seen;
@@ -166,24 +173,16 @@ apply_num_ctas(const std::vector<std::string>& solutions, long request, long max
     };
     for(const auto& s : solutions)
     {
-        if(not is_named_perf_config(s) or perf_config_prefix(s) != "gemm")
-            continue;
-        auto ctas = get_perf_config_field(s, "numCTAs").value_or(1);
-        if(ctas == clamped)
+        if(is_named_perf_config(s) and perf_config_prefix(s) == "gemm" and
+           get_perf_config_field(s, "numCTAs").value_or(1) == 1)
         {
-            add(s);
-            continue;
+            auto m = get_perf_config_field(s, "mPerBlock");
+            auto n = get_perf_config_field(s, "nPerBlock");
+            if(m.has_value() and n.has_value() and is_tile_splittable(*m, *n, clamped))
+                add(set_perf_config_field(s, "numCTAs", clamped));
         }
-        if(ctas != 1)
-            continue;
-        auto m = get_perf_config_field(s, "mPerBlock");
-        auto n = get_perf_config_field(s, "nPerBlock");
-        if(not m.has_value() or not n.has_value() or not is_tile_splittable(*m, *n, clamped))
-            continue;
-        add(set_perf_config_field(s, "numCTAs", clamped));
+        add(s);
     }
-    if(result.empty())
-        return apply_num_ctas(solutions, 1, max_cluster);
     return result;
 }
 

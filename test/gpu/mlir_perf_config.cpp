@@ -136,15 +136,18 @@ TEST_CASE(num_ctas_rewrites_splittable_gemm)
         "gemm:mPerBlock=128,nPerBlock=128,numCTAs=1",  // splittable by 4 (32x128 per cta)
         "gemm:mPerBlock=16,nPerBlock=16,numCTAs=1",    // not splittable by 4
         "gemm:mPerBlock=64,nPerBlock=64,numCTAs=4",    // already at the requested size
-        "attn:mPerBlock=128,numCTAs=1",                // not a gemm: config, left out
-        "gemm:v1:128:128:64:1"};                       // positional, left out
+        "attn:mPerBlock=128,numCTAs=1",                // not a gemm: config
+        "gemm:v1:128:128:64:1"};                       // positional
     auto result = apply_num_ctas(sols, 4, 16);
-    EXPECT(migraphx::contains(result, std::string{"gemm:mPerBlock=128,nPerBlock=128,numCTAs=4"}));
+    // Every original stays in the pool as an unclustered fallback...
+    EXPECT(migraphx::contains(result, sols[0]));
+    EXPECT(migraphx::contains(result, sols[1]));
     EXPECT(migraphx::contains(result, sols[2]));
-    EXPECT(not migraphx::contains(result, sols[1]));
-    EXPECT(not migraphx::contains(result, sols[3]));
-    EXPECT(not migraphx::contains(result, sols[4]));
-    EXPECT(result.size() == 2);
+    EXPECT(migraphx::contains(result, sols[3]));
+    EXPECT(migraphx::contains(result, sols[4]));
+    // ...and the one splittable gemm candidate additionally gets a clustered copy offered.
+    EXPECT(migraphx::contains(result, std::string{"gemm:mPerBlock=128,nPerBlock=128,numCTAs=4"}));
+    EXPECT(result.size() == 6);
 }
 
 TEST_CASE(num_ctas_dedupes)
@@ -152,16 +155,20 @@ TEST_CASE(num_ctas_dedupes)
     std::vector<std::string> sols = {"gemm:mPerBlock=128,nPerBlock=128,numCTAs=1",
                                      "gemm:mPerBlock=128,nPerBlock=128,numCTAs=4"};
     auto result = apply_num_ctas(sols, 4, 16);
-    EXPECT(result.size() == 1);
+    // The unclustered original plus the already-clustered candidate, deduped against the
+    // identical string that rewriting the original would have produced.
+    EXPECT(result.size() == 2);
+    EXPECT(migraphx::contains(result, sols[0]));
+    EXPECT(migraphx::contains(result, sols[1]));
 }
 
-TEST_CASE(num_ctas_empty_result_falls_back_to_one)
+TEST_CASE(num_ctas_no_splittable_candidates_keeps_originals)
 {
-    // Every tile is too small to split by 4; the numCTAs=1 list is returned instead.
+    // Every tile is too small to split by 4: nothing gets a clustered copy, but nothing is
+    // dropped either, unlike a device-aware caller might expect if clustering were mandatory.
     std::vector<std::string> sols = {"gemm:mPerBlock=16,nPerBlock=16,numCTAs=1",
                                      "attn:mPerBlock=128,numCTAs=1"};
-    auto result = apply_num_ctas(sols, 4, 16);
-    EXPECT(result == apply_num_ctas(sols, 1, 16));
+    EXPECT(apply_num_ctas(sols, 4, 16) == sols);
 }
 
 TEST_CASE(num_ctas_clamped_to_device_max)

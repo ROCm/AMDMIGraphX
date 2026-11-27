@@ -44,14 +44,17 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BINARY_CACHE)
 struct context;
 
 /// How the cache behaves for one compile. Supplied through the target's backend options, with
-/// the MIGRAPHX_BINARY_CACHE environment variable as the default for the directory.
+/// the MIGRAPHX_BINARY_CACHE environment variable as the default for the writable cache.
 struct binary_cache_settings
 {
-    /// Where entries are kept. Nothing is written to disk when this is empty, though results
-    /// are still shared in memory.
+    /// Where entries are looked up and newly compiled ones stored. Nothing is written to disk
+    /// when this is empty, though results are still shared in memory.
     std::string path = string_value_of(MIGRAPHX_BINARY_CACHE{});
     /// Compile even when a result can be reused, and fail if the two disagree.
     bool verify = false;
+    /// Searched after path and never written to, such as a cache shipped with an application.
+    /// Nothing is created when it does not exist.
+    std::string read_only_path = {};
 };
 
 /**
@@ -72,27 +75,28 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     {
         /// Served from memory, from an earlier compile or disk read in this process.
         std::size_t reused = 0;
-        /// Served from the storage backend.
+        /// Served from storage, the writable cache or the read-only one.
         std::size_t hits = 0;
         /// Not found, so the caller had to compile.
         std::size_t misses = 0;
-        /// Written to the cache after being compiled.
+        /// Recorded after being compiled, and stored in the writable cache when there is one.
         std::size_t compiled = 0;
     };
 
     /// Nothing is opened here; storage is set up by the first lookup or insert, so a context that
     /// never compiles never touches the disk or probes the compiler.
-    explicit binary_cache(binary_cache_settings s = {}) : settings(std::move(s)) {}
+    explicit binary_cache(binary_cache_settings s = {});
 
-    /// Look up a key, consulting memory first and then the storage backend.
+    /// Look up a key in memory, then the writable cache, then the read-only one. A locally stored
+    /// result wins over a shipped one, as with the problem cache.
     optional<compiled_code> get(const context& ctx, const std::string& key);
 
-    /// Record compiled results under their keys. They are handed to the storage backend
-    /// together, so it can commit them at once rather than one at a time.
+    /// Record compiled results under their keys. They are handed to the writable cache together,
+    /// so it can commit them at once rather than one at a time.
     void insert(const context& ctx, std::vector<binary_cache_entry> es);
 
     /// True when reused results should be checked against a fresh compile.
-    bool verify() const { return settings.verify; }
+    bool verify() const { return verify_reuse; }
 
     const stats& get_stats() const { return counters; }
 
@@ -104,17 +108,33 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     static const std::string& version_id(bool use_short_digest);
 
     private:
-    /// The storage backend, opened on first use, or null for a memory-only cache.
-    binary_cache_backend* get_backend();
+    /// One storage tier, opened on first use.
+    struct storage
+    {
+        std::string path;
+        bool read_only = false;
+        /// The version_id entries are stored under, in the form the backend uses.
+        std::string version;
+        /// Where entries are persisted, or empty when the tier has no usable storage.
+        optional<binary_cache_backend> backend;
+        /// Whether open has already tried to open the backend, successfully or not.
+        bool opened = false;
+
+        optional<binary_cache_entry> load(const context& ctx, const std::string& key);
+        /// Only the writable tier is stored to.
+        void store(const context& ctx, const std::vector<binary_cache_entry>& es);
+
+        private:
+        /// The backend, or null when there is no usable storage.
+        binary_cache_backend* open();
+    };
 
     std::unordered_map<std::string, compiled_code> memo;
-    binary_cache_settings settings;
-    /// The version_id entries are stored under, in the form the backend uses.
-    std::string version;
-    /// Where entries are persisted, or empty for a memory-only cache.
-    optional<binary_cache_backend> backend;
-    /// Whether get_backend has already tried to open the backend, successfully or not.
-    bool backend_opened = false;
+    bool verify_reuse = false;
+    /// Searched first, and the only tier stored to.
+    storage writable;
+    /// Searched after the writable tier, and never stored to.
+    storage read_only;
     stats counters;
 };
 

@@ -77,8 +77,10 @@ TEST_CASE(mlir_num_ctas_valid_values_compile)
         EXPECT(compile_conv(v, migraphx::value{}).size() > 0);
 }
 
-// 16 is a legal option value; eager mode skips benchmarking so this only exercises option
-// validation and code generation (not whether the launch would actually succeed on this device).
+// 16 is a legal option value. Eager mode compiles only the first candidate and skips benchmarking,
+// so this exercises option validation and rocMLIR code generation without launching a kernel.
+// rocMLIR can reject a clustered candidate on a device with a lower cluster limit (gfx1151 allows
+// one CTA per cluster). This case passes because the unclustered fallback is the one compiled.
 TEST_CASE(mlir_num_ctas_sixteen_is_a_valid_option)
 {
     EXPECT(compile_conv(16, migraphx::value{}, /*eager=*/true).size() > 0);

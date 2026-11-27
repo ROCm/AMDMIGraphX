@@ -128,6 +128,9 @@ static std::vector<std::string> get_compiler_warnings()
     if(hip_has_flags({"-Werror", "-Wlifetime-safety-cross-tu-suggestions"}))
         warnings.push_back("-Wno-lifetime-safety-cross-tu-suggestions");
 
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-experimental-field-origin-escape"}))
+        warnings.push_back("-Wno-lifetime-safety-experimental-field-origin-escape");
+
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
         warnings.push_back("-Wno-unsafe-buffer-usage");
 
@@ -296,6 +299,7 @@ std::string hip_compile_key(const context& ctx, const hip_src& src)
     ss << "global=" << options.global << "\n";
     ss << "local=" << options.local << "\n";
     ss << "output_arg=" << options.output_arg << "\n";
+    ss << "annotations=" << options.annotations << "\n";
     // One param per line so the key keeps the boundaries the compiler command line has.
     for(const auto& p : options.params)
         ss << "param=" << p << "\n";
@@ -327,7 +331,8 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
                           options.local,
                           options.inputs,
                           options.output,
-                          options.output_arg};
+                          options.output_arg,
+                          options.annotations};
 }
 
 operation compile_hip_code_object(context& ctx, hip_src src)

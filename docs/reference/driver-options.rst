@@ -28,6 +28,45 @@ Compiles and prints input graph.
 .. include:: ../driver/read.rst
 .. include:: ../driver/compile.rst
 
+recompile
+---------
+
+.. program:: migraphx-driver recompile
+
+Recompiles the GPU kernels of a compiled program, which was compiled with ``--recompilable``, for the same GPU or
+another one, and writes the result to the output file. The kernels of the input file are not loaded, so the file can be
+for a GPU that is not in the machine. The output file, ``--output`` or ``-o``, is required. See :ref:`recompile-mxr`.
+
+.. include:: ../driver/read.rst
+
+.. option::  --gpu-arch [std::string]
+
+Recompile for the given GPU architecture (e.g. ``gfx942``) without requiring a physical device. Without it, the kernels are recompiled for the GPU in the machine.
+
+.. option::  --gpu-num-cus [std::size_t] (Default: 120)
+
+Number of compute units to assume for the architecture. Only used when ``--gpu-arch`` is set.
+
+.. option::  --gpu-num-chiplets [std::size_t] (Default: 1)
+
+Number of chiplets (XCCs) to assume for the architecture. Only used when ``--gpu-arch`` is set.
+
+.. option::  --gpu-wavefront-size [std::size_t] (Default: 0)
+
+Wavefront size to assume for the architecture (32 or 64; 0 = infer from the architecture). Only used when ``--gpu-arch`` is set.
+
+.. option::  --gpu-arch-params [std::string]
+
+Device properties to assume for the architecture, as a JSON object (same format as for ``compile``). Overrides ``--gpu-arch``, ``--gpu-num-cus``, ``--gpu-num-chiplets`` and ``--gpu-wavefront-size`` for any keys present.
+
+.. option::  --exhaustive-tune
+
+Recompile with exhaustive tuning. The options recorded in the program are not used.
+
+.. option::  --backend-options [std::string]
+
+Target-specific compile options, as a JSON object (e.g. ``"{problem_cache_files:[cache.json]}"``).
+
 run
 ---
 

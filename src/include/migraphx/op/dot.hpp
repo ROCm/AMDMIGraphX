@@ -58,14 +58,20 @@ struct dot
         const auto& s1 = aligned[1];
         std::vector<shape::dynamic_dimension> out_dyn_dims;
 
-        // Check outer dimensions are compatible via intersection.
-        // Must allow for intersection because of how simplify_dyn_ops
-        // simplifies each broadcast_for_dot individually.
+        // Range-based outer dimensions may intersect because simplify_dyn_ops simplifies each
+        // broadcast_for_dot individually. Symbolic outer dimensions must match exactly.
         bool same_outers = std::equal(s0.dyn_dims().begin(),
                                       s0.dyn_dims().end() - 2,
                                       s1.dyn_dims().begin(),
                                       s1.dyn_dims().end() - 2,
                                       [&](const auto& x, const auto& y) {
+                                          if(x.is_symbolic() or y.is_symbolic())
+                                          {
+                                              if(x != y)
+                                                  return false;
+                                              out_dyn_dims.push_back(x);
+                                              return true;
+                                          }
                                           auto intersect = x.intersection(y);
                                           if(intersect.has_value())
                                           {
@@ -85,7 +91,12 @@ struct dot
         std::size_t dim_i = s0.ndim() - 2;
         std::size_t dim_j = s0.ndim() - 1;
 
-        if(not s0.dyn_dims()[dim_j].intersection(s1.dyn_dims()[dim_i]).has_value())
+        const auto& inner_dim0      = s0.dyn_dims()[dim_j];
+        const auto& inner_dim1      = s1.dyn_dims()[dim_i];
+        const bool inner_dims_match = (inner_dim0.is_symbolic() or inner_dim1.is_symbolic())
+                                          ? inner_dim0 == inner_dim1
+                                          : inner_dim0.intersection(inner_dim1).has_value();
+        if(not inner_dims_match)
         {
             MIGRAPHX_THROW("DOT: inner dimensions are not compatible: {" +
                            to_string_range(s0.dyn_dims()) + "} x {" +

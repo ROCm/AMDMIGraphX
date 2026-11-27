@@ -190,6 +190,26 @@ struct final_operation_throw
     }
 };
 
+struct module_final_operation
+{
+    static std::size_t module_count;
+
+    std::string name() const { return "module_final"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        MIGRAPHX_THROW("not computable");
+    }
+    void finalize(migraphx::context&,
+                  const migraphx::shape&,
+                  const std::vector<migraphx::shape>&,
+                  const std::vector<migraphx::module_ref>& modules)
+    {
+        module_count = modules.size();
+    }
+};
+
+std::size_t module_final_operation::module_count = 0;
+
 TEST_CASE(check_has_finalize_simple)
 {
     migraphx::operation op = simple_operation{};
@@ -221,6 +241,15 @@ TEST_CASE(check_run_finalize_throw)
     migraphx::operation op = final_operation_throw{};
     migraphx::context ctx{};
     EXPECT(test::throws([&] { op.finalize(ctx, {}, {}); }));
+}
+
+TEST_CASE(check_run_module_finalize)
+{
+    module_final_operation::module_count = 0;
+    migraphx::operation op               = module_final_operation{};
+    migraphx::context ctx{};
+    op.finalize(ctx, {}, {}, {nullptr});
+    EXPECT(module_final_operation::module_count == 1);
 }
 
 TEST_CASE(check_to_value1)

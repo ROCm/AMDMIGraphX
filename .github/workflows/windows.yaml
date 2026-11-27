@@ -41,7 +41,8 @@ jobs:
     - name: Install LLVM/Clang
       uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0  # v2
       with:
-        version: "20"
+        version: "22.1.0"
+        force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.0/LLVM-22.1.0-win64.exe
         directory: ${{ runner.temp }}/llvm
 
     - name: Install rbuild
@@ -79,6 +80,8 @@ jobs:
           -DCTEST_TIMEOUT=5000
         cd build
         cmake --build . --target driver
+        # migraphx_cpu.dll loads dnnl.dll at runtime, which lives in the cget prefix
+        export PATH="$PATH:$(cygpath -u "$GITHUB_WORKSPACE")/cget/bin:$(cygpath -u "$GITHUB_WORKSPACE")/cget/lib"
         ctest -j 8 --output-on-failure --timeout 5000 -E 'test_bf16|test_float32|test_half|test_logger_test|test_schedule_test|test_ref'
 
 

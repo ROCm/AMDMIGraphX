@@ -21,13 +21,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-"""Check ONNX Model Zoo accuracy and optionally emit matching driver arguments."""
+"""Check a zoo model against its golden data and optionally emit matching
+driver arguments."""
 import argparse
-import glob
 import os
 import sys
 
-import numpy as np
+import onnx
 
 sys.path.insert(
     0,
@@ -35,74 +35,48 @@ sys.path.insert(
         os.path.abspath(__file__)))))
 import test_runner as tr  # noqa: E402
 import migraphx  # noqa: E402
+import compare  # noqa: E402
+import golden  # noqa: E402
+
+# Quantized operators that the name patterns in is_quantized() do not cover.
+QUANTIZED_OPS = ('MatMulNBits', 'MatMulBnb4')
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="ONNX zoo accuracy check")
+    p = argparse.ArgumentParser(description="Model zoo accuracy check")
     p.add_argument('test_dir', metavar='test_loc')
+    p.add_argument('--name', help='test name to print (default: folder name)')
     p.add_argument('--target', default='gpu')
     p.add_argument('--fp16', action='store_true')
+    p.add_argument('--compare',
+                   choices=['allclose', 'rms'],
+                   default='allclose')
     p.add_argument('--atol', type=float, default=1e-3)
     p.add_argument('--rtol', type=float, default=1e-3)
     p.add_argument('--atol-frac',
                    type=float,
                    default=0.0,
                    help='atol as a fraction of max(abs(expected))')
+    p.add_argument('--rms-tol',
+                   type=float,
+                   default=1e-3,
+                   help='largest RMS error of an output that passes')
     p.add_argument('--gold', choices=['archive', 'ref'], default='archive')
     p.add_argument('--emit-driver-args')
+    p.add_argument('--precisions',
+                   action='store_true',
+                   help='print the precisions to run the model in and exit')
 
     return p.parse_args()
 
 
-def deviation(gold, actual, atol, rtol):
-    """Return maximum absolute deviation and error-to-tolerance ratio."""
-    if gold.size == 0:
-        return 0.0, 0.0
-
-    dev = np.abs(gold.astype(np.float64) - actual.astype(np.float64))
-    # Convert undefined deviations to infinity before computing maxima.
-    dev = np.where(np.isnan(dev), np.inf, dev)
-    tol = atol + rtol * np.abs(gold.astype(np.float64))
-    frac = np.divide(dev,
-                     tol,
-                     out=np.where(dev > 0, np.inf, 0.0),
-                     where=tol > 0)
-
-    return float(dev.max()), float(frac.max())
-
-
-def check(gold_outputs, outputs, args):
-    """(all outputs within tolerance, worst abs deviation, worst tolerance
-    fraction) over every output of one case."""
-    if len(gold_outputs) != len(outputs):
-        print("Expected {} outputs, got {}".format(len(gold_outputs),
-                                                   len(outputs)))
-        return False, float('inf'), float('inf')
-
-    ok = True
-    worst_dev = worst_frac = 0.0
-    for i, (gold, actual) in enumerate(zip(gold_outputs, outputs)):
-        gold, actual = np.asarray(gold), np.asarray(actual)
-        if gold.shape != actual.shape:
-            print("\nOutput {} shape mismatch: expected {}, got {}".format(
-                i, gold.shape, actual.shape))
-            ok, worst_dev, worst_frac = False, float('inf'), float('inf')
-            continue
-
-        rng = float(np.abs(gold).max()) if gold.size else 0.0
-        atol = max(args.atol, args.atol_frac * rng)
-        dev, frac = deviation(gold, actual, atol, args.rtol)
-        worst_dev, worst_frac = max(worst_dev, dev), max(worst_frac, frac)
-        if not np.allclose(actual, gold, args.rtol, atol):
-            print(
-                "\nOutput {} is incorrect ... max abs diff {:.6g} vs atol {:.6g}, "
-                "rtol {:.6g}, expected range {:.6g}".format(
-                    i, dev, atol, args.rtol, rng))
-            print("Expected value: \n{}\nActual value: \n{}\n".format(
-                gold, actual))
-            ok = False
-
-    return ok, worst_dev, worst_frac
+def is_quantized(model_path):
+    """True when the graph already computes in integers, so that quantizing
+    it to fp16 is not a separate check."""
+    model = onnx.load(model_path, load_external_data=False)
+    ops = {node.op_type for node in model.graph.node}
+    return any('Quantize' in op or op.startswith('QLinear')
+               or op.endswith('Integer') or op in QUANTIZED_OPS for op in ops)
 
 
 def build(model_path, shapes, args, target=None):
@@ -114,7 +88,7 @@ def build(model_path, shapes, args, target=None):
     return model
 
 
-def write_driver_args(path, shapes, args):
+def write_driver_args(path, shapes, args, dim_params=None):
     """Write driver arguments matching the graded target, shapes, and precision."""
     # One argument per line so the shell can restore the exact argv with
     # mapfile. Dimensions must remain separate arguments for the driver parser.
@@ -122,45 +96,33 @@ def write_driver_args(path, shapes, args):
     for name, dims in shapes.items():
         lines += ['--input-dim', '@{}'.format(name)]
         lines += [str(int(d)) for d in dims]
+    for name, size in (dim_params or {}).items():
+        lines += ['--dim-param', '@{}'.format(name), str(size)]
     if args.fp16:
         lines.append('--fp16')
     with open(path, 'w') as pfile:
         pfile.write(''.join(line + '\n' for line in lines))
 
 
-def load_cases(test_loc, params, outs):
-    """(input_shapes, [(label, inputs, gold)]) from test_data_set_*/ folders or
-    the legacy caffe2-era test_data_*.npz."""
-    folders = tr.get_test_cases(test_loc)
-    if folders:
-        cases = [(f, tr.wrapup_inputs(os.path.join(test_loc, f), params),
-                  tr.read_outputs(os.path.join(test_loc, f), outs))
-                 for f in folders]
-        return tr.get_input_shapes(os.path.join(test_loc, folders[0]),
-                                   params), cases
-
-    cases = []
-    for i, path in enumerate(
-            sorted(glob.glob(os.path.join(test_loc, 'test_data_*.npz')))):
-        inputs, gold = tr.load_npz_case(path)
-        cases.append(('test_data_{}'.format(i), tr.map_inputs(params,
-                                                              inputs), gold))
-    if not cases:
-        return None, []
-
-    return {name: cases[0][1][name].shape for name in params}, cases
-
-
 def main():
     args = parse_args()
     test_loc = args.test_dir
-    name = os.path.basename(os.path.normpath(test_loc))
+    if args.precisions:
+        model_path = os.path.join(test_loc, tr.get_model_name(test_loc))
+        print('int8' if is_quantized(model_path) else 'fp32 fp16')
+        return
+
+    name = args.name or os.path.basename(os.path.normpath(test_loc))
+    rms = args.compare == 'rms'
+    if rms:
+        tolerance = 'rms_tol {:g}'.format(args.rms_tol)
+    else:
+        tolerance = 'atol {:g}, rtol {:g}, atol_frac {:g}'.format(
+            args.atol, args.rtol, args.atol_frac)
 
     print("Running test \"{}\" on target \"{}\" ...".format(name, args.target))
-    print(
-        "Grading: {}, gold {}, atol {:g}, rtol {:g}, atol_frac {:g}\n".format(
-            'fp16' if args.fp16 else 'as-parsed', args.gold, args.atol,
-            args.rtol, args.atol_frac))
+    print("Grading: {}, gold {}, {}\n".format(
+        'fp16' if args.fp16 else 'as-parsed', args.gold, tolerance))
 
     model_name = tr.get_model_name(test_loc)
     if not model_name:
@@ -168,13 +130,18 @@ def main():
         sys.exit(1)
     model_path = os.path.join(test_loc, model_name)
     params = tr.model_parameter_names(model_path)
+    outs = tr.model_output_names(model_path)
 
-    shapes, cases = load_cases(test_loc, params,
-                               tr.model_output_names(model_path))
+    shapes, cases = golden.load_cases(test_loc, params, outs)
     if not cases:
-        print("No test_data_set_* or test_data_*.npz found in {}".format(
-            test_loc))
-        sys.exit(1)
+        # Nothing to grade. Perf can still run with the sizes that
+        # <model>.onnx.json gives to the model's symbolic dimensions.
+        if args.emit_driver_args:
+            write_driver_args(args.emit_driver_args, {}, args,
+                              golden.read_dim_params(model_path))
+        print("SKIPPED: no golden data (test_data_set_* or test_data_*.npz) "
+              "in {}".format(test_loc))
+        return
     for pname, dims in shapes.items():
         print("Input: {}, shape: {}".format(pname, tuple(dims)))
     print()
@@ -198,7 +165,12 @@ def main():
         if ref is not None:
             gold = tr.run_one_case(ref, inputs)
 
-        ok, dev, frac = check(gold, tr.run_one_case(model, inputs), args)
+        outputs = tr.run_one_case(model, inputs)
+        if rms:
+            ok, dev, frac = compare.rms(gold, outputs, args.rms_tol, outs)
+        else:
+            ok, dev, frac = compare.allclose(gold, outputs, args.atol,
+                                             args.rtol, args.atol_frac)
         correct += ok
         worst_dev, worst_frac = max(worst_dev, dev), max(worst_frac, frac)
         print("\tCase {}: {}".format(label, "PASSED" if ok else "FAILED"))
@@ -206,8 +178,8 @@ def main():
     print("\nTest \"{}\" has {} cases:".format(name, len(cases)))
     print("\t Passed: {}".format(correct))
     print("\t Failed: {}".format(len(cases) - correct))
-    print("\t Worst deviation: {:.6g} ({:.6g} of tolerance)".format(
-        worst_dev, worst_frac))
+    print("\t Worst {}: {:.6g} ({:.6g} of tolerance)".format(
+        'RMS error' if rms else 'deviation', worst_dev, worst_frac))
     if correct < len(cases):
         print("{} cases failed!".format(len(cases) - correct))
         sys.exit(1)

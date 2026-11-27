@@ -119,8 +119,9 @@ Output to file.
 Save literals of at least ``size`` bytes to a separate weights file instead of inside the program
 file. ``size`` accepts ``K``, ``M`` and ``G`` suffixes (powers of 1024). Each literal starts at an
 offset aligned to 64 bytes and is recorded with its offset, size and MD5 checksum. This requires
-``--binary`` or ``--json`` output to a file with ``--output``. A program saved this way uses the
-next program file version, so older MIGraphX releases reject it instead of misreading it.
+``--binary`` or ``--json`` output to a file with ``--output``. A program that stores at least one
+literal externally uses the next program file version, so older MIGraphX releases reject it
+instead of misreading it. A program whose literals all stay inline keeps the current version.
 
 Without ``size``, follow the flag with another flag or put it last, since a value right after it
 is taken as the size. For example::
@@ -140,6 +141,12 @@ saving, store a reference to the file each literal was read from instead of its 
 program file points at the original ONNX data (or at the weights file of a loaded MIGraphX
 program). Weights that compilation changes, such as by a layout change or quantization, are saved
 inline, or to the weights file when ``--external-weights`` is also given.
+
+With ``recompile``, the recompiled program references the weights file of the program it was
+recompiled from instead of storing the weights inline. Without the flag, ``recompile`` stores every
+weight inside the output file. For example::
+
+    migraphx-driver recompile model.mxr --reuse-external-data -o recompiled.mxr
 
 .. option::  --verify-external-weights
 

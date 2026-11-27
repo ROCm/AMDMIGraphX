@@ -22,15 +22,22 @@
  * THE SOFTWARE.
  */
 #include <migraphx/program.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/builtin.hpp>
+#include <migraphx/external_data.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/mapped_file.hpp>
+#include <migraphx/msgpack.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -44,6 +51,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -196,6 +204,27 @@ static std::size_t recorded_staging(const migraphx::program& p)
 static bool exhaustive_context(const migraphx::program& p)
 {
     return migraphx::any_cast<migraphx::gpu::context>(p.get_context()).get_exhaustive_tune_flag();
+}
+
+// The external references of the gpu::literal instructions in a saved msgpack program
+static std::vector<migraphx::external_data> saved_literal_refs(const std::string& file)
+{
+    auto v            = migraphx::from_msgpack(migraphx::read_buffer(file));
+    const auto& nodes = v.at("modules").at("main").at("nodes");
+    std::vector<migraphx::external_data> result;
+    migraphx::transform_if(
+        nodes.begin(),
+        nodes.end(),
+        std::back_inserter(result),
+        [](const migraphx::value& node) {
+            return node.at("name").to<std::string>() == "gpu::literal" and
+                   node.at("operator").at("data").contains("external");
+        },
+        [](const migraphx::value& node) {
+            return migraphx::from_value<migraphx::external_data>(
+                node.at("operator").at("data").at("external"));
+        });
+    return result;
 }
 
 // Instructions of the main module that nothing uses, other than the last one
@@ -647,6 +676,126 @@ TEST_CASE(recompile_keeps_unused_writers)
     EXPECT(count_unused(p) == unused);
     EXPECT(get_kernels(p).size() == kernels);
     expect_same_as_ref(p, ref, make_params());
+}
+
+TEST_CASE(recompilable_mxr_with_external_weights)
+{
+    migraphx::tmp_dir td{"gpu-recompile-external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x    = mm->add_parameter("x", s);
+    auto a    = mm->add_literal(migraphx::generate_literal(s, 1));
+    auto b    = mm->add_literal(migraphx::generate_literal(s, 2));
+    auto add  = mm->add_instruction(migraphx::make_op("add"), x, a);
+    auto mul  = mm->add_instruction(migraphx::make_op("mul"), add, b);
+    auto relu = mm->add_instruction(migraphx::make_op("relu"), mul);
+    auto sum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
+    mm->add_return({relu, sum});
+    auto ref = p;
+    p.compile(migraphx::make_target("gpu"), recipe_options());
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(p, filename, options);
+    EXPECT(migraphx::fs::exists(filename + ".data"));
+    auto v = migraphx::from_msgpack(migraphx::read_buffer(filename));
+    EXPECT(v.at("version").to<int>() == p.get_program_file_version() + 1);
+    auto refs = saved_literal_refs(filename);
+    EXPECT(not refs.empty());
+    EXPECT(std::all_of(refs.begin(), refs.end(), [](const auto& ext) {
+        return ext.offset % migraphx::external_data_alignment == 0 and
+               ext.file_path == "model.mxr.data";
+    }));
+
+    // The recipes survive next to the external weights, and the program recompiles from them
+    auto q = migraphx::load(filename, {.finalize = false});
+    EXPECT(q.is_compiled());
+    EXPECT(all_have_recipes(q));
+    EXPECT(compiled_arch(q) == compiled_arch(p));
+    q.recompile(migraphx::make_target("gpu"));
+    EXPECT(all_have_recipes(q));
+    expect_same_as_ref(q, ref, {{"x", migraphx::generate_argument(s, 0)}});
+}
+
+TEST_CASE(recompile_shares_external_weights)
+{
+    migraphx::tmp_dir td{"gpu-recompile-external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x    = mm->add_parameter("x", s);
+    auto a    = mm->add_literal(migraphx::generate_literal(s, 1));
+    auto b    = mm->add_literal(migraphx::generate_literal(s, 2));
+    auto add  = mm->add_instruction(migraphx::make_op("add"), x, a);
+    auto mul  = mm->add_instruction(migraphx::make_op("mul"), add, b);
+    auto relu = mm->add_instruction(migraphx::make_op("relu"), mul);
+    auto sum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
+    mm->add_return({relu, sum});
+    auto ref = p;
+    p.compile(migraphx::make_target("gpu"), recipe_options());
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(p, filename, options);
+    auto original_refs = saved_literal_refs(filename);
+    EXPECT(not original_refs.empty());
+    auto weights_bytes = migraphx::read_buffer(filename + ".data");
+
+    auto q = migraphx::load(filename, {.finalize = false});
+    q.recompile(migraphx::make_target("gpu"));
+    // The copy recompile works on is gone, so the recompiled program itself maps the weights
+    EXPECT(migraphx::mapped_file::is_mapped(filename + ".data"));
+
+    auto recompiled = (td.path / "recompiled.mxr").string();
+    migraphx::file_options reuse;
+    reuse.reuse_external_data = true;
+    migraphx::save(q, recompiled, reuse);
+    EXPECT(not migraphx::fs::exists(recompiled + ".data"));
+    auto v = migraphx::from_msgpack(migraphx::read_buffer(recompiled));
+    EXPECT(v.at("version").to<int>() == q.get_program_file_version() + 1);
+    EXPECT(migraphx::to_value(saved_literal_refs(recompiled)) == migraphx::to_value(original_refs));
+    EXPECT(migraphx::read_buffer(filename + ".data") == weights_bytes);
+
+    auto r = migraphx::load(recompiled);
+    expect_same_as_ref(r, ref, {{"x", migraphx::generate_argument(s, 0)}});
+}
+
+TEST_CASE(retarget_shares_external_weights)
+{
+    migraphx::tmp_dir td{"gpu-recompile-external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 256}};
+    auto x   = mm->add_parameter("x", s);
+    auto a   = mm->add_literal(migraphx::generate_literal(s, 1));
+    auto add = mm->add_instruction(migraphx::make_op("add"), x, a);
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), add)});
+    p.compile(cross_target("gfx1100"), recipe_options());
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(p, filename, options);
+    auto original_refs = saved_literal_refs(filename);
+    EXPECT(not original_refs.empty());
+    auto weights_bytes = migraphx::read_buffer(filename + ".data");
+
+    // A cross-compiled program is never finalized, so its weights are only ever mapped
+    auto q = migraphx::load(filename, {.finalize = false});
+    q.recompile(cross_target("gfx1201"));
+    EXPECT(compiled_arch(q) == "gfx1201");
+
+    auto recompiled = (td.path / "recompiled.mxr").string();
+    migraphx::file_options reuse;
+    reuse.reuse_external_data = true;
+    migraphx::save(q, recompiled, reuse);
+    EXPECT(not migraphx::fs::exists(recompiled + ".data"));
+    EXPECT(migraphx::to_value(saved_literal_refs(recompiled)) == migraphx::to_value(original_refs));
+    EXPECT(migraphx::read_buffer(filename + ".data") == weights_bytes);
+    EXPECT(compiled_arch(migraphx::load(recompiled, {.finalize = false})) == "gfx1201");
 }
 
 // gpu::lrn is a MIOpen call with no recipe; a recompilable program rewrites lrn into ops that

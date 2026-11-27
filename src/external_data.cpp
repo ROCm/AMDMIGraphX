@@ -152,7 +152,8 @@ struct external_data_writer_impl
     external_data_save_options options;
     fs::path tmp;
     std::ofstream os;
-    std::size_t pos = 0;
+    std::size_t pos     = 0;
+    bool has_references = false;
 };
 
 scoped_external_data_writer::scoped_external_data_writer(external_data_save_options options)
@@ -188,19 +189,23 @@ std::optional<external_data> scoped_external_data_writer::write(
         result.file_path     = relative_external_data_path(o.base_dir, original->file_path);
         if(result.checksum.empty())
             result.checksum = md5(std::string_view{data, n});
+        impl->has_references = true;
         return result;
     }
     if(not o.threshold.has_value() or n < *o.threshold)
         return std::nullopt;
     external_data result;
-    result.file_path = relative_external_data_path(o.base_dir, o.weights_file);
-    result.offset    = impl->append(data, n);
-    result.size      = n;
-    result.checksum  = md5(std::string_view{data, n});
+    result.file_path     = relative_external_data_path(o.base_dir, o.weights_file);
+    result.offset        = impl->append(data, n);
+    result.size          = n;
+    result.checksum      = md5(std::string_view{data, n});
+    impl->has_references = true;
     return result;
 }
 
 void scoped_external_data_writer::commit() { impl->commit(); }
+
+bool scoped_external_data_writer::has_references() const { return impl->has_references; }
 
 scoped_external_data_writer* scoped_external_data_writer::active() { return active_writer; }
 

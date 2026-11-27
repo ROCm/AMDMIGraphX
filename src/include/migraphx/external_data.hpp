@@ -107,6 +107,9 @@ struct MIGRAPHX_EXPORT scoped_external_data_writer
 
     void commit();
 
+    /// Whether write() has returned a reference, new or reused
+    bool has_references() const;
+
     /// The innermost writer alive on this thread, or nullptr
     static scoped_external_data_writer* active();
 

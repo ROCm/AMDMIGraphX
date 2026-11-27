@@ -340,6 +340,38 @@ TEST_CASE(program_file_versions)
     EXPECT(test::throws([&] { p4.from_value(v); }));
 }
 
+TEST_CASE(external_version_only_when_referenced)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {32}}));
+    mm->add_return({l});
+
+    // Reuse without any external literal writes nothing external
+    auto reused = (td.path / "reused.mxr").string();
+    migraphx::file_options reuse;
+    reuse.reuse_external_data = true;
+    migraphx::save(p1, reused, reuse);
+    EXPECT(not migraphx::fs::exists(reused + ".data"));
+    EXPECT(saved_external_refs(reused).empty());
+    auto v1 = migraphx::from_msgpack(migraphx::read_buffer(reused));
+    EXPECT(v1.at("version").to<int>() == p1.get_program_file_version());
+
+    // A threshold above every literal keeps them all inline
+    auto inline_file = (td.path / "inline.mxr").string();
+    migraphx::file_options options;
+    options.external_weights_threshold = l->get_shape().bytes() + 1;
+    migraphx::save(p1, inline_file, options);
+    EXPECT(not migraphx::fs::exists(inline_file + ".data"));
+    EXPECT(saved_external_refs(inline_file).empty());
+    auto v2 = migraphx::from_msgpack(migraphx::read_buffer(inline_file));
+    EXPECT(v2.at("version").to<int>() == p1.get_program_file_version());
+
+    migraphx::program p2 = migraphx::load(inline_file);
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(save_buffer_requires_weights_file)
 {
     migraphx::program p1;

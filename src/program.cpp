@@ -856,9 +856,7 @@ static std::string get_migraphx_version()
 value program::to_value() const
 {
     value result;
-    result["version"] = scoped_external_data_writer::active() == nullptr
-                            ? get_program_file_version()
-                            : program_file_version_external_data;
+    result["version"]          = get_program_file_version();
     result["migraphx_version"] = get_migraphx_version();
     result["targets"]          = migraphx::to_value(this->impl->targets);
     result["contexts"]         = migraphx::to_value(this->impl->contexts);
@@ -912,6 +910,12 @@ value program::to_value() const
     }
 
     result["modules"] = module_vals;
+
+    // Only a program that stores data externally needs the newer version, so older releases
+    // can still read the rest
+    auto* writer = scoped_external_data_writer::active();
+    if(writer != nullptr and writer->has_references())
+        result["version"] = program_file_version_external_data;
 
     return result;
 }

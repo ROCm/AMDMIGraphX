@@ -1,14 +1,14 @@
 syntax = "proto3";
 
-package tensorflow;
+package tensorflow_for_migraphx;
 option cc_enable_arenas = true;
 option java_outer_classname = "GraphProtos";
 option java_multiple_files = true;
 option java_package = "org.tensorflow.framework";
 option go_package = "github.com/tensorflow/tensorflow/tensorflow/go/core/framework";
-import "node_def.proto";
-import "function.proto";
-import "versions.proto";
+import "migraphx_tf_node_def.proto";
+import "migraphx_tf_function.proto";
+import "migraphx_tf_versions.proto";
 
 // Represents the graph of operations
 message GraphDef {

@@ -47,7 +47,8 @@ TEST_CASE(concat_symbolic_test)
     auto concat = mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), counts, x, y);
     auto buffer = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
-    const auto concat_count = var("main_Concat_2", {0, 10});
+    // The length is the sum of the input lengths
+    const auto concat_count = a + b;
     auto starts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
     auto result = mm->add_instruction(
         migraphx::make_op("dyn_slice",
@@ -89,7 +90,8 @@ TEST_CASE(concat_symbol_collision_test)
     auto concat = mm->add_instruction(migraphx::make_op("dyn_concat", {{"axis", 0}}), counts, x, y);
     auto buffer = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), concat);
     auto total  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), concat);
-    const auto concat_count = var("main_Concat_2_2", {0, 10});
+    // A dim_param named like the concat node does not matter: the length is the sum
+    const auto concat_count = a + b;
     auto starts = mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {0}});
     auto result = mm->add_instruction(
         migraphx::make_op("dyn_slice",

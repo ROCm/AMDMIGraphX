@@ -341,6 +341,12 @@ root_source_info find_root_sources(const module& m)
     root_source_info result;
     for(const auto& name : m.get_parameter_names())
         result.add(m.get_parameter(name));
+    // A submodule, such as a branch of an if, reads the values of its parent module directly;
+    // their symbolic dims resolve the roots as parameters do
+    for(auto ins : iterator_for(m))
+        for(auto input : ins->inputs())
+            if(not m.has_instruction(input))
+                result.add(input);
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "dyn_slice" or not is_data_dependent_output_slice(ins))
@@ -523,6 +529,16 @@ std::optional<std::vector<root_spec>> collect_roots(const module& m,
     }
     for(const auto& [root, source] : root_sources)
     {
+        // A value of the parent module, read by a submodule such as a branch of an if, gives
+        // its dims as a parameter does
+        if(not m.has_instruction(source))
+        {
+            for(const auto& dimension : source->get_shape().dyn_dims())
+                collected.append(dimension);
+            if(not collected.valid())
+                return std::nullopt;
+            continue;
+        }
         if(source->name() == "@param")
             continue;
         const auto& dimensions = source->get_shape().dyn_dims();

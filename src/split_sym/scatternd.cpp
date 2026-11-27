@@ -70,11 +70,7 @@ struct analyze_scatternd : analyzer<analyze_scatternd>
         const auto& index_shape = source->inputs().at(1)->get_shape();
         auto index_rank         = index_shape.ndim();
         assert(index_rank > 0);
-        std::vector<std::pair<std::size_t, sym::expr>> prefix_axes;
-        const auto& index_dims = index_shape.dyn_dims();
-        for(std::size_t axis = 0; axis + 1 < index_rank; ++axis)
-            if(is_variable_axis(index_dims.at(axis)))
-                prefix_axes.emplace_back(axis, index_dims.at(axis).sym_expr);
+        auto prefix_axes = variable_prefix_axes(index_shape, index_rank - 1);
         assert(not prefix_axes.empty());
 
         const auto& op  = source->get_operator();

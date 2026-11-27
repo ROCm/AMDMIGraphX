@@ -52,28 +52,28 @@ struct parse_concat : op_parser<parse_concat>
             parser.parse_value(info.attributes.at("axis")).template at<int64_t>();
         const auto axis = tune_axis(args.front()->get_shape().ndim(), axis_value, opd.onnx_name);
 
-        const auto symbolic_axis_inputs  = std::count_if(args.begin(), args.end(), [&](auto arg) {
+        const auto symbolic_axis_inputs = std::count_if(args.begin(), args.end(), [&](auto arg) {
             const auto& s = arg->get_shape();
             return s.symbolic() and s.dyn_dims().at(axis).is_symbolic() and
                    s.dyn_dims().at(axis).sym_expr.name() != "literal";
         });
-        const auto has_variable_non_axis = any_of(args, [&](auto arg) {
-            const auto dims = arg->get_shape().to_dynamic().dyn_dims();
-            return any_of(range(dims.size()), [&](auto current_axis) {
-                return current_axis != axis and not dims.at(current_axis).is_fixed();
-            });
-        });
-        if(symbolic_axis_inputs == 0 or has_variable_non_axis)
+        if(symbolic_axis_inputs == 0 or any_of(args, [&](auto arg) {
+               const auto dims = arg->get_shape().to_dynamic().dyn_dims();
+               return any_of(range(dims.size()), [&](auto current_axis) {
+                   return current_axis != axis and not dims.at(current_axis).is_fixed();
+               });
+           }))
         {
-            if(any_of(args, [](auto arg) { return arg->get_shape().dynamic(); }))
-                return info.add_instruction(make_op("concat", {{"axis", axis}}), args);
-
-            args.erase(std::remove_if(args.begin(),
-                                      args.end(),
-                                      [](auto arg) { return arg->get_shape().elements() == 0; }),
-                       args.end());
-            if(args.empty())
-                return info.add_instruction(make_op("undefined"));
+            if(none_of(args, [](auto arg) { return arg->get_shape().dynamic(); }))
+            {
+                args.erase(
+                    std::remove_if(args.begin(),
+                                   args.end(),
+                                   [](auto arg) { return arg->get_shape().elements() == 0; }),
+                    args.end());
+                if(args.empty())
+                    return info.add_instruction(make_op("undefined"));
+            }
             return info.add_instruction(make_op("concat", {{"axis", axis}}), args);
         }
 

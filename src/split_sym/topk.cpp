@@ -52,12 +52,13 @@ struct analyze_topk : analyzer<analyze_topk>
         auto result = analyze_axes(
             ins,
             output.sub_shapes().front(),
-            [axis = *axis](std::size_t) { return true; },
+            {},
+            [](std::size_t) { return true; },
             [axis = *axis, topk_fill](std::size_t input, std::size_t current_axis) {
                 if(current_axis != axis)
                     return parallel_axis();
                 return input == 0 ? contracted_axis(topk_fill)
-                                  : contracted_axis(fill_kind::dont_care);
+                                  : contracted_axis(fill_kind::highest);
             });
         // Tuple elements own the externally visible symbolic outputs. Keep TopK deferred so it is
         // absorbed into those blocks rather than routed as an unsupported tuple block output.
@@ -71,40 +72,13 @@ struct analyze_topk : analyzer<analyze_topk>
                                   const std::vector<instruction_ref>& args,
                                   const std::unordered_map<sym::expr, std::size_t>&)
     {
+        assert(not args.empty());
         auto padded_args = args;
         auto largest     = source->get_operator().to_value().at("largest").to<bool>();
         auto fill        = largest ? fill_kind::lowest : fill_kind::highest;
         padded_args.front() =
             m.add_instruction(make_op("fixed_pad", {{"value", fill_value(fill)}}), args.front());
         return m.add_instruction(source->get_operator(), padded_args);
-    }
-};
-
-struct analyze_topk_get_tuple_elem : analyzer<analyze_topk_get_tuple_elem>
-{
-    bool matches(const operation& op) const { return op.name() == "get_tuple_elem"; }
-
-    symbolic_op_info analyze(instruction_ref ins) const
-    {
-        const auto& inputs = ins->inputs();
-        if(inputs.size() != 1 or inputs.front()->name() != "topk")
-            return symbolic_op_info{ins};
-        auto result    = analyze_axes(ins);
-        result.freezer = freeze;
-        return result;
-    }
-
-    static instruction_ref freeze(module& m,
-                                  instruction_ref source,
-                                  const std::vector<instruction_ref>& args,
-                                  const std::unordered_map<sym::expr, std::size_t>& values)
-    {
-        auto result   = m.add_instruction(source->get_operator(), args);
-        const auto& s = source->get_shape();
-        if(s.symbolic())
-            instruction::replace(
-                result, result->get_operator(), s.to_static(values), result->inputs());
-        return result;
     }
 };
 

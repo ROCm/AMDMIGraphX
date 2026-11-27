@@ -27,9 +27,9 @@
 TEST_CASE(slice_var_input_starts_const)
 {
     migraphx::program p;
-    auto* mm    = p.get_main_module();
-    auto data   = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 2}});
-    auto ends   = mm->add_parameter("ends", migraphx::shape{migraphx::shape::int64_type, {2}});
+    auto* mm  = p.get_main_module();
+    auto data = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 2}});
+    auto ends = mm->add_parameter("ends", migraphx::shape{migraphx::shape::int64_type, {2}});
     mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {2}}, {0, 0}});
     auto op = migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}});
     mm->add_instruction(op, data, ends);

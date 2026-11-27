@@ -137,8 +137,6 @@ static std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
 template <class T>
 static std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 {
-    if(sz == 0)
-        return {};
     gpu_sync();
     std::vector<T> result(sz);
     assert(not is_device_ptr(result.data()));
@@ -156,8 +154,10 @@ static std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host)
 {
     gpu_sync();
-    auto result = allocate_gpu(sz, host);
+    auto result = allocate_gpu(sz == 0 ? 1 : sz, host);
     assert(host or is_device_ptr(result.get()));
+    if(sz == 0)
+        return result;
     assert(not is_device_ptr(x));
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)

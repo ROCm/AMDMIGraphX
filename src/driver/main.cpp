@@ -780,7 +780,8 @@ struct compiler_target
            {"--gpu-arch-params"},
            ap.help("Device properties to assume for cross-compilation, as a JSON object "
                    "(format: \"{arch:gfx942, num_cu:120, num_chiplets:1, "
-                   "max_threads_per_cu:2048, max_threads_per_block:1024, wavefront_size:32}\"). "
+                   "max_threads_per_cu:2048, max_threads_per_block:1024, wavefront_size:32, "
+                   "max_shared_memory_per_block:65536}\"). "
                    "Overrides --gpu-arch, --gpu-num-cus, --gpu-num-chiplets and "
                    "--gpu-wavefront-size for any keys present."));
     }
@@ -793,7 +794,8 @@ struct compiler_target
             {"num_chiplets", "gpu_num_chiplets"},
             {"max_threads_per_cu", "gpu_max_threads_per_cu"},
             {"max_threads_per_block", "gpu_max_threads_per_block"},
-            {"wavefront_size", "gpu_wavefront_size"}};
+            {"wavefront_size", "gpu_wavefront_size"},
+            {"max_shared_memory_per_block", "gpu_max_shared_memory_per_block"}};
         return key_map;
     }
 

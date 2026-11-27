@@ -43,16 +43,6 @@ struct convert : unary<convert>
 
     shape::type_t target_type = shape::half_type;
 
-    using symbolic_conversion = std::pair<shape::type_t, shape::type_t>;
-    static constexpr std::array<symbolic_conversion, 6> symbolic_conversions = {{
-        {shape::int32_type, shape::bool_type},
-        {shape::int32_type, shape::int32_type},
-        {shape::int32_type, shape::int64_type},
-        {shape::int64_type, shape::bool_type},
-        {shape::int64_type, shape::int32_type},
-        {shape::int64_type, shape::int64_type},
-    }};
-
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -82,8 +72,8 @@ struct convert : unary<convert>
     {
         if(args.size() != 1 or output_shape.type() != target_type)
             return false;
-        auto input_type = args.front().get_shape().type();
-        return contains(symbolic_conversions, symbolic_conversion{input_type, target_type});
+        return contains({shape::int32_type, shape::int64_type}, args.front().get_shape().type()) and
+               contains({shape::bool_type, shape::int32_type, shape::int64_type}, target_type);
     }
 
     auto apply() const

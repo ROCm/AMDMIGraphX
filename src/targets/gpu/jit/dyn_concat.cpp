@@ -26,8 +26,8 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/tune_axis.hpp>
 
 #include <algorithm>
 
@@ -65,39 +65,26 @@ struct dyn_concat_compiler : compiler<dyn_concat_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        if(inputs.size() < 3)
-            MIGRAPHX_THROW("DYN_CONCAT: invalid precompile input list");
+        // The inputs are the counts, the data inputs and the output tuple.
+        assert(inputs.size() >= 3);
         const auto num_inputs = inputs.size() - 2;
-        const auto rank       = inputs.at(1).ndim();
-        auto axis_value       = v.at("axis").to<int64_t>();
-        if(axis_value < 0)
-            axis_value += static_cast<int64_t>(rank);
-        const auto axis = static_cast<std::size_t>(axis_value);
+        const auto axis = tune_axis(inputs.at(1).ndim(), v.at("axis").to<int64_t>(), "dyn_concat");
 
         hip_compile_options options;
         options.inputs = flatten_tuple_shapes(inputs);
-        std::transform(inputs.begin() + 1,
-                       inputs.begin() + 1 + num_inputs,
-                       options.inputs.begin() + 1,
-                       [](const shape& s) {
-                           if(not s.dynamic())
-                               return s;
-                           std::vector<std::size_t> strides;
-                           std::transform(s.dyn_strides().begin(),
-                                          s.dyn_strides().end(),
-                                          std::back_inserter(strides),
-                                          [](const auto& stride) {
-                                              return sym::to<std::size_t>(
-                                                  *sym::fixed_value(stride));
-                                          });
-                           return shape{s.type(), s.max_lens(), strides};
-                       });
+        std::transform(
+            inputs.begin() + 1, inputs.end() - 1, options.inputs.begin() + 1, [](const shape& s) {
+                if(not s.dynamic())
+                    return s;
+                // Lowering only precompiles dyn_concat for fixed strides.
+                assert(s.has_fixed_strides());
+                return shape{
+                    s.type(), s.max_lens(), *sym::fixed_values<std::size_t>(s.dyn_strides())};
+            });
         options.output             = inputs.back();
-        options.virtual_inputs     = options.inputs;
         options.kernel_name        = "dyn_concat_kernel";
         const auto output_elements = inputs.back().sub_shapes().front().elements();
-        const auto block_size      = compute_block_size(
-            ctx, std::max<std::size_t>(num_inputs, std::max<std::size_t>(1, output_elements)), 256);
+        const auto block_size = compute_block_size(ctx, std::max(num_inputs, output_elements), 256);
         options.set_launch_params(v, block_size, block_size);
 
         auto src =

@@ -23,6 +23,8 @@
  */
 #include <migraphx/gpu/dyn_concat.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device/dyn_concat.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -32,22 +34,22 @@ shape hip_dyn_concat::compute_shape(std::vector<shape> inputs) const
 {
     if(inputs.size() < 3)
         MIGRAPHX_THROW("GPU_DYN_CONCAT: invalid input list");
-    inputs.resize(inputs.size() - 1);
-    return op.normalize_compute_shape(inputs);
+    inputs.pop_back();
+    return op.compute_shape(inputs);
 }
 
 argument
 hip_dyn_concat::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    if(args.size() < 3)
-        MIGRAPHX_THROW("GPU_DYN_CONCAT: invalid input list");
-    const auto n = args.size() - 2;
-    std::vector<argument> inputs(args.begin() + 1, args.begin() + 1 + n);
+    assert(args.size() >= 3);
+    std::vector<argument> inputs(args.begin() + 1, args.end() - 1);
     const auto& counts = args.front();
     const auto& output = args.back();
     auto outputs       = output.get_sub_objects();
+    assert(outputs.size() == 2);
+    const std::size_t axis = tune_axis(inputs.front().get_shape().ndim(), op.axis, op.name());
     device::dyn_concat(
-        ctx.get_stream().get(), op.axis, counts, inputs, outputs.front(), outputs.back());
+        ctx.get_stream().get(), axis, counts, inputs, outputs.front(), outputs.back());
     return output;
 }
 

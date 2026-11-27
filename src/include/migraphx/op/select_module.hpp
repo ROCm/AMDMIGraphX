@@ -26,13 +26,11 @@
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/context.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/sym.hpp>
 #include <algorithm>
 #include <cassert>
@@ -48,7 +46,7 @@ namespace op {
 struct select_module
 {
     shape output_dyn_shapes;
-    // Captures symbolic input expressions used to evaluate output dimensions at runtime.
+    // Input shapes saved by finalize; their symbolic dims bind runtime lens to resolve outputs.
     std::vector<shape> input_shapes;
 
     struct output_location
@@ -82,9 +80,18 @@ struct select_module
         std::vector<module_metadata> modules;
     };
 
+    struct symbol_binding
+    {
+        std::size_t input_index;
+        std::size_t axis;
+        sym::expr symbol;
+    };
+
     // Built from the instruction's fixed submodule list during finalization. Candidate indices
     // avoid retaining non-owning module pointers when a finalized program is copied.
     module_set_metadata metadata;
+    // Runtime locations for the symbolic expressions in input_shapes, also built by finalization.
+    std::vector<symbol_binding> symbol_bindings;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -97,17 +104,21 @@ struct select_module
 
     std::size_t num_outputs() const { return output_dyn_shapes.sub_shapes().size(); }
 
-    static MIGRAPHX_EXPORT shape
-    resolve_output_shape(const shape& output,
-                         const std::unordered_map<sym::expr, std::size_t>& values,
-                         const shape* physical = nullptr);
-    static MIGRAPHX_EXPORT argument reshape_output(const argument& arg, const shape& output_shape);
+    MIGRAPHX_EXPORT std::unordered_map<sym::expr, std::size_t>
+    runtime_symbol_values(const std::vector<argument>& args) const;
+
+    MIGRAPHX_EXPORT std::vector<shape>
+    resolve_output_shapes(const std::unordered_map<sym::expr, std::size_t>& values) const;
+
+    MIGRAPHX_EXPORT std::vector<argument>
+    reshape_outputs(const std::vector<argument>& results,
+                    const std::unordered_map<sym::expr, std::size_t>& values) const;
 
     shape compute_shape(const std::vector<shape>& inputs,
                         const std::vector<module_ref>& submodules) const
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
-        if(not input_shapes.empty() and input_shapes.size() > inputs.size())
+        if(input_shapes.size() > inputs.size())
             MIGRAPHX_THROW("SELECT_MODULE: symbolic input shapes were not captured");
         // Once lowered, the output buffers follow the inputs and each input is bound to a
         // parameter of the compiled submodules, so a static input must keep that layout
@@ -146,54 +157,26 @@ struct select_module
             MIGRAPHX_THROW("SELECT_MODULE: missing output allocations");
         auto input_count = inputs.size() - (has_output_allocations ? num_outputs() : 0);
         input_shapes.assign(inputs.begin(), inputs.begin() + input_count);
-    }
-
-    std::vector<shape> compute_output_shapes(const std::vector<argument>& args,
-                                             const std::vector<shape>& physical_shapes = {}) const
-    {
-        if(input_shapes.empty())
-            return {};
-        if(input_shapes.size() > args.size())
-            MIGRAPHX_THROW("SELECT_MODULE: symbolic input shapes were not captured");
-        if(not physical_shapes.empty() and physical_shapes.size() != num_outputs())
-            MIGRAPHX_THROW("SELECT_MODULE: physical output count does not match outputs");
-
-        std::unordered_map<sym::expr, std::size_t> values;
-        migraphx::for_each(
-            input_shapes.begin(),
-            input_shapes.end(),
-            args.begin(),
-            [&](const shape& expected, const argument& arg) {
-                const auto& actual = arg.get_shape();
-                if(not compatible_input_shape(actual, expected))
-                    MIGRAPHX_THROW(
-                        "SELECT_MODULE: runtime input does not match symbolic input shape");
-                if(not expected.symbolic())
-                    return;
-                if(expected.ndim() != actual.ndim())
-                    MIGRAPHX_THROW(
-                        "SELECT_MODULE: runtime input rank does not match symbolic input");
-                migraphx::for_each(expected.dyn_dims().begin(),
-                                   expected.dyn_dims().end(),
-                                   actual.lens().begin(),
-                                   [&](const auto& dim, auto len) {
+        symbol_bindings.clear();
+        auto input_indices = range(input_shapes.size());
+        migraphx::for_each(input_shapes.begin(),
+                           input_shapes.end(),
+                           input_indices.begin(),
+                           [&](const shape& input, std::size_t input_index) {
+                               if(not input.symbolic())
+                                   return;
+                               auto axes = range(input.ndim());
+                               migraphx::for_each(
+                                   input.dyn_dims().begin(),
+                                   input.dyn_dims().end(),
+                                   axes.begin(),
+                                   [&](const auto& dim, std::size_t axis) {
                                        if(not dim.is_symbolic())
                                            return;
-                                       auto expression = sym::as_symbol(dim.sym_expr);
-                                       auto result     = values.emplace(expression, len);
-                                       if(not result.second and result.first->second != len)
-                                           MIGRAPHX_THROW("SELECT_MODULE: repeated expression has "
-                                                          "inconsistent runtime dimensions");
+                                       symbol_bindings.push_back(
+                                           {input_index, axis, sym::as_symbol(dim.sym_expr)});
                                    });
-            });
-
-        std::vector<shape> result;
-        auto indices = range(num_outputs());
-        std::transform(indices.begin(), indices.end(), std::back_inserter(result), [&](auto i) {
-            const shape* physical = physical_shapes.empty() ? nullptr : &physical_shapes.at(i);
-            return resolve_output_shape(output_dyn_shapes.sub_shapes().at(i), values, physical);
-        });
-        return result;
+                           });
     }
 
     std::vector<std::string> get_input_parameter_names(const_module_ref mod) const
@@ -256,61 +239,8 @@ struct select_module
                       [](const shape& sub_shape) { return empty_output_shape(sub_shape); });
     }
 
-    argument short_circuit_outputs(const module_set_metadata& finalized,
-                                   const std::vector<argument>& args,
-                                   const std::vector<shape>& output_shapes) const
-    {
-        std::vector<argument> results;
-        results.reserve(num_outputs());
-        if(not finalized.modules.front().outputs.empty())
-        {
-            if(args.size() < num_outputs())
-                MIGRAPHX_THROW("SELECT_MODULE: missing output allocations");
-            auto output_args = args.end() - num_outputs();
-            migraphx::for_each(
-                output_args,
-                args.end(),
-                output_shapes.begin(),
-                [&](const argument& arg, const shape& s) {
-                    results.push_back(fix<argument>(
-                        [&](auto self, const argument& current, const shape& output_shape) {
-                            if(output_shape.type() != shape::tuple_type)
-                                return current.reshape(output_shape);
-                            auto sub_args = current.get_sub_objects();
-                            if(sub_args.size() != output_shape.sub_shapes().size())
-                                MIGRAPHX_THROW(
-                                    "SELECT_MODULE: output tuple does not match logical output");
-                            std::vector<argument> sub_results;
-                            migraphx::for_each(
-                                sub_args.begin(),
-                                sub_args.end(),
-                                output_shape.sub_shapes().begin(),
-                                [&](const argument& sub_arg, const shape& sub_shape) {
-                                    sub_results.push_back(self(sub_arg, sub_shape));
-                                });
-                            return argument{sub_results};
-                        })(arg, s));
-                });
-        }
-        else
-        {
-            std::transform(output_shapes.begin(),
-                           output_shapes.end(),
-                           std::back_inserter(results),
-                           fix<argument>([](auto self, const shape& s) {
-                               if(s.type() != shape::tuple_type)
-                                   return argument{s, nullptr};
-                               std::vector<argument> sub_objects;
-                               std::transform(
-                                   s.sub_shapes().begin(),
-                                   s.sub_shapes().end(),
-                                   std::back_inserter(sub_objects),
-                                   [&](const shape& sub_shape) { return self(sub_shape); });
-                               return argument{sub_objects};
-                           }));
-        }
-        return argument{results};
-    }
+    MIGRAPHX_EXPORT argument short_circuit_outputs(const std::vector<argument>& args,
+                                                   const std::vector<shape>& output_shapes) const;
 
     // Input arguments are ordered like the sorted input parameters, followed by one buffer per
     // output when the submodules have output parameters. Only the positions whose parameter
@@ -402,10 +332,11 @@ struct select_module
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         const auto& finalized = finalized_metadata(submodule_list.size());
-        auto output_shapes    = compute_output_shapes(args);
+        auto values           = runtime_symbol_values(args);
+        auto output_shapes    = resolve_output_shapes(values);
         if(not output_shapes.empty() and
            all_of(output_shapes, [](const shape& s) { return empty_output_shape(s); }))
-            return short_circuit_outputs(finalized, args, output_shapes);
+            return short_circuit_outputs(args, output_shapes);
         const auto& module_info =
             find_module(finalized, args.size(), [&](std::size_t index) -> const argument& {
                 return args[index];
@@ -442,18 +373,7 @@ struct select_module
                        [&](const auto& output) {
                            return std::make_pair(output.name, prepare_output(output, get_output));
                        });
-        auto results = run(module_to_run, p_map);
-        if(results.size() != num_outputs())
-            MIGRAPHX_THROW("SELECT_MODULE: candidate returned the wrong number of outputs");
-        if(not output_shapes.empty())
-        {
-            auto resolved_shapes = compute_output_shapes(args, to_shapes(results));
-            migraphx::for_each(
-                results.begin(),
-                results.end(),
-                resolved_shapes.begin(),
-                [](argument& result, const shape& s) { result = reshape_output(result, s); });
-        }
+        auto results = reshape_outputs(run(module_to_run, p_map), values);
         return argument{results};
     }
 

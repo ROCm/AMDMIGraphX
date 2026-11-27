@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/split_sym/analyzer.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <limits>
@@ -89,16 +90,17 @@ std::optional<std::size_t> normalize_axis(int64_t axis, std::size_t rank)
 bool has_nonnegative_values(instruction_ref ins)
 {
     const auto& inputs = ins->inputs();
-    if(ins->name() == "@literal")
+    const auto name    = ins->name();
+    if(name == "@literal")
     {
         bool result = true;
         ins->get_literal().visit(
             [&](auto values) { result = all_of(values, [](auto value) { return value >= 0; }); });
         return result;
     }
-    if(ins->name() == "fill")
-        return not inputs.empty() and has_nonnegative_values(inputs.front());
-    if(contains({"convert",
+    // The values come from the first input.
+    if(contains({"fill",
+                 "convert",
                  "contiguous",
                  "reshape",
                  "squeeze",
@@ -108,32 +110,45 @@ bool has_nonnegative_values(instruction_ref ins)
                  "dyn_slice",
                  "broadcast",
                  "multibroadcast",
-                 "broadcast_with_dims"},
-                ins->name()))
+                 "broadcast_with_dims",
+                 "gather"},
+                name))
         return not inputs.empty() and has_nonnegative_values(inputs.front());
-    if(ins->name() == "concat")
+    if(contains({"concat", "add", "mul"}, name))
         return not inputs.empty() and all_of(inputs, has_nonnegative_values);
-    if(ins->name() == "gather")
-        return not inputs.empty() and has_nonnegative_values(inputs.front());
-    if(contains({"add", "mul"}, ins->name()))
-        return not inputs.empty() and all_of(inputs, has_nonnegative_values);
-    if(ins->name() == "eval_expr_from_shape")
+    if(name == "eval_expr_from_shape")
         return true;
-    if(ins->name() != "get_tuple_elem" or inputs.size() != 1)
+    if(name != "get_tuple_elem" or inputs.size() != 1)
         return false;
 
     auto index  = ins->get_operator().to_value().at("index").to<std::size_t>();
     auto source = inputs.front();
-    if(source->name() == "dyn_concat" and source->inputs().size() >= 2)
+    if(source->name() == "dyn_concat")
     {
-        if(index == 1)
-            return true;
-        auto data_inputs = source->inputs();
-        data_inputs.erase(data_inputs.begin());
-        return index == 0 and all_of(data_inputs, has_nonnegative_values);
+        // The first input holds the counts; the total at index 1 is their sum.
+        const auto& data = source->inputs();
+        return index == 1 or
+               (index == 0 and all_of(range(data.begin() + 1, data.end()), has_nonnegative_values));
     }
     return (source->name() == "topk" and index == 1) or
            (contains({"nonzero", "nonmaxsuppression"}, source->name()) and index == 0);
+}
+
+std::vector<std::pair<std::size_t, sym::expr>> variable_prefix_axes(const shape& s,
+                                                                    std::size_t naxes)
+{
+    std::vector<std::pair<std::size_t, sym::expr>> result;
+    if(not s.symbolic())
+        return result;
+    const auto& dims = s.dyn_dims();
+    auto axes        = range(naxes);
+    transform_if(
+        axes.begin(),
+        axes.end(),
+        std::back_inserter(result),
+        [&](auto axis) { return is_variable_axis(dims.at(axis)); },
+        [&](auto axis) { return std::make_pair(axis, dims.at(axis).sym_expr); });
+    return result;
 }
 
 instruction_ref make_prefix_mask(module& m,

@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_GPU_DYN_CONCAT_HPP
 
 #include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/dyn_concat.hpp>
 #include <migraphx/op/dyn_concat.hpp>
 #include <migraphx/reflect.hpp>
 

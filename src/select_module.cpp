@@ -275,11 +275,9 @@ std::vector<std::size_t> shared_dynamic_indices(const module_metadata& candidate
     return result;
 }
 
-} // namespace
-
-shape select_module::resolve_output_shape(const shape& output,
-                                          const std::unordered_map<sym::expr, std::size_t>& values,
-                                          const shape* physical)
+shape resolve_output_shape(const shape& output,
+                           const std::unordered_map<sym::expr, std::size_t>& values,
+                           const shape* physical = nullptr)
 {
     if(output.type() == shape::tuple_type)
     {
@@ -331,7 +329,7 @@ shape select_module::resolve_output_shape(const shape& output,
     return shape{output.type(), std::move(lens), physical->strides()};
 }
 
-argument select_module::reshape_output(const argument& arg, const shape& output_shape)
+argument reshape_output(const argument& arg, const shape& output_shape)
 {
     if(output_shape.type() != shape::tuple_type)
         return arg.reshape(output_shape);
@@ -339,13 +337,101 @@ argument select_module::reshape_output(const argument& arg, const shape& output_
     if(sub_args.size() != output_shape.sub_shapes().size())
         MIGRAPHX_THROW("SELECT_MODULE: output tuple does not match declared output");
     std::vector<argument> result;
-    migraphx::for_each(sub_args.begin(),
-                       sub_args.end(),
-                       output_shape.sub_shapes().begin(),
-                       [&](const argument& sub_arg, const shape& sub_shape) {
-                           result.push_back(reshape_output(sub_arg, sub_shape));
-                       });
+    std::transform(sub_args.begin(),
+                   sub_args.end(),
+                   output_shape.sub_shapes().begin(),
+                   std::back_inserter(result),
+                   &reshape_output);
     return argument{result};
+}
+
+} // namespace
+
+std::unordered_map<sym::expr, std::size_t>
+select_module::runtime_symbol_values(const std::vector<argument>& args) const
+{
+    assert(input_shapes.size() <= args.size());
+    if(not std::equal(input_shapes.begin(),
+                      input_shapes.end(),
+                      args.begin(),
+                      [](const shape& expected, const argument& arg) {
+                          return compatible_input_shape(arg.get_shape(), expected);
+                      }))
+        MIGRAPHX_THROW("SELECT_MODULE: runtime input does not match symbolic input shape");
+    std::unordered_map<sym::expr, std::size_t> values;
+    if(not std::all_of(symbol_bindings.begin(), symbol_bindings.end(), [&](const auto& binding) {
+           auto len               = args[binding.input_index].get_shape().lens().at(binding.axis);
+           auto [found, inserted] = values.emplace(binding.symbol, len);
+           return inserted or found->second == len;
+       }))
+        MIGRAPHX_THROW("SELECT_MODULE: repeated expression has inconsistent runtime dimensions");
+    return values;
+}
+
+std::vector<shape>
+select_module::resolve_output_shapes(const std::unordered_map<sym::expr, std::size_t>& values) const
+{
+    if(input_shapes.empty())
+        return {};
+    std::vector<shape> result;
+    std::transform(output_dyn_shapes.sub_shapes().begin(),
+                   output_dyn_shapes.sub_shapes().end(),
+                   std::back_inserter(result),
+                   [&](const shape& output) { return resolve_output_shape(output, values); });
+    return result;
+}
+
+std::vector<argument>
+select_module::reshape_outputs(const std::vector<argument>& results,
+                               const std::unordered_map<sym::expr, std::size_t>& values) const
+{
+    if(results.size() != num_outputs())
+        MIGRAPHX_THROW("SELECT_MODULE: candidate returned the wrong number of outputs");
+    if(input_shapes.empty())
+        return results;
+    std::vector<argument> reshaped;
+    std::transform(results.begin(),
+                   results.end(),
+                   output_dyn_shapes.sub_shapes().begin(),
+                   std::back_inserter(reshaped),
+                   [&](const argument& result, const shape& output) {
+                       auto resolved_output =
+                           resolve_output_shape(output, values, &result.get_shape());
+                       return reshape_output(result, resolved_output);
+                   });
+    return reshaped;
+}
+
+argument select_module::short_circuit_outputs(const std::vector<argument>& args,
+                                              const std::vector<shape>& output_shapes) const
+{
+    std::vector<argument> results;
+    results.reserve(num_outputs());
+    if(not metadata.modules.front().outputs.empty())
+    {
+        std::transform(args.end() - num_outputs(),
+                       args.end(),
+                       output_shapes.begin(),
+                       std::back_inserter(results),
+                       &reshape_output);
+    }
+    else
+    {
+        std::transform(output_shapes.begin(),
+                       output_shapes.end(),
+                       std::back_inserter(results),
+                       fix<argument>([](auto self, const shape& s) {
+                           if(s.type() != shape::tuple_type)
+                               return argument{s, nullptr};
+                           std::vector<argument> sub_objects;
+                           std::transform(s.sub_shapes().begin(),
+                                          s.sub_shapes().end(),
+                                          std::back_inserter(sub_objects),
+                                          [&](const shape& sub_shape) { return self(sub_shape); });
+                           return argument{sub_objects};
+                       }));
+    }
+    return argument{results};
 }
 
 select_module::module_set_metadata

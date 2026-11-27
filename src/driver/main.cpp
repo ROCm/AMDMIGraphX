@@ -366,10 +366,10 @@ struct loader
                    "writes a new <stem>.<id><extension> beside it (default: <output>.data)"));
         ap(reuse_external_data,
            {"--reuse-external-data"},
-           ap.help("Map ONNX external data files instead of copying them, and save a reference to "
-                   "the file each literal was read from instead of its data. Weights changed by "
-                   "compilation (layout, quantization) are saved inline, or to the weights file "
-                   "with --external-weights."),
+           ap.help("Save a reference to the weights file each literal of a loaded MIGraphX "
+                   "program was read from instead of its data. Weights changed by compilation "
+                   "(layout, quantization) are saved inline, or to the weights file with "
+                   "--external-weights."),
            ap.set_value(true));
         ap(verify_external_weights,
            {"--verify-external-weights"},
@@ -563,7 +563,6 @@ struct loader
         options.print_program_on_error = true;
         options.use_debug_symbols      = use_debug_symbols;
         options.use_symbolic_shapes    = use_symbolic;
-        options.reuse_external_data    = reuse_external_data;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;

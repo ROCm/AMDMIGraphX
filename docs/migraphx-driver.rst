@@ -100,7 +100,7 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --external-weights-file
       - Sets the base name of the weights file used by ``--external-weights`` (Default: ``<output>.data``). Each save writes a new file ``<stem>.<id><extension>`` beside it and deletes the weights files of the program it replaces that are no longer referenced
    *  - --reuse-external-data
-      - Maps ONNX external data files instead of copying them, and saves references to the files literals were read from instead of their data
+      - Saves references to the weights files the literals of a loaded MIGraphX program were read from instead of their data
    *  - --verify-external-weights
       - Checks the MD5 checksum of each externally stored literal when loading a MIGraphX program, and rejects literals saved without one. MD5 is an integrity check against corruption, not against tampering
    *  - --external-data-allow

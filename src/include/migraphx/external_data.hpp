@@ -98,8 +98,6 @@ struct external_data_load_options
     /// Further directories references may point into
     std::vector<fs::path> allowed_dirs;
     bool verify_checksum = false;
-    /// False when the caller has already confined the paths, as the ONNX parser does
-    bool confine = true;
 };
 
 struct external_data_writer_impl;

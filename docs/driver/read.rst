@@ -148,11 +148,10 @@ absolute, a warning is printed, and loading the program needs ``--external-data-
 
 .. option::  --reuse-external-data
 
-When parsing ONNX, map the model's external data files instead of copying them into memory. When
-saving, store a reference to the file each literal was read from instead of its data, so the
-program file points at the original ONNX data (or at the weights file of a loaded MIGraphX
-program). Weights that compilation changes, such as by a layout change or quantization, are saved
-inline, or to the weights file when ``--external-weights`` is also given.
+When saving, store a reference to the weights file each literal of a loaded MIGraphX program was
+read from instead of its data, so the program file points at the original weights file. Weights
+that compilation changes, such as by a layout change or quantization, are saved inline, or to the
+weights file when ``--external-weights`` is also given.
 
 With ``recompile``, the recompiled program references the weights file of the program it was
 recompiled from instead of storing the weights inline. Without the flag, ``recompile`` stores every

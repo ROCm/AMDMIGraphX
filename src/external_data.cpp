@@ -320,24 +320,21 @@ scoped_external_data_reader::scoped_external_data_reader(external_data_load_opti
     impl->options = std::move(options);
     const auto& o = impl->options;
     impl->base    = o.base_dir.empty() ? fs::current_path() : fs::absolute(o.base_dir);
-    if(o.confine)
-    {
-        std::error_code ec;
-        impl->root = fs::canonical(impl->base, ec);
-        if(ec)
-            impl->root.clear();
-        std::transform(o.allowed_dirs.begin(),
-                       o.allowed_dirs.end(),
-                       std::back_inserter(impl->allowed),
-                       [](const fs::path& dir) {
-                           std::error_code dir_ec;
-                           auto result = fs::canonical(dir, dir_ec);
-                           if(dir_ec)
-                               MIGRAPHX_THROW("External data allowed path does not exist: " +
-                                              dir.string());
-                           return result;
-                       });
-    }
+    std::error_code ec;
+    impl->root = fs::canonical(impl->base, ec);
+    if(ec)
+        impl->root.clear();
+    std::transform(o.allowed_dirs.begin(),
+                   o.allowed_dirs.end(),
+                   std::back_inserter(impl->allowed),
+                   [](const fs::path& dir) {
+                       std::error_code dir_ec;
+                       auto result = fs::canonical(dir, dir_ec);
+                       if(dir_ec)
+                           MIGRAPHX_THROW("External data allowed path does not exist: " +
+                                          dir.string());
+                       return result;
+                   });
     active_reader = this;
 }
 
@@ -352,8 +349,6 @@ fs::path scoped_external_data_reader::resolve(const std::string& file_path) cons
 {
     const fs::path p{file_path};
     const fs::path target = p.is_absolute() ? p : impl->base / p;
-    if(not impl->options.confine)
-        return lexically_normalize(target);
     if(impl->root.empty())
         MIGRAPHX_THROW("External data directory does not exist: " + impl->base.string());
     auto resolved = canonical_path(target);

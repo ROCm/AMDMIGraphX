@@ -24,8 +24,6 @@
 
 #include <onnx_test.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/external_data.hpp>
-#include <migraphx/mapped_file.hpp>
 #include <algorithm>
 
 TEST_CASE(external_data_scalar_test)
@@ -40,23 +38,4 @@ TEST_CASE(external_data_scalar_test)
     EXPECT(not lit->get_literal().is_external());
     EXPECT(lit->get_literal() ==
            migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {2.5f}});
-}
-
-TEST_CASE(external_data_scalar_reuse_test)
-{
-    migraphx::onnx_options options;
-    options.reuse_external_data = true;
-    auto prog                   = read_onnx("external_data_scalar_test.onnx", options);
-    auto* mm                    = prog.get_main_module();
-    auto lit = std::find_if(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
-        return ins.name() == "@literal";
-    });
-    EXPECT(lit != mm->end());
-    EXPECT(lit->get_shape() == migraphx::shape{migraphx::shape::float_type});
-    const auto& l = lit->get_literal();
-    EXPECT(l.is_external());
-    EXPECT(l.get_external_data()->size == sizeof(float));
-    EXPECT(migraphx::fs::path{l.get_external_data()->file_path}.filename() ==
-           "external_data_scalar_test.weight");
-    EXPECT(l == migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {2.5f}});
 }

@@ -734,9 +734,6 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
     migraphx_onnx_options_t onnx_options, const char* external_data_path);
 
 MIGRAPHX_C_EXPORT migraphx_status
-migraphx_onnx_options_set_reuse_external_data(migraphx_onnx_options_t onnx_options, bool value);
-
-MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_dim_param(

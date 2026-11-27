@@ -64,9 +64,6 @@ struct onnx_options
     /// Path to use for the external data if it is stored at different location compared to onnx
     /// file
     std::string external_data_path = "";
-    /// Map external data files instead of copying them, and keep a reference to the file in
-    /// each literal so a program saved with reuse_external_data points at it
-    bool reuse_external_data = false;
 };
 
 /// Create a program from an onnx file

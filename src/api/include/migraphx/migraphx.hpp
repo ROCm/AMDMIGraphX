@@ -1778,12 +1778,6 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
              external_data_path.c_str());
     }
 
-    /// Map external data files and keep a reference to them in each literal
-    void set_reuse_external_data(bool value = true)
-    {
-        call(&migraphx_onnx_options_set_reuse_external_data, this->get_handle_ptr(), value);
-    }
-
     /// Enable debug symbols from ONNX node names
     void set_use_debug_symbols(bool value = true)
     {

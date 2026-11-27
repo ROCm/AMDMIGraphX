@@ -36,7 +36,6 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/external_data.hpp>
-#include <migraphx/mapped_file.hpp>
 #include <migraphx/checked_ops.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
@@ -936,15 +935,6 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
         const fs::path base_dir  = external_data_path.empty() ? path : fs::path{external_data_path};
         const fs::path data_path = resolve_external_data_path(base_dir, data_file);
-        if(reuse_external_data)
-        {
-            migraphx::external_data ref;
-            ref.file_path    = fs::absolute(data_path).string();
-            ref.offset       = offset;
-            ref.size         = nbytes;
-            auto [file, ext] = map_external_data(ref);
-            return literal::from_mapped_file(ext_shape, std::move(file), std::move(ext));
-        }
         std::vector<char> raw_buffer = read_buffer(data_path, offset, nbytes);
         return create_literal(type, dims, raw_buffer.data(), raw_buffer.size());
     }

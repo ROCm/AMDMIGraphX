@@ -365,11 +365,6 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
     options.limit_max_iterations = value;
 }
 
-static void set_reuse_external_data(onnx_options& options, bool value)
-{
-    options.reuse_external_data = value;
-}
-
 static void set_use_debug_symbols(onnx_options& options, bool value)
 {
     options.use_debug_symbols = value;

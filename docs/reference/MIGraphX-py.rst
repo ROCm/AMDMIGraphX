@@ -474,7 +474,6 @@ parse_onnx
     :param str print_program_on_error: Print program if an error occurs.
     :param int max_loop_iterations: Maximum iteration number for the loop operator if trip count is not set.
     :param int limit_max_iterations: Maximum iteration limit for the loop operator.
-    :param bool reuse_external_data: Map external data files instead of copying them, and keep a reference to the file in each literal.
     :rtype: program
 
 parse_tf

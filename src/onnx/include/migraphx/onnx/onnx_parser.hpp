@@ -112,7 +112,6 @@ struct onnx_parser
     std::unordered_map<std::string, shape::dynamic_dimension> dim_params;
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
     bool skip_unknown_operators  = false;
-    bool reuse_external_data     = false;
     bool use_debug_symbols       = false;
     bool use_symbolic_shapes     = false;
     int64_t max_loop_iterations  = 10;

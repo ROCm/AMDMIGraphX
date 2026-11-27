@@ -571,11 +571,6 @@ if 'enable_onnx' in globals():
             invoke='migraphx::set_external_data_path($@)',
         )
         h.method(
-            'set_reuse_external_data',
-            api.params(value='bool'),
-            invoke='migraphx::set_reuse_external_data($@)',
-        )
-        h.method(
             'set_use_debug_symbols',
             api.params(value='bool'),
             invoke='migraphx::set_use_debug_symbols($@)',

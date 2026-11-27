@@ -514,8 +514,6 @@ TEST_CASE(recompile_external_weights)
     migraphx::file_options options;
     options.external_weights_threshold = 1;
     migraphx::save(c, filename, options);
-    auto v = migraphx::from_msgpack(migraphx::read_buffer(filename));
-    EXPECT(v.at("version").to<int>() == c.get_program_file_version() + 1);
     auto refs = saved_external_refs(filename);
     EXPECT(refs.size() == 1);
     EXPECT(migraphx::is_weights_generation(td.path / "model.mxr.data",
@@ -586,8 +584,6 @@ TEST_CASE(recompile_shares_external_weights)
     reuse.reuse_external_data = true;
     migraphx::save(p, recompiled, reuse);
     EXPECT(not migraphx::fs::exists(recompiled + ".data"));
-    auto v = migraphx::from_msgpack(migraphx::read_buffer(recompiled));
-    EXPECT(v.at("version").to<int>() == p.get_program_file_version() + 1);
     auto recompiled_refs = saved_external_refs(recompiled);
     EXPECT(recompiled_refs.size() == 1);
     EXPECT(recompiled_refs.front().file_path == original_refs.front().file_path);
@@ -598,13 +594,11 @@ TEST_CASE(recompile_shares_external_weights)
     EXPECT(main_literals(q).front().get_external_data()->offset == original_refs.front().offset);
     EXPECT(main_literals(q).front() == weights);
 
-    // Without reuse the weights are stored inline, and the file keeps the current version
+    // Without reuse the weights are stored inline
     auto inline_file = (td.path / "inline.mxr").string();
     migraphx::save(p, inline_file);
     EXPECT(not migraphx::fs::exists(inline_file + ".data"));
     EXPECT(saved_external_refs(inline_file).empty());
-    auto inline_v = migraphx::from_msgpack(migraphx::read_buffer(inline_file));
-    EXPECT(inline_v.at("version").to<int>() == p.get_program_file_version());
     auto r = migraphx::load(inline_file, {.finalize = false});
     EXPECT(not main_literals(r).front().is_external());
     EXPECT(main_literals(r).front() == weights);

@@ -64,8 +64,7 @@ TEST_CASE(compiled_program_external_weights)
     save_options.external_weights_threshold = 1;
     migraphx::save(p1, filename, save_options);
 
-    auto v = migraphx::from_msgpack(migraphx::read_buffer(filename));
-    EXPECT(v.at("version").to<int>() == p1.get_program_file_version() + 1);
+    auto v            = migraphx::from_msgpack(migraphx::read_buffer(filename));
     const auto& nodes = v.at("modules").at("main").at("nodes");
     std::vector<migraphx::external_data> refs;
     migraphx::transform_if(

@@ -699,8 +699,6 @@ TEST_CASE(recompilable_mxr_with_external_weights)
     migraphx::file_options options;
     options.external_weights_threshold = 1;
     migraphx::save(p, filename, options);
-    auto v = migraphx::from_msgpack(migraphx::read_buffer(filename));
-    EXPECT(v.at("version").to<int>() == p.get_program_file_version() + 1);
     auto refs = saved_literal_refs(filename);
     EXPECT(not refs.empty());
     EXPECT(migraphx::is_weights_generation(td.path / "model.mxr.data",
@@ -757,8 +755,6 @@ TEST_CASE(recompile_shares_external_weights)
     reuse.reuse_external_data = true;
     migraphx::save(q, recompiled, reuse);
     EXPECT(not migraphx::fs::exists(recompiled + ".data"));
-    auto v = migraphx::from_msgpack(migraphx::read_buffer(recompiled));
-    EXPECT(v.at("version").to<int>() == q.get_program_file_version() + 1);
     EXPECT(migraphx::to_value(saved_literal_refs(recompiled)) == migraphx::to_value(original_refs));
     EXPECT(migraphx::read_buffer(weights_file) == weights_bytes);
 

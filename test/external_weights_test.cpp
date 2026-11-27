@@ -113,8 +113,6 @@ TEST_CASE(round_trip_with_threshold)
     migraphx::save(p1, filename, options);
 
     EXPECT(not migraphx::fs::exists(filename + ".data"));
-    auto v = migraphx::from_msgpack(migraphx::read_buffer(filename));
-    EXPECT(v.at("version").to<int>() == p1.get_program_file_version() + 1);
     auto refs = saved_external_refs(filename);
     EXPECT(refs.size() == 1);
     EXPECT(migraphx::is_weights_generation(td.path / "model.mxr.data",
@@ -172,8 +170,6 @@ TEST_CASE(default_save_unchanged)
     migraphx::save(p1, filename);
 
     EXPECT(not migraphx::fs::exists(filename + ".data"));
-    auto v = migraphx::from_msgpack(migraphx::read_buffer(filename));
-    EXPECT(v.at("version").to<int>() == p1.get_program_file_version());
     EXPECT(saved_external_refs(filename).empty());
     migraphx::program p2 = migraphx::load(filename);
     EXPECT(p1.sort() == p2.sort());
@@ -556,31 +552,7 @@ TEST_CASE(malformed_references_throw)
     }));
 }
 
-TEST_CASE(program_file_versions)
-{
-    migraphx::program p1;
-    auto* mm = p1.get_main_module();
-    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {32}}));
-    mm->add_return({l});
-
-    auto version = p1.get_program_file_version();
-    auto v       = p1.to_value();
-    EXPECT(v.at("version").to<int>() == version);
-    migraphx::program p2;
-    p2.from_value(v);
-    EXPECT(p1.sort() == p2.sort());
-
-    v["version"] = version + 1;
-    migraphx::program p3;
-    p3.from_value(v);
-    EXPECT(p1.sort() == p3.sort());
-
-    v["version"] = version + 2;
-    migraphx::program p4;
-    EXPECT(test::throws([&] { p4.from_value(v); }));
-}
-
-TEST_CASE(external_version_only_when_referenced)
+TEST_CASE(inline_save_writes_no_external_data)
 {
     migraphx::tmp_dir td{"external-weights"};
     migraphx::program p1;
@@ -595,8 +567,6 @@ TEST_CASE(external_version_only_when_referenced)
     migraphx::save(p1, reused, reuse);
     EXPECT(not migraphx::fs::exists(reused + ".data"));
     EXPECT(saved_external_refs(reused).empty());
-    auto v1 = migraphx::from_msgpack(migraphx::read_buffer(reused));
-    EXPECT(v1.at("version").to<int>() == p1.get_program_file_version());
 
     // A threshold above every literal keeps them all inline
     auto inline_file = (td.path / "inline.mxr").string();
@@ -605,8 +575,6 @@ TEST_CASE(external_version_only_when_referenced)
     migraphx::save(p1, inline_file, options);
     EXPECT(not migraphx::fs::exists(inline_file + ".data"));
     EXPECT(saved_external_refs(inline_file).empty());
-    auto v2 = migraphx::from_msgpack(migraphx::read_buffer(inline_file));
-    EXPECT(v2.at("version").to<int>() == p1.get_program_file_version());
 
     migraphx::program p2 = migraphx::load(inline_file);
     EXPECT(p1.sort() == p2.sort());
@@ -884,10 +852,7 @@ TEST_CASE(plain_save_ignores_live_writer)
 
     EXPECT(not writer.has_references());
     EXPECT(saved_external_refs(filename).empty());
-    auto v1 = migraphx::from_msgpack(migraphx::read_buffer(filename));
-    EXPECT(v1.at("version").to<int>() == p1.get_program_file_version());
-    auto v2 = migraphx::from_msgpack(buffer.data(), buffer.size());
-    EXPECT(v2.at("version").to<int>() == p1.get_program_file_version());
+    EXPECT(p1.sort() == migraphx::load_buffer(buffer).sort());
     writer.commit();
     EXPECT(std::none_of(migraphx::fs::directory_iterator{td.path},
                         migraphx::fs::directory_iterator{},
@@ -942,7 +907,6 @@ TEST_CASE(explicit_context_round_trip)
     auto v           = p1.to_value(write_ctx);
     writer.commit();
     EXPECT(writer.has_references());
-    EXPECT(v.at("version").to<int>() == p1.get_program_file_version() + 1);
     EXPECT(v.at("modules").at("main").at("nodes").front().at("literal").contains("external"));
 
     migraphx::program inline_program;

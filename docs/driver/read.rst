@@ -119,9 +119,7 @@ Output to file.
 Save literals of at least ``size`` bytes to a separate weights file instead of inside the program
 file. ``size`` accepts ``K``, ``M`` and ``G`` suffixes (powers of 1024). Each literal starts at an
 offset aligned to 64 bytes and is recorded with its offset, size and MD5 checksum. This requires
-``--binary`` or ``--json`` output to a file with ``--output``. A program that stores at least one
-literal externally uses the next program file version, so older MIGraphX releases reject it
-instead of misreading it. A program whose literals all stay inline keeps the current version.
+``--binary`` or ``--json`` output to a file with ``--output``.
 
 Without ``size``, follow the flag with another flag or put it last, since a value right after it
 is taken as the size; a value that names an existing file is rejected with a hint instead of being

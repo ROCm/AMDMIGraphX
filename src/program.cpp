@@ -44,7 +44,7 @@
 #include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
 #include <migraphx/logger.hpp>
-#include <migraphx/external_data.hpp>
+#include <migraphx/serialize.hpp>
 
 #include <iostream>
 #include <queue>
@@ -913,11 +913,6 @@ value program::to_value(const serialize_context& sctx) const
 
     result["modules"] = module_vals;
 
-    // Only a program that stores data externally needs the newer version, so older releases
-    // can still read the rest
-    if(sctx.writer != nullptr and sctx.writer->has_references())
-        result["version"] = program_file_version_external_data;
-
     return result;
 }
 
@@ -1005,7 +1000,7 @@ void program::from_value(const value& v, bool finalize)
 void program::from_value(const value& v, bool finalize, const serialize_context& sctx)
 {
     auto version = v.at("version").to<int>();
-    if(version != program_file_version and version != program_file_version_external_data)
+    if(version != program_file_version)
     {
         MIGRAPHX_THROW(
             "Error: Program version mismatch. MXR file was created using program file version: " +

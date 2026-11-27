@@ -197,11 +197,6 @@ struct MIGRAPHX_EXPORT program
     // file. Version should be bumped if any changes occur to the format of
     // the MXR file. This does not apply to changes made to operators.
     static constexpr int program_file_version = 8;
-    // Written instead of program_file_version while saving with external weights, so older
-    // MIGraphX rejects the file rather than loading empty literals. Bump program_file_version by 2.
-    static constexpr int program_file_version_external_data = program_file_version + 1;
-    static_assert(program_file_version % 2 == 0,
-                  "program_file_version + 1 is reserved for external data; bump it by 2");
 };
 
 /// Lets a program be a member of a reflected type, using the same conversion as saving one.

@@ -68,19 +68,22 @@ MIGRAPHX_GPU_EXPORT bool is_tile_splittable(long m_per_block, long n_per_block, 
 // `mlir_num_ctas` backend option:
 //   0: left unchanged (rocMLIR's own list; clusters only ever appear in exhaustive tuning)
 //   1: keep only the candidates whose numCTAs is already 1 (the default: no clusters)
-//   N (2, 4, 8 or 16): every original candidate is kept first, and each named "gemm:" candidate
-//      at numCTAs=1 whose tile is splittable by N additionally gets a numCTAs=N copy offered
-//      right after it. Nothing here checks whether the device can actually honor clustering, so
-//      rocMLIR may reject every clustered candidate; an unclustered original is always first so
-//      an eager/skip-benchmark compile (which uses only the first candidate, with no fallback of
-//      its own) still gets a compilable kernel, and a benchmarked compile still races the
-//      clustered candidate fairly and drops it gracefully if rocMLIR rejects it. Duplicate
-//      strings are removed, preserving first appearance.
+//   N (2, 4, 8 or 16): each named "gemm:" candidate at numCTAs=1 whose tile is splittable by N
+//      gets a numCTAs=N copy offered right before it, the original kept right after as a
+//      fallback. Nothing here checks whether the device can actually honor clustering, so
+//      rocMLIR may reject the clustered candidate; compile_ops.cpp's single-candidate
+//      (eager/skip-benchmark) path retries the rest of the list in order when its first choice
+//      fails to compile, so the clustered candidate is tried first without losing the
+//      always-compilable original as a fallback, and a benchmarked compile still races both
+//      fairly and drops the clustered one gracefully if rocMLIR rejects it. Duplicate strings are
+//      removed, preserving first appearance.
 MIGRAPHX_GPU_EXPORT std::vector<std::string>
 apply_num_ctas(const std::vector<std::string>& solutions, long request, long max_cluster);
 
 // off: never request warp specialization. tune: append a useWarpSpecialize=1 copy of each
-// eligible candidate, so the benchmark decides. force: rewrite every eligible candidate in place.
+// eligible candidate, so the benchmark decides. force: offer a useWarpSpecialize=1 copy of each
+// eligible candidate first, with the unmodified original right after as a fallback if rocMLIR
+// rejects it (see apply_num_ctas for why a fallback must stay in the list).
 //
 // Declared as a nested enum (as layout_convolution::layout_order is) rather than a namespace-
 // scope MIGRAPHX_ENUM_CLASS: the generated to_string/from_string/operator<< are then friend

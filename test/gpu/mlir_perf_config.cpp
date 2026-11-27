@@ -145,9 +145,13 @@ TEST_CASE(num_ctas_rewrites_splittable_gemm)
     EXPECT(migraphx::contains(result, sols[2]));
     EXPECT(migraphx::contains(result, sols[3]));
     EXPECT(migraphx::contains(result, sols[4]));
-    // ...and the one splittable gemm candidate additionally gets a clustered copy offered.
-    EXPECT(migraphx::contains(result, std::string{"gemm:mPerBlock=128,nPerBlock=128,numCTAs=4"}));
+    // ...and the one splittable gemm candidate additionally gets a clustered copy offered right
+    // before it, so compile_ops.cpp's single-candidate retry tries clustering first.
+    std::string clustered = "gemm:mPerBlock=128,nPerBlock=128,numCTAs=4";
+    EXPECT(migraphx::contains(result, clustered));
     EXPECT(result.size() == 6);
+    EXPECT(result[0] == clustered);
+    EXPECT(result[1] == sols[0]);
 }
 
 TEST_CASE(num_ctas_dedupes)
@@ -160,6 +164,10 @@ TEST_CASE(num_ctas_dedupes)
     EXPECT(result.size() == 2);
     EXPECT(migraphx::contains(result, sols[0]));
     EXPECT(migraphx::contains(result, sols[1]));
+    // The clustered copy of sols[0] is identical to sols[1], so it is offered first (deduped
+    // against sols[1] by its generated string, not by position), with sols[0] falling back after.
+    EXPECT(result[0] == sols[1]);
+    EXPECT(result[1] == sols[0]);
 }
 
 TEST_CASE(num_ctas_no_splittable_candidates_keeps_originals)
@@ -208,17 +216,21 @@ TEST_CASE(warp_specialize_tune_appends)
     EXPECT(get_perf_config_field(result[2], "mPerBlock") == 128);
 }
 
-TEST_CASE(warp_specialize_force_rewrites_in_place)
+TEST_CASE(warp_specialize_force_appends_fallback)
 {
     std::vector<std::string> sols = {"gemm:mPerBlock=128,numWaves=4,numCTAs=1",
                                      "attn:mPerBlock=128,numWaves=4,numCTAs=1",
                                      "gemm:mPerBlock=64,numWaves=8,numCTAs=1"};
     auto result = apply_warp_specialize(sols, warp_specialize_mode::force);
-    EXPECT(result.size() == sols.size());
+    // The eligible candidate's specialized copy is offered first, with the unmodified original
+    // kept right after as a fallback if rocMLIR rejects it; ineligible candidates are untouched
+    // and not duplicated.
+    EXPECT(result.size() == sols.size() + 1);
     EXPECT(get_perf_config_field(result[0], "useWarpSpecialize") == 1);
-    // Ineligible candidates (attn:, numWaves != 4) are untouched.
-    EXPECT(result[1] == sols[1]);
-    EXPECT(result[2] == sols[2]);
+    EXPECT(get_perf_config_field(result[0], "mPerBlock") == 128);
+    EXPECT(result[1] == sols[0]);
+    EXPECT(result[2] == sols[1]);
+    EXPECT(result[3] == sols[2]);
 }
 
 TEST_CASE(warp_specialize_mode_names)

@@ -157,13 +157,14 @@ apply_num_ctas(const std::vector<std::string>& solutions, long request, long max
         return result;
     }
 
-    // The unclustered original is always kept first, with a tile-splittable candidate's clustered
-    // copy offered right after: nothing here asks whether the device can actually honor
-    // clustering (no device check happens in this file), so rocMLIR may reject every clustered
-    // candidate it is handed. Eager/skip-benchmark compiles use only the first candidate with no
-    // fallback of their own (compile_ops.cpp's add_cells), so the safe, always-compilable
-    // unclustered candidate must be first; exhaustive/benchmarked compiles still race the
-    // clustered candidate fairly and drop it gracefully if rocMLIR rejects it.
+    // A tile-splittable candidate's clustered copy is offered first, the unclustered original
+    // right after as a fallback: nothing here asks whether the device can actually honor
+    // clustering (no device check happens in this file), so rocMLIR may reject the clustered
+    // candidate. compile_ops.cpp's single-candidate (eager/skip-benchmark) path now retries the
+    // rest of the list in order when the first candidate fails to compile, so the preferred
+    // clustered candidate can be tried first while still falling back to the always-compilable
+    // original; exhaustive/benchmarked compiles still race both fairly and drop the clustered one
+    // gracefully if rocMLIR rejects it.
     auto clamped = std::min(request, max_cluster);
     std::vector<std::string> result;
     std::unordered_set<std::string> seen;
@@ -173,7 +174,6 @@ apply_num_ctas(const std::vector<std::string>& solutions, long request, long max
     };
     for(const auto& s : solutions)
     {
-        add(s);
         if(is_named_perf_config(s) and perf_config_prefix(s) == "gemm" and
            get_perf_config_field(s, "numCTAs").value_or(1) == 1)
         {
@@ -182,6 +182,7 @@ apply_num_ctas(const std::vector<std::string>& solutions, long request, long max
             if(m.has_value() and n.has_value() and is_tile_splittable(*m, *n, clamped))
                 add(set_perf_config_field(s, "numCTAs", clamped));
         }
+        add(s);
     }
     return result;
 }
@@ -204,13 +205,18 @@ std::vector<std::string> apply_warp_specialize(const std::vector<std::string>& s
 
     if(mode == warp_specialize_mode::force)
     {
+        // Each eligible candidate's warp-specialized copy is offered first, the unmodified
+        // original right after as a fallback: rewriting eligible candidates in place with no
+        // fallback would leave compile_ops.cpp's single-candidate (eager/skip-benchmark) path
+        // with nothing to retry if rocMLIR rejects warp specialization on this device.
         std::vector<std::string> result;
-        result.reserve(solutions.size());
-        std::transform(
-            solutions.begin(), solutions.end(), std::back_inserter(result), [](const auto& s) {
-                return is_warp_specialize_eligible(s) ? set_perf_config_field(s, "useWarpSpecialize", 1)
-                                                      : s;
-            });
+        result.reserve(solutions.size() * 2);
+        for(const auto& s : solutions)
+        {
+            if(is_warp_specialize_eligible(s))
+                result.push_back(set_perf_config_field(s, "useWarpSpecialize", 1));
+            result.push_back(s);
+        }
         return result;
     }
 

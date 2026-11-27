@@ -103,19 +103,18 @@ struct external_data_load_options
 struct external_data_writer_impl;
 
 /**
- * @brief While alive, literal and argument serialization on this thread may store data
- * externally instead of inline
+ * @brief Stores literal and argument data externally for a serialize_context that names it
  * @details New data goes to a temporary file that commit() renames to a generation of the
  * weights base that no other writer uses, so a published file is never overwritten; without a
  * commit the temporary is removed.
  */
-struct MIGRAPHX_EXPORT scoped_external_data_writer
+struct MIGRAPHX_EXPORT external_data_writer
 {
-    explicit scoped_external_data_writer(external_data_save_options options);
-    ~scoped_external_data_writer();
+    explicit external_data_writer(external_data_save_options options);
+    ~external_data_writer();
 
-    scoped_external_data_writer(const scoped_external_data_writer&)            = delete;
-    scoped_external_data_writer& operator=(const scoped_external_data_writer&) = delete;
+    external_data_writer(const external_data_writer&)            = delete;
+    external_data_writer& operator=(const external_data_writer&) = delete;
 
     /// The reference to store instead of the n bytes at data, or nullopt to keep them inline.
     /// original is the reference the data was read from, if any.
@@ -134,25 +133,21 @@ struct MIGRAPHX_EXPORT scoped_external_data_writer
     /// Absolute paths of the files the returned references name
     const std::vector<fs::path>& referenced_files() const;
 
-    /// The innermost writer alive on this thread, or nullptr
-    static scoped_external_data_writer* active();
-
     private:
     std::unique_ptr<external_data_writer_impl> impl;
-    scoped_external_data_writer* previous = nullptr;
 };
 
 struct external_data_reader_impl;
 
-/// While alive, external references read on this thread resolve against its options and share
-/// one mapping per file
-struct MIGRAPHX_EXPORT scoped_external_data_reader
+/// Resolves the external references of a serialize_context that names it against its options,
+/// sharing one mapping per file
+struct MIGRAPHX_EXPORT external_data_reader
 {
-    explicit scoped_external_data_reader(external_data_load_options options);
-    ~scoped_external_data_reader();
+    explicit external_data_reader(external_data_load_options options);
+    ~external_data_reader();
 
-    scoped_external_data_reader(const scoped_external_data_reader&)            = delete;
-    scoped_external_data_reader& operator=(const scoped_external_data_reader&) = delete;
+    external_data_reader(const external_data_reader&)            = delete;
+    external_data_reader& operator=(const external_data_reader&) = delete;
 
     const external_data_load_options& get_options() const;
 
@@ -163,19 +158,13 @@ struct MIGRAPHX_EXPORT scoped_external_data_reader
     /// The mapping of the file at an already resolved path
     std::shared_ptr<mapped_file> map(const fs::path& resolved);
 
-    /// The innermost reader alive on this thread, or nullptr
-    static scoped_external_data_reader* active();
+    /// Map the file a reference points at. The bounds are always checked and the checksum when
+    /// the options ask for it. The returned reference holds the resolved absolute path.
+    std::pair<std::shared_ptr<mapped_file>, external_data> read(const external_data& ref);
 
     private:
     std::unique_ptr<external_data_reader_impl> impl;
-    scoped_external_data_reader* previous = nullptr;
 };
-
-/// Map the file a reference points at, using the active reader, or default options when there
-/// is none. The bounds are always checked and the checksum when the reader asks for it. The
-/// returned reference holds the resolved absolute path.
-MIGRAPHX_EXPORT std::pair<std::shared_ptr<mapped_file>, external_data>
-map_external_data(const external_data& ref);
 
 /// Lexically resolve '.' and '..' without touching the filesystem
 MIGRAPHX_EXPORT fs::path lexically_normalize(const fs::path& p);

@@ -39,7 +39,7 @@ static const external_data* original_external_data(const literal& l)
 static const external_data* original_external_data(const argument&) { return nullptr; }
 
 template <class RawData>
-static void raw_data_to_value(value& v, const RawData& rd)
+static void raw_data_to_value(value& v, const RawData& rd, const serialize_context& sctx)
 {
     value result;
     result["shape"] = migraphx::to_value(rd.get_shape());
@@ -49,10 +49,9 @@ static void raw_data_to_value(value& v, const RawData& rd)
     }
     else if(not rd.empty())
     {
-        // While saving with external weights the data may go to a file instead of the value
         std::optional<external_data> ext;
-        if(auto* writer = scoped_external_data_writer::active())
-            ext = writer->write(rd.data(), rd.get_shape().bytes(), original_external_data(rd));
+        if(sctx.writer != nullptr)
+            ext = sctx.writer->write(rd.data(), rd.get_shape().bytes(), original_external_data(rd));
         if(ext.has_value())
             result["external"] = migraphx::to_value(*ext);
         else
@@ -61,8 +60,14 @@ static void raw_data_to_value(value& v, const RawData& rd)
     v = result;
 }
 
-void migraphx_to_value(value& v, const literal& l) { raw_data_to_value(v, l); }
-void migraphx_from_value(const value& v, literal& l)
+void migraphx_to_value(value& v, const literal& l) { raw_data_to_value(v, l, {}); }
+void migraphx_to_value(value& v, const literal& l, const serialize_context& sctx)
+{
+    raw_data_to_value(v, l, sctx);
+}
+
+void migraphx_from_value(const value& v, literal& l) { migraphx_from_value(v, l, {}); }
+void migraphx_from_value(const value& v, literal& l, const serialize_context& sctx)
 {
     auto s = migraphx::from_value<shape>(v.at("shape"));
     if(v.contains("data"))
@@ -75,7 +80,10 @@ void migraphx_from_value(const value& v, literal& l)
     }
     else if(v.contains("external"))
     {
-        auto [file, ext] = map_external_data(from_value<external_data>(v.at("external")));
+        if(sctx.reader == nullptr)
+            MIGRAPHX_THROW("literal: external data can only be read while loading a program, "
+                           "use migraphx::load");
+        auto [file, ext] = sctx.reader->read(from_value<external_data>(v.at("external")));
         l                = literal::from_mapped_file(s, std::move(file), std::move(ext));
     }
     else
@@ -84,16 +92,23 @@ void migraphx_from_value(const value& v, literal& l)
     }
 }
 
-void migraphx_to_value(value& v, const argument& a) { raw_data_to_value(v, a); }
-void migraphx_from_value(const value& v, argument& a)
+void migraphx_to_value(value& v, const argument& a) { raw_data_to_value(v, a, {}); }
+void migraphx_to_value(value& v, const argument& a, const serialize_context& sctx)
+{
+    raw_data_to_value(v, a, sctx);
+}
+
+void migraphx_from_value(const value& v, argument& a) { migraphx_from_value(v, a, {}); }
+void migraphx_from_value(const value& v, argument& a, const serialize_context& sctx)
 {
     if(v.contains("data") or v.contains("external"))
     {
-        literal l = migraphx::from_value<literal>(v);
+        literal l = migraphx::from_value<literal>(v, sctx);
         a         = l.get_argument();
     }
     else if(v.contains("sub"))
     {
+        // Sub-objects are always written inline
         a = migraphx::from_value<std::vector<argument>>(v.at("sub"));
     }
 }

@@ -42,11 +42,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static thread_local scoped_external_data_writer* active_writer = nullptr;
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static thread_local scoped_external_data_reader* active_reader = nullptr;
-
 constexpr std::size_t generation_id_size = 16;
 
 // The Filesystem TS (std::experimental::filesystem, used on some older toolchains) lacks
@@ -244,8 +239,8 @@ static bool still_present(const external_data& ref)
     return not ec and ref.offset <= size and ref.size <= size - ref.offset;
 }
 
-scoped_external_data_writer::scoped_external_data_writer(external_data_save_options options)
-    : impl(std::make_unique<external_data_writer_impl>(std::move(options))), previous(active_writer)
+external_data_writer::external_data_writer(external_data_save_options options)
+    : impl(std::make_unique<external_data_writer_impl>(std::move(options)))
 {
     const auto& o = impl->options;
     if(std::bitset<64>(o.alignment).count() != 1)
@@ -253,13 +248,12 @@ scoped_external_data_writer::scoped_external_data_writer(external_data_save_opti
                        std::to_string(o.alignment));
     if(o.threshold.has_value() and o.weights_base.empty())
         MIGRAPHX_THROW("External data requires a weights file");
-    active_writer = this;
 }
 
-scoped_external_data_writer::~scoped_external_data_writer() { active_writer = previous; }
+external_data_writer::~external_data_writer() = default;
 
 std::optional<external_data>
-scoped_external_data_writer::write(const char* data, std::size_t n, const external_data* original)
+external_data_writer::write(const char* data, std::size_t n, const external_data* original)
 {
     const auto& o = impl->options;
     if(n == 0)
@@ -282,18 +276,16 @@ scoped_external_data_writer::write(const char* data, std::size_t n, const extern
     return result;
 }
 
-void scoped_external_data_writer::commit() { impl->commit(); }
+void external_data_writer::commit() { impl->commit(); }
 
-void scoped_external_data_writer::discard() { impl->discard(); }
+void external_data_writer::discard() { impl->discard(); }
 
-bool scoped_external_data_writer::has_references() const { return impl->has_references; }
+bool external_data_writer::has_references() const { return impl->has_references; }
 
-const std::vector<fs::path>& scoped_external_data_writer::referenced_files() const
+const std::vector<fs::path>& external_data_writer::referenced_files() const
 {
     return impl->references;
 }
-
-scoped_external_data_writer* scoped_external_data_writer::active() { return active_writer; }
 
 static fs::path canonical_path(const fs::path& p)
 {
@@ -314,8 +306,8 @@ struct external_data_reader_impl
     std::unordered_map<std::string, std::shared_ptr<mapped_file>> files;
 };
 
-scoped_external_data_reader::scoped_external_data_reader(external_data_load_options options)
-    : impl(std::make_unique<external_data_reader_impl>()), previous(active_reader)
+external_data_reader::external_data_reader(external_data_load_options options)
+    : impl(std::make_unique<external_data_reader_impl>())
 {
     impl->options = std::move(options);
     const auto& o = impl->options;
@@ -335,17 +327,16 @@ scoped_external_data_reader::scoped_external_data_reader(external_data_load_opti
                                           dir.string());
                        return result;
                    });
-    active_reader = this;
 }
 
-scoped_external_data_reader::~scoped_external_data_reader() { active_reader = previous; }
+external_data_reader::~external_data_reader() = default;
 
-const external_data_load_options& scoped_external_data_reader::get_options() const
+const external_data_load_options& external_data_reader::get_options() const
 {
     return impl->options;
 }
 
-fs::path scoped_external_data_reader::resolve(const std::string& file_path) const
+fs::path external_data_reader::resolve(const std::string& file_path) const
 {
     const fs::path p{file_path};
     const fs::path target = p.is_absolute() ? p : impl->base / p;
@@ -362,7 +353,7 @@ fs::path scoped_external_data_reader::resolve(const std::string& file_path) cons
                    " with external_data_allowed_paths (--external-data-allow) to load it");
 }
 
-std::shared_ptr<mapped_file> scoped_external_data_reader::map(const fs::path& resolved)
+std::shared_ptr<mapped_file> external_data_reader::map(const fs::path& resolved)
 {
     auto& file = impl->files[resolved.string()];
     if(file == nullptr)
@@ -370,24 +361,15 @@ std::shared_ptr<mapped_file> scoped_external_data_reader::map(const fs::path& re
     return file;
 }
 
-scoped_external_data_reader* scoped_external_data_reader::active() { return active_reader; }
-
-std::pair<std::shared_ptr<mapped_file>, external_data> map_external_data(const external_data& ref)
+std::pair<std::shared_ptr<mapped_file>, external_data>
+external_data_reader::read(const external_data& ref)
 {
-    auto* reader = scoped_external_data_reader::active();
-    if(reader == nullptr)
-    {
-        // The returned mapping outlives this reader, which only shares it between references
-        scoped_external_data_reader defaults{external_data_load_options{}};
-        return map_external_data(ref);
-    }
-    const auto& options = reader->get_options();
-    auto resolved       = reader->resolve(ref.file_path);
-    auto file           = reader->map(resolved);
+    auto resolved = resolve(ref.file_path);
+    auto file     = map(resolved);
     if(ref.offset > file->size() or ref.size > file->size() - ref.offset)
         MIGRAPHX_THROW("External data of " + std::to_string(ref.size) + " bytes at offset " +
                        std::to_string(ref.offset) + " exceeds size of file: " + resolved.string());
-    if(options.verify_checksum)
+    if(impl->options.verify_checksum)
     {
         if(ref.checksum.empty())
             MIGRAPHX_THROW("External data of " + std::to_string(ref.size) + " bytes at offset " +

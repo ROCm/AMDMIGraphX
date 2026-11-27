@@ -555,11 +555,25 @@ value to_value_op(const T& x)
 }
 
 template <class T>
+value to_value_op(const T& x, const serialize_context& sctx)
+{
+    return migraphx::to_value(x, sctx);
+}
+
+template <class T>
 void from_value_op(T& x, const value& v)
 {
     if(not(v.is_object() or (v.empty() and v.is_array())))
         MIGRAPHX_THROW("Value is not an object");
     return migraphx::from_value(v, x);
+}
+
+template <class T>
+void from_value_op(T& x, const value& v, const serialize_context& sctx)
+{
+    if(not(v.is_object() or (v.empty() and v.is_array())))
+        MIGRAPHX_THROW("Value is not an object");
+    return migraphx::from_value(v, x, sctx);
 }
 
 template <class T>
@@ -624,7 +638,11 @@ struct MIGRAPHX_EXPORT operation
     // (optional)
     value to_value() const;
     // (optional)
+    value to_value(const serialize_context& sctx) const;
+    // (optional)
     void from_value(const value& v);
+    // (optional)
+    void from_value(const value& v, const serialize_context& sctx);
     // (optional)
     value attributes() const;
     //
@@ -939,6 +957,23 @@ struct operation
     }
 
     template <class T>
+    static auto private_detail_te_default_to_value(char,
+                                                   T&& private_detail_te_self,
+                                                   const serialize_context& sctx)
+        -> decltype(private_detail_te_self.to_value(sctx))
+    {
+        return private_detail_te_self.to_value(sctx);
+    }
+
+    template <class T>
+    static value private_detail_te_default_to_value(float,
+                                                    T&& private_detail_te_self,
+                                                    const serialize_context& sctx)
+    {
+        return detail::to_value_op(private_detail_te_self, sctx);
+    }
+
+    template <class T>
     static auto
     private_detail_te_default_from_value(char, T&& private_detail_te_self, const value& v)
         -> decltype(private_detail_te_self.from_value(v))
@@ -951,6 +986,25 @@ struct operation
     private_detail_te_default_from_value(float, T&& private_detail_te_self, const value& v)
     {
         detail::from_value_op(private_detail_te_self, v);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_from_value(char,
+                                                     T&& private_detail_te_self,
+                                                     const value& v,
+                                                     const serialize_context& sctx)
+        -> decltype(private_detail_te_self.from_value(v, sctx))
+    {
+        private_detail_te_self.from_value(v, sctx);
+    }
+
+    template <class T>
+    static void private_detail_te_default_from_value(float,
+                                                     T&& private_detail_te_self,
+                                                     const value& v,
+                                                     const serialize_context& sctx)
+    {
+        detail::from_value_op(private_detail_te_self, v, sctx);
     }
 
     template <class T>
@@ -1051,9 +1105,16 @@ struct operation
                          module_ref&, const std::unordered_map<std::string, argument>&)>>()),
                  private_detail_te_default_to_value(char(0),
                                                     std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_to_value(char(0),
+                                                    std::declval<PrivateDetailTypeErasedT>(),
+                                                    std::declval<const serialize_context&>()),
                  private_detail_te_default_from_value(char(0),
                                                       std::declval<PrivateDetailTypeErasedT>(),
                                                       std::declval<const value&>()),
+                 private_detail_te_default_from_value(char(0),
+                                                      std::declval<PrivateDetailTypeErasedT>(),
+                                                      std::declval<const value&>(),
+                                                      std::declval<const serialize_context&>()),
                  private_detail_te_default_attributes(char(0),
                                                       std::declval<PrivateDetailTypeErasedT>()),
                  void());
@@ -1248,10 +1309,22 @@ struct operation
         return (*this).private_detail_te_get_handle().to_value();
     }
 
+    value to_value(const serialize_context& sctx) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().to_value(sctx);
+    }
+
     void from_value(const value& v)
     {
         assert((*this).private_detail_te_handle_mem_var);
         (*this).private_detail_te_get_handle().from_value(v);
+    }
+
+    void from_value(const value& v, const serialize_context& sctx)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().from_value(v, sctx);
     }
 
     value attributes() const
@@ -1321,7 +1394,9 @@ struct operation
                 std::function<std::vector<argument>(
                     module_ref&, const std::unordered_map<std::string, argument>&)> run) const = 0;
         virtual value to_value() const                                                         = 0;
+        virtual value to_value(const serialize_context& sctx) const                            = 0;
         virtual void from_value(const value& v)                                                = 0;
+        virtual void from_value(const value& v, const serialize_context& sctx)                 = 0;
         virtual value attributes() const                                                       = 0;
         virtual std::ostream& operator_shift_left(std::ostream& os) const                      = 0;
         virtual bool operator==(const operation& y) const                                      = 0;
@@ -1479,10 +1554,22 @@ struct operation
             return private_detail_te_default_to_value(char(0), private_detail_te_value);
         }
 
+        value to_value(const serialize_context& sctx) const override
+        {
+
+            return private_detail_te_default_to_value(char(0), private_detail_te_value, sctx);
+        }
+
         void from_value(const value& v) override
         {
 
             private_detail_te_default_from_value(char(0), private_detail_te_value, v);
+        }
+
+        void from_value(const value& v, const serialize_context& sctx) override
+        {
+
+            private_detail_te_default_from_value(char(0), private_detail_te_value, v, sctx);
         }
 
         value attributes() const override
@@ -1662,6 +1749,10 @@ bool has_finalize(const T& x)
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const operation& op);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, operation& op);
+MIGRAPHX_EXPORT void
+migraphx_to_value(value& v, const operation& op, const serialize_context& sctx);
+MIGRAPHX_EXPORT void
+migraphx_from_value(const value& v, operation& op, const serialize_context& sctx);
 
 #endif
 

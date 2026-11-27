@@ -50,15 +50,17 @@ static program load_from(const char* buffer,
     load_options.allowed_dirs.assign(options.external_data_allowed_paths.begin(),
                                      options.external_data_allowed_paths.end());
     load_options.verify_checksum = options.verify_external_weights;
-    scoped_external_data_reader reader{load_options};
+    external_data_reader reader{load_options};
+    serialize_context sctx;
+    sctx.reader = &reader;
     program p;
     if(options.format == "msgpack")
     {
-        p.from_value(from_msgpack(buffer, size), options.finalize);
+        p.from_value(from_msgpack(buffer, size), options.finalize, sctx);
     }
     else if(options.format == "json")
     {
-        p.from_value(from_json_string(buffer, size), options.finalize);
+        p.from_value(from_json_string(buffer, size), options.finalize, sctx);
     }
     else
     {
@@ -101,7 +103,8 @@ static external_data_save_options get_save_options(const file_options& options,
     return result;
 }
 
-static std::vector<char> serialize_program(const program& p, const std::string& format);
+static std::vector<char>
+serialize_program(const program& p, const std::string& format, const serialize_context& sctx);
 
 static bool same_file(const fs::path& a, const fs::path& b)
 {
@@ -197,8 +200,10 @@ void save(const program& p, const std::string& filename, const file_options& opt
         MIGRAPHX_THROW("Cannot overwrite " + filename + " while a loaded program maps it");
     // References are relative to the program file's directory, so the pair can be moved together
     const auto dir = lexically_normalize(fs::absolute(dest)).parent_path();
-    scoped_external_data_writer writer{get_save_options(options, weights_base, dir)};
-    auto buffer            = serialize_program(p, options.format);
+    external_data_writer writer{get_save_options(options, weights_base, dir)};
+    serialize_context sctx;
+    sctx.writer            = &writer;
+    auto buffer            = serialize_program(p, options.format, sctx);
     const auto& referenced = writer.referenced_files();
     if(std::any_of(referenced.begin(), referenced.end(), [&](const fs::path& r) {
            return same_file(dest, r);
@@ -238,9 +243,10 @@ static void print_miopen_warning(const program& p)
     }
 }
 
-static std::vector<char> serialize_program(const program& p, const std::string& format)
+static std::vector<char>
+serialize_program(const program& p, const std::string& format, const serialize_context& sctx)
 {
-    value v = p.to_value();
+    value v = p.to_value(sctx);
     print_miopen_warning(p);
     std::vector<char> buffer;
     if(format == "msgpack")
@@ -262,12 +268,14 @@ static std::vector<char> serialize_program(const program& p, const std::string& 
 std::vector<char> save_buffer(const program& p, const file_options& options)
 {
     if(not external_weights_enabled(options))
-        return serialize_program(p, options.format);
+        return serialize_program(p, options.format, {});
     if(options.external_weights_threshold.has_value() and options.external_weights_file.empty())
         MIGRAPHX_THROW("save_buffer: external weights require external_weights_file");
-    scoped_external_data_writer writer{
+    external_data_writer writer{
         get_save_options(options, options.external_weights_file, options.external_data_path)};
-    auto buffer = serialize_program(p, options.format);
+    serialize_context sctx;
+    sctx.writer = &writer;
+    auto buffer = serialize_program(p, options.format, sctx);
     writer.commit();
     return buffer;
 }

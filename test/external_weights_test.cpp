@@ -864,4 +864,153 @@ TEST_CASE(alignment_with_reuse)
     EXPECT(p2.sort() == p3.sort());
 }
 
+TEST_CASE(plain_save_ignores_live_writer)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64}}));
+    mm->add_return({l});
+
+    migraphx::external_data_save_options outer;
+    outer.threshold    = 1;
+    outer.weights_base = td.path / "outer.data";
+    outer.base_dir     = td.path;
+    migraphx::external_data_writer writer{outer};
+
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::save(p1, filename);
+    auto buffer = migraphx::save_buffer(p1);
+
+    EXPECT(not writer.has_references());
+    EXPECT(saved_external_refs(filename).empty());
+    auto v1 = migraphx::from_msgpack(migraphx::read_buffer(filename));
+    EXPECT(v1.at("version").to<int>() == p1.get_program_file_version());
+    auto v2 = migraphx::from_msgpack(buffer.data(), buffer.size());
+    EXPECT(v2.at("version").to<int>() == p1.get_program_file_version());
+    writer.commit();
+    EXPECT(std::none_of(migraphx::fs::directory_iterator{td.path},
+                        migraphx::fs::directory_iterator{},
+                        [&](const migraphx::fs::directory_entry& e) {
+                            return migraphx::is_weights_generation(outer.weights_base, e.path());
+                        }));
+    EXPECT(p1.sort() == migraphx::load(filename).sort());
+}
+
+TEST_CASE(external_save_inside_live_writer)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64}}));
+    mm->add_return({l});
+
+    migraphx::external_data_save_options outer;
+    outer.threshold    = 1;
+    outer.weights_base = td.path / "outer.data";
+    outer.base_dir     = td.path;
+    migraphx::external_data_writer writer{outer};
+
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(p1, filename, options);
+
+    EXPECT(not writer.has_references());
+    auto refs = saved_external_refs(filename);
+    EXPECT(refs.size() == 1);
+    EXPECT(migraphx::is_weights_generation(td.path / "model.mxr.data",
+                                           td.path / refs.front().file_path));
+    EXPECT(p1.sort() == migraphx::load(filename).sort());
+}
+
+TEST_CASE(explicit_context_round_trip)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    auto l   = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64}}));
+    mm->add_return({l});
+
+    migraphx::external_data_save_options save_options;
+    save_options.threshold    = 1;
+    save_options.weights_base = td.path / "weights.data";
+    save_options.base_dir     = td.path;
+    migraphx::external_data_writer writer{save_options};
+    migraphx::serialize_context write_ctx;
+    write_ctx.writer = &writer;
+    auto v           = p1.to_value(write_ctx);
+    writer.commit();
+    EXPECT(writer.has_references());
+    EXPECT(v.at("version").to<int>() == p1.get_program_file_version() + 1);
+    EXPECT(v.at("modules").at("main").at("nodes").front().at("literal").contains("external"));
+
+    migraphx::program inline_program;
+    EXPECT(test::throws([&] { inline_program.from_value(v); }));
+
+    migraphx::external_data_load_options load_options;
+    load_options.base_dir = td.path;
+    migraphx::external_data_reader reader{load_options};
+    migraphx::serialize_context read_ctx;
+    read_ctx.reader = &reader;
+    migraphx::program p2;
+    p2.from_value(v, true, read_ctx);
+    EXPECT(p1.sort() == p2.sort());
+}
+
+struct literal_field_op
+{
+    migraphx::literal data;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.data, "data"));
+    }
+
+    std::string name() const { return "literal_field_op"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        return data.get_shape();
+    }
+};
+
+TEST_CASE(op_literal_field_uses_context)
+{
+    migraphx::tmp_dir td{"external-weights"};
+    auto l                 = migraphx::generate_literal({migraphx::shape::float_type, {64}});
+    migraphx::operation op = literal_field_op{l};
+
+    auto inline_value = migraphx::to_value(op);
+    EXPECT(inline_value.at("name").to<std::string>() == "literal_field_op");
+    EXPECT(inline_value.at("operator").at("data").contains("data"));
+
+    migraphx::external_data_save_options save_options;
+    save_options.threshold    = 1;
+    save_options.weights_base = td.path / "weights.data";
+    save_options.base_dir     = td.path;
+    migraphx::external_data_writer writer{save_options};
+    migraphx::serialize_context write_ctx;
+    write_ctx.writer = &writer;
+    auto v           = migraphx::to_value(op, write_ctx);
+    writer.commit();
+    EXPECT(writer.has_references());
+    EXPECT(v.at("name").to<std::string>() == "literal_field_op");
+    EXPECT(v.at("operator").at("data").contains("external"));
+
+    migraphx::operation inline_op = literal_field_op{};
+    EXPECT(test::throws([&] { inline_op.from_value(v.at("operator")); }));
+
+    migraphx::external_data_load_options load_options;
+    load_options.base_dir = td.path;
+    migraphx::external_data_reader reader{load_options};
+    migraphx::serialize_context read_ctx;
+    read_ctx.reader            = &reader;
+    migraphx::operation loaded = literal_field_op{};
+    loaded.from_value(v.at("operator"), read_ctx);
+    const auto& result = migraphx::any_cast<literal_field_op>(loaded).data;
+    EXPECT(result.is_external());
+    EXPECT(result == l);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

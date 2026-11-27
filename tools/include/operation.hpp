@@ -555,11 +555,25 @@ value to_value_op(const T& x)
 }
 
 template <class T>
+value to_value_op(const T& x, const serialize_context& sctx)
+{
+    return migraphx::to_value(x, sctx);
+}
+
+template <class T>
 void from_value_op(T& x, const value& v)
 {
     if(not(v.is_object() or (v.empty() and v.is_array())))
         MIGRAPHX_THROW("Value is not an object");
     return migraphx::from_value(v, x);
+}
+
+template <class T>
+void from_value_op(T& x, const value& v, const serialize_context& sctx)
+{
+    if(not(v.is_object() or (v.empty() and v.is_array())))
+        MIGRAPHX_THROW("Value is not an object");
+    return migraphx::from_value(v, x, sctx);
 }
 
 template <class T>
@@ -662,7 +676,16 @@ lifetime get_lifetime_op(const T&)
             const   = True,
             default = 'detail::compute_op'),
         virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),
+        virtual('to_value',
+                returns = 'value',
+                sctx    = 'const serialize_context&',
+                const   = True,
+                default = 'detail::to_value_op'),
         virtual('from_value', v = 'const value&', default = 'detail::from_value_op'),
+        virtual('from_value',
+                v       = 'const value&',
+                sctx    = 'const serialize_context&',
+                default = 'detail::from_value_op'),
         virtual('attributes', returns = 'value', const = True, default = 'detail::attributes_op'),
         friend('operator<<',
                returns = 'std::ostream &',
@@ -766,6 +789,10 @@ bool has_finalize(const T& x)
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const operation& op);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, operation& op);
+MIGRAPHX_EXPORT void
+migraphx_to_value(value& v, const operation& op, const serialize_context& sctx);
+MIGRAPHX_EXPORT void
+migraphx_from_value(const value& v, operation& op, const serialize_context& sctx);
 
 #endif
 

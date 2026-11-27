@@ -35,21 +35,50 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct external_data_writer;
+struct external_data_reader;
+
+/// Where literal and argument data may be stored outside a value; the default keeps all data
+/// inline and rejects external references
+struct serialize_context
+{
+    external_data_writer* writer = nullptr;
+    external_data_reader* reader = nullptr;
+};
+
 // Avoid implicit conversion with ADL lookup
 template <class T>
 void migraphx_to_value(value&, const T&) = delete;
+
+// serialize_context brings ADL into this namespace, and literal converts implicitly from scalars
+template <class T>
+void migraphx_to_value(value&, const T&, const serialize_context&) = delete;
 
 template <class T>
 value to_value(const T& x);
 
 template <class T>
+value to_value(const T& x, const serialize_context& sctx);
+
+template <class T>
 void from_value(const value& v, T& x);
+
+template <class T>
+void from_value(const value& v, T& x, const serialize_context& sctx);
 
 template <class T>
 T from_value(const value& v)
 {
     T x{};
     from_value(v, x);
+    return x;
+}
+
+template <class T>
+T from_value(const value& v, const serialize_context& sctx)
+{
+    T x{};
+    from_value(v, x, sctx);
     return x;
 }
 
@@ -264,6 +293,98 @@ void from_value_impl(rank<11>, const value& v, T& x)
     x = v;
 }
 
+// The context reaches data only through hooks and reflected members; anything else is serialized
+// without it, which keeps its data inline
+template <class T>
+value to_value_impl(rank<0>, const T& x, const serialize_context&)
+{
+    return to_value(x);
+}
+
+template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
+value to_value_impl(rank<1>, const T& x, const serialize_context& sctx)
+{
+    value result = value::object{};
+    reflect_each(
+        x, [&](auto&& y, const std::string& name) { result.emplace(name, to_value(y, sctx)); });
+    return result;
+}
+
+// Hooks that ignore the context outrank reflection, as they do without a context
+template <class T>
+auto to_value_impl(rank<2>, const T& x, const serialize_context&) -> decltype(x.to_value())
+{
+    return x.to_value();
+}
+
+template <class T>
+auto to_value_impl(rank<3>, const T& x, const serialize_context&)
+    -> decltype(migraphx_to_value(std::declval<value&>(), x), value{})
+{
+    value v;
+    migraphx_to_value(v, x);
+    return v;
+}
+
+template <class T>
+auto to_value_impl(rank<4>, const T& x, const serialize_context& sctx) -> decltype(x.to_value(sctx))
+{
+    return x.to_value(sctx);
+}
+
+template <class T>
+auto to_value_impl(rank<5>, const T& x, const serialize_context& sctx)
+    -> decltype(migraphx_to_value(std::declval<value&>(), x, sctx), value{})
+{
+    value v;
+    migraphx_to_value(v, x, sctx);
+    return v;
+}
+
+template <class T>
+void from_value_impl(rank<0>, const value& v, T& x, const serialize_context&)
+{
+    from_value(v, x);
+}
+
+template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
+void from_value_impl(rank<1>, const value& v, T& x, const serialize_context& sctx)
+{
+    reflect_each(x, [&](auto& y, const std::string& name) {
+        using type = std::decay_t<decltype(y)>;
+        if(v.contains(name))
+            y = from_value<type>(v.at(name).without_key(), sctx);
+    });
+}
+
+template <class T>
+auto from_value_impl(rank<2>, const value& v, T& x, const serialize_context&)
+    -> decltype(x.from_value(v), void())
+{
+    x.from_value(v);
+}
+
+template <class T>
+auto from_value_impl(rank<3>, const value& v, T& x, const serialize_context&)
+    -> decltype(migraphx_from_value(v, x), void())
+{
+    migraphx_from_value(v, x);
+}
+
+template <class T>
+auto from_value_impl(rank<4>, const value& v, T& x, const serialize_context& sctx)
+    -> decltype(x.from_value(v, sctx), void())
+{
+    x.from_value(v, sctx);
+}
+
+template <class T>
+auto from_value_impl(rank<5>, const value& v, T& x, const serialize_context& sctx)
+    -> decltype(migraphx_from_value(v, x, sctx), void())
+{
+    migraphx_from_value(v, x, sctx);
+}
+
 } // namespace detail
 
 template <class T>
@@ -279,9 +400,21 @@ value to_value(const std::initializer_list<T>& x)
 }
 
 template <class T>
+value to_value(const T& x, const serialize_context& sctx)
+{
+    return detail::to_value_impl(rank<5>{}, x, sctx);
+}
+
+template <class T>
 void from_value(const value& v, T& x)
 {
     detail::from_value_impl(rank<11>{}, v, x);
+}
+
+template <class T>
+void from_value(const value& v, T& x, const serialize_context& sctx)
+{
+    detail::from_value_impl(rank<5>{}, v, x, sctx);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

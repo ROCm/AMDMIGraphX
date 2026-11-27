@@ -117,3 +117,106 @@ TEST_CASE(eval_expr_from_shape_cross_input)
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::int64_type, {3}});
     EXPECT(values == std::vector<int64_t>{12, 5, 7});
 }
+
+TEST_CASE(eval_expr_from_compound_shape_cross_input)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+
+    auto m = var("M", {1, 16});
+    auto n = var("N", {1, 16});
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto a = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {dd{m + lit(1)}}});
+    auto b = mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {dd{n * lit(2)}}});
+    auto expression = migraphx::sym::min(var("M") + lit(1), var("N") * lit(2));
+    mm->add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::value::array{migraphx::to_value(expression)}}}),
+        a,
+        b);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape a_shape{migraphx::shape::float_type, {5}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {6}};
+    std::vector<float> a_data(a_shape.elements());
+    std::vector<float> b_data(b_shape.elements());
+    auto result = p.eval({{"a", migraphx::argument{a_shape, a_data.data()}},
+                          {"b", migraphx::argument{b_shape, b_data.data()}}})
+                      .back();
+
+    EXPECT(result.at<int64_t>() == 5);
+}
+
+TEST_CASE(eval_expr_from_compound_shape)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    auto n   = migraphx::sym::var("N", {1, 16});
+    auto e   = migraphx::sym::min(n + migraphx::sym::lit(1), migraphx::sym::lit(8));
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter(
+        "x", migraphx::shape{migraphx::shape::float_type, {dd{e}, dd{migraphx::sym::lit(2)}}});
+    mm->add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions",
+              migraphx::to_value(std::vector<migraphx::sym::expr>{e, e * migraphx::sym::lit(2)})}}),
+        x);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape input_shape{migraphx::shape::float_type, {5, 2}};
+    std::vector<float> data(input_shape.elements());
+    auto result = p.eval({{"x", migraphx::argument{input_shape, data.data()}}}).back();
+
+    EXPECT(result.to_vector<int64_t>() == std::vector<int64_t>{5, 10});
+}
+
+TEST_CASE(eval_expr_from_compound_shape_unresolved)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    auto n   = migraphx::sym::var("N", {1, 16});
+    auto e   = migraphx::sym::min(n + migraphx::sym::lit(1), migraphx::sym::lit(8));
+
+    migraphx::module m;
+    auto x = m.add_parameter(
+        "x", migraphx::shape{migraphx::shape::float_type, {dd{e}, dd{migraphx::sym::lit(2)}}});
+    EXPECT(test::throws([&] {
+        m.add_instruction(
+            migraphx::make_op(
+                "eval_expr_from_shape",
+                {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{n})}}),
+            x);
+    }));
+}
+
+TEST_CASE(eval_expr_from_compound_shape_inconsistent)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    auto n   = migraphx::sym::var("N", {1, 16});
+    auto e   = migraphx::sym::min(n + migraphx::sym::lit(1), migraphx::sym::lit(8));
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{e}}});
+    auto y   = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {dd{e}}});
+    mm->add_instruction(
+        migraphx::make_op(
+            "eval_expr_from_shape",
+            {{"expressions", migraphx::to_value(std::vector<migraphx::sym::expr>{e})}}),
+        x,
+        y);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> x_data(5);
+    std::vector<float> y_data(6);
+    EXPECT(test::throws([&] {
+        std::ignore =
+            p.eval({{"x", migraphx::argument{{migraphx::shape::float_type, {5}}, x_data.data()}},
+                    {"y", migraphx::argument{{migraphx::shape::float_type, {6}}, y_data.data()}}});
+    }));
+}

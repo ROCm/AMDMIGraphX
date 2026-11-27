@@ -115,6 +115,14 @@ struct MIGRAPHX_EXPORT program
     void compile(const std::vector<target>& targets,
                  std::vector<compile_options> compile_opts = {});
 
+    /**
+     * Recompile the kernels of a program compiled with compile_options::recompilable for the
+     * target `t`, keeping the graph, literals, memory plan and schedule. Only `options` is used;
+     * the options recorded when the program was compiled are not. The program is unchanged if
+     * recompiling fails. Throws if `t` does not support recompiling.
+     */
+    void recompile(const target& t, compile_options options = compile_options{});
+
     bool is_compiled() const;
 
     void finalize();
@@ -134,6 +142,9 @@ struct MIGRAPHX_EXPORT program
 
     value to_value() const;
     void from_value(const value& v);
+    /// When `finalize` is false the contexts are not restored and the kernels are not loaded, so a
+    /// program compiled for another device can be opened. The contexts are created on first use.
+    void from_value(const value& v, bool finalize);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;

@@ -67,10 +67,6 @@ Test each fusion type individually:
 
 - Disables element-wise operations fusion (add, mul, relu)
 
-**LayerNorm Fusion**: ``MIGRAPHX_DISABLE_LAYERNORM_FUSION=1``
-
-- Disables layer normalization fusion
-
 **Reduce Fusion**: ``MIGRAPHX_DISABLE_REDUCE_FUSION=1``
 
 - Disables reduction operations fusion (sum, mean)
@@ -172,7 +168,7 @@ directories for builds you no longer use:
 .. code-block:: bash
 
    ls $HOME/.cache/migraphx        # directories are named after the build that wrote them
-   rm -r $HOME/.cache/migraphx/v1-hip22.0.*
+   rm -r $HOME/.cache/migraphx/v2-hip22.0.*
 
 A path ending in ``.db`` or ``.sqlite`` keeps the cache in a single SQLite database instead of a
 directory, which is easier to copy between machines. Like a directory cache it can be used by
@@ -191,7 +187,14 @@ with the ``sqlite3`` shell. Deleting rows does not shrink the file until it is v
    sqlite3 $HOME/.cache/migraphx/kernels.db \
        "SELECT version, op_name, count(*) FROM cache_v1 GROUP BY version, op_name;"
    sqlite3 $HOME/.cache/migraphx/kernels.db \
-       "DELETE FROM cache_v1 WHERE version GLOB 'v1-hip22.0.*'; VACUUM;"
+       "DELETE FROM cache_v1 WHERE version GLOB 'v2-hip22.0.*'; VACUUM;"
+
+Every entry is compressed with `zstd <https://github.com/facebook/zstd>`_, which makes a
+directory cache about half the size and a database about 40% of it, at a cost of microseconds
+per kernel. Each ``.mxr`` file, and the ``code`` column of each database row, is a standard zstd
+frame that ``zstd -dc`` decodes to the msgpack MIGraphX wrote. The ``key`` column of a database row is a
+zstd frame of the full compile key, in plain text once decoded. Every frame carries a checksum of
+its content, so a damaged entry is a cache miss rather than a wrong kernel.
 
 A database that cannot be written to, such as a shared cache installed read-only, is still used
 for lookups, and newly compiled kernels are kept in memory only. A database that cannot be

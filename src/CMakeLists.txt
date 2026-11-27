@@ -59,6 +59,7 @@ add_library(migraphx
     common_dims.cpp
     compile_modes.cpp
     compile_src.cpp
+    compression.cpp
     convert_to_json.cpp
     convolution.cpp
     cpp_generator.cpp
@@ -144,14 +145,18 @@ add_library(migraphx
     reshape_dims.cpp
     rewrite_topk.cpp
     schedule.cpp
+    select_module.cpp
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
+    simplify_symbolic_dimensions.cpp
     split_single_dyn_dim.cpp
     split_sym_dim.cpp
+    stack_segment.cpp
+    symbolic_shape_helpers.cpp
     sym.cpp
     sym_argument.cpp
     target.cpp
@@ -394,6 +399,13 @@ target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
+
+find_package(zstd 1.4 CONFIG REQUIRED)
+if(TARGET zstd::libzstd_static)
+    target_link_libraries(migraphx PRIVATE zstd::libzstd_static)
+else()
+    target_link_libraries(migraphx PRIVATE zstd::libzstd_shared)
+endif()
 
 # See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
 # Prefer 6.x (msgpack-cxx)

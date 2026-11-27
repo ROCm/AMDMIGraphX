@@ -26,10 +26,12 @@
 #include <tuple>
 #include <migraphx/dfor.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
-#include <migraphx/match/layernorm.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -43,7 +45,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_WINOGRAD);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_WINOGRAD_FP32_SSTORE);
@@ -51,92 +52,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_WINOGRAD);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_WINOGRAD_FULL_TRANSFORM);
 
 namespace {
-
-template <class Derived, std::size_t N>
-struct layernorm_base
-{
-    float epsilon = 1e-12f;
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.epsilon, "epsilon"));
-    }
-    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
-    {
-        std::size_t nargs = N;
-        if(not mods.empty())
-        {
-            auto* pm = mods.front();
-            nargs += pm->get_parameter_names().size() - 1;
-        }
-        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(nargs);
-        auto s = inputs.front();
-        auto t = s.type();
-        if(not mods.empty())
-            t = mods.front()->get_output_shapes().front().type();
-
-        // Scalar output if all inputs are scalar
-        if(inputs.front().elements() == 1 and
-           all_of(inputs, [](const auto& ss) { return ss.scalar(); }))
-            return inputs.front();
-        auto l_s = shape::from_permutation(
-            t, s.lens(), find_permutation(std::vector<shape>(inputs.begin(), inputs.begin() + N)));
-        // just prelayernorm or preadd_layernorm
-        if(nargs <= N)
-            return l_s;
-        // else, layernorm + pointwise fusion, preserve layout of fused op
-        std::vector<shape> lp_s(inputs.begin() + N, inputs.end());
-        lp_s.insert(lp_s.begin(), l_s);
-        return shape::from_permutation(t, s.lens(), find_permutation(lp_s));
-    }
-};
-
-struct layernorm : layernorm_base<layernorm, 1>
-{
-
-    std::string name() const { return "gpu::prelayernorm"; }
-};
-MIGRAPHX_REGISTER_OP(layernorm);
-
-struct add_layernorm : layernorm_base<add_layernorm, 2>
-{
-    std::string name() const { return "gpu::preadd_layernorm"; }
-};
-MIGRAPHX_REGISTER_OP(add_layernorm);
-
-struct find_layernorm
-{
-    auto matcher() const { return match::layernorm(); }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins   = r.result;
-        auto x_ins = r.instructions["x"];
-        float eps  = 0;
-        if(contains(r.instructions, "eps"))
-            eps = r.instructions["eps"]->eval().at<float>();
-
-        m.replace_instruction(ins, layernorm{eps}, x_ins);
-    }
-};
-
-struct find_add_layernorm
-{
-    auto matcher() const
-    {
-        return match::name("gpu::prelayernorm")(
-            match::args(match::name("add")(match::used_once()).bind("add")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins     = r.result;
-        auto add_ins = r.instructions["add"];
-        auto op      = any_cast<layernorm>(ins->get_operator());
-
-        m.replace_instruction(ins, add_layernorm{op.epsilon}, add_ins->inputs());
-    }
-};
 
 struct pre_gemm_softmax_gemm : gemm_softmax_gemm
 {
@@ -186,21 +101,25 @@ struct find_gemm_softmax_gemm
 {
     bool enable_attention = false;
 
+    // gemm1 and mul are each matched several times, so erase each level with opaque to
+    // keep the nested matcher type from growing exponentially (gcc/msvc OOM)
     auto matcher() const
     {
-        auto gemm1 = match::skip(match::name("contiguous"))(match::name("dot")(
-            match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm1")));
-        auto mul   = match::name("mul")(
-            match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
-        auto where = match::name("where")(match::arg(2)(match::is_constant().bind("select_const")),
-                                          match::arg(1)(mul),
-                                          match::arg(0)(match::any().bind("select_cond")));
-        auto add =
+        auto gemm1 = match::opaque(match::skip(match::name("contiguous"))(match::name("dot")(
+            match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm1"))));
+        auto mul   = match::opaque(match::name("mul")(
+            match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1)));
+        auto where = match::opaque(
+            match::name("where")(match::arg(2)(match::is_constant().bind("select_const")),
+                                 match::arg(1)(mul),
+                                 match::arg(0)(match::any().bind("select_cond"))));
+        auto add = match::opaque(
             match::name("add")(is_bias_supported(),
                                match::nargs(2),
-                               match::either_arg(0, 1)(match::none_of(mul).bind("bias"), mul));
-        auto softmax = match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1, where)))
-                           .bind("softmax");
+                               match::either_arg(0, 1)(match::none_of(mul).bind("bias"), mul)));
+        auto softmax = match::opaque(
+            match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1, where)))
+                .bind("softmax"));
 
         return match::name("dot")(
             match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm2"))(
@@ -247,35 +166,29 @@ struct find_gemm_softmax_gemm
 
 struct channelwise_conv
 {
-    std::size_t num_spatial = 2;
-    std::vector<std::size_t> padding;
+    std::vector<std::size_t> padding  = {0, 0};
+    std::vector<std::size_t> stride   = {1, 1};
+    std::vector<std::size_t> dilation = {1, 1};
 
     std::string name() const { return "gpu::channelwise_conv"; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.num_spatial, "num_spatial"), f(self.padding, "padding"));
+        return pack(
+            f(self.padding, "padding"), f(self.stride, "stride"), f(self.dilation, "dilation"));
     }
 
+    // The depthwise convolution this op replaces computes the output shape
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_ndims();
-        auto x_lens = inputs[0].lens();
-        auto w_lens = inputs[1].lens();
-        std::vector<std::size_t> out_lens;
-        out_lens.push_back(x_lens[0]);
-        out_lens.push_back(w_lens[0]);
-        for(std::size_t i = 0; i < num_spatial; i++)
-        {
-            std::size_t total_pad = 0;
-            if(i < padding.size())
-                total_pad += padding[i];
-            if(i + num_spatial < padding.size())
-                total_pad += padding[i + num_spatial];
-            out_lens.push_back(x_lens[i + 2] + total_pad - w_lens[i + 2] + 1);
-        }
-        return inputs[0].with_lens(out_lens);
+        check_shapes{inputs, *this}.has(2);
+        return make_op("convolution",
+                       {{"padding", padding},
+                        {"stride", stride},
+                        {"dilation", dilation},
+                        {"group", inputs.front().lens()[1]}})
+            .compute_shape(inputs);
     }
 };
 MIGRAPHX_REGISTER_OP(channelwise_conv);
@@ -284,11 +197,7 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
 {
     if(ins->name() != "convolution")
         return false;
-    auto v = ins->get_operator().to_value();
-    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
-        return false;
-    if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
-        return false;
+    auto v      = ins->get_operator().to_value();
     auto w_lens = ins->inputs().back()->get_shape().lens();
     if(w_lens[1] != 1)
         return false;
@@ -298,19 +207,41 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
     return group == 1 or group == c_in;
 }
 
+// Shared memory the channelwise kernel stages for one channel of an output tile spanning
+// `rows` outputs along the first spatial dim and `cols` along the last: per dim, the tile
+// stepped by the stride plus the dilated filter
+std::size_t channelwise_halo_bytes(instruction_ref conv, std::size_t rows, std::size_t cols)
+{
+    auto v             = conv->get_operator().to_value();
+    auto stride        = v.at("stride").to_vector<std::size_t>();
+    auto dilation      = v.at("dilation").to_vector<std::size_t>();
+    const auto& w_lens = conv->inputs().back()->get_shape().lens();
+    std::vector<std::size_t> tile(stride.size(), 1);
+    tile.front() = rows;
+    tile.back()  = cols;
+    auto dims    = range(tile.size());
+    return transform_accumulate(
+        dims.begin(),
+        dims.end(),
+        conv->inputs().front()->get_shape().type_size(),
+        std::multiplies<>{},
+        [&](auto i) { return (tile[i] - 1) * stride[i] + (w_lens[i + 2] - 1) * dilation[i] + 1; });
+}
+
 struct find_channelwise_convolution
 {
     // Minimum C*H*W for half_type to use channelwise kernel instead of MLIR
     std::size_t channelwise_half_min_chw = 48 * 1024;
+    // Shared memory one thread block may use
+    std::size_t max_lds_bytes = 0;
 
     auto matcher() const { return conv_channelwise(); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins         = r.result;
-        auto input       = ins->inputs().front();
-        auto weights     = ins->inputs().back();
-        auto num_spatial = ins->get_shape().ndim() - 2;
+        auto ins     = r.result;
+        auto input   = ins->inputs().front();
+        auto weights = ins->inputs().back();
 
         const auto type = input->get_shape().type();
         if(type != shape::float_type and type != shape::half_type)
@@ -325,16 +256,19 @@ struct find_channelwise_convolution
                 return;
         }
 
-        auto v        = ins->get_operator().to_value();
-        auto pad_vals = v.at("padding");
-        std::vector<std::size_t> padding;
-        std::transform(pad_vals.begin(),
-                       pad_vals.end(),
-                       std::back_inserter(padding),
-                       [](const value& x) { return x.to<std::size_t>(); });
+        // Strides, dilations and large filters grow the halo a block stages in shared
+        // memory. Conservatively require one channel of an 8x128 output tile to fit: the
+        // kernel's smaller tiles then fit too, and bigger halos lose to MLIR anyway.
+        if(channelwise_halo_bytes(ins, 8, 128) > max_lds_bytes)
+            return;
 
-        m.replace_instruction(
-            ins, channelwise_conv{num_spatial, std::move(padding)}, input, weights);
+        auto v = ins->get_operator().to_value();
+        m.replace_instruction(ins,
+                              channelwise_conv{v.at("padding").to_vector<std::size_t>(),
+                                               v.at("stride").to_vector<std::size_t>(),
+                                               v.at("dilation").to_vector<std::size_t>()},
+                              input,
+                              weights);
     }
 };
 
@@ -935,17 +869,14 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     // (after layout_convolution) means winograd inherits the layout that pass
     // chose and replaces the convolution in place via its layout-matching
     // compute_shape.
-    const bool is_gfx12 = starts_with(device_name, "gfx12");
-    if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
-    {
-        match::find_matches(mpm.get_module(), find_layernorm{});
-        mpm.run_pass(dead_code_elimination{});
-        match::find_matches(mpm.get_module(), find_add_layernorm{});
-    }
+    const bool supports_winograd = device_name == "gfx1151" or starts_with(device_name, "gfx12");
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
     if(is_navi)
-        match::find_matches(mpm.get_module(), find_channelwise_convolution{});
-    if(is_gfx12)
+        match::find_matches(
+            mpm.get_module(),
+            find_channelwise_convolution{
+                .max_lds_bytes = ctx->get_current_device().get_max_shared_memory_per_block()});
+    if(supports_winograd)
     {
         match::find_matches(mpm.get_module(), find_winograd_f23{});
         mpm.run_pass(dead_code_elimination{});

@@ -51,8 +51,8 @@ MIGRAPHX_GPU_EXPORT std::string perf_config_prefix(const std::string& config);
 // The integer value of `key` in a named perf-config string. When the field is absent, returns
 // rocMLIR's schema default for the few keys this file cares about (numCTAs=1, numWaves=4,
 // useWarpSpecialize=-1); nothing for any other absent key or a non-named config.
-MIGRAPHX_GPU_EXPORT std::optional<long>
-get_perf_config_field(const std::string& config, const std::string& key);
+MIGRAPHX_GPU_EXPORT std::optional<long> get_perf_config_field(const std::string& config,
+                                                              const std::string& key);
 
 // `config` with `key` set to `value`: replaces the field if present, appends it otherwise.
 // Returns `config` unchanged when it is not a named perf config.

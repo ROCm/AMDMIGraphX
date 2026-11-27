@@ -87,7 +87,7 @@ TEST_CASE(set_field_replaces)
 
 TEST_CASE(set_field_appends)
 {
-    std::string c       = "gemm:mPerBlock=128,nPerBlock=128";
+    std::string c        = "gemm:mPerBlock=128,nPerBlock=128";
     std::string appended = set_perf_config_field(c, "useWarpSpecialize", 1);
     EXPECT(get_perf_config_field(appended, "useWarpSpecialize") == 1);
     EXPECT(get_perf_config_field(appended, "mPerBlock") == 128);
@@ -124,7 +124,7 @@ TEST_CASE(num_ctas_one_filters)
     std::vector<std::string> sols = {"gemm:mPerBlock=128,nPerBlock=128,numCTAs=1",
                                      "gemm:mPerBlock=32,nPerBlock=32,numCTAs=4",
                                      "attn:mPerBlock=128,numCTAs=1"};
-    auto result = apply_num_ctas(sols, 1, 16);
+    auto result                   = apply_num_ctas(sols, 1, 16);
     EXPECT(result.size() == 2);
     EXPECT(migraphx::contains(result, sols[0]));
     EXPECT(migraphx::contains(result, sols[2]));
@@ -133,11 +133,11 @@ TEST_CASE(num_ctas_one_filters)
 TEST_CASE(num_ctas_rewrites_splittable_gemm)
 {
     std::vector<std::string> sols = {
-        "gemm:mPerBlock=128,nPerBlock=128,numCTAs=1",  // splittable by 4 (32x128 per cta)
-        "gemm:mPerBlock=16,nPerBlock=16,numCTAs=1",    // not splittable by 4
-        "gemm:mPerBlock=64,nPerBlock=64,numCTAs=4",    // already at the requested size
-        "attn:mPerBlock=128,numCTAs=1",                // not a gemm: config
-        "gemm:v1:128:128:64:1"};                       // positional
+        "gemm:mPerBlock=128,nPerBlock=128,numCTAs=1", // splittable by 4 (32x128 per cta)
+        "gemm:mPerBlock=16,nPerBlock=16,numCTAs=1",   // not splittable by 4
+        "gemm:mPerBlock=64,nPerBlock=64,numCTAs=4",   // already at the requested size
+        "attn:mPerBlock=128,numCTAs=1",               // not a gemm: config
+        "gemm:v1:128:128:64:1"};                      // positional
     auto result = apply_num_ctas(sols, 4, 16);
     // Every original stays in the pool as an unclustered fallback...
     EXPECT(migraphx::contains(result, sols[0]));
@@ -158,7 +158,7 @@ TEST_CASE(num_ctas_dedupes)
 {
     std::vector<std::string> sols = {"gemm:mPerBlock=128,nPerBlock=128,numCTAs=1",
                                      "gemm:mPerBlock=128,nPerBlock=128,numCTAs=4"};
-    auto result = apply_num_ctas(sols, 4, 16);
+    auto result                   = apply_num_ctas(sols, 4, 16);
     // The unclustered original plus the already-clustered candidate, deduped against the
     // identical string that rewriting the original would have produced.
     EXPECT(result.size() == 2);
@@ -207,7 +207,7 @@ TEST_CASE(warp_specialize_tune_appends)
 {
     std::vector<std::string> sols = {"gemm:mPerBlock=128,numWaves=4,numCTAs=1",
                                      "attn:mPerBlock=128,numWaves=4,numCTAs=1"};
-    auto result = apply_warp_specialize(sols, warp_specialize_mode::tune);
+    auto result                   = apply_warp_specialize(sols, warp_specialize_mode::tune);
     EXPECT(result.size() == 3);
     // Originals come first, unmodified.
     EXPECT(result[0] == sols[0]);
@@ -221,7 +221,7 @@ TEST_CASE(warp_specialize_force_appends_fallback)
     std::vector<std::string> sols = {"gemm:mPerBlock=128,numWaves=4,numCTAs=1",
                                      "attn:mPerBlock=128,numWaves=4,numCTAs=1",
                                      "gemm:mPerBlock=64,numWaves=8,numCTAs=1"};
-    auto result = apply_warp_specialize(sols, warp_specialize_mode::force);
+    auto result                   = apply_warp_specialize(sols, warp_specialize_mode::force);
     // The eligible candidate's specialized copy is offered first, with the unmodified original
     // kept right after as a fallback if rocMLIR rejects it; ineligible candidates are untouched
     // and not duplicated.

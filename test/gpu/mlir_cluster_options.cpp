@@ -39,9 +39,8 @@
 
 namespace {
 
-migraphx::program compile_conv(const migraphx::value& num_ctas,
-                               const migraphx::value& warp_spec,
-                               bool eager = false)
+migraphx::program
+compile_conv(const migraphx::value& num_ctas, const migraphx::value& warp_spec, bool eager = false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

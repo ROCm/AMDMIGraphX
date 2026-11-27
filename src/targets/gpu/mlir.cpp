@@ -991,8 +991,7 @@ struct mlir_program
         op.set_cluster_size(cluster);
         // Launch with the same split the kernel was compiled against
         op.set_lds_carveout(lds_carveout);
-        if(get_perf_config_field(solution.to<std::string>(), "useWarpSpecialize").value_or(-1) ==
-           1)
+        if(get_perf_config_field(solution.to<std::string>(), "useWarpSpecialize").value_or(-1) == 1)
             op.set_warp_specialize(true);
         return op;
     }

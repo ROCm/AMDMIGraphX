@@ -331,14 +331,14 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     // previously relied on options.annotations landing exactly in code_object_op's own
     // now-reordered annotations slot).
     code_object_op op;
-    op.code_object  = value::binary{compile_hip_raw(ctx, content, options)};
-    op.symbol_name  = options.kernel_name;
-    op.global       = options.global;
-    op.local        = options.local;
+    op.code_object     = value::binary{compile_hip_raw(ctx, content, options)};
+    op.symbol_name     = options.kernel_name;
+    op.global          = options.global;
+    op.local           = options.local;
     op.expected_inputs = options.inputs;
-    op.output       = options.output;
-    op.output_arg   = options.output_arg;
-    op.annotations  = options.annotations;
+    op.output          = options.output;
+    op.output_arg      = options.output_arg;
+    op.annotations     = options.annotations;
     return op;
 }
 

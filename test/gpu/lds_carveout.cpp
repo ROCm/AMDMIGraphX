@@ -148,7 +148,10 @@ void expect_unset_carveouts(const std::vector<kernel_carveout>& ks)
     EXPECT(std::all_of(ks.begin(), ks.end(), [](const auto& k) { return k.carveout == -1; }));
 }
 
-TEST_CASE(compile_without_setting) { expect_unset_carveouts(carveouts(compile_conv(migraphx::value{}))); }
+TEST_CASE(compile_without_setting)
+{
+    expect_unset_carveouts(carveouts(compile_conv(migraphx::value{})));
+}
 
 TEST_CASE(compile_with_unset_value) { expect_unset_carveouts(carveouts(compile_conv(-1))); }
 
@@ -159,9 +162,8 @@ TEST_CASE(compile_with_setting)
 {
     auto ks = carveouts(compile_conv(100));
     EXPECT(not ks.empty());
-    const auto non_mlir_unset = std::all_of(ks.begin(), ks.end(), [](const auto& k) {
-        return is_mlir_kernel(k) or k.carveout == -1;
-    });
+    const auto non_mlir_unset = std::all_of(
+        ks.begin(), ks.end(), [](const auto& k) { return is_mlir_kernel(k) or k.carveout == -1; });
     EXPECT(non_mlir_unset);
     const auto mlir_count = std::count_if(ks.begin(), ks.end(), is_mlir_kernel);
     EXPECT(mlir_count > 0);

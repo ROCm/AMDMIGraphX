@@ -566,8 +566,8 @@ struct context
     std::vector<shared<hip_event_ptr>> events;
     bool exhaustive_tune   = false;
     bool disable_processes = false;
-    int lds_carveout       = -1;
-    int mlir_num_ctas      = 1;
+    int lds_carveout                          = -1;
+    int mlir_num_ctas                         = 1;
     warp_specialize_mode mlir_warp_specialize = warp_specialize_mode::off;
     bool measure_perf      = false;
     // for event perf timing

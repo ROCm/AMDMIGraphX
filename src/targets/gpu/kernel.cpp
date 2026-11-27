@@ -238,8 +238,8 @@ static void launch_kernel(hipFunction_t fun,
                                                hipFuncAttributePreferredSharedMemoryCarveout,
                                                lds_carveout);
         if(attr_status != hipSuccess)
-            MIGRAPHX_THROW("Failed to set lds carveout to " + std::to_string(lds_carveout) +
-                           ": " + hip_error(attr_status));
+            MIGRAPHX_THROW("Failed to set lds carveout to " + std::to_string(lds_carveout) + ": " +
+                           hip_error(attr_status));
     }
 
     hipError_t status = hipSuccess;
@@ -305,15 +305,15 @@ void kernel::launch(hipStream_t stream,
     std::size_t size = args.bytes();
 
     launch_kernel(impl->fun,
-                 impl->lds_carveout,
-                 impl->cluster_size,
-                 stream,
-                 global,
-                 local,
-                 kernargs,
-                 size,
-                 start,
-                 stop);
+                  impl->lds_carveout,
+                  impl->cluster_size,
+                  stream,
+                  global,
+                  local,
+                  kernargs,
+                  size,
+                  start,
+                  stop);
 }
 
 void kernel::launch(hipStream_t stream,
@@ -328,15 +328,15 @@ void kernel::launch(hipStream_t stream,
     std::size_t size           = kernargs.size();
 
     launch_kernel(impl->fun,
-                 impl->lds_carveout,
-                 impl->cluster_size,
-                 stream,
-                 global,
-                 local,
-                 kernargs.data(),
-                 size,
-                 start,
-                 stop);
+                  impl->lds_carveout,
+                  impl->cluster_size,
+                  stream,
+                  global,
+                  local,
+                  kernargs.data(),
+                  size,
+                  start,
+                  stop);
 }
 
 void kernel::launch(hipStream_t stream,
@@ -349,15 +349,15 @@ void kernel::launch(hipStream_t stream,
 {
     assert(impl != nullptr);
     launch_kernel(impl->fun,
-                 impl->lds_carveout,
-                 impl->cluster_size,
-                 stream,
-                 global,
-                 local,
-                 kernargs,
-                 kernargs_size,
-                 start,
-                 stop);
+                  impl->lds_carveout,
+                  impl->cluster_size,
+                  stream,
+                  global,
+                  local,
+                  kernargs,
+                  kernargs_size,
+                  start,
+                  stop);
 }
 
 } // namespace gpu

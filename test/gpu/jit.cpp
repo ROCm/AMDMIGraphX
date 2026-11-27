@@ -23,6 +23,7 @@
  */
 #include <test.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
@@ -289,7 +290,9 @@ TEST_CASE(code_objects_with_module_id_share_module)
 
 static auto check_target(const std::string& arch)
 {
-    auto define  = "__" + arch + "__";
+    // An arch whose processor name contains '-' (gfx1250-strict) predefines the sanitized
+    // identifier __gfx1250_strict__. Sanitize the arch alone: to_c_id collapses "__" to "_".
+    auto define  = "__" + migraphx::to_c_id(arch) + "__";
     auto content = migraphx::replace_string(check_define, "__DEFINE__", define);
     return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", content)}, {}, arch);
 }

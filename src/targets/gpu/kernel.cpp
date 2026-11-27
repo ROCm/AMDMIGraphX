@@ -270,10 +270,18 @@ static void launch_kernel(hipFunction_t fun,
         // kernargs are passed through `extra` (config.data()), the same packed buffer as the
         // non-clustered path; `params` stays null.
         if(start != nullptr)
-            hipEventRecord(start, stream);
+        {
+            auto start_status = hipEventRecord(start, stream);
+            if(start_status != hipSuccess)
+                MIGRAPHX_THROW("Failed to record start event: " + hip_error(start_status));
+        }
         status = hipDrvLaunchKernelEx(&cfg, fun, nullptr, config.data());
         if(stop != nullptr)
-            hipEventRecord(stop, stream);
+        {
+            auto stop_status = hipEventRecord(stop, stream);
+            if(stop_status != hipSuccess)
+                MIGRAPHX_THROW("Failed to record stop event: " + hip_error(stop_status));
+        }
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed to launch kernel with cluster size " +
                            std::to_string(cluster_size) + ": " + hip_error(status));

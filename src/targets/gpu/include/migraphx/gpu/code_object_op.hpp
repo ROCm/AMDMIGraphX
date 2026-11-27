@@ -63,6 +63,64 @@ struct code_object_op
 
     kernel k{};
 
+    /// The percentage (0 to 100) of the combined L1/LDS storage the kernel is launched with as
+    /// LDS, or -1 for the driver's default split. It is kept in annotations, and only when set,
+    /// so programs that do not use it print and serialize exactly as before.
+    static const char* lds_carveout_key() { return "lds_carveout"; }
+
+    int get_lds_carveout() const
+    {
+        return annotations.is_object() ? annotations.get(lds_carveout_key(), -1) : -1;
+    }
+
+    void set_lds_carveout(int percent)
+    {
+        if(percent < 0)
+            return;
+        if(not annotations.is_object())
+            annotations = value::object{};
+        annotations[lds_carveout_key()] = percent;
+    }
+
+    /// The workgroup-cluster size the kernel is launched with (rocMLIR/Triton's numCTAs), or 1
+    /// when it is not a clustered kernel. Kept in annotations, and only when above 1, so a
+    /// program with no clusters prints and serializes exactly as before.
+    static const char* cluster_size_key() { return "cluster_size"; }
+
+    std::size_t get_cluster_size() const
+    {
+        return annotations.is_object() ? annotations.get(cluster_size_key(), std::size_t{1})
+                                        : std::size_t{1};
+    }
+
+    void set_cluster_size(std::size_t size)
+    {
+        if(size <= 1)
+            return;
+        if(not annotations.is_object())
+            annotations = value::object{};
+        annotations[cluster_size_key()] = size;
+    }
+
+    /// Whether rocMLIR's auto warp-specialization pass transformed this kernel. Kept in
+    /// annotations, and only when true, so an unspecialized kernel prints and serializes exactly
+    /// as before.
+    static const char* warp_specialize_key() { return "warp_specialize"; }
+
+    bool get_warp_specialize() const
+    {
+        return annotations.is_object() and annotations.get(warp_specialize_key(), false);
+    }
+
+    void set_warp_specialize(bool value)
+    {
+        if(not value)
+            return;
+        if(not annotations.is_object())
+            annotations = value::object{};
+        annotations[warp_specialize_key()] = true;
+    }
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {

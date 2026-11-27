@@ -126,6 +126,10 @@ void code_object_op::finalize(context& ctx, const shape&, const std::vector<shap
 {
     assert(not code_object.empty());
     k = ctx.load_kernel(module_id, code_object, symbol_name);
+    // Only stored here; the HIP attribute is set before each launch. This must stay above the
+    // early return below so that every kernel gets it.
+    k.set_lds_carveout(get_lds_carveout());
+    k.set_cluster_size(get_cluster_size());
 
     if(kernel_args.empty())
         return;

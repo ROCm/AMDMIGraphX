@@ -35,6 +35,7 @@
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
 #include <numeric>
+#include <optional>
 #include <ostream>
 #include <tuple>
 
@@ -50,7 +51,10 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 6
+// Version 7 adds the rock.lds_carveout kernel attribute, which tells rocMLIR the L1/LDS split the
+// kernel is launched with. Version 6 has no such attribute and is still supported.
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION < 6 || \
+    MLIR_MIGRAPHX_DIALECT_API_VERSION > 7
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK
@@ -73,6 +77,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/mlir_perf_config.hpp>
 #include <migraphx/gpu/perfdb.hpp>
 #include <migraphx/gpu/tuning_config.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -641,6 +646,14 @@ struct mlir_program
         {
             ops.add_attributes({{"rock.enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
         }
+#if MLIR_MIGRAPHX_DIALECT_API_VERSION >= 7
+        // The L1/LDS split the kernel is launched with, so that rocMLIR compiles against the LDS
+        // budget at that carveout. Absent means the driver's default split.
+        if(lds_carveout >= 0)
+        {
+            ops.add_attributes({{"rock.lds_carveout", static_cast<std::uint64_t>(lds_carveout)}});
+        }
+#endif
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 
@@ -855,6 +868,13 @@ struct mlir_program
             {
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
+                // Warp specialization is only requested for an eligible FP16 gemm/convolution;
+                // this is a module-level check the (MLIR-unaware) perf-config helpers cannot do.
+                if(not has_half_gemm)
+                    has_half_gemm =
+                        std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto in) {
+                            return in->get_shape().type() == shape::half_type;
+                        });
             }
 
             std::vector<MlirValue> inputs;
@@ -963,8 +983,17 @@ struct mlir_program
         code_object_op op{};
         op.symbol_name = sym_name;
         op.code_object = get_binary();
-        // TODO: update code_object_op to use cluster size
-        std::tie(std::ignore, op.global, op.local) = get_launch_params();
+        auto [cluster, grid_global, local] = get_launch_params();
+        op.local                           = local;
+        // grid_global is local * (number of clusters); the real launch grid is that many
+        // workgroups per cluster, so it scales by the cluster size (1 when not clustered).
+        op.global = grid_global * std::max<std::size_t>(cluster, 1);
+        op.set_cluster_size(cluster);
+        // Launch with the same split the kernel was compiled against
+        op.set_lds_carveout(lds_carveout);
+        if(get_perf_config_field(solution.to<std::string>(), "useWarpSpecialize").value_or(-1) ==
+           1)
+            op.set_warp_specialize(true);
         return op;
     }
 
@@ -974,6 +1003,77 @@ struct mlir_program
         target_arch        = device.get_device_name();
         num_cu             = device.get_cu_count();
         num_chiplets       = device.get_chiplet_count();
+        lds_carveout       = get_lds_carveout(migraphx_ctx);
+        // rocMLIR's own documented maximum cluster size; forwarded unconditionally regardless of
+        // device, since rocMLIR (not MIGraphX) owns the decision of whether the device can
+        // actually honor a cluster size above 1.
+        max_cluster_size    = 16;
+        num_ctas_opt        = resolve_num_ctas(migraphx_ctx);
+        warp_specialize_opt = resolve_warp_specialize(migraphx_ctx);
+    }
+
+    // mlir_num_ctas/mlir_warp_specialize are forwarded as requested, with no device check here:
+    // rocMLIR owns whether the device can honor the request and rejects or ignores it if not.
+    static int resolve_num_ctas(const context& migraphx_ctx)
+    {
+        return migraphx_ctx.get_mlir_num_ctas();
+    }
+
+    static warp_specialize_mode resolve_warp_specialize(const context& migraphx_ctx)
+    {
+        return migraphx_ctx.get_mlir_warp_specialize();
+    }
+
+    // Rewrites the candidate list for the resolved mlir_num_ctas / mlir_warp_specialize options,
+    // and records them in the problem key so a winner tuned under one setting is not reused
+    // under another.
+    void apply_mlir_candidate_options(tuning_config& tc) const
+    {
+        if(num_ctas_opt == 1 and warp_specialize_opt == warp_specialize_mode::off)
+            return;
+
+        std::vector<std::string> solutions;
+        solutions.reserve(tc.solutions.size());
+        for(const auto& s : tc.solutions)
+            solutions.push_back(s.to<std::string>());
+
+        if(num_ctas_opt != 1)
+            solutions = apply_num_ctas(solutions, num_ctas_opt, max_cluster_size);
+
+        // With numCTAs rewritten above, only candidates still at numCTAs=1 are eligible here, so
+        // clustering and warp specialization do not compete for the same kernel.
+        if(warp_specialize_opt != warp_specialize_mode::off and has_half_gemm)
+            solutions = apply_warp_specialize(solutions, warp_specialize_opt);
+
+        tc.solutions.assign(solutions.begin(), solutions.end());
+
+        std::string suffix;
+        if(num_ctas_opt != 1)
+            suffix += " -mlir_num_ctas " + std::to_string(num_ctas_opt);
+        if(warp_specialize_opt != warp_specialize_mode::off)
+            suffix += " -mlir_warp_specialize " + to_string(warp_specialize_opt);
+        if(not suffix.empty())
+            tc.problem = tc.problem.to<std::string>() + suffix;
+    }
+
+    // The carveout to compile and launch with: the context's value, forwarded unconditionally
+    // with no device check. Unset (-1, the driver's default split) on every device unless
+    // explicitly requested; rocMLIR owns applying it where supported and ignoring it elsewhere.
+    static int get_lds_carveout(const context& migraphx_ctx)
+    {
+        const int carveout = migraphx_ctx.get_lds_carveout();
+#if MLIR_MIGRAPHX_DIALECT_API_VERSION < 7
+        if(carveout >= 0)
+        {
+            static std::once_flag warned_old;
+            std::call_once(warned_old, [&] {
+                log::warn() << "lds_carveout is applied at launch, but this rocMLIR library is "
+                               "too old to be told about it, so kernels are still compiled "
+                               "against the default LDS budget";
+            });
+        }
+#endif
+        return carveout;
     }
 
     std::tuple<std::size_t, std::size_t, std::size_t> get_launch_params() const
@@ -1041,6 +1141,7 @@ struct mlir_program
             MIGRAPHX_THROW("Tuning table key was " + std::to_string(tuning_key_bytes) +
                            " bytes and thus too long");
         tc.problem = std::string(tuning_key.begin(), tuning_key.begin() + tuning_key_bytes);
+        apply_mlir_candidate_options(tc);
         return tc;
     }
 
@@ -1142,6 +1243,17 @@ struct mlir_program
     std::string target_arch  = "";
     std::size_t num_cu       = 0;
     std::size_t num_chiplets = 0;
+    // Percentage of the L1/LDS storage given to LDS, or -1 for the driver's default split
+    int lds_carveout = -1;
+    // Resolved mlir_num_ctas backend option (0, 1, 2, 4, 8 or 16; 1 means no clusters)
+    int num_ctas_opt = 1;
+    // Largest cluster size this device may be asked for (1 when it has no multi-CTA support)
+    int max_cluster_size = 1;
+    // Resolved mlir_warp_specialize backend option
+    warp_specialize_mode warp_specialize_opt = warp_specialize_mode::off;
+    // Whether the parsed module has a dot/convolution with a half (fp16) operand; warp
+    // specialization is only ever requested for such a kernel.
+    bool has_half_gemm = false;
     std::string sym_name;
 };
 
@@ -1371,19 +1483,49 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
-    auto co            = mp.compile(solution);
+    // In force mode, a solution rocMLIR rejects with warp specialization on is recompiled with it
+    // turned back off, using a fresh mlir_program (mp's MLIR module is left partway through a
+    // failed pipeline run). Without this, one ineligible kernel aborts the whole compile; see
+    // BUILD_DEBUG_HISTORY.md's "Warp specialization" section for the cases this covers. Built
+    // lazily: this is on the hot path of every candidate compile, and most never need a retry.
+    std::optional<mlir_program> retry_mp;
+    mlir_program* compiled_mp = &mp;
+    code_object_op co;
+    try
+    {
+        co = mp.compile(solution);
+    }
+    catch(const std::exception& e)
+    {
+        const auto* sol_str = solution.if_string();
+        const bool ws_requested =
+            sol_str != nullptr and
+            get_perf_config_field(*sol_str, "useWarpSpecialize").value_or(-1) == 1;
+        if(mp.warp_specialize_opt != warp_specialize_mode::force or not ws_requested)
+            throw;
+        log::info() << "MLIR rejected warp specialization for this kernel (" << e.what()
+                    << "); compiling without it";
+        value fallback = set_perf_config_field(*sol_str, "useWarpSpecialize", -1);
+        retry_mp.emplace();
+        retry_mp->set_gpu_properties(migraphx_ctx);
+        retry_mp->parse(m, shapes);
+        co          = retry_mp->compile(fallback);
+        compiled_mp = &*retry_mp;
+    }
     co.expected_inputs = in_shapes;
     co.output          = in_shapes.back();
 
     mlir_code_object mco;
     mco.cop                 = co;
-    size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
+    size_t num_prefill_args = mlirGetNumPrefillArgs(compiled_mp->mmodule.get());
     if(num_prefill_args > 0)
     {
         std::vector<size_t> prefill_indices(num_prefill_args);
         std::vector<MlirAttribute> prefill_mlir_values(num_prefill_args);
-        mlirGetPrefillArgsInfo(
-            mp.mmodule.get(), prefill_indices.data(), prefill_mlir_values.data(), num_prefill_args);
+        mlirGetPrefillArgsInfo(compiled_mp->mmodule.get(),
+                               prefill_indices.data(),
+                               prefill_mlir_values.data(),
+                               num_prefill_args);
         std::vector<value> prefill_values(prefill_mlir_values.size());
         std::transform(prefill_mlir_values.begin(),
                        prefill_mlir_values.end(),
@@ -1426,6 +1568,10 @@ std::string mlir_compile_key(const context& migraphx_ctx,
 
     std::stringstream ss;
     ss << "arch=" << migraphx_ctx.get_current_device().get_device_name() << "\n";
+    // Only when set, so the keys of kernels that do not use a carveout are unchanged. Older
+    // rocMLIR libraries do not see it in the module, but the code object carries it.
+    if(mp.lds_carveout >= 0)
+        ss << "lds_carveout=" << mp.lds_carveout << "\n";
     ss << "solution=" << solution << "\n";
     // The shapes are listed even though the parsed module already reflects them, because they
     // also become fields of the code object that the caller inserts.

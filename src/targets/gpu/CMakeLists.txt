@@ -308,6 +308,7 @@ add_library(migraphx_gpu
     loop.cpp
     lrn.cpp
     mlir.cpp
+    mlir_perf_config.cpp
     nms_ops.cpp
     no_device.cpp
     pack_args.cpp

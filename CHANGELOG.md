@@ -27,6 +27,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed `migraphx-driver verify` exiting with code 0 when verification fails, which made scripts and CI that check only the exit code record failed verifications as passing. `verify` now exits with a non-zero code when the GPU output does not match the reference within tolerance, in the default mode and with `--per-instruction`, `--reduce`, `--bisect`, and `--layerwise` (AIMIGRAPHX-1316).
 * Fixed compiling an `if` whose branches return non-standard views, such as transposes, failing with "Invalid module": a pass that changed the outputs of the branches, such as `auto_contiguous` making them standard, left the `if` with the shapes of the old outputs. The pass manager now updates the shape of an instruction, such as an `if` or `loop`, whose submodules a pass changed (#5549).
 * Fixed `simplify_reshapes` generating an inverse shape transform that merges a split axis's sub-axes in the wrong order when a transpose separates the split from the merge, producing a correctly shaped output with its data permuted (#5563).
 * Fixed GPU kernel compilation aborting on HIP toolchains whose clang emits the experimental `-Wlifetime-safety-experimental-field-origin-escape` warning, which is treated as an error under the `-Weverything -Werror` flags used for JIT kernel compilation and is a false positive on `tensor_view`'s non-owning pointer accessors (ROCM-34291).

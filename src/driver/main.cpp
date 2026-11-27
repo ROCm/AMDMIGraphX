@@ -1086,7 +1086,7 @@ struct verify : command<verify>
         ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
     }
 
-    void run()
+    int run()
     {
         auto p = c.l.load();
         c.l.save(p);
@@ -1114,26 +1114,28 @@ struct verify : command<verify>
         log::info() << "atol: " << tols.atol;
         log::info() << "rtol: " << tols.rtol;
 
+        bool passed = false;
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, vo, tols);
+            passed = verify_instructions(p, t, c.co, vo, tols);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, vo, m, tols);
+            passed = verify_reduced_program(p, t, c.co, vo, m, tols);
         }
         else if(bisect)
         {
-            verify_bisected_program(p, t, c.co, vo, m, tols);
+            passed = verify_bisected_program(p, t, c.co, vo, m, tols);
         }
         else if(layerwise)
         {
-            verify_layerwise_program(p, t, c.co, vo, m, tols);
+            passed = verify_layerwise_program(p, t, c.co, vo, m, tols);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, vo, m, tols);
+            passed = verify_program(c.l.file, p, t, c.co, vo, m, tols);
         }
+        return passed ? 0 : 1;
     }
 };
 
@@ -1416,7 +1418,7 @@ int main(int argc, const char* argv[], const char* envp[])
 
         auto start_time = std::chrono::system_clock::now();
 
-        m.at(cmd)(ap, {args.begin() + 1, args.end()});
+        const int result = m.at(cmd)(ap, {args.begin() + 1, args.end()});
 
         // Dump all the MIGraphX (consumed) Environment Variables:
         const auto mgx_env_map = migraphx::get_all_envs();
@@ -1435,11 +1437,8 @@ int main(int argc, const char* argv[], const char* envp[])
             std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
         migraphx::log::info() << "[ " << get_version() << " ] Complete(" << duration.count()
                               << "s): " << driver_invocation;
-    }
-    else
-    {
-        run_command<main_command>(ap, args);
+        return result;
     }
 
-    return 0;
+    return run_command<main_command>(ap, args);
 }

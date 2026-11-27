@@ -30,6 +30,8 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/stringutils.hpp>
 
+#include <functional>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -41,7 +43,7 @@ inline auto& get_commands()
 {
     // NOLINTNEXTLINE
     static std::unordered_map<std::string,
-                              std::function<void(argument_parser&, std::vector<std::string>)>>
+                              std::function<int(argument_parser&, std::vector<std::string>)>>
         m;
     return m;
 }
@@ -65,8 +67,10 @@ const std::string& command_name()
     return name;
 }
 
+// Returns the process exit code for the command. A command's run() may return
+// void (always exits 0) or a value convertible to int to report failure.
 template <class T>
-void run_command(argument_parser& ap, const std::vector<std::string>& args, bool add_help = false)
+int run_command(argument_parser& ap, const std::vector<std::string>& args, bool add_help = false)
 {
     T x;
     ap.set_exe_name(ap.get_exe_name() + " " + command_name<T>());
@@ -75,8 +79,16 @@ void run_command(argument_parser& ap, const std::vector<std::string>& args, bool
     ap.add_json_config_option();
     x.parse(ap);
     if(ap.parse(args))
-        return;
-    x.run();
+        return 0;
+    if constexpr(std::is_void<decltype(x.run())>{})
+    {
+        x.run();
+        return 0;
+    }
+    else
+    {
+        return static_cast<int>(x.run());
+    }
 }
 
 template <class T>
@@ -84,7 +96,7 @@ int auto_register_command()
 {
     auto& m              = get_commands();
     m[command_name<T>()] = [](argument_parser& ap, const std::vector<std::string>& args) {
-        run_command<T>(ap, args, true);
+        return run_command<T>(ap, args, true);
     };
     return 0;
 }

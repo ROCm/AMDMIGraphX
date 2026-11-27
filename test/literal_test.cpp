@@ -323,7 +323,7 @@ TEST_CASE(literal_from_mapped_file)
     migraphx::tmp_dir td{"literal"};
     auto p = td.path / "weights.data";
     std::vector<int32_t> values{1, 2, 3, 4, 5, 6, 7, 8};
-    auto* bytes        = reinterpret_cast<const char*>(values.data());
+    const auto* bytes  = reinterpret_cast<const char*>(values.data());
     std::size_t nbytes = values.size() * sizeof(int32_t);
     // values at offset 4, aligned for int32, and again at the unaligned offset 37
     std::vector<char> content(4, 0);
@@ -404,11 +404,9 @@ TEST_CASE(literal_share_argument_mapped_file)
     migraphx::tmp_dir td{"literal"};
     auto p = td.path / "weights.data";
     std::vector<float> values{1.5f, 2.5f};
-    migraphx::write_buffer(p,
-                           static_cast<const char*>(static_cast<const void*>(values.data())),
-                           values.size() * sizeof(float));
-    auto file = std::make_shared<migraphx::mapped_file>(p);
     migraphx::shape s{migraphx::shape::float_type, {2}};
+    migraphx::write_buffer(p, migraphx::literal{s, values}.data(), s.bytes());
+    auto file   = std::make_shared<migraphx::mapped_file>(p);
     auto shared = migraphx::literal::from_mapped_file(s, file, {p.string(), 0, s.bytes(), ""})
                       .share_argument();
     EXPECT(shared.data() == file->data());
@@ -420,11 +418,10 @@ TEST_CASE(literal_from_mapped_file_serializes_inline)
     migraphx::tmp_dir td{"literal"};
     auto p = td.path / "weights.data";
     std::vector<float> values{1.5f, 2.5f};
-    const auto* bytes = static_cast<const char*>(static_cast<const void*>(values.data()));
-    migraphx::write_buffer(p, bytes, values.size() * sizeof(float));
-    auto file = std::make_shared<migraphx::mapped_file>(p);
     migraphx::shape s{migraphx::shape::float_type, {2}};
-    auto l = migraphx::literal::from_mapped_file(s, file, {p.string(), 0, s.bytes(), ""});
+    migraphx::write_buffer(p, migraphx::literal{s, values}.data(), s.bytes());
+    auto file = std::make_shared<migraphx::mapped_file>(p);
+    auto l    = migraphx::literal::from_mapped_file(s, file, {p.string(), 0, s.bytes(), ""});
 
     auto v = migraphx::to_value(l);
     EXPECT(v.contains("data"));

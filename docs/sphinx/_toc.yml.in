@@ -28,6 +28,8 @@ subtrees:
       title: Tune model performance
     - file: how-to/model-validation
       title: Validate model outputs
+    - file: how-to/recompile-mxr
+      title: Recompile an MXR file for another GPU
 
   - caption: Reference
     entries:

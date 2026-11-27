@@ -34,6 +34,8 @@ The table below summarizes the MIGraphX driver commands.
       - Loads and prints input graph
    *  - compile
       - Compiles and prints input graph
+   *  - recompile
+      - Recompiles the GPU kernels of a compiled program for the same or another GPU (see :ref:`recompile-mxr`)
    *  - verify
       - Runs reference and GPU implementations and checks outputs for consistency
    *  - perf
@@ -123,6 +125,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Disables fast math optimization
    *  - --exhaustive-tune
       - Enables exhaustive search to find the fastest kernel
+   *  - --recompilable
+      - Keeps each kernel's compile recipe, so the ``recompile`` command can recompile the program for another GPU
    *  - --fp16
       - Quantizes for fp16
    *  - --bf16

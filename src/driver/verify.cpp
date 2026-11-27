@@ -118,9 +118,9 @@ bool verify_instructions(const program& prog,
                          const verify_options& vo,
                          verify::tolerance tols)
 {
-    return verify::verify_program(
-        prog, t, verify::program_mode::instructions, {}, make_program_options(options, vo, tols))
-        .passed();
+    auto result = verify::verify_program(
+        prog, t, verify::program_mode::instructions, {}, make_program_options(options, vo, tols));
+    return result.passed();
 }
 
 bool verify_reduced_program(const program& p,
@@ -130,9 +130,9 @@ bool verify_reduced_program(const program& p,
                             const parameter_map& inputs,
                             verify::tolerance tols)
 {
-    return verify::verify_program(
-        p, t, verify::program_mode::reduce, inputs, make_program_options(options, vo, tols))
-        .passed();
+    auto result = verify::verify_program(
+        p, t, verify::program_mode::reduce, inputs, make_program_options(options, vo, tols));
+    return result.passed();
 }
 
 bool verify_bisected_program(const program& p,
@@ -142,9 +142,9 @@ bool verify_bisected_program(const program& p,
                              const parameter_map& inputs,
                              verify::tolerance tols)
 {
-    return verify::verify_program(
-        p, t, verify::program_mode::bisect, inputs, make_program_options(options, vo, tols))
-        .passed();
+    auto result = verify::verify_program(
+        p, t, verify::program_mode::bisect, inputs, make_program_options(options, vo, tols));
+    return result.passed();
 }
 
 bool verify_layerwise_program(const program& p,
@@ -154,9 +154,9 @@ bool verify_layerwise_program(const program& p,
                               const parameter_map& inputs,
                               verify::tolerance tols)
 {
-    return verify::verify_program(
-        p, t, verify::program_mode::layerwise, inputs, make_program_options(options, vo, tols))
-        .passed();
+    auto result = verify::verify_program(
+        p, t, verify::program_mode::layerwise, inputs, make_program_options(options, vo, tols));
+    return result.passed();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

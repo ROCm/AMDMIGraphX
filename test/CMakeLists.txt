@@ -130,6 +130,7 @@ add_subdirectory(tf)
 endif()
 
 add_subdirectory(api)
+add_subdirectory(driver)
 add_subdirectory(verify)
 add_subdirectory(ref)
 

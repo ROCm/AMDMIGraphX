@@ -94,7 +94,7 @@ external_projects_current_project = "amdmigraphx"
 # myst_substitutions) is derived from them so a release bump only touches
 # this block. MIGRAPHX_VERSION below is parsed from ../CMakeLists.txt
 # instead, since that file is the source of truth for the MIGraphX version.
-rocm_version = "7.14.1"
+rocm_version = "7.14.2"
 rocm_version_pkg_suffix = "7.14"
 rocm_major = "7"
 rocm_docs_version = f"docs-{rocm_version}"

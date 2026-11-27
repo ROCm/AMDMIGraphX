@@ -1064,8 +1064,20 @@ struct mlir_program
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(not tuning_cfg_path.empty())
         {
+            // The problem is the last field of the key; the fields before it (arch, CU count,
+            // chiplet count) vary between rocMLIR versions.
             std::vector<std::string> tokens = split_string(prob_config, '\t');
-            std::string prob                = tokens[2];
+            std::string prob                = tokens.back();
+            prob =
+                trim(prob, [](unsigned char c) { return (c == '\0') or (std::isspace(c) != 0); });
+            // rocMLIR's tuning scripts have no way to express the accumulation mode, so a line for
+            // this problem would tune the 32-bit kernel instead.
+            if(float16_accumulation)
+            {
+                log::warn() << "Not adding " << prob << " to MIGRAPHX_MLIR_TUNING_CFG: rocMLIR's "
+                            << "tuning scripts cannot tune 16-bit accumulation";
+                return;
+            }
 
             if(starts_with(prob, "conv"))
             {
@@ -1076,8 +1088,6 @@ struct mlir_program
                 tuning_cfg_path += ".gemm";
             }
             std::ofstream tuning_cfg(tuning_cfg_path, std::ios::app);
-            prob =
-                trim(prob, [](unsigned char c) { return (c == '\0') or (std::isspace(c) != 0); });
             tuning_cfg << prob << std::endl;
         }
     }
@@ -1329,7 +1339,10 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
     return fname;
 }
 
-void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location)
+void dump_mlir_to_file(const context& migraphx_ctx,
+                       module m,
+                       const std::vector<shape>& inputs,
+                       const fs::path& location)
 {
     static std::mutex mutex;
     const std::lock_guard<std::mutex> lock(mutex);
@@ -1345,7 +1358,9 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     auto f    = location / name;
     log::info() << "Dumping MLIR file to: " << f;
 
+    // Use the compile's properties so the dump reproduces the kernel, accumulation mode included
     mlir_program mp;
+    mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m, shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
 
@@ -1601,7 +1616,7 @@ bool is_module_fusible(const module&, const context&, const value&) { return fal
 
 std::vector<shape> adjust_param_shapes(module&, const std::vector<shape>&) { return {}; }
 
-void dump_mlir_to_file(module, const std::vector<shape>&, const fs::path&) {}
+void dump_mlir_to_file(const context&, module, const std::vector<shape>&, const fs::path&) {}
 
 void dump_mlir_to_mxr(module, const std::vector<instruction_ref>&, const fs::path&) {}
 // NOLINTEND(performance-unnecessary-value-param)

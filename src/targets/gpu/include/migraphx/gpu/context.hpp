@@ -421,6 +421,10 @@ struct context
         value result;
         result["events"]  = events.size();
         result["streams"] = current_device->nstreams();
+        // Kernels of a dynamic model compile at run time with the loaded context. The key is
+        // written only when set, so other programs serialize as before.
+        if(mlir_float16_accumulation)
+            result["mlir_float16_accumulation"] = true;
 
         return result;
     }
@@ -433,6 +437,9 @@ struct context
 
         auto v_streams        = v.at("streams");
         std::size_t n_streams = v_streams.without_key().to<std::size_t>();
+
+        mlir_float16_accumulation = v.contains("mlir_float16_accumulation") and
+                                    v.at("mlir_float16_accumulation").without_key().to<bool>();
 
         auto device          = get_device_id();
         this->current_device = std::make_shared<hip_device>(device, n_streams);

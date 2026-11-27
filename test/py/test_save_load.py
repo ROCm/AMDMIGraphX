@@ -42,7 +42,7 @@ def test_conv_relu(format):
 
 
 def test_external_weights(format):
-    p1 = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
+    p1 = migraphx.parse_onnx("group_query_attention_test.onnx")
 
     with tempfile.TemporaryDirectory() as d:
         name = os.path.join(d, "model.mxr")

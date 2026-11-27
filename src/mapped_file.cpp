@@ -142,7 +142,7 @@ struct mapped_file_impl
             close(fd);
             return;
         }
-        void* m = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0); // NOLINT
+        const void* m = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0); // NOLINT
         // The mapping stays valid after the descriptor is closed
         close(fd);
         if(m == MAP_FAILED) // NOLINT

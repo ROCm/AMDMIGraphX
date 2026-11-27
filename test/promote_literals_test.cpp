@@ -328,7 +328,7 @@ TEST_CASE(promote_keeps_external_reference)
     migraphx::tmp_dir td{"promote-literals"};
     auto path = td.path / "weights.data";
     std::vector<float> values{1, 2, 3, 4};
-    auto* bytes = reinterpret_cast<const char*>(values.data());
+    const auto* bytes = static_cast<const char*>(static_cast<const void*>(values.data()));
     migraphx::write_buffer(path, bytes, values.size() * sizeof(float));
     auto file = std::make_shared<migraphx::mapped_file>(path);
     migraphx::shape s{migraphx::shape::float_type, {4}};

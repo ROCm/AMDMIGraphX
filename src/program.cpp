@@ -913,7 +913,7 @@ value program::to_value() const
 
     // Only a program that stores data externally needs the newer version, so older releases
     // can still read the rest
-    auto* writer = scoped_external_data_writer::active();
+    const auto* writer = scoped_external_data_writer::active();
     if(writer != nullptr and writer->has_references())
         result["version"] = program_file_version_external_data;
 

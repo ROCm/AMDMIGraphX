@@ -50,6 +50,10 @@ Disable fast math optimization
 
 Perform an exhaustive search to find the fastest version of generated kernels for selected backend
 
+.. option::  --recompilable
+
+Keep each kernel's compile recipe in the compiled program and record the GPU it was compiled for, so that the ``recompile`` command can recompile the program for the same or another GPU without the original model. Dot, convolution, and LRN are compiled so that they have recipes. See :ref:`recompile-mxr`.
+
 .. option::  --weights-file [std::string]
 
 Save the weights to this file instead of in the compiled program, which reads them back when it is loaded. The target decides the format of the file. A relative path is within the directory of the output file (``-o``), and the compiled program looks for it in the directory it is loaded from, so the two files can be moved together. Only applies to targets that support it.

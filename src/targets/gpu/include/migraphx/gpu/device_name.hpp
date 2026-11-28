@@ -41,6 +41,7 @@ MIGRAPHX_GPU_EXPORT std::string get_device_name();
 MIGRAPHX_GPU_EXPORT std::string get_gfx_name(const std::string& device_name);
 
 /// The major architecture number: 9 for gfx90a and gfx942, 11 for gfx1151, 12 for gfx1201.
+/// A '-' suffix does not change the generation: gfx1250-strict is 12, like gfx1250.
 /// Returns 0 when the name is not a gfx architecture.
 MIGRAPHX_GPU_EXPORT std::size_t get_gfx_generation(const std::string& device_name);
 

@@ -363,6 +363,12 @@ struct context
 
     void set_disable_processes(bool v) { disable_processes = v; }
 
+    // When true, MLIR kernels request 16-bit accumulation from rocMLIR.
+    // Set via compile_options::backend_options["mlir_float16_accumulation"].
+    bool get_mlir_float16_accumulation() const { return mlir_float16_accumulation; }
+
+    void set_mlir_float16_accumulation(bool v) { mlir_float16_accumulation = v; }
+
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
 
@@ -415,6 +421,10 @@ struct context
         value result;
         result["events"]  = events.size();
         result["streams"] = current_device->nstreams();
+        // Kernels of a dynamic model compile at run time with the loaded context. The key is
+        // written only when set, so other programs serialize as before.
+        if(mlir_float16_accumulation)
+            result["mlir_float16_accumulation"] = true;
 
         return result;
     }
@@ -427,6 +437,9 @@ struct context
 
         auto v_streams        = v.at("streams");
         std::size_t n_streams = v_streams.without_key().to<std::size_t>();
+
+        mlir_float16_accumulation = v.contains("mlir_float16_accumulation") and
+                                    v.at("mlir_float16_accumulation").without_key().to<bool>();
 
         auto device          = get_device_id();
         this->current_device = std::make_shared<hip_device>(device, n_streams);
@@ -538,9 +551,10 @@ struct context
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool exhaustive_tune   = false;
-    bool disable_processes = false;
-    bool measure_perf      = false;
+    bool exhaustive_tune           = false;
+    bool disable_processes         = false;
+    bool mlir_float16_accumulation = false;
+    bool measure_perf              = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;

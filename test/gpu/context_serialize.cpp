@@ -48,6 +48,25 @@ TEST_CASE(gpu_context_serialize)
     EXPECT(v == v1);
 }
 
+// A loaded dynamic model compiles kernels at run time with the deserialized context, so the
+// accumulation mode must survive a save and load. Programs without it keep the old format.
+TEST_CASE(gpu_context_serialize_float16_accumulation)
+{
+    migraphx::gpu::context ctx{0, 1};
+    EXPECT(not ctx.to_value().contains("mlir_float16_accumulation"));
+
+    ctx.set_mlir_float16_accumulation(true);
+    auto v = ctx.to_value();
+    EXPECT(v.contains("mlir_float16_accumulation"));
+
+    migraphx::gpu::context loaded;
+    loaded.from_value(v);
+    EXPECT(loaded.get_mlir_float16_accumulation());
+
+    loaded.from_value(migraphx::gpu::context{0, 1}.to_value());
+    EXPECT(not loaded.get_mlir_float16_accumulation());
+}
+
 TEST_CASE(gpu_context_create_streams)
 {
     migraphx::gpu::context ctx{0, 1};

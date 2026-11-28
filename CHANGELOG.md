@@ -21,6 +21,7 @@ Full documentation for MIGraphX is available at
 * Fixed GPU `broadcast_with_dims` (ONNX `Expand` to a run-time shape) reading its dims on the host from GPU memory without a copy or a stream sync, which could give the output a wrong shape when a kernel computes the dims (#5531).
 * Fixed `compute_broadcasted_lens` broadcasting a dimension of 1 to 1 instead of 0 when the other dimension is 0, which made `broadcast_with_dims` produce one element for an empty target dimension (#5529).
 * Fixed `eliminate_concat` returning a strided view of the concat buffer as a program output when a concat input is also returned (for example a time cache kept as the last frames of a `concat`), which made integrations that allocate packed outputs, such as the ONNX Runtime MIGraphX EP, write past the end of the output buffer (#5484).
+* Fixed `ScatterND` ignoring negative indices, which the ONNX specification allows: they now count back from the end of their dimension on the reference and GPU targets. Before, a negative index was used as a huge unsigned offset and wrote out of bounds, which crashed the process, gave silently wrong results, or faulted the GPU (ROCM-30410). An index that is still outside the dimension raises an error on the reference target; on the GPU target the indices are required to be in bounds, as ONNX specifies, and this is only asserted. The same holds for programs with symbolic (dynamic) dimensions on the GPU, where the pass that pads the data now normalizes negative indices against the unpadded sizes.
 
 ## MIGraphX 2.19 for ROCm 10.2.0
 

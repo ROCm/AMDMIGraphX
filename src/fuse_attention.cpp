@@ -185,7 +185,7 @@ inline auto pointwise_inputs()
             if(not visited.insert(ins).second)
                 return;
             if(not ins->get_operator().attributes().contains("pointwise") and
-               ins->get_operator().name() != "reshape")
+               not contains({"reshape", "unsqueeze"}, ins->get_operator().name()))
             {
                 f(ins);
                 return;
@@ -547,6 +547,14 @@ struct find_attention
 
     std::string get_count() const { return std::to_string((*counter)++); }
 
+    // The count restarts in every module, so a submodule of anything but main (eg a
+    // split_sym_dim specialization) takes its parent's name to stay unique
+    std::string get_name(const module& m, const std::string& prefix) const
+    {
+        auto name = prefix + get_count();
+        return m.name() == "main" ? name : m.name() + ":" + name;
+    }
+
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref gemm1, instruction_ref gemm2) const
     {
@@ -637,7 +645,8 @@ struct find_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        module_ref mpm_attn =
+            mpm.create_module(get_name(mpm.get_module(), "attn"), std::move(m_attn));
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(

@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <migraphx/builtin.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -902,6 +903,148 @@ struct find_mlir_fused_ops
 };
 
 /**
+ * A reduce that first converts the fp16 result of a dot MLIR takes to float, as rewrite_reduce
+ * does ahead of a softmax it promotes. The convert moves out of the reduce into a pointwise after
+ * the dot, which find_mlir_fused_ops then fuses into the dot, so MLIR writes its float accumulator
+ * instead of rounding it to fp16 first, where it can overflow (eg the unscaled q.k^T of an
+ * attention block left unfused).
+ */
+struct find_mlir_dot_widening_reduce
+{
+    mlir_mode dot_mode = mlir_mode::none;
+
+    auto matcher() const
+    {
+        static const auto reshapers = find_mlir_fused_ops::make_conv_dot_reshaper_names();
+        auto dot = match::skip(match::name(reshapers))(is_mlir_dot(dot_mode).bind("dot"));
+        return match::name("fused_reduce",
+                           "split_fused_reduce")(match::any_of[match::inputs()](dot.bind("x")));
+    }
+
+    static bool is_float_convert(instruction_ref ins)
+    {
+        return ins->name() == "convert" and ins->get_shape().type() == shape::float_type;
+    }
+
+    // The params of pm that take x among the inputs
+    static std::vector<instruction_ref>
+    params_of(const_module_ref pm, const std::vector<instruction_ref>& inputs, instruction_ref x)
+    {
+        std::vector<instruction_ref> result;
+        for(const auto& [param, input] : pm->get_ins_param_map(inputs, true))
+        {
+            if(input == x)
+                result.push_back(param);
+        }
+        return result;
+    }
+
+    // Whether pw only converts x to float
+    static bool converts_to_float(instruction_ref pw, instruction_ref x)
+    {
+        if(pw->name() != "pointwise")
+            return false;
+        auto params = params_of(pw->module_inputs().front(), pw->inputs(), x);
+        return not params.empty() and std::all_of(params.begin(), params.end(), [](auto p) {
+            return not p->outputs().empty() and
+                   std::all_of(p->outputs().begin(), p->outputs().end(), &is_float_convert);
+        });
+    }
+
+    // A copy of the pointwise module pm whose params taking x are float, without their converts
+    static module_ref widen_pointwise(module_pass_manager& mpm,
+                                      const_module_ref pm,
+                                      const std::vector<instruction_ref>& inputs,
+                                      instruction_ref x)
+    {
+        auto wide      = params_of(pm, inputs, x);
+        module_ref npm = mpm.create_module(pm->name() + ":float");
+        npm->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        for(auto param : pm->get_parameters())
+        {
+            auto s = contains(wide, param) ? shape{shape::float_type} : param->get_shape();
+            map_ins[param] =
+                npm->add_parameter(any_cast<builtin::param>(param->get_operator()).parameter, s);
+        }
+        auto outputs =
+            npm->add_instructions(pm,
+                                  &map_ins,
+                                  [&](module& m,
+                                      instruction_ref pos,
+                                      const operation& op,
+                                      const std::vector<instruction_ref>& args,
+                                      const std::vector<module_ref>& mod_args) {
+                                      if(op.name() == "convert" and args.size() == 1 and
+                                         args.front()->get_shape().type() == shape::float_type and
+                                         args.front()->name() == "@param")
+                                          return args.front();
+                                      return m.insert_instruction(pos, op, args, mod_args);
+                                  });
+        npm->add_return(outputs);
+        return npm;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto reduce = r.result;
+        auto x      = r.instructions["x"];
+        auto dot    = r.instructions["dot"];
+        if(dot->get_shape().type() != shape::half_type)
+            return;
+        const auto* rm = reduce->module_inputs().front();
+        auto params    = params_of(rm, reduce->inputs(), x);
+        if(params.size() != 1)
+            return;
+        auto param = params.front();
+        if(param->outputs().empty() or
+           not std::all_of(param->outputs().begin(), param->outputs().end(), [&](auto pw) {
+               return converts_to_float(pw, param);
+           }))
+            return;
+
+        auto& m = mpm.get_module();
+        // The convert after the dot, for find_mlir_fused_ops
+        module_ref cpm = mpm.create_module(rm->name() + ":convert");
+        cpm->set_bypass();
+        cpm->add_return(
+            {cpm->add_instruction(make_op("convert", {{"target_type", shape::float_type}}),
+                                  cpm->add_parameter("x0", shape{shape::half_type}))});
+        auto wide_x = m.insert_instruction(reduce, make_op("pointwise"), {x}, {cpm});
+
+        // The reduce reads the float values, and its pointwise ops no longer convert them
+        module_ref nrm = mpm.create_module(rm->name() + ":float");
+        nrm->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        for(auto p : rm->get_parameters())
+        {
+            auto s = p == param ? p->get_shape().with_type(shape::float_type) : p->get_shape();
+            map_ins[p] =
+                nrm->add_parameter(any_cast<builtin::param>(p->get_operator()).parameter, s);
+        }
+        auto new_param = map_ins.at(param);
+        auto outputs   = nrm->add_instructions(
+            rm,
+            &map_ins,
+            [&](module& nm,
+                instruction_ref pos,
+                const operation& op,
+                const std::vector<instruction_ref>& args,
+                const std::vector<module_ref>& mod_args) {
+                if(op.name() == "pointwise" and contains(args, new_param))
+                    return nm.insert_instruction(
+                        pos, op, args, {widen_pointwise(mpm, mod_args.front(), args, new_param)});
+                return nm.insert_instruction(pos, op, args, mod_args);
+            });
+        nrm->add_return(outputs);
+
+        auto inputs = reduce->inputs();
+        std::replace(inputs.begin(), inputs.end(), x, wide_x);
+        m.replace_instruction(reduce, reduce->get_operator(), inputs, {nrm});
+    }
+};
+
+/**
  * Fuses rocMLIR conv/dot -> optional pointwise -> dot -> optional pointwise chain
  * into a mlir_op with submodule.
  */
@@ -1719,6 +1862,10 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(mpm, find_mlir_attention_op{});
+    mpm.run_pass(dead_code_elimination{});
+
+    match::find_matches(
+        mpm, find_mlir_dot_widening_reduce{.dot_mode = get_mode("fused_dot", mlir_mode::fast)});
     mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(

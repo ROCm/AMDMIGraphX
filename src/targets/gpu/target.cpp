@@ -145,6 +145,9 @@ struct backend_options
     // Longest kv length where head dims past attn_max_head_dim still fuse. 0 picks the
     // device default: 1024 on wave64 devices, no exception on wave32.
     std::size_t attn_wide_head_kv_len = 0;
+    // Let MLIR GEMMs and convolutions accumulate in 16 bits, trading accuracy for speed.
+    // rocMLIR honours it only where the hardware supports it (currently gfx1250).
+    bool mlir_float16_accumulation = false;
     // Problem caches that new tuning solutions are saved back to.
     std::vector<std::string> problem_cache_files = {};
     // System-level problem caches, searched after the writable ones and never written.
@@ -179,6 +182,7 @@ struct backend_options
                     f(self.attn_max_head_dim, "attn_max_head_dim"),
                     f(self.attn_min_q_rows, "attn_min_q_rows"),
                     f(self.attn_wide_head_kv_len, "attn_wide_head_kv_len"),
+                    f(self.mlir_float16_accumulation, "mlir_float16_accumulation"),
                     f(self.hip_graph, "hip_graph"),
                     f(self.convolution_layout, "convolution_layout"),
                     f(self.enable_skinny_dot, "enable_skinny_dot"),
@@ -501,6 +505,7 @@ setup_context(context& ctx, const compile_options& options, const backend_option
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
     ctx.set_relative_path(options.relative_path);
+    ctx.set_mlir_float16_accumulation(backend_opts.mlir_float16_accumulation);
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);

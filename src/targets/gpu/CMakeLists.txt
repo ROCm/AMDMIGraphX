@@ -304,6 +304,8 @@ add_library(migraphx_gpu
     kernel.cpp
     lower_device_ops.cpp
     lower_reshape.cpp
+    insert_contiguous.cpp
+    standardize_output.cpp
     lowering.cpp
     loop.cpp
     lrn.cpp

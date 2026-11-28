@@ -93,6 +93,7 @@
 #include <migraphx/gpu/record_compiled_for.hpp>
 #include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lower_reshape.hpp>
+#include <migraphx/gpu/standardize_output.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
@@ -155,8 +156,10 @@ struct backend_options
     // Layout used for convolutions, by name: channels_first, channels_last, or channels_auto.
     layout_convolution::layout_order convolution_layout = layout_convolution::channels_auto;
     // Rewrite skinny dots (M <= 2) as mul + reduce_sum so they fuse with pointwise ops.
-    bool enable_skinny_dot   = false;
-    bool standardize_outputs = false;
+    bool enable_skinny_dot = false;
+    // Pack a returned buffer that is still nonstandard after fusion. A graph that
+    // already writes a packed output is unchanged. Set false to keep a strided view.
+    bool standardize_outputs = true;
     // Keep range-based dynamic shapes for runtime compilation instead of specializing ranges.
     bool disable_range_based_splitting = false;
     // When true, kernels compile in-process, not in migraphx-hiprtc-driver.
@@ -422,7 +425,7 @@ struct pipeline_factory
         std::size_t max_memory =
             get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
         return {
-            auto_contiguous{.standardize_outputs = backend_opts.standardize_outputs},
+            auto_contiguous{},
             dead_code_elimination{},
             lowering{get_context(), options.offload_copy},
             eliminate_device_copy{},
@@ -446,6 +449,11 @@ struct pipeline_factory
             compile_hipblaslt{get_generic_context()},
             dead_code_elimination{},
 #endif
+            // After eliminate_contiguous and fuse_ops, so a fused kernel that already
+            // writes a packed output is not followed by a second copy. Before
+            // replace_allocate, so a remaining strided return is packed before it is
+            // aliased onto the output parameter.
+            enable_pass(backend_opts.standardize_outputs, standardize_output{}),
             replace_allocate{gpu_allocation_model{}, options.offload_copy},
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{}},

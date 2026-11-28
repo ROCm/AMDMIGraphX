@@ -35,8 +35,6 @@ struct module;
 
 struct MIGRAPHX_EXPORT auto_contiguous
 {
-    bool standardize_outputs = false;
-
     std::string name() const { return "auto_contiguous"; }
     void apply(module& m) const;
 };

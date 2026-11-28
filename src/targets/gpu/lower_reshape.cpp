@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/lower_reshape.hpp>
+#include <migraphx/gpu/insert_contiguous.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
@@ -46,15 +47,6 @@ insert_precompile_op(module& m, instruction_ref pos, instruction_ref input, cons
         m.insert_instruction(pos, make_op("allocate", {{"shape", to_value(output_shape)}}));
     return m.insert_instruction(
         pos, make_op("gpu::precompile_op", {{"op", to_value(op)}}), input, alloc);
-}
-
-instruction_ref insert_contiguous(module& m, instruction_ref pos, instruction_ref input)
-{
-    const auto& s      = input->get_shape();
-    shape output_shape = s.dynamic() ? shape{s.type(), s.dyn_dims()} : shape{s.type(), s.lens()};
-    auto alloc =
-        m.insert_instruction(pos, make_op("allocate", {{"shape", to_value(output_shape)}}));
-    return m.insert_instruction(pos, make_op("gpu::contiguous"), input, alloc);
 }
 
 // True if the buffer of `ins` is a program output: it is one of the module returns, or it is

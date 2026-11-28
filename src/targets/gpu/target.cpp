@@ -412,7 +412,7 @@ struct pipeline_factory
             dead_code_elimination{},
             fuse_topk{},
             dead_code_elimination{},
-            fuse_concat{},
+            fuse_concat{.epilogue_ops = {"gpu::winograd_conv", "gpu::channelwise_conv"}},
             dead_code_elimination{},
         };
     }

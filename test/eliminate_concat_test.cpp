@@ -41,11 +41,14 @@ struct test_concat : migraphx::auto_register_op<test_concat>
     test_concat() = default;
     test_concat(std::size_t axis) { op.axis = axis; }
     migraphx::op::concat op;
+    // Report the output buffer as an alias, as the lowered gpu concat does
+    bool alias = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return migraphx::reflect(self.op, f);
+        return migraphx::pack_join(migraphx::reflect(self.op, f),
+                                   migraphx::pack(f(self.alias, "alias")));
     }
 
     migraphx::value attributes() const
@@ -70,6 +73,12 @@ struct test_concat : migraphx::auto_register_op<test_concat>
                                const std::vector<migraphx::argument>&) const
     {
         return migraphx::argument{output_shape};
+    }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& shapes) const
+    {
+        if(not alias)
+            return {};
+        return {shapes.size() - 1};
     }
 };
 
@@ -429,6 +438,349 @@ TEST_CASE(nested)
         auto id2 = m2.add_instruction(migraphx::make_op("identity"), slice1, s3, s4);
         auto id3 = m2.add_instruction(migraphx::make_op("identity"), a1, id1, id2);
         m2.add_return({id3});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nested_prefix)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(1));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, a3);
+        auto a4 = m1.add_instruction(make_allocate(1));
+        auto s3 = m1.add_instruction(simple_op{}, a4);
+        auto a5 = m1.add_instruction(make_allocate(3));
+        auto c2 =
+            m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, s3, a5);
+        m1.add_return({c1, c2});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(3));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), super);
+        auto s2     = m2.add_instruction(simple_op{}, slice2);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), super);
+        auto s3   = m2.add_instruction(simple_op{}, slice3);
+        auto view = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), super);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), view, s1, s2);
+        auto id2 = m2.add_instruction(migraphx::make_op("identity"), super, s1, s2, s3);
+        m2.add_return({id1, id2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nested_prefix_chain)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(1));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, a3);
+        auto a4 = m1.add_instruction(make_allocate(1));
+        auto s3 = m1.add_instruction(simple_op{}, a4);
+        auto a5 = m1.add_instruction(make_allocate(3));
+        auto c2 =
+            m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, s3, a5);
+        auto a6 = m1.add_instruction(make_allocate(1));
+        auto s4 = m1.add_instruction(simple_op{}, a6);
+        auto a7 = m1.add_instruction(make_allocate(4));
+        auto c3 = m1.add_instruction(
+            migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, s3, s4, a7);
+        m1.add_return({c1, c2, c3});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(4));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), super);
+        auto s2     = m2.add_instruction(simple_op{}, slice2);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), super);
+        auto s3     = m2.add_instruction(simple_op{}, slice3);
+        auto slice4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), super);
+        auto s4    = m2.add_instruction(simple_op{}, slice4);
+        auto view1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), super);
+        auto id1   = m2.add_instruction(migraphx::make_op("identity"), view1, s1, s2);
+        auto view2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3}}}), super);
+        auto id2 = m2.add_instruction(migraphx::make_op("identity"), view2, s1, s2, s3);
+        auto id3 = m2.add_instruction(migraphx::make_op("identity"), super, s1, s2, s3, s4);
+        m2.add_return({id1, id2, id3});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nested_run_after_larger_concat)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(1));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(1));
+        auto s3 = m1.add_instruction(simple_op{}, a3);
+        auto a4 = m1.add_instruction(make_allocate(3));
+        auto c1 =
+            m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, s3, a4);
+        auto a5 = m1.add_instruction(make_allocate(2));
+        auto c2 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s2, s3, a5);
+        m1.add_return({c1, c2});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(3));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), super);
+        auto s2     = m2.add_instruction(simple_op{}, slice2);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), super);
+        auto s3   = m2.add_instruction(simple_op{}, slice3);
+        auto id1  = m2.add_instruction(migraphx::make_op("identity"), super, s1, s2, s3);
+        auto view = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}}), super);
+        auto id2 = m2.add_instruction(migraphx::make_op("identity"), view, s2, s3);
+        m2.add_return({id1, id2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nested_prefix_non_packed_unsupported)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 6));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto p1 = m1.add_instruction(pass_standard_op{}, c1);
+        auto a4 = m1.add_instruction(make_allocate(2, 3));
+        auto s3 = m1.add_instruction(simple_op{}, a4);
+        auto a5 = m1.add_instruction(make_allocate(2, 9));
+        auto c2 =
+            m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, s3, a5);
+        m1.add_return({p1, c2});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(2, 9));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), super);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto a3 = m2.add_instruction(make_allocate(2, 6));
+        auto c1 = m2.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto p1 = m2.add_instruction(pass_standard_op{}, c1);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {9}}}), super);
+        auto s3 = m2.add_instruction(simple_op{}, slice3);
+        auto id = m2.add_instruction(migraphx::make_op("identity"), super, s1, s2, s3);
+        m2.add_return({p1, id});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nested_prefix_allocation_reader)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(1));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, a3);
+        auto r1 = m1.add_instruction(migraphx::make_op("identity"), a3, c1);
+        auto a4 = m1.add_instruction(make_allocate(1));
+        auto s3 = m1.add_instruction(simple_op{}, a4);
+        auto a5 = m1.add_instruction(make_allocate(3));
+        auto c2 =
+            m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, s3, a5);
+        m1.add_return({r1, c2});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(3));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), super);
+        auto s2     = m2.add_instruction(simple_op{}, slice2);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), super);
+        auto s3   = m2.add_instruction(simple_op{}, slice3);
+        auto view = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), super);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), view, s1, s2);
+        auto r1  = m2.add_instruction(migraphx::make_op("identity"), view, id1);
+        auto id2 = m2.add_instruction(migraphx::make_op("identity"), super, s1, s2, s3);
+        m2.add_return({r1, id2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The smaller concat is also an input of the larger concat, so it has to stay as the writer of
+// that part of the buffer
+TEST_CASE(nested_prefix_is_input)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(1));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2));
+        auto c1 = m1.add_instruction(
+            migraphx::make_op("test::concat", {{"axis", 0}, {"alias", true}}), s1, s2, a3);
+        auto a4 = m1.add_instruction(make_allocate(4));
+        auto c2 = m1.add_instruction(
+            migraphx::make_op("test::concat", {{"axis", 0}, {"alias", true}}), s1, s2, c1, a4);
+        m1.add_return({c1, c2});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(4));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), super);
+        auto s2     = m2.add_instruction(simple_op{}, slice2);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), super);
+        auto c1 = m2.add_instruction(
+            migraphx::make_op("test::concat", {{"axis", 0}, {"alias", true}}), s1, s2, slice3);
+        auto id = m2.add_instruction(migraphx::make_op("identity"), super, s1, s2, c1);
+        m2.add_return({c1, id});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The allocation is read before the inputs of the concat are allocated, so the larger buffer
+// has to be placed before that reader
+TEST_CASE(nested_prefix_allocation_reader_before_inputs)
+{
+    migraphx::module m1;
+    {
+        auto a3 = m1.add_instruction(make_allocate(2));
+        auto v1 = m1.add_instruction(simple_op{}, a3);
+        auto a1 = m1.add_instruction(make_allocate(1));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, a3);
+        auto r1 = m1.add_instruction(migraphx::make_op("identity"), v1, c1);
+        auto a4 = m1.add_instruction(make_allocate(1));
+        auto s3 = m1.add_instruction(simple_op{}, a4);
+        auto a5 = m1.add_instruction(make_allocate(3));
+        auto c2 =
+            m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, s3, a5);
+        m1.add_return({r1, c2});
+    }
+    run_pass(m1);
+    EXPECT(m1.validate() == m1.end());
+    migraphx::module m2;
+    {
+        auto super = m2.add_instruction(make_allocate(3));
+        auto view  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), super);
+        auto v1     = m2.add_instruction(simple_op{}, view);
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), super);
+        auto s2     = m2.add_instruction(simple_op{}, slice2);
+        auto id1    = m2.add_instruction(migraphx::make_op("identity"), view, s1, s2);
+        auto r1     = m2.add_instruction(migraphx::make_op("identity"), v1, id1);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), super);
+        auto s3  = m2.add_instruction(simple_op{}, slice3);
+        auto id2 = m2.add_instruction(migraphx::make_op("identity"), super, s1, s2, s3);
+        m2.add_return({r1, id2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// The returned identity reads the allocation of the smaller concat, which would become a
+// non-standard view
+TEST_CASE(nested_prefix_allocation_reader_non_standard)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 3));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 6));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto r1 = m1.add_instruction(migraphx::make_op("identity"), a3, c1);
+        auto a4 = m1.add_instruction(make_allocate(2, 3));
+        auto s3 = m1.add_instruction(simple_op{}, a4);
+        auto a5 = m1.add_instruction(make_allocate(2, 9));
+        auto c2 =
+            m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, s3, a5);
+        m1.add_return({r1, c2});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto super  = m2.add_instruction(make_allocate(2, 9));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), super);
+        auto s1     = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), super);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto a3 = m2.add_instruction(make_allocate(2, 6));
+        auto c1 = m2.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, a3);
+        auto r1 = m2.add_instruction(migraphx::make_op("identity"), a3, c1);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {9}}}), super);
+        auto s3 = m2.add_instruction(simple_op{}, slice3);
+        auto id = m2.add_instruction(migraphx::make_op("identity"), super, s1, s2, s3);
+        m2.add_return({r1, id});
     }
 
     EXPECT(m1.sort() == m2.sort());

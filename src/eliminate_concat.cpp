@@ -30,9 +30,13 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/output_iterator.hpp>
 
 #include <migraphx/dfor.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <cassert>
 #include <iterator>
 #include <numeric>
 #include <optional>
@@ -106,6 +110,13 @@ std::pair<instruction_ref, std::vector<operation>> get_view_chain(instruction_re
     }
     std::reverse(ops.begin(), ops.end());
     return {producer, ops};
+}
+
+bool is_packed(const shape& s, std::size_t axis)
+{
+    auto alens  = s.lens();
+    alens[axis] = 1;
+    return shape{s.type(), alens, s.strides()}.packed();
 }
 
 struct concat_optimizer
@@ -289,15 +300,199 @@ struct concat_optimizer
         return shape{super_shape.type(), input_shape.lens(), super_shape.strides()};
     }
 
-    void replace_concat(instruction_ref ins, std::size_t axis) const
+    // The axis of a concat that writes into its own allocation
+    std::optional<std::size_t> get_concat_axis(instruction_ref ins) const
     {
-        // Last input should be an allocation
-        auto last = ins->inputs().back();
-        if(not is_allocation(last))
-            return;
-        // Where are the allocations for the tensors to be concatenated?
-        std::vector<instruction_ref> allocations;
+        auto concat_op = opt->get_concat(ins->get_operator());
+        if(not concat_op.has_value() or not is_allocation(ins->inputs().back()))
+            return std::nullopt;
+        return tune_axis(
+            ins->inputs().front()->get_shape().ndim(), concat_op->axis, concat_op->name());
+    }
 
+    static auto data_inputs(instruction_ref ins)
+    {
+        return range(ins->inputs().begin(), std::prev(ins->inputs().end()));
+    }
+
+    // The position in the inputs of `ins` where the inputs of the smaller concat `sub` appear
+    // as a consecutive run
+    static std::optional<std::size_t> find_run(instruction_ref ins, instruction_ref sub)
+    {
+        auto inputs = data_inputs(ins);
+        auto run    = data_inputs(sub);
+        if(run.size() >= inputs.size())
+            return std::nullopt;
+        auto it = std::search(inputs.begin(), inputs.end(), run.begin(), run.end());
+        if(it == inputs.end())
+            return std::nullopt;
+        std::size_t pos = std::distance(inputs.begin(), it);
+        return pos;
+    }
+
+    // The other concats along the same axis that read the input
+    std::vector<instruction_ref>
+    concat_users(instruction_ref input, instruction_ref ins, std::size_t axis) const
+    {
+        std::vector<instruction_ref> result;
+        std::copy_if(input->outputs().begin(),
+                     input->outputs().end(),
+                     std::back_inserter(result),
+                     [&](instruction_ref out) {
+                         return out != ins and m->has_instruction(out) and
+                                get_concat_axis(out) == axis;
+                     });
+        return result;
+    }
+
+    bool can_replace(instruction_ref ins, std::size_t axis) const
+    {
+        auto inputs  = data_inputs(ins);
+        auto ncopies = std::count_if(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+            auto slice_shape = slice_shape_for(ins->get_shape(), input->get_shape());
+            return not plan_copy_elision(ins, input, slice_shape, axis).has_value();
+        });
+        if(ncopies > 1)
+            return false;
+        // The other consumers must support non-packed inputs
+        return std::none_of(inputs.begin(), inputs.end(), [&](instruction_ref input) {
+            if(input->outputs().size() < 2)
+                return false;
+            auto slice_shape = slice_shape_for(ins->get_shape(), input->get_shape());
+            if(is_packed(slice_shape, axis))
+                return false;
+            return std::any_of(
+                input->outputs().begin(), input->outputs().end(), [&](instruction_ref output) {
+                    if(output == ins)
+                        return false;
+                    return not opt->supports_non_packed_input(output, axis);
+                });
+        });
+    }
+
+    // The largest replaceable concat that has every input of this concat as a consecutive run
+    // of its own inputs, so the smaller concats become views of its buffer instead of each
+    // claiming the shared inputs for a buffer of their own
+    std::optional<instruction_ref> find_root(instruction_ref ins, std::size_t axis) const
+    {
+        auto users = concat_users(ins->inputs().front(), ins, axis);
+        std::vector<instruction_ref> candidates;
+        std::copy_if(users.begin(),
+                     users.end(),
+                     std::back_inserter(candidates),
+                     [&](instruction_ref user) { return find_run(user, ins).has_value(); });
+        candidates.push_back(ins);
+        std::stable_sort(
+            candidates.begin(), candidates.end(), by(std::greater<>{}, [](instruction_ref c) {
+                return c->inputs().size();
+            }));
+        auto it = std::find_if(candidates.begin(), candidates.end(), [&](instruction_ref c) {
+            return can_replace(c, axis);
+        });
+        if(it == candidates.end())
+            return std::nullopt;
+        return *it;
+    }
+
+    // A concat whose inputs are the inputs of a larger concat starting at `pos`
+    struct sub_concat
+    {
+        instruction_ref ins;
+        std::size_t pos = 0;
+        operation slice = {};
+    };
+
+    // The users of the concat and of its allocation can read them as a view of a larger buffer
+    bool can_alias(instruction_ref sub, const shape& view_shape, std::size_t axis) const
+    {
+        auto alloc = sub->inputs().back();
+        if(not is_packed(view_shape, axis))
+        {
+            auto reads_view = [&](instruction_ref out) {
+                return out == sub or opt->supports_non_packed_input(out, axis);
+            };
+            if(not std::all_of(sub->outputs().begin(), sub->outputs().end(), reads_view) or
+               not std::all_of(alloc->outputs().begin(), alloc->outputs().end(), reads_view))
+                return false;
+        }
+        return not makes_output_non_standard({{alloc, view_shape}, {sub, view_shape}}, {});
+    }
+
+    std::vector<sub_concat> find_sub_concats(instruction_ref ins, std::size_t axis) const
+    {
+        auto inputs = data_inputs(ins);
+        std::vector<std::size_t> starts(inputs.size());
+        // Qualified since ADL also finds std::transform_exclusive_scan where it exists
+        migraphx::transform_exclusive_scan(
+            inputs.begin(),
+            inputs.end(),
+            starts.begin(),
+            std::size_t{0},
+            std::plus<>{},
+            [&](instruction_ref input) { return input->get_shape().lens()[axis]; });
+        auto positions = range(inputs.size());
+        std::vector<sub_concat> result;
+        std::transform(
+            positions.begin(), positions.end(), join_back_inserter(result), [&](std::size_t pos) {
+                auto users = concat_users(ins->inputs()[pos], ins, axis);
+                std::vector<sub_concat> subs;
+                transform_if(
+                    users.begin(),
+                    users.end(),
+                    std::back_inserter(subs),
+                    [&](instruction_ref user) {
+                        // Take a concat once, at the input where its run starts
+                        if(user->inputs().front() != ins->inputs()[pos] or
+                           find_run(ins, user) != pos)
+                            return false;
+                        return can_alias(
+                            user, slice_shape_for(ins->get_shape(), user->get_shape()), axis);
+                    },
+                    [&](instruction_ref user) {
+                        return sub_concat{user, pos, make_slice(user, axis, starts[pos])};
+                    });
+                return subs;
+            });
+        return result;
+    }
+
+    // Replaces the concat and turns its sub concats into views of its buffer
+    void replace_concats(instruction_ref ins, std::size_t axis) const
+    {
+        auto subs = find_sub_concats(ins, axis);
+        std::vector<instruction_ref> allocations;
+        std::transform(subs.begin(),
+                       subs.end(),
+                       std::back_inserter(allocations),
+                       [](const sub_concat& sub) { return sub.ins->inputs().back(); });
+        auto args  = replace_concat(ins, axis, std::move(allocations));
+        auto super = args.front();
+        for(const auto& sub : subs)
+        {
+            auto size = sub.ins->inputs().size() - 1;
+            assert(sub.pos + size < args.size());
+            auto alloc = sub.ins->inputs().back();
+            // The concat was given a part of the buffer to write, so it has to stay
+            if(not is_allocation(alloc))
+                continue;
+            auto view = m->insert_instruction(std::next(super), sub.slice, super);
+            // The writers of the buffer stay as inputs so the view is read after they run
+            std::vector<instruction_ref> inputs = {view};
+            auto first                          = args.begin() + 1 + sub.pos;
+            inputs.insert(inputs.end(), first, first + size);
+            m->replace_instruction(sub.ins, make_op("identity"), inputs);
+            // Nothing writes to the allocation anymore, so its other users read the view
+            m->replace_instruction(alloc, view);
+        }
+    }
+
+    // The super buffer is placed before `allocations` as well as the allocations of the inputs
+    std::vector<instruction_ref> replace_concat(instruction_ref ins,
+                                                std::size_t axis,
+                                                std::vector<instruction_ref> allocations) const
+    {
+        auto last = ins->inputs().back();
+        assert(is_allocation(last));
         std::transform(ins->inputs().begin(),
                        std::prev(ins->inputs().end()),
                        std::back_inserter(allocations),
@@ -330,15 +525,9 @@ struct concat_optimizer
                            return x;
                        });
         m->replace_instruction(ins, migraphx::make_op("identity"), args);
+        return args;
     }
 };
-
-bool is_packed(const shape& s, std::size_t axis)
-{
-    auto alens  = s.lens();
-    alens[axis] = 1;
-    return shape{s.type(), alens, s.strides()}.packed();
-}
 
 } // namespace
 
@@ -347,40 +536,13 @@ void eliminate_concat::apply(module& m) const
     concat_optimizer co{&m, concat_opt.allocation(), &concat_opt};
     for(auto ins : iterator_for(m))
     {
-        auto concat_op = concat_opt.get_concat(ins->get_operator());
-        // Look for the concat operator
-        if(not concat_op.has_value())
+        auto axis = co.get_concat_axis(ins);
+        if(not axis.has_value())
             continue;
-        auto lens        = ins->inputs().front()->get_shape().lens();
-        std::size_t axis = tune_axis(lens.size(), concat_op->axis, concat_op->name());
-        auto ncopies     = std::count_if(
-            ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
-                auto slice_shape =
-                    concat_optimizer::slice_shape_for(ins->get_shape(), input->get_shape());
-                return not co.plan_copy_elision(ins, input, slice_shape, axis).has_value();
-            });
-        if(ncopies > 1)
+        auto root = co.find_root(ins, *axis);
+        if(not root.has_value())
             continue;
-        // If the other consumers cant support non-packed inputs
-        if(std::any_of(
-               ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
-                   if(input->outputs().size() < 2)
-                       return false;
-                   auto slice_shape =
-                       concat_optimizer::slice_shape_for(ins->get_shape(), input->get_shape());
-                   if(is_packed(slice_shape, axis))
-                       return false;
-                   return std::any_of(input->outputs().begin(),
-                                      input->outputs().end(),
-                                      [&](instruction_ref output) {
-                                          if(output == ins)
-                                              return false;
-                                          return not concat_opt.supports_non_packed_input(output,
-                                                                                          axis);
-                                      });
-               }))
-            continue;
-        co.replace_concat(ins, axis);
+        co.replace_concats(*root, *axis);
     }
 }
 } // namespace MIGRAPHX_INLINE_NS

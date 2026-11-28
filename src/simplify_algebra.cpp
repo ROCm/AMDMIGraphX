@@ -2153,6 +2153,21 @@ struct find_conv_concat_split_fuse
         return reaches(output, conv_b);
     }
 
+    // The fusion reads the prefix once instead of twice, but conv_b becomes two partial sums
+    // that an extra add reads back, and conv_a no longer fuses with its activation. That only
+    // pays off for a wide prefix that is costly to read again (thresholds tuned on gfx1201).
+    static bool is_profitable(const shape& prefix, const shape& weights, std::size_t out_chans)
+    {
+        const auto& wlens = weights.lens();
+        assert(wlens.size() >= 2);
+        auto taps =
+            std::accumulate(wlens.begin() + 2, wlens.end(), std::size_t{1}, std::multiplies<>{});
+        const std::size_t min_channel_ratio = 8;
+        const std::size_t min_bytes         = 32 * 1024 * 1024;
+        return prefix.lens()[1] >= min_channel_ratio * out_chans and
+               prefix.bytes() * taps >= min_bytes;
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto conv_b     = r.result;
@@ -2235,6 +2250,9 @@ struct find_conv_concat_split_fuse
 
         auto out_a = weight_a->get_shape().lens()[0];
         auto out_b = weight_b->get_shape().lens()[0];
+
+        if(not is_profitable(input_a->get_shape(), weight_a->get_shape(), out_a + out_b))
+            return;
 
         // --- Insert fused conv and slices at conv_a's position ---
         auto w_b_prefix = m.insert_instruction(

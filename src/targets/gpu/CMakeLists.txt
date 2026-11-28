@@ -129,6 +129,19 @@ add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
 target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fnative-half-arguments-and-returns)
 target_link_options(compile_for_gpu INTERFACE  -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
+option(MIGRAPHX_CLANG_OFFLOAD_COMPRESS "Compress GPU device code with clang --offload-compress" ON)
+message(STATUS "MIGRAPHX_CLANG_OFFLOAD_COMPRESS = ${MIGRAPHX_CLANG_OFFLOAD_COMPRESS}")
+# clang-offload-bundler before LLVM 24 may lack llvm/llvm-project#182579 and fail to
+# unbundle the concatenated compressed bundles of a linked library
+if(MIGRAPHX_CLANG_OFFLOAD_COMPRESS AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 24)
+    message(STATUS "Clang ${CMAKE_CXX_COMPILER_VERSION} < 24, building without --offload-compress")
+elseif(MIGRAPHX_CLANG_OFFLOAD_COMPRESS)
+    if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        target_compile_options(compile_for_gpu INTERFACE /clang:--offload-compress)
+    else()
+        target_compile_options(compile_for_gpu INTERFACE --offload-compress)
+    endif()
+endif()
 target_link_libraries(compile_for_gpu INTERFACE hip::device)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
 
@@ -258,6 +271,7 @@ add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
     binary_cache.cpp
+    check_recompiled_memory.cpp
     code_object_op.cpp
     compiled_code.cpp
     compile_ops.cpp
@@ -272,6 +286,7 @@ add_library(migraphx_gpu
     device_name.cpp
     eliminate_data_type_for_gpu.cpp
     eliminate_device_copy.cpp
+    eliminate_recompile_anchors.cpp
     file_binary_cache.cpp
     fixed_pad.cpp
     fuse_ck.cpp
@@ -301,6 +316,8 @@ add_library(migraphx_gpu
     prepare_reduce.cpp
     pooling.cpp
     problem_cache.cpp
+    record_compiled_for.cpp
+    restore_recipes.cpp
     rocblas.cpp
     schedule_model.cpp
     sqlite_binary_cache.cpp
@@ -425,7 +442,7 @@ else()
     target_flags(HIP_COMPILER_FLAGS hip::device)
 
     # Remove cuda arch flags
-    string(REGEX REPLACE "--cuda-gpu-arch=[a-z0-9]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+    string(REGEX REPLACE "--cuda-gpu-arch=[a-z0-9:+-]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
     string(REGEX REPLACE "--offload-arch=[a-z0-9:+-]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 
     # Skip library paths since hip will incorrectly treat it as a source file

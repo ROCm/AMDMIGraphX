@@ -2551,7 +2551,9 @@ struct find_splits
     }
 
     /**
-     * Check if any split group depends on instructions from another split group.
+     * Check if any split group depends on instructions from another split group, or a member of a
+     * group on another member of the same group. Fusing such a group would make the fused
+     * instruction read a slice of its own result.
      * m : module containing instructions
      * root : "root" instruction that has contiguous slice instructions as outputs
      * groups : split groups from get_split_groups
@@ -2563,6 +2565,25 @@ struct find_splits
         for(int i = 0; i < groups.size(); ++i)
         {
             const auto& group_i = groups.at(i);
+            const std::unordered_set<instruction_ref> members(group_i.begin(), group_i.end());
+            if(std::any_of(group_i.begin(), group_i.end(), [&](auto ins) {
+                   std::unordered_set<instruction_ref> visited;
+                   return std::any_of(ins->inputs().begin(),
+                                      ins->inputs().end(),
+                                      fix<bool>([&](auto self, instruction_ref input) -> bool {
+                                          if(not m.has_instruction(input))
+                                              return false;
+                                          if(contains(members, input))
+                                              return true;
+                                          if(input == root or not visited.insert(input).second)
+                                              return false;
+                                          return std::any_of(
+                                              input->inputs().begin(), input->inputs().end(), self);
+                                      }));
+               }))
+            {
+                return true;
+            }
             std::vector<std::vector<instruction_ref>> groups_less_i(groups.size() - 1);
             std::copy(groups.cbegin(), groups.cbegin() + i, groups_less_i.begin());
             std::copy(groups.cbegin() + i + 1, groups.cend(), groups_less_i.begin() + i);

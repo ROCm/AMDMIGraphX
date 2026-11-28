@@ -223,6 +223,19 @@ TEST_CASE(simple_compile_hip)
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
 }
 
+TEST_CASE(concurrent_compile_hip_processes)
+{
+    constexpr std::size_t n = 8;
+    std::vector<std::vector<std::vector<char>>> binaries(n);
+    // Distinct flags keep the eight requests from being byte-identical.
+    migraphx::par_for(n, 1, [&](std::size_t i) {
+        binaries[i] = migraphx::gpu::compile_hip_src({make_src_file("main.cpp", write_2s)},
+                                                     {"-DMIGRAPHX_TEST_ID=" + std::to_string(i)},
+                                                     migraphx::gpu::get_device_name());
+    });
+    EXPECT(migraphx::all_of(binaries, [](const auto& result) { return result.size() == 1; }));
+}
+
 // The compiled write_2s code object
 static std::vector<char> compile_write_2s()
 {

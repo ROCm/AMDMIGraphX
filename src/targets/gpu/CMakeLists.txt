@@ -24,6 +24,25 @@
 
 find_package(hip REQUIRED)
 
+# A short identity for a list of toolchain libraries, used to separate binary cache entries
+# that different toolchains cannot share. Non-file entries (e.g. target names) are skipped.
+function(migraphx_hash_libraries LIB_PATHS OUT_VAR)
+    set(HASH_INPUT "")
+    foreach(LIB_PATH IN LISTS LIB_PATHS)
+        if(EXISTS "${LIB_PATH}" AND NOT IS_DIRECTORY "${LIB_PATH}")
+            file(MD5 "${LIB_PATH}" HASH_FILE_MD5)
+            string(APPEND HASH_INPUT "${HASH_FILE_MD5};")
+        endif()
+    endforeach()
+    if(HASH_INPUT STREQUAL "")
+        set(${OUT_VAR} "unknown" PARENT_SCOPE)
+        return()
+    endif()
+    string(MD5 HASH_RESULT "${HASH_INPUT}")
+    string(SUBSTRING "${HASH_RESULT}" 0 12 HASH_RESULT)
+    set(${OUT_VAR} "${HASH_RESULT}" PARENT_SCOPE)
+endfunction()
+
 # MIGRAPHX_USE_AMDMLSS is resolved to a plain boolean at the top-level CMakeLists.
 if(MIGRAPHX_USE_AMDMLSS)
     message(STATUS "MIGraphX is using AMDMLSS")
@@ -110,6 +129,19 @@ add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
 target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fnative-half-arguments-and-returns)
 target_link_options(compile_for_gpu INTERFACE  -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
+option(MIGRAPHX_CLANG_OFFLOAD_COMPRESS "Compress GPU device code with clang --offload-compress" ON)
+message(STATUS "MIGRAPHX_CLANG_OFFLOAD_COMPRESS = ${MIGRAPHX_CLANG_OFFLOAD_COMPRESS}")
+# clang-offload-bundler before LLVM 24 may lack llvm/llvm-project#182579 and fail to
+# unbundle the concatenated compressed bundles of a linked library
+if(MIGRAPHX_CLANG_OFFLOAD_COMPRESS AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 24)
+    message(STATUS "Clang ${CMAKE_CXX_COMPILER_VERSION} < 24, building without --offload-compress")
+elseif(MIGRAPHX_CLANG_OFFLOAD_COMPRESS)
+    if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        target_compile_options(compile_for_gpu INTERFACE /clang:--offload-compress)
+    else()
+        target_compile_options(compile_for_gpu INTERFACE --offload-compress)
+    endif()
+endif()
 target_link_libraries(compile_for_gpu INTERFACE hip::device)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
 
@@ -238,7 +270,10 @@ endif()
 add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
+    binary_cache.cpp
+    check_recompiled_memory.cpp
     code_object_op.cpp
+    compiled_code.cpp
     compile_ops.cpp
     compile_gen.cpp
     compile_hip.cpp
@@ -250,14 +285,20 @@ add_library(migraphx_gpu
     device_description.cpp
     device_name.cpp
     eliminate_data_type_for_gpu.cpp
+    eliminate_device_copy.cpp
+    eliminate_recompile_anchors.cpp
+    file_binary_cache.cpp
     fixed_pad.cpp
     fuse_ck.cpp
+    fuse_concat_past_present.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gemm_impl.cpp
     hip.cpp
     hipblaslt.cpp
     hip_gemm_impl.cpp
+    hip_graph.cpp
+    hipgraphify.cpp
     hsa_chiplet.cpp
     json_problem_cache.cpp
     kernel.cpp
@@ -275,8 +316,11 @@ add_library(migraphx_gpu
     prepare_reduce.cpp
     pooling.cpp
     problem_cache.cpp
+    record_compiled_for.cpp
+    restore_recipes.cpp
     rocblas.cpp
     schedule_model.cpp
+    sqlite_binary_cache.cpp
     sqlite_problem_cache.cpp
     sync_device.cpp
     target.cpp
@@ -351,6 +395,32 @@ if(MIGRAPHX_ENABLE_MLIR)
     find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
+
+    # Identify the rocMLIR build for the binary cache by hashing the libraries that get linked.
+    # That covers a locally built or substituted rocMLIR, which a recorded version or commit
+    # would not.
+    get_target_property(MIGRAPHX_ROCKCOMPILER_LIBS rocMLIR::rockCompiler IMPORTED_LOCATION)
+    if(NOT MIGRAPHX_ROCKCOMPILER_LIBS)
+        # rockCompiler is an interface target that names its archives as link dependencies:
+        # the fat librockCompiler.a on Linux, many smaller archives on Windows.
+        get_target_property(MIGRAPHX_ROCKCOMPILER_LIBS rocMLIR::rockCompiler
+                            INTERFACE_LINK_LIBRARIES)
+    endif()
+    # Only rocMLIR's own archives identify the build, so skip the upstream LLVM/MLIR archives
+    # also linked on Windows. Match the file name alone since paths can contain these names.
+    set(MIGRAPHX_ROCMLIR_LIBS "")
+    foreach(MIGRAPHX_ROCKCOMPILER_LIB IN LISTS MIGRAPHX_ROCKCOMPILER_LIBS)
+        get_filename_component(MIGRAPHX_ROCKCOMPILER_LIB_NAME "${MIGRAPHX_ROCKCOMPILER_LIB}"
+                               NAME)
+        string(TOLOWER "${MIGRAPHX_ROCKCOMPILER_LIB_NAME}" MIGRAPHX_ROCKCOMPILER_LIB_NAME)
+        if(MIGRAPHX_ROCKCOMPILER_LIB_NAME MATCHES "rock|roctarget|rocmlir|migraphx|mhal")
+            list(APPEND MIGRAPHX_ROCMLIR_LIBS "${MIGRAPHX_ROCKCOMPILER_LIB}")
+        endif()
+    endforeach()
+    migraphx_hash_libraries("${MIGRAPHX_ROCMLIR_LIBS}" MIGRAPHX_ROCMLIR_ID)
+    message(STATUS "rocMLIR binary cache id: ${MIGRAPHX_ROCMLIR_ID}")
+    target_compile_definitions(migraphx_gpu
+                               PRIVATE "-DMIGRAPHX_ROCMLIR_ID=\"${MIGRAPHX_ROCMLIR_ID}\"")
     # Make this private to avoid multiple inclusions of LLVM symbols.
     target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
     # Hide LLVM internals that come from rocMLIR.
@@ -372,7 +442,7 @@ else()
     target_flags(HIP_COMPILER_FLAGS hip::device)
 
     # Remove cuda arch flags
-    string(REGEX REPLACE "--cuda-gpu-arch=[a-z0-9]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+    string(REGEX REPLACE "--cuda-gpu-arch=[a-z0-9:+-]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
     string(REGEX REPLACE "--offload-arch=[a-z0-9:+-]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 
     # Skip library paths since hip will incorrectly treat it as a source file

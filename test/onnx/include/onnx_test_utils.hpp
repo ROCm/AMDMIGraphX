@@ -205,6 +205,7 @@ make_attention_program(const uint64_t batch,
     return p;
 }
 
+// NOLINTNEXTLINE(readability-function-size)
 inline migraphx::program create_gqa_program(const size_t batch_size,
                                             const size_t num_heads,
                                             const size_t kv_num_heads,
@@ -214,7 +215,8 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
                                             const size_t max_sequence_length,
                                             const bool do_rotary,
                                             const float scale,
-                                            const bool non_packed = false)
+                                            const bool non_packed    = false,
+                                            const bool use_head_sink = false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -239,12 +241,24 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     mm->add_literal(slk_s, tsl_vec);
     auto cos_cache = mm->add_literal(cs_cache_s, cs_max_vec);
     auto sin_cache = mm->add_literal(cs_cache_s, cs_max_vec);
+    migraphx::instruction_ref sink_lit;
+    if(use_head_sink)
+    {
+        sink_lit = mm->add_literal(migraphx::shape{dtype, {num_heads}},
+                                   std::vector<float>(num_heads, 1.0));
+    }
 
     auto query = mm->add_parameter(non_packed ? "query" : "qkv", query_s);
     auto key   = mm->add_parameter("key", key_value_s);
     auto value = mm->add_parameter("value", key_value_s);
     auto k     = mm->add_parameter("past_key_values_key", kv_s);
     auto v     = mm->add_parameter("past_key_values_value", kv_s);
+
+    if(use_head_sink)
+    {
+        // the model's empty position_ids/attention_bias inputs parse to one undefined instruction
+        mm->add_instruction(migraphx::make_op("undefined"));
+    }
 
     if(non_packed)
     {
@@ -364,8 +378,24 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, mask_comp);
     mask      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), mask);
-    auto where   = mm->add_instruction(migraphx::make_op("where"), mask, ninf, mul);
+    auto where = mm->add_instruction(migraphx::make_op("where"), mask, ninf, mul);
+    if(use_head_sink)
+    {
+        auto sink = mm->add_instruction(
+            migraphx::make_op("reshape", {{"dims", {1, num_heads, 1, 1}}}), sink_lit);
+        sink = mm->add_instruction(
+            migraphx::make_op("multibroadcast",
+                              {{"out_lens", {batch_size, num_heads, sequence_length, 1}}}),
+            sink);
+        where = mm->add_instruction(migraphx::make_op("concat", {{"axis", 3}}), where, sink);
+    }
     auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where);
+    if(use_head_sink)
+    {
+        softmax = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {max_seq_len}}}),
+            softmax);
+    }
     auto scores  = mm->add_instruction(migraphx::make_op("dot"), softmax, v);
     auto out = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                    scores);
@@ -461,6 +491,12 @@ inline migraphx::program create_external_data_prog()
     return p;
 }
 
+struct group_norm_options
+{
+    bool is_contrib = false;
+    bool stash_type = true;
+};
+
 inline migraphx::program make_group_norm(
     const std::vector<int64_t>& input_dims,
     const std::vector<int64_t>& scale_dims,
@@ -472,7 +508,8 @@ inline migraphx::program make_group_norm(
     const std::pair<std::string, migraphx::shape::type_t>& param1 = {"scale",
                                                                      migraphx::shape::float_type},
     const std::pair<std::string, migraphx::shape::type_t>& param2 = {"bias",
-                                                                     migraphx::shape::float_type})
+                                                                     migraphx::shape::float_type},
+    group_norm_options options                                    = {})
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -482,13 +519,20 @@ inline migraphx::program make_group_norm(
     auto bias  = mm->add_parameter(param2.first, {param2.second, bias_dims});
 
     auto x_dims = x->get_shape().lens();
+    const auto compute_dtype =
+        (options.is_contrib or options.stash_type) ? migraphx::shape::float_type : dtype;
+    const auto affine_dtype = options.is_contrib ? compute_dtype : dtype;
+    if(compute_dtype != dtype)
+        x = mm->add_instruction(migraphx::make_op("convert", {{"target_type", compute_dtype}}), x);
 
-    auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
+    auto eps = mm->add_literal(migraphx::literal{compute_dtype, {eps_value}});
 
-    if(scale->get_shape().type() != dtype)
-        scale = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), scale);
-    if(bias->get_shape().type() != dtype)
-        bias = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), bias);
+    if(scale->get_shape().type() != affine_dtype)
+        scale = mm->add_instruction(migraphx::make_op("convert", {{"target_type", affine_dtype}}),
+                                    scale);
+    if(bias->get_shape().type() != affine_dtype)
+        bias = mm->add_instruction(migraphx::make_op("convert", {{"target_type", affine_dtype}}),
+                                   bias);
 
     auto x_reshaped =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims}}), x);
@@ -501,6 +545,9 @@ inline migraphx::program make_group_norm(
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
     auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
     auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    if(compute_dtype != affine_dtype)
+        result = mm->add_instruction(migraphx::make_op("convert", {{"target_type", affine_dtype}}),
+                                     result);
     auto result_reshaped =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", x_dims}}), result);
     auto scale_bcast = mm->add_instruction(
@@ -508,7 +555,9 @@ inline migraphx::program make_group_norm(
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), bias);
     auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result_reshaped, scale_bcast});
-    mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    auto output = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    if(affine_dtype != dtype)
+        mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), output);
 
     return p;
 }
@@ -566,15 +615,11 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
                 scale);
         }
 
-        if(not skip_bias)
+        if(not skip_bias and scale_bias_shape.size() == 1)
         {
-            if(scale_bias_shape.size() == 1)
-            {
-                bias_bcast = mm->add_instruction(
-                    migraphx::make_op("broadcast",
-                                      {{"axis", skipped_axis}, {"out_lens", input_shape}}),
-                    bias);
-            }
+            bias_bcast = mm->add_instruction(
+                migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
+                bias);
         }
     }
     auto scaled = add_common_op(*mm, migraphx::make_op("mul"), {result, scale_bcast});

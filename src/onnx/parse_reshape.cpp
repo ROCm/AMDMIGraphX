@@ -27,6 +27,9 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/reshape_dims.hpp>
+#include <migraphx/symbolic_shape_helpers.hpp>
+
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,17 +39,61 @@ struct parse_reshape : op_parser<parse_reshape>
 {
     std::vector<op_desc> operators() const { return {{"Reshape"}}; }
 
+    template <class T>
+    static std::optional<instruction_ref> add_runtime_reshape(const onnx_parser::node_info& info,
+                                                              instruction_ref input,
+                                                              const std::vector<T>& reshape_dims)
+    {
+        const auto& input_shape = input->get_shape();
+        const shape output_shape{input_shape.type(),
+                                 resolve_reshape_dims(input_shape.to_symbolic(), reshape_dims)};
+        validate_reshape_element_count("PARSE_RESHAPE", input_shape, output_shape, reshape_dims);
+        const auto output_expressions = output_shape.sym_dims();
+        auto sources                  = find_expression_sources(
+            *info.mod, std::vector<instruction_ref>{input}, output_expressions);
+        if(not sources.has_value())
+            return std::nullopt;
+        const auto resolved_dims = info.add_instruction(
+            make_op("eval_expr_from_shape", {{"expressions", to_value(output_expressions)}}),
+            *sources);
+        auto allocation = info.add_instruction(
+            make_op("allocate", {{"shape", to_value(output_shape)}}), resolved_dims);
+        return info.add_instruction(make_op("reshape"), input, allocation);
+    }
+
+    static instruction_ref add_shape_tensor_reshape(const onnx_parser::node_info& info,
+                                                    instruction_ref input,
+                                                    instruction_ref shape_input)
+    {
+        auto allocation = info.add_instruction(
+            make_op("allocate", {{"buf_type", input->get_shape().type()}}), shape_input);
+        return info.add_instruction(make_op("reshape"), input, allocation);
+    }
+
+    static std::optional<instruction_ref> add_evaluated_reshape(const onnx_parser::node_info& info,
+                                                                instruction_ref input,
+                                                                const std::vector<int64_t>& dims)
+    {
+        if(not input->get_shape().symbolic())
+            return info.add_instruction(make_op("reshape", {{"dims", dims}}), input);
+        return add_runtime_reshape(info, input, std::vector<dim_like>{dims.begin(), dims.end()});
+    }
+
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
         std::vector<int64_t> dims;
+
         if(args.size() == 1)
         {
             literal s = parser.parse_value(info.attributes.at("shape"));
             s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
-            return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
+            auto result = add_evaluated_reshape(info, args[0], dims);
+            if(result.has_value())
+                return *result;
+            MIGRAPHX_THROW("PARSE_RESHAPE: symbolic dimension has no shape source");
         }
         else
         {
@@ -55,37 +102,25 @@ struct parse_reshape : op_parser<parse_reshape>
             if(s.empty())
             {
                 // arg[1] not eval-able
-                instruction_ref alloc_ins;
                 const auto symbolic_dims = args[1]->sym_eval();
                 const auto& input_shape  = args[0]->get_shape();
                 if(not symbolic_dims.empty() and
                    (not input_shape.dynamic() or input_shape.symbolic()))
                 {
-                    const auto output_dims = resolve_reshape_dims(input_shape.to_symbolic(),
-                                                                  symbolic_dims.get().to_vector());
-                    std::vector<sym::expr> output_expressions(output_dims.size());
-                    transform(output_dims, output_expressions.begin(), [](const auto& dim) {
-                        return dim.sym_expr;
-                    });
-                    const auto resolved_dims = info.add_instruction(
-                        make_op("eval_expr_from_shape",
-                                {{"expressions", to_value(output_expressions)}}),
-                        info.mod->get_parameters());
-                    const shape output_shape{input_shape.type(), output_dims};
-                    alloc_ins = info.add_instruction(
-                        make_op("allocate", {{"shape", to_value(output_shape)}}), resolved_dims);
+                    auto result =
+                        add_runtime_reshape(info, args[0], symbolic_dims.get().to_vector());
+                    if(result.has_value())
+                        return *result;
                 }
-                else
-                {
-                    alloc_ins = info.add_instruction(
-                        make_op("allocate", {{"buf_type", input_shape.type()}}), args[1]);
-                }
-                return info.add_instruction(make_op("reshape"), args[0], alloc_ins);
+                return add_shape_tensor_reshape(info, args[0], args[1]);
             }
             else
             {
                 s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
-                return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
+                auto result = add_evaluated_reshape(info, args[0], dims);
+                if(result.has_value())
+                    return *result;
+                MIGRAPHX_THROW("PARSE_RESHAPE: symbolic dimension has no shape source");
             }
         }
     }

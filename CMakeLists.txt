@@ -147,7 +147,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.18.0)
+rocm_setup_version(VERSION 2.20.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
@@ -229,6 +229,7 @@ rocm_enable_clang_tidy(
         readability-*
         -bugprone-crtp-constructor-accessibility
         -bugprone-derived-method-shadowing-base-method
+        -bugprone-dynamic-static-initializers
         -bugprone-easily-swappable-parameters
         -bugprone-exception-escape
         -bugprone-fold-init-type
@@ -270,7 +271,6 @@ rocm_enable_clang_tidy(
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-unused-command-line-argument
-        -cppcoreguidelines-avoid-const-or-ref-data-members
         -cppcoreguidelines-avoid-do-while
         -cppcoreguidelines-explicit-virtual-functions
         -cppcoreguidelines-init-variables

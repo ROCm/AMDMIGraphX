@@ -59,7 +59,12 @@ struct MIGRAPHX_EXPORT program
 
     program();
 
-    explicit program(module m);
+    /// A program of a copy of the module and copies of the submodules it
+    /// references, with cross-module references remapped to the copies
+    explicit program(const module& m);
+
+    /// Same as above, but moves the module rather than copying it
+    explicit program(module&& m);
 
     // move constructor
     program(program&&) noexcept;
@@ -110,6 +115,14 @@ struct MIGRAPHX_EXPORT program
     void compile(const std::vector<target>& targets,
                  std::vector<compile_options> compile_opts = {});
 
+    /**
+     * Recompile the kernels of a program compiled with compile_options::recompilable for the
+     * target `t`, keeping the graph, literals, memory plan and schedule. Only `options` is used;
+     * the options recorded when the program was compiled are not. The program is unchanged if
+     * recompiling fails. Throws if `t` does not support recompiling.
+     */
+    void recompile(const target& t, compile_options options = compile_options{});
+
     bool is_compiled() const;
 
     void finalize();
@@ -129,6 +142,9 @@ struct MIGRAPHX_EXPORT program
 
     value to_value() const;
     void from_value(const value& v);
+    /// When `finalize` is false the contexts are not restored and the kernels are not loaded, so a
+    /// program compiled for another device can be opened. The contexts are created on first use.
+    void from_value(const value& v, bool finalize);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
@@ -180,6 +196,11 @@ struct MIGRAPHX_EXPORT program
     // the MXR file. This does not apply to changes made to operators.
     static constexpr int program_file_version = 8;
 };
+
+/// Lets a program be a member of a reflected type, using the same conversion as saving one.
+inline void migraphx_to_value(value& v, const program& p) { v = p.to_value(); }
+inline void migraphx_from_value(const value& v, program& p) { p.from_value(v); }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

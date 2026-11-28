@@ -30,6 +30,8 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/value.hpp>
+#include <cassert>
 #include <utility>
 
 namespace migraphx {
@@ -52,6 +54,9 @@ MIGRAPHX_GPU_EXPORT void set_device(std::size_t id);
 
 MIGRAPHX_GPU_EXPORT void gpu_sync();
 MIGRAPHX_GPU_EXPORT void gpu_sync(const context& ctx);
+// Spin until the stream is idle to avoid the scheduler wake latency of a
+// blocking synchronize
+MIGRAPHX_GPU_EXPORT void gpu_spin_sync(context& ctx);
 
 MIGRAPHX_GPU_EXPORT void gpu_copy(context& ctx, const argument& src, const argument& dst);
 MIGRAPHX_GPU_EXPORT void copy_to_gpu(context& ctx, const argument& src, const argument& dst);
@@ -83,6 +88,8 @@ struct hip_allocate
     }
 
     std::string name() const { return "hip::allocate"; }
+    value attributes() const { return {{"side_effect", true}}; }
+
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(0);
@@ -142,6 +149,42 @@ struct hip_sync_stream
         if(args.empty())
             return {};
         return {0};
+    }
+};
+
+// Copy a single scalar from the gpu to the host and wait for it so later
+// host-side view ops (e.g. gpu::slice_at) can read it during eval
+struct hip_load_scalar
+{
+    // Pinned host buffer allocated in finalize(); not reflected
+    argument result{};
+
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "hip::load_scalar"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        if(inputs.front().element_space() != 1)
+            MIGRAPHX_THROW("LOAD_SCALAR: input must occupy a single element");
+        return inputs.front();
+    }
+    void finalize(context&, const shape& output_shape, const std::vector<shape>&)
+    {
+        result = allocate_gpu(output_shape, true);
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        // Stride-0 inputs are not packed, so copy a one-element view to stay on the memcpy path
+        assert(args.front().get_shape().type() == result.get_shape().type());
+        shape element{result.get_shape().type()};
+        copy_from_gpu(ctx, args.front().reshape(element), result.reshape(element));
+        gpu_spin_sync(ctx);
+        return result;
     }
 };
 

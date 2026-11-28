@@ -43,9 +43,7 @@ std::vector<char> pack_args_impl(const PackArgs& args)
     {
         std::size_t n = get_size(arg);
         const auto* p = get_data(arg);
-        // Insert padding
-        std::size_t padding = (arg.align - (kernargs.size() % arg.align)) % arg.align;
-        kernargs.insert(kernargs.end(), padding, 0);
+        kernargs.insert(kernargs.end(), pack_padding(kernargs.size(), arg.align), 0);
         kernargs.insert(kernargs.end(), p, p + n);
     }
     return kernargs;

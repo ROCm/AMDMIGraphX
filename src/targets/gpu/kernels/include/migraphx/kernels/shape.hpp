@@ -202,12 +202,7 @@ struct shape : equality_comparable<shape<Lens, Strides>>
 template <class Pos, class Lens>
 constexpr bool in_bounds(Pos pos, Lens lens)
 {
-    for(index_int d = 0; d < pos.size(); d++)
-    {
-        if(pos[d] >= lens[d])
-            return false;
-    }
-    return true;
+    return sequence(pos.size(), [&](auto... d) { return ((pos[d] < lens[d]) and ...); });
 }
 
 template <class Lens>
@@ -231,6 +226,7 @@ constexpr auto calculate_strides(Lens)
 template <class Lens, class Strides>
 constexpr shape<Lens, Strides> make_shape(Lens lens, Strides strides)
 {
+    MIGRAPHX_ASSERT(lens.product() != 0);
     return {lens, strides};
 }
 

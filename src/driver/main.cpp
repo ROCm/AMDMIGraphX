@@ -207,6 +207,8 @@ struct loader
     bool brief                  = false;
     bool verbose                = false;
     bool strip_context          = false;
+    // Load the kernels of a compiled MIGraphX file; false opens files compiled for another GPU
+    bool finalize               = true;
     bool use_debug_symbols      = false;
     bool use_symbolic           = false;
     std::string output_type;
@@ -527,9 +529,7 @@ struct loader
             log::info() << "Reading: " << file;
             if(file_type == "json")
             {
-                file_options options;
-                options.format = "json";
-                p              = migraphx::load(file, options);
+                p = migraphx::load(file, {.format = "json", .finalize = finalize});
             }
 #ifdef MIGRAPHX_ENABLE_ONNX
             else if(file_type == "onnx")
@@ -551,7 +551,7 @@ struct loader
 #endif
             else if(file_type == "migraphx")
             {
-                p = migraphx::load(file);
+                p = migraphx::load(file, {.finalize = finalize});
             }
         }
         if(trim > 0)
@@ -780,7 +780,8 @@ struct compiler_target
            {"--gpu-arch-params"},
            ap.help("Device properties to assume for cross-compilation, as a JSON object "
                    "(format: \"{arch:gfx942, num_cu:120, num_chiplets:1, "
-                   "max_threads_per_cu:2048, max_threads_per_block:1024, wavefront_size:32}\"). "
+                   "max_threads_per_cu:2048, max_threads_per_block:1024, wavefront_size:32, "
+                   "max_shared_memory_per_block:65536}\"). "
                    "Overrides --gpu-arch, --gpu-num-cus, --gpu-num-chiplets and "
                    "--gpu-wavefront-size for any keys present."));
     }
@@ -793,7 +794,8 @@ struct compiler_target
             {"num_chiplets", "gpu_num_chiplets"},
             {"max_threads_per_cu", "gpu_max_threads_per_cu"},
             {"max_threads_per_block", "gpu_max_threads_per_block"},
-            {"wavefront_size", "gpu_wavefront_size"}};
+            {"wavefront_size", "gpu_wavefront_size"},
+            {"max_shared_memory_per_block", "gpu_max_shared_memory_per_block"}};
         return key_map;
     }
 
@@ -831,6 +833,16 @@ struct compiler_target
     }
 };
 
+static void apply_backend_options(compile_options& co, const std::string& backend_options)
+{
+    if(backend_options.empty())
+        return;
+    auto v = from_json_string(convert_to_json(backend_options));
+    if(not v.is_object())
+        MIGRAPHX_THROW("--backend-options must be a JSON object");
+    migraphx::set_backend_options(co, v);
+}
+
 struct compiler
 {
     loader l;
@@ -857,7 +869,7 @@ struct compiler
            ap.help("Target-specific compile options, as a JSON object (format: "
                    "\"{convolution_layout:channels_last}\"). Options the target does not "
                    "recognize are ignored."));
-        ap.post_action([this](auto&&) { this->apply_backend_options(); });
+        ap.post_action([this](auto&&) { apply_backend_options(co, backend_options); });
         ap(co.offload_copy,
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
@@ -869,6 +881,11 @@ struct compiler
         ap(co.exhaustive_tune,
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
+           ap.set_value(true));
+        ap(co.recompilable,
+           {"--recompilable"},
+           ap.help("Keep each kernel's compile recipe, so the recompile command can recompile "
+                   "the program for another GPU, of a newer or an older generation"),
            ap.set_value(true));
         ap(co.compile_mode,
            {"--compile-mode"},
@@ -883,16 +900,6 @@ struct compiler
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
-    }
-
-    void apply_backend_options()
-    {
-        if(backend_options.empty())
-            return;
-        auto v = from_json_string(convert_to_json(backend_options));
-        if(not v.is_object())
-            MIGRAPHX_THROW("--backend-options must be a JSON object");
-        migraphx::set_backend_options(co, v);
     }
 
     auto params(const program& p)
@@ -983,7 +990,49 @@ struct read : command<read>
 
     void run()
     {
-        auto p = l.load();
+        // Open files compiled for another GPU without loading their kernels
+        l.finalize = false;
+        auto p     = l.load();
+        l.save(p);
+    }
+};
+
+struct recompile_cmd : command<recompile_cmd>
+{
+    loader l;
+    compiler_target ct;
+    compile_options co;
+    std::string backend_options;
+
+    void parse(argument_parser& ap)
+    {
+        l.parse(ap);
+        ct.parse(ap);
+        ap(co.exhaustive_tune,
+           {"--exhaustive-tune"},
+           ap.help("Recompile with exhaustive tuning. The options recorded in the program are "
+                   "not used"),
+           ap.set_value(true));
+        ap(backend_options,
+           {"--backend-options"},
+           ap.help("Target-specific compile options, as a JSON object (format: "
+                   "\"{problem_cache_files:[cache.json]}\")."));
+    }
+
+    void run()
+    {
+        if(l.output.empty())
+            MIGRAPHX_THROW("recompile: an output file is required (-o <out.mxr>)");
+        // The kernels may have been compiled for another GPU, so they are not loaded
+        l.finalize = false;
+        auto p     = l.load();
+        if(not p.is_compiled())
+            MIGRAPHX_THROW("recompile: " + l.file + " is not a compiled program");
+        apply_backend_options(co, backend_options);
+        log::info() << "Recompiling ...";
+        timer t{};
+        p.recompile(ct.get_target(), co);
+        log::info() << "Recompile time: " << t.record<std::chrono::milliseconds>() << "ms";
         l.save(p);
     }
 };
@@ -1037,7 +1086,7 @@ struct verify : command<verify>
         ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
     }
 
-    void run()
+    int run()
     {
         auto p = c.l.load();
         c.l.save(p);
@@ -1065,26 +1114,28 @@ struct verify : command<verify>
         log::info() << "atol: " << tols.atol;
         log::info() << "rtol: " << tols.rtol;
 
+        bool passed = false;
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, vo, tols);
+            passed = verify_instructions(p, t, c.co, vo, tols);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, vo, m, tols);
+            passed = verify_reduced_program(p, t, c.co, vo, m, tols);
         }
         else if(bisect)
         {
-            verify_bisected_program(p, t, c.co, vo, m, tols);
+            passed = verify_bisected_program(p, t, c.co, vo, m, tols);
         }
         else if(layerwise)
         {
-            verify_layerwise_program(p, t, c.co, vo, m, tols);
+            passed = verify_layerwise_program(p, t, c.co, vo, m, tols);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, vo, m, tols);
+            passed = verify_program(c.l.file, p, t, c.co, vo, m, tols);
         }
+        return passed ? 0 : 1;
     }
 };
 
@@ -1115,9 +1166,14 @@ struct time_cmd : command<time_cmd>
 {
     compiler c;
     unsigned n = 100;
+    unsigned nbuffers = 1;
     void parse(argument_parser& ap)
     {
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run."));
+        ap(nbuffers,
+           {"--buffers", "-b"},
+           ap.help("Number of parameter buffer sets to rotate through between iterations (avoids "
+                   "cache reuse)."));
         c.parse(ap);
     }
 
@@ -1125,9 +1181,12 @@ struct time_cmd : command<time_cmd>
     {
         auto p = c.compile();
         log::info() << "Allocating params ...";
-        auto m = c.params(p);
+        if(nbuffers == 0)
+            MIGRAPHX_THROW("--buffers must be at least 1");
+        std::vector<parameter_map> ms;
+        std::generate_n(std::back_inserter(ms), nbuffers, [&] { return c.params(p); });
         log::info() << "Running ...";
-        double t = time_run(p, m, n);
+        double t = time_run(p, ms, n);
         std::cout << "Total time: " << t << "ms" << std::endl;
     }
 };
@@ -1359,7 +1418,7 @@ int main(int argc, const char* argv[], const char* envp[])
 
         auto start_time = std::chrono::system_clock::now();
 
-        m.at(cmd)(ap, {args.begin() + 1, args.end()});
+        const int result = m.at(cmd)(ap, {args.begin() + 1, args.end()});
 
         // Dump all the MIGraphX (consumed) Environment Variables:
         const auto mgx_env_map = migraphx::get_all_envs();
@@ -1378,11 +1437,8 @@ int main(int argc, const char* argv[], const char* envp[])
             std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
         migraphx::log::info() << "[ " << get_version() << " ] Complete(" << duration.count()
                               << "s): " << driver_invocation;
-    }
-    else
-    {
-        run_command<main_command>(ap, args);
+        return result;
     }
 
-    return 0;
+    return run_command<main_command>(ap, args);
 }

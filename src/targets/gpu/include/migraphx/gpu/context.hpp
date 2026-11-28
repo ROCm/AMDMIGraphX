@@ -41,6 +41,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/device_description.hpp>
+#include <migraphx/gpu/kernel.hpp>
 #include <unordered_map>
 #include <memory>
 #include <optional>
@@ -51,6 +52,11 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
+
+struct binary_cache;
+
+/// Lets a context own a cache without seeing its definition.
+MIGRAPHX_GPU_EXPORT std::shared_ptr<binary_cache> make_binary_cache();
 
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
@@ -237,6 +243,12 @@ struct hip_device
 
     std::size_t nstreams() const { return streams.size(); }
 
+    void create_streams(std::size_t n)
+    {
+        while(streams.size() < n + 1)
+            add_stream();
+    }
+
     std::size_t stream_id() const { return current_stream; }
 
     const device_description& get_device_description() const { return desc; }
@@ -255,7 +267,18 @@ struct hip_device
 
     std::size_t get_max_workitems_per_block() const { return desc.max_threads_per_block; }
 
+    /// Number of resident workgroups when using the maximum block size
+    std::size_t get_max_workgroups() const
+    {
+        assert(desc.max_threads_per_block > 0);
+        return desc.num_cu * desc.max_threads_per_cu / desc.max_threads_per_block;
+    }
+
     std::size_t get_wavefront_size() const { return desc.wavefront_size; }
+
+    std::size_t get_last_level_cache_size() const { return desc.last_level_cache_size; }
+
+    std::size_t get_max_shared_memory_per_block() const { return desc.max_shared_memory_per_block; }
 
     private:
     std::size_t device_id      = 0;
@@ -333,7 +356,8 @@ struct context
 
     void set_exhaustive_tune_flag(bool t) { exhaustive_tune = t; }
 
-    // When true, compile_hip_src skips spawning migraphx-hiprtc-driver and compiles in-process.
+    // When true, kernels compile in-process instead of spawning migraphx-hiprtc-driver; the
+    // binary cache's compiler-version probe still spawns it.
     // Set via compile_options::backend_options["hiprtc_disable_processes"].
     bool get_disable_processes() const { return disable_processes; }
 
@@ -349,6 +373,8 @@ struct context
     }
 
     void set_stream(std::size_t n) { get_current_device().set_stream(n); }
+
+    void create_streams(std::size_t n) { get_current_device().create_streams(n); }
 
     void create_events(std::size_t num_of_events)
     {
@@ -486,6 +512,28 @@ struct context
         pc->load(read_only_paths, writable_paths);
     }
 
+    /// Compiled kernels shared across every module compiled with this context.
+    binary_cache& get_binary_cache()
+    {
+        assert(bc != nullptr);
+        return *bc;
+    }
+
+    /// Replace the default cache with one built from the compile options.
+    void set_binary_cache(std::shared_ptr<binary_cache> bcache) { bc = std::move(bcache); }
+
+    // The first call for a module_id loads the module and later calls resolve their symbol in it;
+    // a negative id loads a private module. Finalize runs sequentially per program, so the table
+    // needs no locking.
+    kernel load_kernel(std::int64_t module_id,
+                       const value::binary& code_object,
+                       const std::string& symbol_name)
+    {
+        if(module_id < 0)
+            return {code_object, symbol_name};
+        return {shared_modules.try_emplace(module_id, code_object).first->second, symbol_name};
+    }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -500,6 +548,9 @@ struct context
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = std::make_shared<auto_save_problem_cache>();
+    std::shared_ptr<binary_cache> bc            = make_binary_cache();
+    // Loaded modules keyed by code_object_op::module_id, see load_kernel
+    std::unordered_map<std::int64_t, code_module> shared_modules;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

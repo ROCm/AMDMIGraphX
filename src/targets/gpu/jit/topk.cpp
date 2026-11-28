@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #if !MIGRAPHX_USE_MIOPEN
@@ -68,14 +69,15 @@ struct topk_compiler : compiler<topk_compiler>
         options.inputs      = flatten_tuple_shapes(inputs);
         options.kernel_name = "topk_kernel";
 
-        auto axis           = v.at("axis").to<int64_t>();
-        auto kelements      = v.at("k").to<int64_t>();
-        auto relements      = inputs.front().lens()[axis];
-        auto nelements      = inputs.front().elements() / relements;
-        auto max_wavefronts = std::max<std::size_t>(1, 8192 / kelements);
-        auto max_block_size = std::min<std::size_t>(
-            max_wavefronts * ctx.get_current_device().get_wavefront_size(), 1024);
-        auto block_size = compute_block_size(ctx, relements / 4, max_block_size);
+        auto axis      = v.at("axis").to<std::size_t>();
+        auto kelements = v.at("k").to<int64_t>();
+        auto relements = inputs.front().lens()[axis];
+        auto nelements = inputs.front().elements() / relements;
+        // Order the dims by memory so adjacent workgroups read adjacent lines,
+        // and merge the dims around the axis. A unit axis would merge as well.
+        if(relements > 1)
+            options.virtual_inputs = gen::reduce_dims_axis(options.inputs, axis);
+        auto block_size = compute_topk_block_size(ctx, kelements, relements / 4);
         options.set_launch_params(v, compute_global_for(ctx, block_size * nelements), block_size);
 
         std::string compare = "less{}";

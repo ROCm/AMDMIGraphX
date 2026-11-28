@@ -38,6 +38,7 @@
 #include <migraphx/time.hpp>
 
 #include <array>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -1007,9 +1008,12 @@ inline auto name_contains(const std::string& name)
 
 inline auto name(std::unordered_set<std::string> names)
 {
-    return make_basic_pred_matcher([=, m_names = std::move(names)](instruction_ref ins) {
-        return m_names.count(ins->name()) > 0;
-    });
+    // Share the set between matcher copies rather than copying it: matchers are copied by value
+    // as they are composed and again for every instruction visited, so copying the set each time
+    // was a measurable compile-time cost. Keep it const so the copies cannot diverge.
+    return make_basic_pred_matcher(
+        [m_names = std::make_shared<const std::unordered_set<std::string>>(std::move(names))](
+            instruction_ref ins) { return contains(*m_names, ins->name()); });
 }
 
 template <class... Ts>
@@ -1256,14 +1260,26 @@ inline bool literal_has_value(const migraphx::literal& l, T x, value_tolerance t
     l.visit([&](auto v) {
         // A literal views const data, so drop the qualifier or numeric_limits will miss the
         // specialization for the narrow types and report an epsilon of zero.
-        using type  = std::remove_cv_t<typename decltype(v)::value_type>;
+        using type = std::remove_cv_t<typename decltype(v)::value_type>;
+        // No unsigned element equals a negative x, which an unsigned common type would
+        // wrap to a large value. Test target, as x < 0 warns when T is unsigned.
+        if(std::is_unsigned<type>{} and target < 0)
+            return;
         double eps  = std::numeric_limits<type>::epsilon();
         auto window = eps * (atol + rtol * std::fabs(target));
         if(migraphx::float_equal(window, 0))
         {
-            // cast to the literal's data type before comparing
+            // float_equal compares in the common type of val and x, so a floating x
+            // is never cast to an integral literal type, where it could wrap. A negative
+            // element never equals an unsigned x, which an unsigned common type would
+            // wrap it to.
             b = std::all_of(v.begin(), v.end(), [&](auto val) {
-                return migraphx::float_equal(val, static_cast<type>(x));
+                if constexpr(std::is_unsigned<T>{} and std::is_signed<type>{})
+                {
+                    if(val < 0)
+                        return false;
+                }
+                return migraphx::float_equal(val, x);
             });
         }
         else

@@ -50,7 +50,7 @@ struct hip_fixed_pad
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return {shapes.size() - 1};
+        return {0, shapes.size() - 1};
     }
 };
 

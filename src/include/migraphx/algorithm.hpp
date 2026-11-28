@@ -50,6 +50,23 @@ void transform_if(Iterator start, Iterator last, Output out, Predicate pred, F f
     }
 }
 
+/// Two-range overload; the second range must have at least as many elements as [first1, last1)
+template <class Iterator1, class Iterator2, class Output, class Predicate, class F>
+void transform_if(
+    Iterator1 first1, Iterator1 last1, Iterator2 first2, Output out, Predicate pred, F f)
+{
+    while(first1 != last1)
+    {
+        if(pred(*first1, *first2))
+        {
+            *out = f(*first1, *first2);
+            ++out;
+        }
+        ++first1;
+        ++first2;
+    }
+}
+
 /// Similiar to std::accumulate but a projection can be applied to the elements first
 template <class Iterator, class T, class BinaryOp, class UnaryOp>
 T transform_accumulate(Iterator first, Iterator last, T init, BinaryOp binop, UnaryOp unaryop)
@@ -76,6 +93,29 @@ OutputIterator transform_partial_sum(
     }
 
     return ++d_first;
+}
+
+/// Same as std::transform_exclusive_scan, which is missing from some standard libraries. Each
+/// output is the accumulation of init with the projection of all the elements before it, so the
+/// last element is never included. The output range may be the same as the input range.
+template <class Iterator, class OutputIterator, class T, class BinaryOperation, class UnaryOp>
+OutputIterator transform_exclusive_scan(Iterator first,
+                                        Iterator last,
+                                        OutputIterator d_first,
+                                        T init,
+                                        BinaryOperation binop,
+                                        UnaryOp unaryop)
+{
+    while(first != last)
+    {
+        // Read the element before writing since the output may alias the input
+        T next   = binop(init, unaryop(*first));
+        *d_first = std::move(init);
+        init     = std::move(next);
+        ++first;
+        ++d_first;
+    }
+    return d_first;
 }
 
 /// Like std::unique but removes all duplicates instead of only adjacent ones, so the
@@ -125,6 +165,22 @@ Iterator min_element_if(Iterator first, Iterator last, Predicate pred, Compare c
     return last;
 }
 
+/// Groups consecutive elements for as long as pred holds between each
+/// adjacent pair, passing each group's range to out
+template <class Iterator, class Output, class Predicate>
+void group_adjacent(Iterator start, Iterator last, Output out, Predicate pred)
+{
+    while(start != last)
+    {
+        auto it =
+            std::adjacent_find(start, last, [&](auto&& x, auto&& y) { return not pred(x, y); });
+        if(it != last)
+            ++it;
+        out(start, it);
+        start = it;
+    }
+}
+
 template <class Iterator, class Output, class Predicate>
 void group_by(Iterator start, Iterator last, Output out, Predicate pred)
 {
@@ -145,6 +201,16 @@ void group_unique(Iterator start, Iterator last, Output out, Predicate pred)
         out(start, it);
         start = it;
     }
+}
+
+/// Like std::find for a sequence that ends with a sentinel value instead of an end iterator, such
+/// as a C string or environ. Returns the iterator at the sentinel.
+template <class Iterator, class T>
+Iterator find_sentinel(Iterator first, const T& sentinel)
+{
+    while(*first != sentinel)
+        ++first;
+    return first;
 }
 
 template <class Iterator, class Predicate, class Output>

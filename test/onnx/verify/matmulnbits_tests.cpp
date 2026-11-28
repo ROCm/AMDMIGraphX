@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,7 +51,7 @@ TEST_CASE(matmulnbits_mm_test)
     std::vector<float> scales{1, 2, 3, 4};
     pm["scales"] = migraphx::argument(scales_shape, scales.data());
 
-    auto zp_shape = migraphx::shape{migraphx::shape::uint8_type, {4}};
+    auto zp_shape = migraphx::shape{migraphx::shape::uint8_type, {4, 1}};
     std::vector<uint8_t> zp{0x08, 0x09, 0x0a, 0x0b};
     pm["zp"] = migraphx::argument{zp_shape, zp.data()};
 
@@ -183,5 +183,84 @@ TEST_CASE(matmulnbits_bmm_test)
     };
 
     EXPECT(result.get_shape().lens() == std::vector<size_t>{2, 3, 2});
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(matmulnbits_ryzenai_bias_test)
+{
+    auto p = optimize_onnx("matmulnbits_ryzenai_bias_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    auto a_shape = migraphx::shape{migraphx::shape::float_type, {2, 16}};
+    std::vector<float> a(a_shape.elements());
+    std::iota(a.begin(), a.end(), 0);
+    pm["a"] = migraphx::argument(a_shape, a.data());
+
+    auto b_shape = migraphx::shape{migraphx::shape::uint8_type, {4, 1, 8}};
+    std::vector<uint8_t> b{0x2,  0xe3, 0xc7, 0x89, 0xbd, 0xbe, 0x50, 0x41, 0xe9, 0xb4, 0xd4,
+                           0x54, 0xc6, 0xb2, 0xfa, 0x27, 0x14, 0x3d, 0xbb, 0xe7, 0xa5, 0x0,
+                           0x52, 0x28, 0xc1, 0xd9, 0x1f, 0x33, 0x16, 0x1e, 0x8b, 0x3c};
+    pm["b"] = migraphx::argument(b_shape, b.data());
+
+    auto scales_shape = migraphx::shape{migraphx::shape::float_type, {4}};
+    std::vector<float> scales{1, 2, 3, 4};
+    pm["scales"] = migraphx::argument(scales_shape, scales.data());
+
+    auto zp_shape = migraphx::shape{migraphx::shape::uint8_type, {4}};
+    std::vector<uint8_t> zp{0x08, 0x09, 0x0a, 0x0b};
+    pm["zp"] = migraphx::argument{zp_shape, zp.data()};
+
+    auto bias_shape = migraphx::shape{migraphx::shape::float_type, {4}};
+    std::vector<float> bias{1, 2, 3, 4};
+    pm["bias"] = migraphx::argument(bias_shape, bias.data());
+
+    auto result = p.eval(pm).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    // Same as matmulnbits_mm_test gold with bias added per output column
+    std::vector<float> gold{
+        -110.0f, -288.0f, -1689.0f, -1956.0f, -334.0f, -768.0f, -4761.0f, -5988.0f};
+
+    EXPECT(result.get_shape().lens() == std::vector<size_t>{2, 4});
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(matmulnbits_microsoft_bias_test)
+{
+    auto p = optimize_onnx("matmulnbits_microsoft_bias_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    auto a_shape = migraphx::shape{migraphx::shape::float_type, {2, 16}};
+    std::vector<float> a(a_shape.elements());
+    std::iota(a.begin(), a.end(), 0);
+    pm["a"] = migraphx::argument(a_shape, a.data());
+
+    auto b_shape = migraphx::shape{migraphx::shape::uint8_type, {4, 1, 8}};
+    std::vector<uint8_t> b{0x2,  0xe3, 0xc7, 0x89, 0xbd, 0xbe, 0x50, 0x41, 0xe9, 0xb4, 0xd4,
+                           0x54, 0xc6, 0xb2, 0xfa, 0x27, 0x14, 0x3d, 0xbb, 0xe7, 0xa5, 0x0,
+                           0x52, 0x28, 0xc1, 0xd9, 0x1f, 0x33, 0x16, 0x1e, 0x8b, 0x3c};
+    pm["b"] = migraphx::argument(b_shape, b.data());
+
+    auto scales_shape = migraphx::shape{migraphx::shape::float_type, {4}};
+    std::vector<float> scales{1, 2, 3, 4};
+    pm["scales"] = migraphx::argument(scales_shape, scales.data());
+
+    auto zp_shape = migraphx::shape{migraphx::shape::uint8_type, {4}};
+    std::vector<uint8_t> zp{0x08, 0x09, 0x0a, 0x0b};
+    pm["zp"] = migraphx::argument{zp_shape, zp.data()};
+
+    auto bias_shape = migraphx::shape{migraphx::shape::float_type, {4}};
+    std::vector<float> bias{1, 2, 3, 4};
+    pm["bias"] = migraphx::argument(bias_shape, bias.data());
+
+    auto result = p.eval(pm).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{
+        -110.0f, -288.0f, -1689.0f, -1956.0f, -334.0f, -768.0f, -4761.0f, -5988.0f};
+
+    EXPECT(result.get_shape().lens() == std::vector<size_t>{2, 4});
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

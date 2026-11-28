@@ -43,7 +43,7 @@ ARG INDEX_URL="https://stable.repo.amd.com/rocm/whl-next/"
 RUN dpkg --add-architecture i386
 
 # Install rocm key
-RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
+RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common gnupg2 curl && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://stable.repo.amd.com/rocm/gpg/packages.gpg | gpg --dearmor -o /etc/apt/keyrings/amdrocm.gpg
 
@@ -56,7 +56,7 @@ RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
     add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main"
 
 # Install dependencies
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     apt-utils \
     bison \
     build-essential \

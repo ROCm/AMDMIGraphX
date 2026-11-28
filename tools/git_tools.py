@@ -42,8 +42,12 @@ def run(cmd, verbose=False, **kwargs):
     if verbose:
         print(cmd if isinstance(cmd, str) else shlex.join(cmd))
 
+    # Always parse string commands to avoid shell injection vulnerabilities.
+    if isinstance(cmd, str):
+        cmd = shlex.split(cmd)
+
     result = subprocess.run(cmd,
-                            shell=isinstance(cmd, str),
+                            shell=False,
                             check=True,
                             capture_output=True,
                             text=True,

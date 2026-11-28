@@ -27,6 +27,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      with:
+        persist-credentials: false
 
     - name: Set up Python
       uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4
@@ -56,6 +58,7 @@ jobs:
         path: ${{ github.workspace }}/cget
         key: windows-cget-clang-${{ matrix.configuration }}-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
         restore-keys: windows-cget-clang-cpu-
+        lookup-only: ${{ github.event_name == 'pull_request' }}
 
     # - name: Setup tmate session
     #   uses: mxschmitt/action-tmate@v3
@@ -118,6 +121,8 @@ jobs:
         Get-PSDrive C | Select-Object @{Name="Used (GB)"; Expression={$_.Used / 1GB}}, @{Name="Free (GB)"; Expression={$_.Free / 1GB}}
 
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      with:
+        persist-credentials: false
 
     - name: Set up Python
       uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c  # v4
@@ -168,6 +173,7 @@ jobs:
         path: ${{ github.workspace }}/cget
         key: windows-cget-gpu-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
         restore-keys: windows-cget-gpu-
+        lookup-only: ${{ github.event_name == 'pull_request' }}
 
     # - name: Setup tmate session
     #   uses: mxschmitt/action-tmate@v3

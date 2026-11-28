@@ -85,6 +85,19 @@ unpack_pointer_args(const std::vector<char>& buffer,
 // Store a pointer value at a byte position in a packed kernarg buffer.
 MIGRAPHX_GPU_EXPORT void write_pointer(char* pos, const char* p);
 
+// A packed kernarg buffer and the launch config pointing into it, for graph kernel nodes. It
+// cannot be copied or moved, as the config holds the addresses of its members.
+struct MIGRAPHX_GPU_EXPORT graph_kernargs
+{
+    explicit graph_kernargs(std::vector<char> b);
+    graph_kernargs(const graph_kernargs&)            = delete;
+    graph_kernargs& operator=(const graph_kernargs&) = delete;
+
+    std::vector<char> buffer;
+    std::size_t size = 0;
+    std::array<void*, 5> config{};
+};
+
 struct MIGRAPHX_GPU_EXPORT kernel
 {
     struct pointers
@@ -142,6 +155,13 @@ struct MIGRAPHX_GPU_EXPORT kernel
                 std::size_t kernargs_size,
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
+
+    // Add the launch to graph after deps; kernargs must outlive the graph and its instances
+    hipGraphNode_t add_to_graph(hipGraph_t graph,
+                                const std::vector<hipGraphNode_t>& deps,
+                                std::size_t global,
+                                std::size_t local,
+                                graph_kernargs& kernargs) const;
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const

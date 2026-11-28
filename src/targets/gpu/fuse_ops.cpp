@@ -24,6 +24,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/fuse_gather_dot.hpp>
 #include <migraphx/gpu/precompile_op.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/matcher.hpp>
@@ -33,10 +34,20 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/param_utils.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/reshape_dims.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/tune_axis.hpp>
+#include <cassert>
 #include <cmath>
 #include <set>
 
@@ -1063,8 +1074,332 @@ struct find_concat_pointwise
     }
 };
 
-void fuse_ops::apply(module& m) const
+// Whether the instruction is a precompile_op wrapping the named operator
+static bool is_precompile(instruction_ref ins, const std::string& name)
 {
+    return ins->name() == "gpu::precompile_op" and
+           ins->get_operator().to_value().at("op").at("name").to<std::string>() == name;
+}
+
+// The attributes of the operator a precompile_op wraps
+static value precompile_attributes(instruction_ref ins)
+{
+    return ins->get_operator().to_value().at("op").at("operator");
+}
+
+// The operators as views of a tensor of the input shape, where a reshape is
+// a reshape_lazy: nothing when one of them would need a copy
+static optional<std::vector<operation>> make_views(const shape& input,
+                                                   const std::vector<operation>& ops)
+{
+    // the shape of the view so far
+    auto s = input;
+    std::vector<operation> result;
+    const bool views = std::all_of(ops.begin(), ops.end(), [&](const operation& op) {
+        if(op.name() == "reshape")
+        {
+            auto dims = op.to_value().at("dims").to_vector<std::size_t>();
+            if(not reshape_dims(s, dims, {.lazy = true}).has_value())
+                return false;
+            result.push_back(make_op("reshape_lazy", {{"dims", dims}}));
+        }
+        else if(contains({"transpose", "squeeze", "unsqueeze"}, op.name()))
+        {
+            result.push_back(op);
+        }
+        else
+        {
+            return false;
+        }
+        s = result.back().compute_shape({s});
+        return true;
+    });
+    if(not views)
+        return nullopt;
+    return result;
+}
+
+// Fuse the pointwise operator computing the table of a gather_dot as its
+// weights submodule, so the kernel computes the matrices as it reads the
+// stored weights. The views between the two move to the pointwise inputs in
+// their common dimensions, and the rows and the sums are reshaped to match.
+// An unpack_int4 input is unpacked in the submodule.
+struct find_gather_dot_weights
+{
+    auto matcher() const
+    {
+        auto view =
+            match::name("reshape_lazy", "transpose", "squeeze", "unsqueeze")(match::used_once());
+        auto pointwise =
+            precompile_name("pointwise")(match::used_once(), match::not_tuple()).bind("pointwise");
+        return precompile_name("gpu::gather_dot")(
+            match::arg(gather_dot_layout::first_weight)(match::skip(view)(pointwise)));
+    }
+
+    // The packed bytes of an input that is unpacked along its last axis,
+    // viewed with half the last axis of the input
+    static optional<instruction_ref>
+    find_packed(module& m, instruction_ref pos, instruction_ref input)
+    {
+        if(not input->get_shape().standard())
+            return nullopt;
+        // the views of a standard tensor that keep it standard keep its order
+        auto path = get_input_path(input);
+        auto it   = std::find_if_not(path.begin(), path.end(), [](instruction_ref ins) {
+            return contains({"reshape_lazy", "squeeze", "unsqueeze"}, ins->name());
+        });
+        if(it == path.end())
+            return nullopt;
+        auto unpack = *it;
+        if(not is_precompile(unpack, "unpack_int4") or not unpack->get_shape().standard())
+            return nullopt;
+        auto bytes     = unpack->inputs().front();
+        const auto& bs = bytes->get_shape();
+        auto lens      = input->get_shape().lens();
+        const std::size_t axis =
+            tune_axis(bs.ndim(), precompile_attributes(unpack).at("axis").to<int>(), "unpack_int4");
+        if(not bs.standard() or axis + 1 != bs.ndim() or lens.back() % 2 != 0 or
+           input->get_shape().elements() != 2 * bs.elements())
+            return nullopt;
+        lens.back() /= 2;
+        if(lens == bs.lens())
+            return bytes;
+        return m.insert_instruction(pos, make_op("reshape_lazy", {{"dims", lens}}), bytes);
+    }
+
+    // A weight tensor in the common dimensions
+    struct weight
+    {
+        instruction_ref input;
+        // whether it holds the bytes of an unpack_int4
+        bool packed = false;
+    };
+
+    // The lens of the common axes of the axes [first, last) of the table
+    static std::vector<std::size_t> common_lens(const std::vector<std::size_t>& common,
+                                                const std::vector<std::vector<std::size_t>>& axes,
+                                                std::size_t first,
+                                                std::size_t last)
+    {
+        assert(first <= last and last <= axes.size());
+        std::vector<std::size_t> result;
+        std::for_each(axes.begin() + first, axes.begin() + last, [&](const auto& group) {
+            std::transform(group.begin(),
+                           group.end(),
+                           std::back_inserter(result),
+                           [&](std::size_t axis) { return common.at(axis); });
+        });
+        return result;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m          = mpm.get_module();
+        auto ins         = r.result;
+        const auto& mods = ins->module_inputs();
+        // only the matrices as the pass left them: the weight tensor is the table
+        if(mods.size() != 1 or read_gather_dot_weights(*mods.front()).function != nullptr)
+            return;
+        // the output buffer follows the inputs
+        const auto layout = get_gather_dot_layout(ins->inputs().size() - 1, mods);
+        auto rows         = ins->inputs().at(gather_dot_layout::rows);
+        auto table        = ins->inputs().at(gather_dot_layout::first_weight);
+        auto base         = r.instructions["pointwise"];
+        // the views of the pointwise operator that give the table
+        const auto ops =
+            get_input_ops_if(table, [&](instruction_ref view) { return view != base; }).second;
+        const auto& base_inputs = base->inputs();
+        if(std::any_of(base_inputs.begin(), base_inputs.end(), [](instruction_ref input) {
+               return input->get_shape().type() == shape::bool_type;
+           }))
+            return;
+        const auto& src = base->get_shape().lens();
+        const auto desc = shape_transform_descriptor::create(src, ops);
+        if(desc.empty())
+            return;
+        const auto dst_axes = desc.common_axes_map_from_dst();
+        const auto src_axes = desc.common_axes_map_from_src();
+        const auto ndim     = table->get_shape().ndim();
+        const auto row_axes = rows->get_shape().ndim();
+        const auto out_lens = ins->get_shape().lens();
+        // the indices select the entries along one axis
+        if(dst_axes.size() != ndim or dst_axes.front().size() != 1)
+            return;
+        const auto common    = desc.common_dims();
+        const auto to_common = desc.to_common_from_src();
+        // the rows and the result in the common dimensions
+        auto row_lens = common_lens(common, dst_axes, 1, row_axes);
+        auto sum_lens = common_lens(common, dst_axes, row_axes, ndim);
+        row_lens.insert(row_lens.begin(), out_lens.front());
+        sum_lens.insert(sum_lens.begin(), out_lens.front());
+        if(not reshape_dims(rows->get_shape(), row_lens, {.lazy = true}).has_value())
+            return;
+        // The bytes are unpacked along the last axis of the pointwise
+        // operator, which must be one axis of the matrices of an entry
+        const bool unpackable = src_axes.size() == src.size() and src_axes.back().size() == 1 and
+                                src_axes.back().front() != 0;
+        // the last input of the pointwise is its output buffer
+        std::vector<optional<weight>> weights;
+        std::transform(base_inputs.begin(),
+                       std::prev(base_inputs.end()),
+                       std::back_inserter(weights),
+                       [&](instruction_ref input) -> optional<weight> {
+                           optional<instruction_ref> bytes = nullopt;
+                           if(unpackable)
+                               bytes = find_packed(m, ins, input);
+                           auto x     = bytes.value_or(input);
+                           auto views = bytes.has_value() ? to_common.rebase(x->get_shape().lens())
+                                                          : to_common;
+                           if(views.empty())
+                               return nullopt;
+                           auto view_ops = make_views(x->get_shape(), views.generate());
+                           if(not view_ops.has_value())
+                               return nullopt;
+                           return weight{insert_ops(m, ins, *view_ops, x), bytes.has_value()};
+                       });
+        if(not std::all_of(
+               weights.begin(), weights.end(), [](const auto& w) { return w.has_value(); }))
+            return;
+        // the submodule computes the table from the weight tensors
+        auto* wm = mpm.create_module(base->module_inputs().front()->name() + ":gather_dot");
+        wm->set_bypass();
+        std::vector<instruction_ref> args;
+        std::transform(
+            weights.begin(), weights.end(), std::back_inserter(args), [&](const auto& w) {
+                auto param =
+                    wm->add_parameter(param_name(args.size()), w->input->get_shape().as_standard());
+                if(not w->packed)
+                    return param;
+                return wm->add_instruction(
+                    make_op("unpack_int4", {{"axis", src_axes.back().front()}}), param);
+            });
+        wm->add_return({wm->add_instruction(make_op("pointwise"), args, base->module_inputs())});
+
+        std::vector<instruction_ref> inputs = {rows, ins->inputs().at(gather_dot_layout::indices)};
+        if(row_lens != rows->get_shape().lens())
+            inputs.front() =
+                m.insert_instruction(ins, make_op("reshape_lazy", {{"dims", row_lens}}), rows);
+        std::transform(weights.begin(),
+                       weights.end(),
+                       std::back_inserter(inputs),
+                       [](const auto& w) { return w->input; });
+        // the bias and the output buffer follow the table
+        inputs.insert(
+            inputs.end(), ins->inputs().begin() + layout.bias_index(), ins->inputs().end());
+        if(sum_lens == out_lens)
+        {
+            m.replace_instruction(ins, ins->get_operator(), inputs, {wm});
+            return;
+        }
+        inputs.back() =
+            m.insert_instruction(ins, make_op("reshape_lazy", {{"dims", sum_lens}}), inputs.back());
+        auto sums = m.insert_instruction(ins, ins->get_operator(), inputs, {wm});
+        m.replace_instruction(ins, make_op("reshape_lazy", {{"dims", out_lens}}), sums);
+    }
+};
+
+// Fuse a pointwise operator reading the sums of a gather_dot as its output
+// submodule, which takes the sums, then the other inputs of the pointwise
+// operator, and holds the views it reads the sums through. It reads the sums
+// themselves, eg an activation, or it combines adjacent columns, eg a swiglu
+// over interleaved gate and linear columns: then it reads slices of the last
+// axis of a view of the sums that splits the columns in groups.
+struct find_gather_dot_pointwise
+{
+    auto matcher() const { return precompile_name("pointwise")(match::not_tuple()); }
+
+    // The column of the sums of a gather_dot an input of the pointwise
+    // reads, if it reads one
+    static optional<gather_dot_column> find_column(instruction_ref input)
+    {
+        auto column = find_gather_dot_column(input);
+        if(not column.has_value() or not is_precompile(column->sums, "gpu::gather_dot"))
+            return nullopt;
+        return column;
+    }
+
+    // The views from the sums to an input that reads a column, in order
+    static std::vector<instruction_ref> views(instruction_ref sums, instruction_ref input)
+    {
+        auto path = get_input_path(input);
+        auto last = std::find(path.begin(), path.end(), sums);
+        assert(last != path.end());
+        std::vector<instruction_ref> result(path.begin(), last);
+        std::reverse(result.begin(), result.end());
+        return result;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m        = mpm.get_module();
+        auto pw        = r.result;
+        auto pw_inputs = pw->inputs();
+        pw_inputs.pop_back();
+        std::vector<optional<gather_dot_column>> columns;
+        std::transform(
+            pw_inputs.begin(), pw_inputs.end(), std::back_inserter(columns), &find_column);
+        auto first = std::find_if(
+            columns.begin(), columns.end(), [](const auto& c) { return c.has_value(); });
+        if(first == columns.end())
+            return;
+        auto dot         = (*first)->sums;
+        auto view        = (*first)->view;
+        const auto group = (*first)->group;
+        if(not std::all_of(columns.begin(), columns.end(), [&](const auto& c) {
+               return not c.has_value() or
+                      (c->sums == dot and c->view == view and c->group == group);
+           }))
+            return;
+        // The pointwise is the only reader of the sums: it reads the view,
+        // or the slices do
+        if(not std::all_of(view->outputs().begin(), view->outputs().end(), [&](auto out) {
+               return std::any_of(columns.begin(), columns.end(), [&](const auto& c) {
+                   return c.has_value() and c->slice.value_or(pw) == out;
+               });
+           }))
+            return;
+        const auto& sums = dot->get_shape();
+        // the kernel reads the columns of a group from adjacent lanes of a
+        // block of 16 columns
+        constexpr std::size_t block = 16;
+        if(dot->module_inputs().size() != 1 or group == 0 or block % group != 0 or
+           sums.lens().back() % group != 0 or pw->get_shape().elements() * group != sums.elements())
+            return;
+        auto* om = mpm.create_module(pw->module_inputs().front()->name() + ":gather_dot");
+        om->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        map_ins[dot] = om->add_parameter(param_name(0), sums.as_standard());
+        // the inputs that are not columns are parameters after the sums
+        std::vector<instruction_ref> others;
+        std::vector<instruction_ref> args;
+        migraphx::for_each(
+            pw_inputs.begin(), pw_inputs.end(), columns.begin(), [&](auto input, const auto& c) {
+                if(c.has_value())
+                {
+                    om->add_instructions(views(dot, input), &map_ins);
+                    args.push_back(map_ins.at(input));
+                    return;
+                }
+                others.push_back(input);
+                args.push_back(
+                    om->add_parameter(param_name(others.size()), input->get_shape().as_standard()));
+            });
+        om->add_return({om->add_instruction(make_op("pointwise"), args, pw->module_inputs())});
+        // they follow the inputs of the gather_dot, then the output buffer
+        const auto layout = get_gather_dot_layout(dot->inputs().size() - 1, dot->module_inputs());
+        std::vector<instruction_ref> inputs(dot->inputs().begin(),
+                                            dot->inputs().begin() + layout.size());
+        inputs.insert(inputs.end(), others.begin(), others.end());
+        inputs.push_back(pw->inputs().back());
+        auto mods = dot->module_inputs();
+        mods.push_back(om);
+        m.replace_instruction(pw, dot->get_operator(), inputs, mods);
+    }
+};
+
+void fuse_ops::apply(module_pass_manager& mpm) const
+{
+    auto& m = mpm.get_module();
     match::find_matches(m,
                         find_pointwise_layout_contiguous{},
                         find_contiguous_layout_pointwise{},
@@ -1089,6 +1424,10 @@ void fuse_ops::apply(module& m) const
                         find_contiguous_transpose_hip_gemm{},
 #endif
                         find_commutative_broadcast{});
+    // The submodules of a gather_dot: its weights, then the pointwise
+    // operator reading its sums
+    match::find_matches(mpm, find_gather_dot_weights{});
+    match::find_matches(mpm, find_gather_dot_pointwise{});
 }
 
 } // namespace gpu

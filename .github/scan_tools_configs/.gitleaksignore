@@ -11,3 +11,7 @@
 #   3f2a9c1e...:tests/fixtures/creds.py:generic-api-key:12
 #
 # Entries here combine with a .gitleaksignore at the repository root.
+
+# Test fixture false positive: rock.float16_accumulation attribute in MLIR test
+5514a5a79:test/gpu/mlir_compile_key.cpp:generic-api-key:132
+5514a5a79:test/gpu/mlir_compile_key.cpp:generic-api-key:133

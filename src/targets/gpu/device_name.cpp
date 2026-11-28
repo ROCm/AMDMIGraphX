@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/charconv.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -41,6 +42,23 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 std::string get_gfx_name(const std::string& device_name)
 {
     return trim(split_string(device_name, ':').front());
+}
+
+std::size_t get_gfx_generation(const std::string& device_name)
+{
+    // A '-' suffix (gfx1250-strict) names a target that is distinct for codegen but shares the
+    // ISA generation with its unsuffixed form, so it is not part of the number.
+    auto gfx = split_string(get_gfx_name(device_name), '-').front();
+    // gfx<major><minor><stepping>, where minor and stepping are one hex digit each
+    if(not starts_with(gfx, "gfx") or gfx.size() < 6)
+        return 0;
+    auto major         = gfx.substr(3, gfx.size() - 5);
+    std::size_t result = 0;
+    const auto* end    = major.data() + major.size();
+    auto [ptr, ec]     = from_chars(major.data(), end, result);
+    if(ec != std::errc{} or ptr != end)
+        return 0;
+    return result;
 }
 
 int get_device_id()

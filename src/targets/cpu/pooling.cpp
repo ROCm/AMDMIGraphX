@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,7 +34,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
-struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_v2_forward, op::pooling>
+struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_forward, op::pooling>
 {
     std::vector<int> arg_map(int) const { return {MIGRAPHX_DNNL_PREFIX(ARG_SRC)}; }
 
@@ -51,8 +51,7 @@ struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_v2_forward, op:
         MIGRAPHX_THROW("Unknown pooling mode");
     }
 
-    dnnl::pooling_v2_forward::desc
-    get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    auto get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         auto algo  = get_algo();
         auto kdims = op.kdims();
@@ -65,15 +64,15 @@ struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_v2_forward, op:
                        op.dilations.cend(),
                        std::back_inserter(dilations),
                        [](size_t d) { return d - 1; });
-        return {dnnl::prop_kind::forward_inference,
-                algo,
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
-                to_dnnl_dims(op.stride),
-                to_dnnl_dims(op.lengths),
-                to_dnnl_dims(dilations),
-                to_dnnl_dims(padding_l),
-                to_dnnl_dims(padding_r)};
+        return std::make_tuple(dnnl::prop_kind::forward_inference,
+                               algo,
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
+                               to_dnnl_dims(op.stride),
+                               to_dnnl_dims(op.lengths),
+                               to_dnnl_dims(dilations),
+                               to_dnnl_dims(padding_l),
+                               to_dnnl_dims(padding_r));
     }
 };
 

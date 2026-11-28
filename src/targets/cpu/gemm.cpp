@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,11 +49,11 @@ struct dnnl_gemm : dnnl_extend_op<dnnl_gemm, dnnl::matmul, op::dot>
         cs.not_broadcasted();
     }
 
-    dnnl::matmul::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    auto get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_WEIGHTS)),
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST))};
+        return std::make_tuple(m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_WEIGHTS)),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)));
     }
 };
 

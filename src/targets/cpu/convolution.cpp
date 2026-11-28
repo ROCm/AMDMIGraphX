@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,8 +59,7 @@ struct dnnl_convolution
         return s;
     }
 
-    dnnl::convolution_forward::desc
-    get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    auto get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         // In DNNL dilation is zero-based
         auto dilation = op.dilation;
@@ -69,15 +68,15 @@ struct dnnl_convolution
         auto kdims = op.kdims();
         std::vector<size_t> padding_l(op.padding.begin(), op.padding.begin() + kdims);
         std::vector<size_t> padding_r(op.padding.begin() + kdims, op.padding.end());
-        return {dnnl::prop_kind::forward_inference,
-                dnnl::algorithm::convolution_auto,
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_WEIGHTS)),
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
-                to_dnnl_dims(op.stride),
-                to_dnnl_dims(dilation),
-                to_dnnl_dims(padding_l),
-                to_dnnl_dims(padding_r)};
+        return std::make_tuple(dnnl::prop_kind::forward_inference,
+                               dnnl::algorithm::convolution_auto,
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_WEIGHTS)),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
+                               to_dnnl_dims(op.stride),
+                               to_dnnl_dims(dilation),
+                               to_dnnl_dims(padding_l),
+                               to_dnnl_dims(padding_r));
     }
 };
 

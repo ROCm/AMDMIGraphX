@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,13 +50,13 @@ struct dnnl_layernorm : dnnl_op<dnnl_layernorm, dnnl::layer_normalization_forwar
         return s;
     }
 
-    dnnl::layer_normalization_forward::desc
-    get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    auto get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {dnnl::prop_kind::forward_inference,
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
-                1e-12f,
-                dnnl::normalization_flags::none};
+        return std::make_tuple(dnnl::prop_kind::forward_inference,
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
+                               m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
+                               1e-12f,
+                               dnnl::normalization_flags::none);
     }
 };
 

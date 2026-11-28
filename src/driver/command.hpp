@@ -68,7 +68,7 @@ const std::string& command_name()
 }
 
 // Returns the process exit code for the command. A command's run() may return
-// void (always exits 0) or a value convertible to int to report failure.
+// void (always exits 0) or an int exit code to report failure.
 template <class T>
 int run_command(argument_parser& ap, const std::vector<std::string>& args, bool add_help = false)
 {
@@ -80,15 +80,12 @@ int run_command(argument_parser& ap, const std::vector<std::string>& args, bool 
     x.parse(ap);
     if(ap.parse(args))
         return 0;
+    int result = 0;
     if constexpr(std::is_void<decltype(x.run())>{})
-    {
         x.run();
-        return 0;
-    }
     else
-    {
-        return static_cast<int>(x.run());
-    }
+        result = x.run();
+    return result;
 }
 
 template <class T>

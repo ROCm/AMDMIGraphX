@@ -61,10 +61,8 @@ MIGRAPHX_GPU_EXPORT bool gfx_has_mx_intrinsics(const context& ctx);
 
 MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
 
-#if MIGRAPHX_USE_HIPBLASLT
 MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas();
 MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas(const context& ctx);
-#endif
 
 MIGRAPHX_GPU_EXPORT bool hipblaslt_supported();
 MIGRAPHX_GPU_EXPORT bool hipblaslt_supported(const context& ctx);

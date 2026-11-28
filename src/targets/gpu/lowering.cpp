@@ -279,10 +279,7 @@ struct miopen_apply
             // if the hardware cannot support hipblaslt, or
             // if the hardware is defaulted to use rocBLAS (such as gfx90).
             bool use_rocblas = (string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
-                               not hipblaslt_supported();
-#if MIGRAPHX_USE_HIPBLASLT
-            use_rocblas = use_rocblas or gpu::gfx_default_rocblas();
-#endif
+                               not hipblaslt_supported() or gpu::gfx_default_rocblas();
             if(not has_fp8_inputs and use_rocblas)
             {
                 return mod->replace_instruction(

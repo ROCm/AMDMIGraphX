@@ -67,6 +67,25 @@ TEST_CASE(fixed_pad_same_shape_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(fixed_pad_same_shape_copy_test)
+{
+    // A dynamic input is not an alias of the output, so the result does not share its buffer even
+    // when the run-time shape is already the output shape
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {3, 3}}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("fixed_pad"), x);
+    p.compile(migraphx::make_target("ref"));
+    std::vector<float> data = {-3, -2, -1, 0, 1, 2};
+    migraphx::argument arg(migraphx::shape{migraphx::shape::float_type, {2, 3}}, data.data());
+    auto result = p.eval({{"x", arg}}).back();
+    EXPECT(result.data() != arg.data());
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector == data);
+}
+
 TEST_CASE(fixed_pad_value_test)
 {
     migraphx::program p;

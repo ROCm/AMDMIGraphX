@@ -32,6 +32,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
+#include <algorithm>
 #include <array>
 #include <string>
 
@@ -118,6 +119,31 @@ argument run_loop(const LoopModel& model,
         }
 
         auto mod_args = run(mod, params);
+
+        // A body can return a value in a buffer other than its output parameter, as
+        // gpu::fixed_pad does when there is nothing to pad. Copy it into the output parameter: a
+        // scan output has to be in its slot, and a loop-carried value is read by the next
+        // iteration, while the body reuses its other buffers.
+        std::vector<std::pair<const char*, argument>> copied;
+        for(const auto& [name, index] : out_param_indices)
+        {
+            const auto& output = params.at(name);
+            auto& result       = mod_args.at(index);
+            if(result.data() == output.data())
+                continue;
+            copied.emplace_back(result.data(), output);
+            model.copy_output(ctx, result, output);
+            result = output;
+        }
+        // A value returned twice has one output parameter, so its other returns use the copy too
+        for(auto& result : mod_args)
+        {
+            auto it = std::find_if(copied.begin(), copied.end(), [&](const auto& c) {
+                return c.first == result.data() and c.second.get_shape() == result.get_shape();
+            });
+            if(it != copied.end())
+                result = it->second;
+        }
 
         // copy back cond to be used next iteration
         model.copy(ctx, mod_args.at(0), cond);

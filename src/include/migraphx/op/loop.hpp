@@ -101,6 +101,12 @@ struct loop
             *dst.cast<T>() = src;
         }
 
+        // Called when a body returns a buffer other than its output parameter, of the same shape
+        void copy_output(context&, const argument& src, const argument& dst) const
+        {
+            std::copy(src.data(), src.data() + src.get_shape().bytes(), dst.data());
+        }
+
         void append(const std::vector<argument>& iter_state,
                     const std::vector<argument>& concatenated_outputs,
                     const std::vector<int64_t>& scan_output_dirs,

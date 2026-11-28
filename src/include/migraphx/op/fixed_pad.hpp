@@ -69,9 +69,8 @@ struct fixed_pad
     {
         const auto& input_arg = args.front();
         auto input_shape      = input_arg.get_shape();
-        if(input_shape == output_shape)
-            return input_arg;
-
+        // The result is always a new buffer, even when the input already has the output shape: a
+        // dynamic input is not declared as an alias, so memory planning can reuse its buffer
         argument out{output_shape};
         visit_all(out, input_arg)([&](auto output, auto input) {
             using type = typename decltype(output)::value_type;

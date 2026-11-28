@@ -7,6 +7,29 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* The binary cache is compressed with zstd, which makes a directory cache about half and a SQLite cache about 40% of the uncompressed size. MIGraphX now requires zstd to build.
+* Added MXR recompiling: `migraphx-driver compile --recompilable` stores each GPU kernel's compile recipe in the MXR, and `migraphx-driver recompile` (`program::recompile`) recompiles the kernels of a compiled MXR for another GPU, of a newer or an older generation, including cross-compiling with `--gpu-arch` and exhaustive tuning, without the original model. MXR files can be opened without loading their kernels (`file_options::finalize`). Setting `MIGRAPHX_GPU_DUMP_BENCHMARK_MXR` also dumps the unresolved benchmark candidates of a recompile as standalone MXRs for external tuning (#5466, #5581).
+* Added support for the `gfx1250-strict` offload target. It is a distinct target from `gfx1250`, so it gets its own code objects and kernel caches, and uses the same feature selection as `gfx1250`. Hyphenated processor names are now handled when parsing the GPU generation, when stripping arch flags in CMake, and when verifying offload archs, which previously could not tell `gfx1250` from `gfx1250-strict` (#5601).
+
+### Changed
+
+* Changed symbolic evaluation of `convert`, `add`, `sub`, `mul` and `div` to also compute int32 values (and `convert` from `bool`), so sizes that tf2onnx computes in int32, such as the pad size after `NonMaxSuppression`, keep a symbolic or static dimension (#5511).
+* Changed symbolic evaluation of `convert` to also cover `float` and `double` for whole-number values, and added it to `min` and `max`, so a size computed as `int(min(limit, float(n)))`, as tf2onnx exports a TensorFlow `minimum`, keeps a symbolic value (#5515).
+
+### Resolved issues
+
+* Fixed compiling an `if` whose branches return non-standard views, such as transposes, failing with "Invalid module": a pass that changed the outputs of the branches, such as `auto_contiguous` making them standard, left the `if` with the shapes of the old outputs. The pass manager now updates the shape of an instruction, such as an `if` or `loop`, whose submodules a pass changed (#5549).
+* Fixed `simplify_reshapes` generating an inverse shape transform that merges a split axis's sub-axes in the wrong order when a transpose separates the split from the merge, producing a correctly shaped output with its data permuted (#5563).
+* Fixed GPU kernel compilation aborting on HIP toolchains whose clang emits the experimental `-Wlifetime-safety-experimental-field-origin-escape` warning, which is treated as an error under the `-Weverything -Werror` flags used for JIT kernel compilation and is a false positive on `tensor_view`'s non-owning pointer accessors (ROCM-34291).
+* Fixed parsing ONNX models where a node with a subgraph (for example `Loop`) is listed before the producer of a value its subgraph reads from the outer scope, which failed with "unavailable due to unordered nodes" (#5507).
+* Fixed GPU `broadcast_with_dims` (ONNX `Expand` to a run-time shape) reading its dims on the host from GPU memory without a copy or a stream sync, which could give the output a wrong shape when a kernel computes the dims (#5531).
+* Fixed `compute_broadcasted_lens` broadcasting a dimension of 1 to 1 instead of 0 when the other dimension is 0, which made `broadcast_with_dims` produce one element for an empty target dimension (#5529).
+* Fixed `eliminate_concat` returning a strided view of the concat buffer as a program output when a concat input is also returned (for example a time cache kept as the last frames of a `concat`), which made integrations that allocate packed outputs, such as the ONNX Runtime MIGraphX EP, write past the end of the output buffer (#5484).
+
+## MIGraphX 2.19 for ROCm 10.2.0
+
+### Added
+
 * Added a binary cache for compiled GPU kernels: identical kernels within a model compile once, and setting the `MIGRAPHX_BINARY_CACHE` environment variable (or the `binary_cache` backend option) also persists them on disk so later compiles of the same kernels skip compilation entirely, in a directory or, for a path ending in `.db` or `.sqlite`, in a single SQLite database; a `binary_cache_verify` backend option recompiles reused kernels and fails if they differ.
 * Optimized GridSample by adding a GPU JIT kernel for the ONNX `nearest`, `linear`/`bilinear`, and `cubic`/`bicubic` modes, replacing the `concat`+`gathernd` decomposition in the ONNX parser for those modes (#5139).
 * Added the `split_sym_dim` pass, which specializes bounded symbolic dimensions into static `select_module` submodules (#5123).
@@ -21,8 +44,6 @@ Full documentation for MIGraphX is available at
 * Updated `eliminate_convert` to remove no-op and redundant nested `convert` instructions for dynamic and symbolic shapes (#5385).
 * Updated `nonmaxsuppression` kernel to use uint32_t bitmask instead of bool type to get around number of elements > uint32_t (#5302).
 * Enabled MLIR attention fusion by default on every GPU, not just gfx94x/gfx95x, gated per attention block on profitability: blocks whose head dim exceeds `attn_max_head_dim` (512 on wave64 devices, 256 on wave32) at kv lengths past `attn_wide_head_kv_len` (1024 on wave64, none on wave32), or with fewer than `attn_min_q_rows` total query rows (24 per CU), run as separate gemm and softmax kernels instead. The thresholds are configurable through the matching backend options, requesting `attention` in `MIGRAPHX_MLIR_USE_SPECIFIC_OPS` or the `mlir_use_specific_ops` backend option fuses every block regardless of the gate, and `!attention` in the backend option now disables the fusion on every device (#5405).
-* Changed symbolic evaluation of `convert`, `add`, `sub`, `mul` and `div` to also compute int32 values (and `convert` from `bool`), so sizes that tf2onnx computes in int32, such as the pad size after `NonMaxSuppression`, keep a symbolic or static dimension (#5511).
-* Changed symbolic evaluation of `convert` to also cover `float` and `double` for whole-number values, and added it to `min` and `max`, so a size computed as `int(min(limit, float(n)))`, as tf2onnx exports a TensorFlow `minimum`, keeps a symbolic value (#5515).
 
 ### Resolved issues
 

@@ -32,6 +32,8 @@
 #include <migraphx/stringutils.hpp>
 #include <algorithm>
 #include <cassert>
+#include <iterator>
+#include <numeric>
 #include <sstream>
 
 namespace migraphx {
@@ -224,6 +226,17 @@ std::size_t compute_topk_block_size(const context& ctx, std::size_t k, std::size
     auto max_block_size =
         std::min<std::size_t>(max_wavefronts * ctx.get_current_device().get_wavefront_size(), 1024);
     return compute_block_size(ctx, n, max_block_size);
+}
+
+std::vector<std::size_t> divisors_up_to(std::size_t n, std::size_t max_value)
+{
+    std::vector<std::size_t> candidates(std::min(n, max_value));
+    std::iota(candidates.begin(), candidates.end(), std::size_t{1});
+    std::vector<std::size_t> result;
+    std::copy_if(candidates.begin(), candidates.end(), std::back_inserter(result), [&](auto d) {
+        return n % d == 0;
+    });
+    return result;
 }
 
 // Append the parameters derived from the options and the device rather than set by the caller.

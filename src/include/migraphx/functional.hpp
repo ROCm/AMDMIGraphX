@@ -65,9 +65,10 @@ struct fix_f
     F f;
     std::size_t depth = 0;
 
-    // Frames per stack segment before hopping to a fresh segment. Sized so the
-    // frames stay well within the segment even when large and unoptimized.
-    static constexpr std::size_t max_depth = 512;
+    // Frames per segment. The first segment runs on the calling thread, whose
+    // stack is 1MB on Windows, so this stays small enough for heavy frames.
+    // Later segments are 4MB and are entered from run_on_new_stack.
+    static constexpr std::size_t max_depth = 64;
 
     template <class... Ts>
     R operator()(Ts&&... xs) const

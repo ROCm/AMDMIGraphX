@@ -50,9 +50,8 @@ struct concat_gpu_optimization
     {
         return ins->name() == "gpu::precompile_op";
     }
-    // precompile_op derives its shape from the data inputs, but the kernel is
-    // compiled for whatever shape is reported, so any static layout can be
-    // pinned through the output_shape field
+    // JIT and rocMLIR compile the kernel from the output buffer shape, so a
+    // static slice layout can be pinned through output_shape.
     bool supports_output_shape(instruction_ref ins, const shape& s) const
     {
         return ins->name() == "gpu::precompile_op" and not s.dynamic();

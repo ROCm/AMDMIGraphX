@@ -50,6 +50,10 @@ Disable fast math optimization
 
 Perform an exhaustive search to find the fastest version of generated kernels for selected backend
 
+.. option::  --recompilable
+
+Keep each kernel's compile recipe in the compiled program and record the GPU it was compiled for, so that the ``recompile`` command can recompile the program for the same or another GPU without the original model. Dot, convolution, and LRN are compiled so that they have recipes. See :ref:`recompile-mxr`.
+
 .. option::  --fp16
 
 Quantize for fp16

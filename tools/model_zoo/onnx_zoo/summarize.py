@@ -39,6 +39,7 @@ RUN_PATTERN = re.compile(r'^(\d{4}-\d{2}-\d{2})-(\d+)-[0-9a-f]{7}$')
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('logs', type=Path)
+    parser.add_argument('--title', default='ONNX Model Zoo results')
     parser.add_argument('--run-id')
     parser.add_argument('--gpu')
     parser.add_argument('--build-url')
@@ -58,6 +59,16 @@ def variant(stem):
     return stem, 'fp32'
 
 
+def read_checks(logs):
+    """{log stem: (model, precision)} as recorded by test_models.sh."""
+    checks = {}
+    for line in read(logs / 'checks.tsv').splitlines():
+        fields = line.split('\t')
+        if len(fields) == 3 and fields[2] in DTYPES:
+            checks[fields[0]] = (fields[1], fields[2])
+    return checks
+
+
 def log_stems(folder):
     return {
         path.stem
@@ -75,7 +86,8 @@ def accuracy_result(folder, stem):
             r'^Test [^\n]+ has (?P<cases>\d+) cases:[ \t]*\n'
             r'^[ \t]*Passed:[ \t]*(?P<passed>\d+)[ \t]*\n'
             r'^[ \t]*Failed:[ \t]*(?P<failed>\d+)[ \t]*\n'
-            r'^[ \t]*Worst deviation:[ \t]*(?P<max_diff>\S+)[ \t]*'
+            r'^[ \t]*Worst (?P<metric>deviation|RMS error):'
+            r'[ \t]*(?P<max_diff>\S+)[ \t]*'
             r'\((?P<tol_frac>\S+)[ \t]+of tolerance\)[ \t]*$', output,
             re.MULTILINE))
     summary = summaries[-1] if summaries else None
@@ -92,6 +104,8 @@ def accuracy_result(folder, stem):
         'status': status,
         'cases': summary['cases'] if summary else '',
         'passed': summary['passed'] if summary else '',
+        'metric': 'RMS error'
+        if summary and summary['metric'] == 'RMS error' else 'max diff',
         'max_diff': summary['max_diff'] if summary else '',
         'tol_frac': summary['tol_frac'] if summary else '',
     }
@@ -162,7 +176,7 @@ def accuracy_cell(result, folder, stem):
     if result['cases']:
         details.append('{}/{} cases'.format(result['passed'], result['cases']))
     if result['max_diff']:
-        details.append('max diff {}'.format(result['max_diff']))
+        details.append('{} {}'.format(result['metric'], result['max_diff']))
     if result['tol_frac']:
         details.append('{}x tolerance'.format(result['tol_frac']))
     return '{}{}'.format(link, ': ' + ', '.join(details) if details else '')
@@ -230,8 +244,13 @@ def generate(args):
     baseline_dir = find_baseline(args.baseline_root, args.run_id)
     baseline_perf_dir = baseline_dir / 'perf' if baseline_dir else None
 
+    checks = read_checks(args.logs)
+
+    def describe(stem):
+        return checks.get(stem) or variant(stem)
+
     def sort_key(stem):
-        model, dtype = variant(stem)
+        model, dtype = describe(stem)
         return model.lower(), DTYPES.index(dtype)
 
     stems = sorted(log_stems(accuracy_dir) | log_stems(perf_dir), key=sort_key)
@@ -241,7 +260,7 @@ def generate(args):
 
     rows = []
     for stem in stems:
-        model, dtype = variant(stem)
+        model, dtype = describe(stem)
         current_perf = perf_result(perf_dir, stem)
         old_perf = perf_result(baseline_perf_dir,
                                stem) if baseline_perf_dir else {
@@ -262,7 +281,7 @@ def generate(args):
             'perf_icon': perf_icon,
         })
 
-    lines = ['# ONNX Model Zoo results', '']
+    lines = ['# {}'.format(markdown_escape(args.title)), '']
     metadata = []
     if args.run_id:
         metadata.append('Run **{}**'.format(markdown_escape(args.run_id)))

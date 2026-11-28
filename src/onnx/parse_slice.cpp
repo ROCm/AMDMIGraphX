@@ -27,6 +27,8 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
+#include <migraphx/tune_axis.hpp>
 #include <numeric>
 #include <optional>
 
@@ -67,8 +69,93 @@ struct parse_slice : op_parser<parse_slice>
         }
     };
 
+    /**
+     * Slice a static or symbolic input by run-time starts and/or ends with dyn_slice. Each run-time
+     * bound becomes a symbol bounded by its axis length, so the result has a symbolic shape rather
+     * than a range-based one; ops such as TopK with a run-time k need a symbolic input. Returns
+     * nullopt when this does not apply: constant bounds, run-time axes, or non-unit steps.
+     */
+    static std::optional<instruction_ref>
+    parse_runtime_bounds(onnx_parser& parser,
+                         const onnx_parser::node_info& info,
+                         const std::vector<instruction_ref>& args)
+    {
+        const auto& data_shape = args[0]->get_shape();
+        if(args.size() < 3 or (data_shape.dynamic() and not data_shape.symbolic()))
+            return std::nullopt;
+        const auto starts_arg = args[1]->eval();
+        const auto ends_arg   = args[2]->eval();
+        if(not starts_arg.empty() and not ends_arg.empty())
+            return std::nullopt;
+        const auto& starts_shape = args[1]->get_shape();
+        const auto& ends_shape   = args[2]->get_shape();
+        if(starts_shape.dynamic() or ends_shape.dynamic() or starts_shape.ndim() != 1 or
+           starts_shape.lens() != ends_shape.lens())
+            return std::nullopt;
+        const auto n = starts_shape.elements();
+
+        std::vector<int64_t> axes(n);
+        if(args.size() >= 4)
+        {
+            const auto axes_arg = args[3]->eval();
+            if(axes_arg.empty())
+                return std::nullopt;
+            axes = axes_arg.to_vector<int64_t>();
+        }
+        else if(contains(info.attributes, "axes"))
+        {
+            axes.clear();
+            literal s = parser.parse_value(info.attributes.at("axes"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(axes)); });
+        }
+        else
+        {
+            std::iota(axes.begin(), axes.end(), int64_t{0});
+        }
+        if(axes.size() != n)
+            return std::nullopt;
+
+        if(args.size() >= 5)
+        {
+            const auto steps_arg = args[4]->eval();
+            if(steps_arg.empty())
+                return std::nullopt;
+            const auto steps = steps_arg.to_vector<int64_t>();
+            if(std::any_of(steps.begin(), steps.end(), [](auto s) { return s != 1; }))
+                return std::nullopt;
+        }
+
+        auto bounds = [&](const argument& arg, const std::string& kind) {
+            std::vector<int64_t> values;
+            if(not arg.empty())
+                values = arg.to_vector<int64_t>();
+            std::vector<sym::expr> result;
+            for(std::size_t i = 0; i < n; ++i)
+            {
+                if(not values.empty())
+                {
+                    result.push_back(sym::lit(values[i]));
+                    continue;
+                }
+                auto axis   = tune_axis(data_shape.ndim(), axes[i], "PARSE_SLICE");
+                int64_t len = data_shape.max_lens().at(axis);
+                result.push_back(sym::var(
+                    parser.symbol_names.allocate(info.name + "_" + kind + std::to_string(i)),
+                    {0, len}));
+            }
+            return result;
+        };
+        return info.add_instruction(make_op("dyn_slice",
+                                            {{"axes", axes},
+                                             {"starts", to_value(bounds(starts_arg, "start"))},
+                                             {"ends", to_value(bounds(ends_arg, "end"))}}),
+                                    args[0],
+                                    args[1],
+                                    args[2]);
+    }
+
     instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
+                          onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
@@ -116,6 +203,9 @@ struct parse_slice : op_parser<parse_slice>
                                             args[2]);
             }
         }
+
+        if(auto ins = parse_runtime_bounds(parser, info, args))
+            return *ins;
 
         auto sd  = construct_slice_desc(parser, info, args);
         auto ins = info.add_instruction(sd.op, sd.op_args);

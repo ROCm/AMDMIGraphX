@@ -41,6 +41,8 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <test.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
@@ -1097,6 +1099,136 @@ TEST_CASE_SKIP(prefill_float_reduce, "temporarily disabled")
     EXPECT(migraphx::all_of(mco.prefill_values, [](const migraphx::value& v) {
         return v.is_int64() and v.to<int>() == 0;
     }));
+}
+
+// f16 and bf16 GEMMs must compile with the option on every architecture, including those where
+// rocMLIR ignores it.
+template <migraphx::shape::type_t T>
+static void float16_accumulation_compiles()
+{
+    migraphx::module m;
+    auto a   = m.add_parameter("a", {T, {1, 64, 32}});
+    auto b   = m.add_parameter("b", {T, {1, 32, 48}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), a, b);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx;
+    auto tc_default = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    ctx.set_mlir_float16_accumulation(true);
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    // Tuning for one accumulation mode must not be reused for the other
+    EXPECT(tc.problem != tc_default.problem);
+    auto mco = compile_mlir(ctx, create_mlir_submodule(m), shapes, tc.solutions.front());
+    EXPECT(not mco.cop.code_object.empty());
+}
+TEST_CASE_REGISTER(float16_accumulation_compiles<migraphx::shape::half_type>);
+TEST_CASE_REGISTER(float16_accumulation_compiles<migraphx::shape::bf16_type>);
+
+// The backend option is the user-facing switch: it must reach the context MLIR kernels read
+TEST_CASE(float16_accumulation_backend_option)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", {migraphx::shape::half_type, {4, 8}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x)});
+
+    auto p_default = p;
+    p_default.compile(migraphx::make_target("gpu"));
+    auto* default_ctx = p_default.get_context().any_cast<migraphx::gpu::context>();
+    EXPECT(default_ctx != nullptr);
+    EXPECT(not default_ctx->get_mlir_float16_accumulation());
+
+    migraphx::compile_options options;
+    options.backend_options["mlir_float16_accumulation"] = true;
+    p.compile(migraphx::make_target("gpu"), options);
+    auto* ctx = p.get_context().any_cast<migraphx::gpu::context>();
+    EXPECT(ctx != nullptr);
+    EXPECT(ctx->get_mlir_float16_accumulation());
+}
+
+// A dump must reproduce the kernel that was compiled, accumulation mode included
+TEST_CASE(dump_mlir_to_file_float16_accumulation)
+{
+    migraphx::module m;
+    auto a   = m.add_parameter("a", {migraphx::shape::half_type, {1, 64, 32}});
+    auto b   = m.add_parameter("b", {migraphx::shape::half_type, {1, 32, 48}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), a, b);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx;
+    ctx.set_mlir_float16_accumulation(true);
+    migraphx::tmp_dir td{"mlir-dump"};
+    migraphx::gpu::dump_mlir_to_file(ctx, create_mlir_submodule(m), shapes, td.path);
+
+    auto files = std::vector<migraphx::fs::path>(migraphx::fs::directory_iterator{td.path}, {});
+    EXPECT(files.size() == 1);
+    EXPECT(migraphx::contains(migraphx::read_string(files.front()),
+                              "rock.float16_accumulation = 1 : i64"));
+}
+
+// CI has no gfx1250, where rocMLIR honours the option, so cross-compile for it: with the same
+// perf config, the code object must change once the WMMA accumulator becomes 16-bit. bf16 is
+// not covered: rocMLIR still accumulates bf16 GEMMs in f32 when the option is set.
+TEST_CASE(float16_accumulation_changes_gfx1250_dot)
+{
+    migraphx::module m;
+    auto a   = m.add_parameter("a", {migraphx::shape::half_type, {1, 64, 32}});
+    auto b   = m.add_parameter("b", {migraphx::shape::half_type, {1, 32, 48}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), a, b);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx{
+        migraphx::gpu::device_description{.arch = "gfx1250", .num_cu = 256, .num_chiplets = 1}};
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    const auto& solution = tc.solutions.front();
+    auto mco_default     = compile_mlir(ctx, create_mlir_submodule(m), shapes, solution);
+    ctx.set_mlir_float16_accumulation(true);
+    auto mco_float16 = compile_mlir(ctx, create_mlir_submodule(m), shapes, solution);
+
+    EXPECT(not mco_default.cop.code_object.empty());
+    EXPECT(not mco_float16.cop.code_object.empty());
+    EXPECT(mco_default.cop.code_object != mco_float16.cop.code_object);
+}
+
+// rocMLIR lowers convolutions to the same GEMM, so they switch accumulator too
+TEST_CASE(float16_accumulation_changes_gfx1250_convolution)
+{
+    migraphx::module m;
+    auto a    = m.add_parameter("a", {migraphx::shape::half_type, {1, 64, 16, 16}});
+    auto b    = m.add_parameter("b", {migraphx::shape::half_type, {64, 64, 3, 3}});
+    auto conv = m.add_instruction(migraphx::make_op("convolution"), a, b);
+    m.add_return({conv});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), conv->get_shape()};
+    migraphx::gpu::context ctx{
+        migraphx::gpu::device_description{.arch = "gfx1250", .num_cu = 256, .num_chiplets = 1}};
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    const auto& solution = tc.solutions.front();
+    auto mco_default     = compile_mlir(ctx, create_mlir_submodule(m), shapes, solution);
+    ctx.set_mlir_float16_accumulation(true);
+    auto mco_float16 = compile_mlir(ctx, create_mlir_submodule(m), shapes, solution);
+
+    EXPECT(not mco_default.cop.code_object.empty());
+    EXPECT(not mco_float16.cop.code_object.empty());
+    EXPECT(mco_default.cop.code_object != mco_float16.cop.code_object);
 }
 
 TEST_CASE_SKIP(prefill_integer_reduce, "temporarily disabled")

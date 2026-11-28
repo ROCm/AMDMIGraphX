@@ -69,7 +69,7 @@ def setupdocker(Map conf) {
     return docker_opts
 }
 
-// The driver exits 0 even when verification fails, so check its log as well as
+// The driver exits non-zero when verification fails. Check its log as well as
 // its exit status: a crash or sanitizer error after the success message must fail.
 def driver_test(String driver) {
     return """

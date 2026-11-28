@@ -36,6 +36,7 @@
 #include <iterator>
 #include <numeric>
 #include <optional>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -135,6 +136,70 @@ struct concat_optimizer
         return ins->name() == "allocate" or ins->name() == am.name();
     }
 
+    // True if giving the instructions in `shapes` their new shapes would make a returned value
+    // non-standard. Users recompute their shapes from their inputs, as instruction::replace
+    // does, so this follows views as well as ops that keep the layout of their input, such as
+    // convert. The users in `skip` are rewritten by the caller.
+    bool makes_output_non_standard(std::unordered_map<instruction_ref, shape> shapes,
+                                   const std::vector<instruction_ref>& skip) const
+    {
+        std::vector<instruction_ref> seeds;
+        std::transform(shapes.begin(), shapes.end(), std::back_inserter(seeds), [](const auto& p) {
+            return p.first;
+        });
+        auto stack = seeds;
+        while(not stack.empty())
+        {
+            auto ins = stack.back();
+            stack.pop_back();
+            for(auto out : ins->outputs())
+            {
+                if(contains(skip, out) or contains(seeds, out) or out->name() == "@return")
+                    continue;
+                std::vector<shape> inputs;
+                std::transform(out->inputs().begin(),
+                               out->inputs().end(),
+                               std::back_inserter(inputs),
+                               [&](instruction_ref x) {
+                                   auto it = shapes.find(x);
+                                   return it == shapes.end() ? x->get_shape() : it->second;
+                               });
+                shape s;
+                try
+                {
+                    const auto& mods = out->module_inputs();
+                    s = mods.empty() ? out->get_operator().compute_shape(inputs)
+                                     : out->get_operator().compute_shape(inputs, mods);
+                }
+                catch(const std::exception&)
+                {
+                    return true;
+                }
+                auto it = shapes.find(out);
+                if(s == (it == shapes.end() ? out->get_shape() : it->second))
+                    continue;
+                shapes[out] = s;
+                stack.push_back(out);
+            }
+        }
+        auto returns = m->get_returns();
+        return std::any_of(returns.begin(), returns.end(), [&](instruction_ref r) {
+            auto it = shapes.find(r);
+            return it != shapes.end() and it->second != r->get_shape() and
+                   not it->second.standard();
+        });
+    }
+
+    // Writing the producer into a view of the super buffer replaces its allocation for every
+    // user, and both take the layout of the view
+    bool moves_output_layout(instruction_ref concat,
+                             instruction_ref producer,
+                             const shape& view_shape) const
+    {
+        return makes_output_non_standard(
+            {{get_output_alias(producer), view_shape}, {producer, view_shape}}, {concat});
+    }
+
     // The producer can write into a view of the super buffer only when it
     // owns its whole allocation
     bool can_write_inplace(instruction_ref producer) const
@@ -152,8 +217,10 @@ struct concat_optimizer
 
     // Decide if the producer of this concat input can write directly into a
     // view of the super buffer shaped like slice_shape
-    std::optional<plan>
-    plan_copy_elision(instruction_ref input, const shape& slice_shape, std::size_t axis) const
+    std::optional<plan> plan_copy_elision(instruction_ref concat,
+                                          instruction_ref input,
+                                          const shape& slice_shape,
+                                          std::size_t axis) const
     {
         auto [producer, chain] = get_view_chain(input);
         if(not can_write_inplace(producer))
@@ -164,7 +231,8 @@ struct concat_optimizer
         // they support non-packed inputs
         if(chain.empty())
         {
-            if(not producer_reports_shape(producer, slice_shape))
+            if(not producer_reports_shape(producer, slice_shape) or
+               moves_output_layout(concat, producer, slice_shape))
                 return std::nullopt;
             return plan{producer, {}, slice_shape};
         }
@@ -173,7 +241,8 @@ struct concat_optimizer
         auto inverse = invert_view_chain(chain, producer->get_shape(), slice_shape);
         if(not inverse.has_value())
             return std::nullopt;
-        if(not producer_reports_shape(producer, inverse->second))
+        if(not producer_reports_shape(producer, inverse->second) or
+           moves_output_layout(concat, producer, inverse->second))
             return std::nullopt;
         return plan{producer, inverse->first, inverse->second};
     }
@@ -189,12 +258,13 @@ struct concat_optimizer
     }
 
     instruction_ref insert_copy(const operation& op,
+                                instruction_ref concat,
                                 instruction_ref input,
                                 instruction_ref super,
                                 std::size_t axis) const
     {
         auto slice = m->insert_instruction(std::next(super), op, super);
-        if(auto p = plan_copy_elision(input, slice->get_shape(), axis))
+        if(auto p = plan_copy_elision(concat, input, slice->get_shape(), axis))
         {
             // Pin the layout before the allocation is replaced so the
             // producer never reports a shape out of sync with its buffer
@@ -207,7 +277,9 @@ struct concat_optimizer
             return input;
         }
         auto copy = m->insert_instruction(std::next(input), make_op(am.copy()), input, slice);
-        m->replace_instruction(input, copy);
+        // Other users read the copy, unless that would make a returned value non-standard
+        if(not makes_output_non_standard({{input, copy->get_shape()}}, {concat, copy}))
+            m->replace_instruction(input, copy);
         return copy;
     }
 
@@ -252,7 +324,8 @@ struct concat_optimizer
                        ins->inputs().end() - 1,
                        std::back_inserter(args),
                        [&](instruction_ref input) {
-                           auto x = insert_copy(make_slice(input, axis, start), input, super, axis);
+                           auto x =
+                               insert_copy(make_slice(input, axis, start), ins, input, super, axis);
                            start += x->get_shape().lens()[axis];
                            return x;
                        });
@@ -284,7 +357,7 @@ void eliminate_concat::apply(module& m) const
             ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
                 auto slice_shape =
                     concat_optimizer::slice_shape_for(ins->get_shape(), input->get_shape());
-                return not co.plan_copy_elision(input, slice_shape, axis).has_value();
+                return not co.plan_copy_elision(ins, input, slice_shape, axis).has_value();
             });
         if(ncopies > 1)
             continue;

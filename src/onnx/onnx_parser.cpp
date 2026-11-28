@@ -1088,8 +1088,13 @@ static shape::dynamic_dimension map_dyn_dim(onnx_parser& parser,
     {
         const auto& dim_param = model_dim->dim_param();
         if(parser.use_symbolic_shapes)
-            return make_symbol(
-                parser, dim_param, dim_param_bounds(parser, dim_param, override_dim));
+        {
+            auto bounds = dim_param_bounds(parser, dim_param, override_dim);
+            // A fixed bound is a constant, so emit it as a literal, as for an unnamed dim
+            if(bounds.is_fixed())
+                return shape::dynamic_dimension{sym::lit(bounds.get_interval().min)};
+            return make_symbol(parser, dim_param, bounds);
+        }
         if(override_dim != nullptr)
             return *override_dim;
         if(contains(parser.dim_params, dim_param))

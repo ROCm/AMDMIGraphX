@@ -393,6 +393,47 @@ constexpr auto vec_generate(F f)
     return sequence_c<N>([&](auto... is) { return safe_vec<type, N>{f(is)...}; });
 }
 
+// Dot product of x and y added to acc, with the products and sums in the type of acc
+template <class T, class U, class Acc>
+constexpr Acc vec_dot(T x, U y, Acc acc)
+{
+    static_assert(vec_size<T>() == vec_size<U>(), "Dot product of different sizes");
+    if constexpr(vec_size<T>() == 0)
+    {
+        return acc + static_cast<Acc>(x) * static_cast<Acc>(y);
+    }
+    else
+    {
+        repeat(vec_size<T>(),
+               [&](index_int i) { acc += static_cast<Acc>(x[i]) * static_cast<Acc>(y[i]); });
+        return acc;
+    }
+}
+
+#if defined(__has_builtin) and not defined(CPPCHECK)
+#if __has_builtin(__builtin_amdgcn_fdot2)
+// v_dot2_f32_f16 adds two half products to a float accumulator in one instruction
+template <index_int N, MIGRAPHX_REQUIRES(N % 2 == 0)>
+__device__ float vec_dot(vec<half, N> x, vec<half, N> y, float acc)
+{
+    repeat(_c<N / 2>, [&](auto i) {
+        acc = __builtin_amdgcn_fdot2(
+            vec_packed_at<2>(x, i * 2), vec_packed_at<2>(y, i * 2), acc, false);
+    });
+    return acc;
+}
+#endif
+#endif
+
+// Sums in at least float or int32, so narrow types do not round or overflow in their own type
+template <class T, class U>
+constexpr auto vec_dot(T x, U y)
+{
+    using type = common_type_t<vec_type<T>, vec_type<U>>;
+    using acc  = common_type_t<type, conditional_t<is_integral<type>{}, int32_t, float>>;
+    return vec_dot(x, y, acc{0});
+}
+
 template <class T>
 struct implicit_conversion_op
 {

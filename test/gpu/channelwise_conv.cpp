@@ -117,7 +117,7 @@ static migraphx::argument run_ref(const migraphx::shape& x_shape,
 }
 
 // Run the kernel with `solution` and a fused pointwise module built by `build_post` over
-// the conv result and the extra inputs, mirroring find_channelwise_conv_pointwise
+// the conv result and the extra inputs, mirroring find_tiled_conv_pointwise
 template <class BuildPost>
 static migraphx::argument run_gpu_fused(const std::vector<migraphx::shape>& param_shapes,
                                         const migraphx::shape& out_shape,

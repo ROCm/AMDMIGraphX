@@ -106,7 +106,7 @@ struct binary : op_name<Derived>
     bool supports_symbolic_compute(const shape& output_shape,
                                    const std::vector<sym_argument>&) const
     {
-        return output_shape.type() == shape::int64_type;
+        return output_shape.type() == shape::int64_type or output_shape.type() == shape::int32_type;
     }
 
     sym_argument symbolic_compute(const shape& output_shape,

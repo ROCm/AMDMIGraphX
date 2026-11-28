@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/binary.hpp>
+#include <migraphx/ranges.hpp>
 #include <cmath>
 
 namespace migraphx {
@@ -34,6 +35,17 @@ namespace op {
 
 struct min : binary<min>
 {
+    static constexpr bool enable_symbolic_compute = true;
+
+    // Picking one of the values is exact in any type, so floating point values qualify as well
+    bool supports_symbolic_compute(const shape& output_shape,
+                                   const std::vector<sym_argument>&) const
+    {
+        return contains(
+            {shape::int64_type, shape::int32_type, shape::float_type, shape::double_type},
+            output_shape.type());
+    }
+
     value attributes() const
     {
         auto a           = base_attributes();
@@ -42,7 +54,10 @@ struct min : binary<min>
     }
     auto apply() const
     {
-        return [](auto x, auto y) { return std::min(x, y); };
+        return [](auto x, auto y) {
+            using std::min;
+            return min(x, y);
+        };
     }
 };
 

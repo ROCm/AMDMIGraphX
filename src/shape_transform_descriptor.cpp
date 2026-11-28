@@ -874,10 +874,11 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
     if(broadcast)
         detach_unabsorbed_broadcasts(result.dimensions, dims);
     auto axes_map = rebase_ambiguity_resolver{result, dims}.resolve();
+    // A descriptor can refer to more axes than the new dims have, such as a 1-D value broadcast
+    // to a higher rank; it cannot be rebased onto them
     if(not std::all_of(axes_map.begin(), axes_map.end(), [&](const auto& p) {
            const auto& [axis, subs] = p;
-           assert(axis < dims.size());
-           return rebase_axis(subs, dims[axis], broadcast);
+           return axis < dims.size() and rebase_axis(subs, dims[axis], broadcast);
        }))
         return {};
     for(auto& dim : result.dimensions)

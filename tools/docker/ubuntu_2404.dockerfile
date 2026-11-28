@@ -133,3 +133,6 @@ ENV UBSAN_OPTIONS=print_stacktrace=1
 # See: https://github.com/google/sanitizers/issues/1017
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1:detect_odr_violation=0
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
+
+RUN useradd -m -u 1000 migraphx
+USER migraphx

@@ -1,0 +1,3 @@
+# Test fixture false positive: rock.float16_accumulation attribute in MLIR test
+test/gpu/mlir_compile_key.cpp:132
+test/gpu/mlir_compile_key.cpp:133

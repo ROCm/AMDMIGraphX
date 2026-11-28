@@ -46,7 +46,9 @@ std::string get_gfx_name(const std::string& device_name)
 
 std::size_t get_gfx_generation(const std::string& device_name)
 {
-    auto gfx = get_gfx_name(device_name);
+    // A '-' suffix (gfx1250-strict) names a target that is distinct for codegen but shares the
+    // ISA generation with its unsuffixed form, so it is not part of the number.
+    auto gfx = split_string(get_gfx_name(device_name), '-').front();
     // gfx<major><minor><stepping>, where minor and stepping are one hex digit each
     if(not starts_with(gfx, "gfx") or gfx.size() < 6)
         return 0;

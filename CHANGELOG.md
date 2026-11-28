@@ -11,6 +11,7 @@ Full documentation for MIGraphX is available at
 * Added MXR recompiling: `migraphx-driver compile --recompilable` stores each GPU kernel's compile recipe in the MXR, and `migraphx-driver recompile` (`program::recompile`) recompiles the kernels of a compiled MXR for another GPU, of a newer or an older generation, including cross-compiling with `--gpu-arch` and exhaustive tuning, without the original model. MXR files can be opened without loading their kernels (`file_options::finalize`). Setting `MIGRAPHX_GPU_DUMP_BENCHMARK_MXR` also dumps the unresolved benchmark candidates of a recompile as standalone MXRs for external tuning (#5466, #5581).
 * Added support for the `gfx1250-strict` offload target. It is a distinct target from `gfx1250`, so it gets its own code objects and kernel caches, and uses the same feature selection as `gfx1250`. Hyphenated processor names are now handled when parsing the GPU generation, when stripping arch flags in CMake, and when verifying offload archs, which previously could not tell `gfx1250` from `gfx1250-strict` (#5601).
 * Added the `mlir_float16_accumulation` GPU backend option, also settable through `MIGRAPHX_GPU_OPTIONS`, which sets the `rock.float16_accumulation` attribute on MLIR kernels so rocMLIR can use WMMA instructions with 16-bit accumulation for GEMMs and convolutions on gfx1250 (#5605).
+* Added KV cache attention flash decoding, based on env var (#5439).
 
 ### Resolved issues
 

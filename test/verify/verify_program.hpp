@@ -37,6 +37,7 @@ struct program_info
     std::string section;
     std::size_t tolerance;
     std::function<migraphx::program()> get_program;
+    std::function<migraphx::parameter_map()> get_inputs;
     migraphx::compile_options compile_options;
     std::unordered_map<std::string, migraphx::shape> test_dims;
 };
@@ -66,6 +67,7 @@ struct register_verify_program_action
         pi.section         = x.section();
         pi.tolerance       = x.get_tolerance();
         pi.get_program     = [x] { return x.create_program(); };
+        pi.get_inputs      = [x] { return x.get_inputs(); };
         pi.compile_options = x.get_compile_options();
         pi.test_dims       = x.get_test_dims();
         register_program_info(pi);
@@ -80,6 +82,7 @@ struct verify_program : auto_register_verify_program<T>
 {
     std::string section() const { return "general"; };
     migraphx::compile_options get_compile_options() const { return migraphx::compile_options{}; };
+    migraphx::parameter_map get_inputs() const { return {}; };
     std::size_t get_tolerance() const { return 80; };
     std::unordered_map<std::string, migraphx::shape> get_test_dims() const { return {}; };
 };

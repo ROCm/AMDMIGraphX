@@ -37,6 +37,15 @@ if(NOT TARGET_FILE OR NOT ARCHS)
 endif()
 string(REPLACE "," ";" _archs "${ARCHS}")
 
+# Match an arch only where a target id puts it, after "amdhsa-<env>-": the tool output also
+# contains the library path, which can name an arch directory. It must end there or at ':'
+# so gfx1250 does not match gfx1250-strict, while gfx942 still matches gfx942:xnack+.
+# '+' and '.' occur in target ids and are regex metacharacters, so escape them.
+function(arch_token_regex _arch _out)
+    string(REGEX REPLACE "([.+])" "\\\\\\1" _escaped "${_arch}")
+    set(${_out} "amdhsa-[a-z0-9]*-${_escaped}([:\r\n]|$)" PARENT_SCOPE)
+endfunction()
+
 if(WIN32)
     if(NOT OBJCOPY OR NOT BUNDLER OR NOT READOBJ)
         message(FATAL_ERROR "verify_offload_archs: OBJCOPY, BUNDLER and READOBJ required on Windows")
@@ -72,8 +81,9 @@ if(WIN32)
         # Search only the amdhsa.target line to avoid false positives from
         # arch names appearing elsewhere in kernel metadata or symbol names.
         string(REGEX MATCH "amdhsa\\.target:[^\r\n]*" _target_line "${_notes}")
-        string(FIND "${_target_line}" "${_a}" _pos)
-        if(_pos EQUAL -1)
+        arch_token_regex("${_a}" _arch_re)
+        string(REGEX MATCH "${_arch_re}" _found "${_target_line}")
+        if(_found STREQUAL "")
             list(APPEND _missing "${_a}")
         endif()
     endforeach()
@@ -90,8 +100,9 @@ else()
     endif()
     set(_missing "")
     foreach(_a IN LISTS _archs)
-        string(FIND "${_dump}" "${_a}" _pos)
-        if(_pos EQUAL -1)
+        arch_token_regex("${_a}" _arch_re)
+        string(REGEX MATCH "${_arch_re}" _found "${_dump}")
+        if(_found STREQUAL "")
             list(APPEND _missing "${_a}")
         endif()
     endforeach()

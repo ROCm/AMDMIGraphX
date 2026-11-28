@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/layout_convolution.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -33,6 +34,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/reshape_dims.hpp>
+#include <migraphx/sat_ops.hpp>
 #include <migraphx/stringutils.hpp>
 
 namespace migraphx {
@@ -149,22 +151,33 @@ void remove_layout(module& m)
     }
 }
 
+bool is_copy(const instruction& ins)
+{
+    // Checked before can_eval, which walks all inputs of every instruction it is called on.
+    if(not contains({"layout", "contiguous", "reshape"}, ins.name()))
+        return false;
+    if(ins.can_eval())
+        return false;
+    // Collapsed dims that are not contiguous cannot be reshape_lazy, so the reshape copies.
+    if(ins.name() == "reshape")
+        return not reshape_dims(
+                       ins.inputs().front()->get_shape(), ins.get_shape().lens(), {.lazy = true})
+                       .has_value();
+    return true;
+}
+
+// Weigh each copy by the bytes it moves. Dynamic shapes score 0 (their byte count is only
+// an upper bound). Sums saturate so huge shapes cannot wrap around and flip the choice.
 std::size_t score(const module& m)
 {
-    return std::count_if(m.begin(), m.end(), [](const instruction& ins) {
-        if(ins.can_eval())
-            return false;
-        if(contains({"layout", "contiguous"}, ins.name()))
-            return true;
-        // A reshape whose collapsed dims are not contiguous cannot alias its input as a view
-        // (reshape_lazy) and needs a copy, so count it the same as a contiguous.
-        if(ins.name() == "reshape")
-            return not reshape_dims(ins.inputs().front()->get_shape(),
-                                    ins.get_shape().lens(),
-                                    {.lazy = true})
-                           .has_value();
-        return false;
-    });
+    return transform_accumulate(
+        m.begin(), m.end(), std::size_t{0}, MIGRAPHX_LIFT(add_sat), [](const instruction& ins) {
+            const auto& s = ins.get_shape();
+            // Checked before is_copy: a dynamic reshape's lens() throw would abort the pass.
+            if(s.dynamic() or not is_copy(ins))
+                return std::size_t{0};
+            return s.bytes();
+        });
 }
 } // namespace
 
@@ -195,9 +208,20 @@ void layout_convolution::apply(module_pass_manager& mpm) const
         module m_last           = mpm.get_module();
         last.apply_layout(m_last);
         // channels_last converts each parameter to NHWC and back, so allow up to two extra
-        // layouts per parameter before preferring channels_first.
-        auto allowance     = 2 * mpm.get_module().get_parameters().size();
-        const auto& chosen = (score(m_first) + allowance < score(m_last)) ? first : last;
+        // copies of each parameter before preferring channels_first. Those copies are packed,
+        // so padding or broadcasting in the parameter's strides does not count.
+        auto params      = mpm.get_module().get_parameters();
+        auto param_bytes = transform_accumulate(
+            params.begin(),
+            params.end(),
+            std::size_t{0},
+            MIGRAPHX_LIFT(add_sat),
+            [](instruction_ref p) {
+                const auto& s = p->get_shape();
+                return skip_layout(s) ? std::size_t{0} : mul_sat(s.elements(), s.type_size());
+            });
+        auto allowance     = mul_sat(std::size_t{2}, param_bytes);
+        const auto& chosen = (add_sat(score(m_first), allowance) < score(m_last)) ? first : last;
         chosen.apply_layout(mpm.get_module());
     }
     else

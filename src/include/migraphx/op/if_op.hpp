@@ -39,6 +39,16 @@ namespace op {
 
 struct if_op
 {
+    // When the branches return outputs of different symbolic shapes, the shapes of the outputs
+    // of either branch; empty otherwise
+    shape output_dyn_shapes;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.output_dyn_shapes, "output_dyn_shapes"));
+    }
+
     std::string name() const { return "if"; }
 
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
@@ -51,6 +61,22 @@ struct if_op
 
         auto out_shapes0 = mods[0]->get_output_shapes();
         auto out_shapes1 = mods[1]->get_output_shapes();
+        if(output_dyn_shapes.type() == shape::tuple_type)
+        {
+            const auto& outputs = output_dyn_shapes.sub_shapes();
+            auto matches        = [&](const std::vector<shape>& branch) {
+                return branch.size() == outputs.size() and
+                       std::equal(branch.begin(),
+                                  branch.end(),
+                                  outputs.begin(),
+                                  [](const shape& b, const shape& o) {
+                                      return b.type() == o.type() and b.ndim() == o.ndim();
+                                  });
+            };
+            if(not matches(out_shapes0) or not matches(out_shapes1))
+                MIGRAPHX_THROW("IF: submodule outputs do not match output_dyn_shapes.");
+            return output_dyn_shapes;
+        }
         if(not std::equal(
                out_shapes1.begin(), out_shapes1.end(), out_shapes0.begin(), out_shapes0.end()))
         {

@@ -3209,6 +3209,10 @@ struct find_unit_ops
     {
         auto ins  = r.result;
         auto c_in = r.instructions["x"];
+        // A scalar has the lens of a one-element tensor, but ops such as unsqueeze treat it as
+        // rank 0
+        if(c_in->get_shape().scalar() != ins->get_shape().scalar())
+            return;
 
         m.replace_instruction(ins, c_in);
     }

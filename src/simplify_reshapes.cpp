@@ -2620,6 +2620,10 @@ struct find_slice_squeeze
         auto sl_axes = slice_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
         if(sq_axes.size() != 1 or sl_axes.size() != 1 or sq_axes.front() != sl_axes.front())
             return;
+        // A scalar squeeze is rank 0, so an op broadcasting it with a tensor of one element has
+        // a higher rank than the squeeze
+        if(squeeze->get_shape().scalar() != op_ins->get_shape().scalar())
+            return;
 
         auto axis = sq_axes.front();
 

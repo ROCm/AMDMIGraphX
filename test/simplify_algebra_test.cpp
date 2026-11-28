@@ -1925,6 +1925,24 @@ TEST_CASE(simplify_unit_mult_const)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_unit_add_scalar_keeps_rank)
+{
+    // The squeeze is a scalar while the add has rank 1, which the unsqueeze reads; replacing the
+    // add by the scalar would make the unsqueeze rank 1
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto sq   = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), x);
+        auto zero = m1.add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {0}});
+        auto add  = m1.add_instruction(migraphx::make_op("add"), sq, zero);
+        auto unsq = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), add);
+        m1.add_return({unsq});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_unit_mult_const2)
 {
     migraphx::module m1;

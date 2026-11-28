@@ -342,7 +342,8 @@ __device__ void select_topk(index idx, Compare compare, T init, N, Read read, Wr
     static_assert(K <= n, "K must not be larger than n");
     static_assert(K % width == 0, "K must be a multiple of the read width");
     const auto sentinel = make_topk_pair<pair>(init, -1);
-    __shared__ uninitialized_buffer<pair, buf_size> buf;
+    // Aligned to the widest lds access, otherwise each pair is split into narrower accesses
+    __shared__ uninitialized_buffer<pair, buf_size, 16> buf;
     // Wait for any previous selection to finish reading the buffer
     __syncthreads();
     if constexpr(wave_select)

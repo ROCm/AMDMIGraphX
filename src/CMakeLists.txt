@@ -96,6 +96,7 @@ add_library(migraphx
     instruction.cpp
     instruction_traversal.cpp
     json.cpp
+    trt_json.cpp
     layout_convolution.cpp
     lexing.cpp
     load_save.cpp

@@ -179,6 +179,9 @@ struct registered_host_buffer
 
 argument register_on_gpu(const argument& arg)
 {
+    // There is nothing to register for an empty buffer, and hipHostRegister rejects a size of 0
+    if(arg.get_shape().bytes() == 0)
+        return arg;
     auto r          = std::make_shared<registered_host_buffer>();
     r->host         = arg.share();
     r->registration = register_on_gpu(r->host.data(), r->host.get_shape().bytes());

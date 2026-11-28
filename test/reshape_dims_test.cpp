@@ -145,6 +145,45 @@ TEST_CASE(broadcasted_unmergeable)
     EXPECT(static_reshape(s, {6}, true) == migraphx::nullopt);
 }
 
+// A nearest-neighbor upsample of an NHWC tensor. Each broadcast axis merges into a non-broadcast
+// one that places it in memory, so a copy keeps the NHWC layout even though a view can't.
+TEST_CASE(broadcasted_merge_transposed)
+{
+    migraphx::shape s{ftype, {1, 4, 2, 2, 3, 2}, {24, 1, 12, 0, 4, 0}};
+    migraphx::shape expected{ftype, {1, 4, 4, 6}, {96, 1, 24, 4}};
+    EXPECT(static_reshape(s, {1, 4, 4, 6}, true) == migraphx::nullopt);
+    EXPECT(static_reshape(s, {1, 4, 4, 6}, false) == expected);
+}
+
+// A broadcast axis of length 1 takes no memory, so the copy keeps it in its logical place
+// instead of carrying the zero stride.
+TEST_CASE(broadcasted_singleton_transposed)
+{
+    migraphx::shape s{ftype, {1, 4, 2, 3}, {0, 1, 12, 4}};
+    migraphx::shape expected{ftype, {1, 4, 6}, {24, 1, 4}};
+    EXPECT(static_reshape(s, {1, 4, 6}, false) == expected);
+}
+
+// The stride of a length-1 axis is arbitrary, so it can't place the broadcast axis it merges with.
+// The merged axis is still only broadcast data and the copy falls back to a standard layout.
+TEST_CASE(broadcasted_merge_singleton)
+{
+    migraphx::shape s{ftype, {2, 1, 4}, {1, 1, 0}};
+    migraphx::shape expected{ftype, {2, 4}};
+    EXPECT(static_reshape(s, {2, 4}, true) == migraphx::nullopt);
+    EXPECT(static_reshape(s, {2, 4}, false) == expected);
+}
+
+// The same merge between two non-broadcast axes, where the stride of the length-1 axis ties with
+// the outer axis.
+TEST_CASE(broadcasted_merge_singleton_inner)
+{
+    migraphx::shape s{ftype, {3, 1, 4, 2}, {2, 2, 0, 1}};
+    migraphx::shape expected{ftype, {3, 4, 2}};
+    EXPECT(static_reshape(s, {3, 4, 2}, true) == migraphx::nullopt);
+    EXPECT(static_reshape(s, {3, 4, 2}, false) == expected);
+}
+
 // A sliced shape has gaps between its axes, so merging them loses the gap and needs a copy.
 TEST_CASE(nonpacked)
 {

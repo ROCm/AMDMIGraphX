@@ -23,6 +23,7 @@
  */
 #include <algorithm>
 #include <array>
+#include <bitset>
 #include <tuple>
 #include <migraphx/dfor.hpp>
 #include <migraphx/matcher.hpp>
@@ -731,6 +732,53 @@ bool winograd_f23_fp32_profitable(
     return true;
 }
 
+// Shapes where the gfx11 fp32 rule below mispredicts: winograd is 0.6x to 0.85x of MLIR
+// on these, although their neighbours in channels and spatial size win.
+constexpr std::array<winograd_f23_shape, 2> winograd_f23_fp32_overrides_gfx11{{
+    {384, 3, 32, 32, false},
+    {512, 3, 32, 32, false},
+}};
+
+// The gfx11 version of winograd_f23_fp32_profitable, from the same sweep
+// (tools/bench_conv.py) run on gfx1151. The gfx12 rule is slower than MLIR alone there:
+// the high-channel small-spatial convs it picks run at 0.2x to 0.6x on gfx1151.
+//   - NCHW: wins with at most 16 output channels, and with low to mid channel counts at
+//     small to mid spatial sizes. Larger shapes range from parity down to 0.2x.
+//   - NHWC: wins only with at most 12 output channels. A power-of-two input channel
+//     count of 128 or more loses past a small spatial size (256->3 at 128x128 is 0.36x
+//     where 192->3 is 1.56x).
+// Shapes that are close to parity or that flip between neighbours are left to MLIR.
+bool winograd_f23_fp32_profitable_gfx11(
+    std::size_t in_ch, std::size_t out_ch, std::size_t height, std::size_t width, bool nhwc)
+{
+    const auto spatial = std::min(height, width);
+    if(nhwc)
+    {
+        if(in_ch < 16)
+            return false;
+        const bool pow2_in_ch = std::bitset<64>(in_ch).count() == 1;
+        if(pow2_in_ch and in_ch >= 128 and spatial > 32 and in_ch * spatial > 8192)
+            return false;
+        if(out_ch <= 4)
+            return spatial <= 128;
+        if(out_ch <= 8)
+            return spatial >= 64 and in_ch <= 384;
+        return out_ch <= 12 and spatial >= 96 and in_ch <= 192;
+    }
+    if(in_ch < 8)
+        return false;
+    if(const auto* ovr =
+           find_shape_override(winograd_f23_fp32_overrides_gfx11, in_ch, out_ch, height, width))
+        return ovr->use_winograd;
+    if(out_ch <= 16)
+        return true;
+    if(in_ch < 24 or spatial < 24)
+        return false;
+    if(out_ch <= 32)
+        return in_ch <= 128 and spatial <= 128;
+    return std::max(in_ch, out_ch) <= 112 and spatial <= 96;
+}
+
 MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
 {
     if(ins->name() != "convolution")
@@ -761,35 +809,47 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
         return false;
     // Only support literal weights -- we precompute the Winograd filter
     // transform U at compile time.
-    if(not ins->inputs().back()->can_eval())
-        return false;
-    // Use the perf heuristic to skip shapes where the default lowering is
-    // faster. MIGRAPHX_ENABLE_WINOGRAD forces winograd on every eligible
-    // shape (bypassing the heuristic); MIGRAPHX_DISABLE_WINOGRAD forces it
-    // off everywhere. Both are for benchmarking/debugging.
-    if(enabled(MIGRAPHX_DISABLE_WINOGRAD{}))
-        return false;
-    // Channels-last (NHWC) when the conv input's channel axis is innermost --
-    // the same test the kernel uses to pick its NHWC path. layout_convolution
-    // runs before this pass, so the strides already reflect the chosen layout.
-    const bool nhwc = ins->inputs().front()->get_shape().strides()[1] == 1;
-    // MIGRAPHX_ENABLE_WINOGRAD forces winograd on every eligible shape (bypassing
-    // the heuristic); otherwise the per-shape, per-dtype perf heuristic decides.
-    // fp16 uses the WMMA kernel's heuristic, fp32 the FMA/DPP kernel's.
-    if(enabled(MIGRAPHX_ENABLE_WINOGRAD{}))
-        return true;
-    if(x_type == shape::float_type)
-        return winograd_f23_fp32_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc);
-    return winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc);
+    return ins->inputs().back()->can_eval();
 }
 
 struct find_winograd_f23
 {
+    // The fp16 WMMA kernel only has operand packing for gfx12 and gfx1151
+    bool fp16  = false;
+    bool gfx11 = false;
+
     auto matcher() const { return conv_winograd_f23(); }
+
+    // MIGRAPHX_DISABLE_WINOGRAD and MIGRAPHX_ENABLE_WINOGRAD replace the per-shape perf
+    // heuristic with never and always, for benchmarking.
+    bool use_winograd(instruction_ref ins) const
+    {
+        const auto& x_shape = ins->inputs().front()->get_shape();
+        const bool is_fp16  = x_shape.type() == shape::half_type;
+        if(is_fp16 and not fp16)
+            return false;
+        if(enabled(MIGRAPHX_DISABLE_WINOGRAD{}))
+            return false;
+        if(enabled(MIGRAPHX_ENABLE_WINOGRAD{}))
+            return true;
+        const auto& x_lens = x_shape.lens();
+        const auto& w_lens = ins->inputs().back()->get_shape().lens();
+        // layout_convolution runs before this pass, so a channels-last input already has its
+        // channel axis innermost, which is also how the kernel picks its NHWC path.
+        const bool nhwc = x_shape.strides()[1] == 1;
+        if(is_fp16)
+            return winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc);
+        if(gfx11)
+            return winograd_f23_fp32_profitable_gfx11(
+                w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc);
+        return winograd_f23_fp32_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc);
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins     = r.result;
+        auto ins = r.result;
+        if(not use_winograd(ins))
+            return;
         auto input   = ins->inputs().front();
         auto weights = ins->inputs().back();
 
@@ -861,24 +921,20 @@ void inline_group_sub_module(module_pass_manager& mpm)
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-    const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
-    // The F(2,3) winograd kernel uses gfx12 wave32 WMMA + the gfx12 buffer SRD
-    // format, so it is gfx12-only. On gfx12 it is enabled by default and the
-    // matcher's perf heuristic decides per-shape; MIGRAPHX_ENABLE_WINOGRAD
-    // forces it on for every eligible shape (heuristic bypass). Running here
-    // (after layout_convolution) means winograd inherits the layout that pass
-    // chose and replaces the convolution in place via its layout-matching
-    // compute_shape.
-    const bool supports_winograd = device_name == "gfx1151" or starts_with(device_name, "gfx12");
+    const bool is_gfx11     = starts_with(device_name, "gfx11");
+    const bool is_gfx12     = starts_with(device_name, "gfx12");
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
-    if(is_navi)
+    if(is_gfx11 or is_gfx12)
+    {
         match::find_matches(
             mpm.get_module(),
             find_channelwise_convolution{
                 .max_lds_bytes = ctx->get_current_device().get_max_shared_memory_per_block()});
-    if(supports_winograd)
-    {
-        match::find_matches(mpm.get_module(), find_winograd_f23{});
+        // Runs after layout_convolution, so winograd_conv keeps the layout that pass chose and
+        // replaces the convolution in place.
+        match::find_matches(
+            mpm.get_module(),
+            find_winograd_f23{.fp16 = is_gfx12 or device_name == "gfx1151", .gfx11 = is_gfx11});
         mpm.run_pass(dead_code_elimination{});
     }
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))

@@ -38,7 +38,7 @@
 
 namespace migraphx {
 
-// FMA + DPP Winograd F(2x2, 3x3) for fp32 on gfx12 (RDNA4, wave32), modeled on
+// FMA + DPP Winograd F(2x2, 3x3) for fp32 on gfx11 and gfx12 (wave32), modeled on
 // MIOpen's Conv_Winograd_v40_6_0_gfx12_fp32_f2x3_stride1 (an FMA/DPP kernel,
 // NOT a matrix-core/WMMA kernel).
 //
@@ -63,7 +63,7 @@ namespace migraphx {
 // transform's v=3 column with a sign flip (d3-d1 instead of d1-d3); the host
 // weight bakes a matching negation into U[:,3,:,:] so the product is exact.
 //
-// Input/weight reads use the shared gfx12 OOB buffer loads (buffer_load.hpp):
+// Input/weight reads use the shared OOB buffer loads (buffer_load.hpp):
 // make_oob_buffer_rsrc, buffer_load<float> (b32), and buffer_load_vec<float, CU>
 // (b128/b64/b32) for a CU-wide channel-unrolled load.
 

@@ -44,8 +44,8 @@ Model performance tunable variables change the compilation behavior of a model. 
 
   * - | ``MIGRAPHX_ENABLE_WINOGRAD``
       | Forces the F(2,3) winograd convolution kernel on every eligible
-      | 3x3/stride-1/pad-1 fp16 convolution, bypassing the perf heuristic.
-      | gfx12 only.
+      | 3x3/stride-1/pad-1 convolution, bypassing the perf heuristic.
+      | fp32 on gfx11 and gfx12; fp16 on gfx12 and gfx1151.
 
     - | ``1``: Use winograd on all eligible convolutions.
       | ``0``: Returns to default behavior.

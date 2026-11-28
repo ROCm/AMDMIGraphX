@@ -51,6 +51,9 @@ if(NOT WIN32)
     set_directory_properties(PROPERTIES ADDITIONAL_CLEAN_FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver)
 endif()
 rocm_clang_tidy_check(driver)
+# codecov.yml ignores src/driver, but coverage data from the driver's objects would still
+# count the library header code they compile and never run, so leave the driver out.
+target_compile_options(driver PRIVATE $<$<CONFIG:codecov>:-fno-profile-arcs -fno-test-coverage>)
 
 file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
 target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")

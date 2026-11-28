@@ -1,0 +1,56 @@
+loop_outer_scope_unordered_test:µ
+‹
+max_trip_count
+keep_going_cond
+bb_loop"Loop*Ö
+body2Ê
+&
+keep_going_inp
+keep_going"Identity
+
+a2
+b_inmy_local"AddbodyZ
+iteration_num
+
+
+Z
+keep_going_inp
+
+	
+Z
+b_in
+
+
+b
+
+keep_going
+
+	
+b
+my_local
+
+
+ 
+
+a
+aa2"Addloop_outer_scope_unordered_testZ
+max_trip_count
+
+
+Z
+keep_going_cond
+
+	
+Z
+a
+
+
+Z
+b
+
+
+b
+b_loop
+
+
+B

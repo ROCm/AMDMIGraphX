@@ -41,6 +41,8 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <test.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
@@ -894,8 +896,8 @@ module {
     %1 = migraphx.multibroadcast %arg2 {out_dyn_dims = [], out_lens = [1, 64, 32]} : <1x64x1xf32, 64x1x1> -> <1x64x32xf32, 64x1x0>
     %2 = migraphx.reshape %1 {dims = [1, 2048]} : <1x64x32xf32, 64x1x0> -> <1x2048xf32, 2048x1>
     %3 = migraphx.multibroadcast %arg3 {out_dyn_dims = [], out_lens = [64, 32, 1000]} : <64x1x1000xf32, 1x1x64> -> <64x32x1000xf32, 1x0x64>
-    %4 = migraphx.reshape %3 {dims = [2048, 1000]} : <64x32x1000xf32, 1x0x64> -> <2048x1000xf32, 1000x1>
-    %5 = migraphx.quant_dot %arg0 scaled by %2, %0 scaled by %4 : <1x2048xf4E2M1FN, 2048x1> scaled by !migraphx.shaped<1x2048xf32, 2048x1>, <2048x1000xf4E2M1FN, 1x2048> scaled by !migraphx.shaped<2048x1000xf32, 1000x1> -> <1x1000xf32, 1000x1>
+    %4 = migraphx.reshape %3 {dims = [2048, 1000]} : <64x32x1000xf32, 1x0x64> -> <2048x1000xf32, 1x2048>
+    %5 = migraphx.quant_dot %arg0 scaled by %2, %0 scaled by %4 : <1x2048xf4E2M1FN, 2048x1> scaled by !migraphx.shaped<1x2048xf32, 2048x1>, <2048x1000xf4E2M1FN, 1x2048> scaled by !migraphx.shaped<2048x1000xf32, 1x2048> -> <1x1000xf32, 1000x1>
     %6 = migraphx.add %5, %arg4 : <1x1000xf32, 1000x1>, <1x1000xf32, 1000x1> -> <1x1000xf32, 1000x1>
     return %6 : !migraphx.shaped<1x1000xf32, 1000x1>
   }
@@ -1099,6 +1101,136 @@ TEST_CASE_SKIP(prefill_float_reduce, "temporarily disabled")
     }));
 }
 
+// f16 and bf16 GEMMs must compile with the option on every architecture, including those where
+// rocMLIR ignores it.
+template <migraphx::shape::type_t T>
+static void float16_accumulation_compiles()
+{
+    migraphx::module m;
+    auto a   = m.add_parameter("a", {T, {1, 64, 32}});
+    auto b   = m.add_parameter("b", {T, {1, 32, 48}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), a, b);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx;
+    auto tc_default = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    ctx.set_mlir_float16_accumulation(true);
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    // Tuning for one accumulation mode must not be reused for the other
+    EXPECT(tc.problem != tc_default.problem);
+    auto mco = compile_mlir(ctx, create_mlir_submodule(m), shapes, tc.solutions.front());
+    EXPECT(not mco.cop.code_object.empty());
+}
+TEST_CASE_REGISTER(float16_accumulation_compiles<migraphx::shape::half_type>);
+TEST_CASE_REGISTER(float16_accumulation_compiles<migraphx::shape::bf16_type>);
+
+// The backend option is the user-facing switch: it must reach the context MLIR kernels read
+TEST_CASE(float16_accumulation_backend_option)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", {migraphx::shape::half_type, {4, 8}});
+    mm->add_return({mm->add_instruction(migraphx::make_op("relu"), x)});
+
+    auto p_default = p;
+    p_default.compile(migraphx::make_target("gpu"));
+    auto* default_ctx = p_default.get_context().any_cast<migraphx::gpu::context>();
+    EXPECT(default_ctx != nullptr);
+    EXPECT(not default_ctx->get_mlir_float16_accumulation());
+
+    migraphx::compile_options options;
+    options.backend_options["mlir_float16_accumulation"] = true;
+    p.compile(migraphx::make_target("gpu"), options);
+    auto* ctx = p.get_context().any_cast<migraphx::gpu::context>();
+    EXPECT(ctx != nullptr);
+    EXPECT(ctx->get_mlir_float16_accumulation());
+}
+
+// A dump must reproduce the kernel that was compiled, accumulation mode included
+TEST_CASE(dump_mlir_to_file_float16_accumulation)
+{
+    migraphx::module m;
+    auto a   = m.add_parameter("a", {migraphx::shape::half_type, {1, 64, 32}});
+    auto b   = m.add_parameter("b", {migraphx::shape::half_type, {1, 32, 48}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), a, b);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx;
+    ctx.set_mlir_float16_accumulation(true);
+    migraphx::tmp_dir td{"mlir-dump"};
+    migraphx::gpu::dump_mlir_to_file(ctx, create_mlir_submodule(m), shapes, td.path);
+
+    auto files = std::vector<migraphx::fs::path>(migraphx::fs::directory_iterator{td.path}, {});
+    EXPECT(files.size() == 1);
+    EXPECT(migraphx::contains(migraphx::read_string(files.front()),
+                              "rock.float16_accumulation = 1 : i64"));
+}
+
+// CI has no gfx1250, where rocMLIR honours the option, so cross-compile for it: with the same
+// perf config, the code object must change once the WMMA accumulator becomes 16-bit. bf16 is
+// not covered: rocMLIR still accumulates bf16 GEMMs in f32 when the option is set.
+TEST_CASE(float16_accumulation_changes_gfx1250_dot)
+{
+    migraphx::module m;
+    auto a   = m.add_parameter("a", {migraphx::shape::half_type, {1, 64, 32}});
+    auto b   = m.add_parameter("b", {migraphx::shape::half_type, {1, 32, 48}});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), a, b);
+    m.add_return({dot});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), dot->get_shape()};
+    migraphx::gpu::context ctx{
+        migraphx::gpu::device_description{.arch = "gfx1250", .num_cu = 256, .num_chiplets = 1}};
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    const auto& solution = tc.solutions.front();
+    auto mco_default     = compile_mlir(ctx, create_mlir_submodule(m), shapes, solution);
+    ctx.set_mlir_float16_accumulation(true);
+    auto mco_float16 = compile_mlir(ctx, create_mlir_submodule(m), shapes, solution);
+
+    EXPECT(not mco_default.cop.code_object.empty());
+    EXPECT(not mco_float16.cop.code_object.empty());
+    EXPECT(mco_default.cop.code_object != mco_float16.cop.code_object);
+}
+
+// rocMLIR lowers convolutions to the same GEMM, so they switch accumulator too
+TEST_CASE(float16_accumulation_changes_gfx1250_convolution)
+{
+    migraphx::module m;
+    auto a    = m.add_parameter("a", {migraphx::shape::half_type, {1, 64, 16, 16}});
+    auto b    = m.add_parameter("b", {migraphx::shape::half_type, {64, 64, 3, 3}});
+    auto conv = m.add_instruction(migraphx::make_op("convolution"), a, b);
+    m.add_return({conv});
+    // Skip test if MLIR is not enabled
+    if(migraphx::gpu::dump_mlir(m).empty())
+        return;
+
+    std::vector<migraphx::shape> shapes = {a->get_shape(), b->get_shape(), conv->get_shape()};
+    migraphx::gpu::context ctx{
+        migraphx::gpu::device_description{.arch = "gfx1250", .num_cu = 256, .num_chiplets = 1}};
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(m), shapes, false);
+    EXPECT(not tc.solutions.empty());
+    const auto& solution = tc.solutions.front();
+    auto mco_default     = compile_mlir(ctx, create_mlir_submodule(m), shapes, solution);
+    ctx.set_mlir_float16_accumulation(true);
+    auto mco_float16 = compile_mlir(ctx, create_mlir_submodule(m), shapes, solution);
+
+    EXPECT(not mco_default.cop.code_object.empty());
+    EXPECT(not mco_float16.cop.code_object.empty());
+    EXPECT(mco_default.cop.code_object != mco_float16.cop.code_object);
+}
+
 TEST_CASE_SKIP(prefill_integer_reduce, "temporarily disabled")
 {
     migraphx::module m;
@@ -1216,13 +1348,13 @@ module {
     %3 = migraphx.reshape %arg0 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
     %4 = migraphx.transpose %3 {permutation = [0, 1, 2, 4, 3]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x1x4x8xf16, 64x32x32x1x4>
     %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [1, 2, 2, 4, 8]} : <1x2x1x4x8xf16, 64x32x32x1x4> -> <1x2x2x4x8xf16, 64x32x0x1x4>
-    %6 = migraphx.reshape %5 {dims = [1, 4, 4, 8]} : <1x2x2x4x8xf16, 64x32x0x1x4> -> <1x4x4x8xf16, 128x32x8x1>
+    %6 = migraphx.reshape %5 {dims = [1, 4, 4, 8]} : <1x2x2x4x8xf16, 64x32x0x1x4> -> <1x4x4x8xf16, 128x32x1x4>
     %7 = migraphx.reshape %arg3 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
     %8 = migraphx.multibroadcast %7 {out_dyn_dims = [], out_lens = [1, 2, 2, 8, 4]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x2x8x4xf16, 64x32x0x4x1>
     %9 = migraphx.reshape %8 {dims = [1, 4, 8, 4]} : <1x2x2x8x4xf16, 64x32x0x4x1> -> <1x4x8x4xf16, 128x32x4x1>
     %10 = migraphx.reshape %arg1 {dims = [1, 1, 4, 4]} : <1x4x1x4xf16, 16x4x4x1> -> <1x1x4x4xf16, 16x16x4x1>
     %11 = migraphx.transpose %10 {permutation = [0, 2, 1, 3]} : <1x1x4x4xf16, 16x16x4x1> -> <1x4x1x4xf16, 16x4x16x1>
-    %12 = migraphx.dot %11, %6 : <1x4x1x4xf16, 16x4x16x1>, <1x4x4x8xf16, 128x32x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %12 = migraphx.dot %11, %6 : <1x4x1x4xf16, 16x4x16x1>, <1x4x4x8xf16, 128x32x1x4> -> <1x4x1x8xf16, 32x8x8x1>
     %13 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1xf16, 1> -> <1x4x1x8xf16, 0x0x0x0>
     %14 = migraphx.mul %12, %13 : <1x4x1x8xf16, 32x8x8x1>, <1x4x1x8xf16, 0x0x0x0> -> <1x4x1x8xf16, 32x8x8x1>
     %15 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <8xsi32, 1> -> <1x4x1x8xsi32, 0x0x0x1>
@@ -1279,13 +1411,13 @@ module {
     %3 = migraphx.reshape %arg0 {dims = [2, 2, 1, 8, 4]} : <2x2x8x4xf16, 64x32x4x1> -> <2x2x1x8x4xf16, 64x32x32x4x1>
     %4 = migraphx.transpose %3 {permutation = [0, 1, 2, 4, 3]} : <2x2x1x8x4xf16, 64x32x32x4x1> -> <2x2x1x4x8xf16, 64x32x32x1x4>
     %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [2, 2, 2, 4, 8]} : <2x2x1x4x8xf16, 64x32x32x1x4> -> <2x2x2x4x8xf16, 64x32x0x1x4>
-    %6 = migraphx.reshape %5 {dims = [2, 4, 4, 8]} : <2x2x2x4x8xf16, 64x32x0x1x4> -> <2x4x4x8xf16, 128x32x8x1>
+    %6 = migraphx.reshape %5 {dims = [2, 4, 4, 8]} : <2x2x2x4x8xf16, 64x32x0x1x4> -> <2x4x4x8xf16, 128x32x1x4>
     %7 = migraphx.reshape %arg3 {dims = [2, 2, 1, 8, 4]} : <2x2x8x4xf16, 64x32x4x1> -> <2x2x1x8x4xf16, 64x32x32x4x1>
     %8 = migraphx.multibroadcast %7 {out_dyn_dims = [], out_lens = [2, 2, 2, 8, 4]} : <2x2x1x8x4xf16, 64x32x32x4x1> -> <2x2x2x8x4xf16, 64x32x0x4x1>
     %9 = migraphx.reshape %8 {dims = [2, 4, 8, 4]} : <2x2x2x8x4xf16, 64x32x0x4x1> -> <2x4x8x4xf16, 128x32x4x1>
     %10 = migraphx.reshape %arg1 {dims = [2, 1, 4, 4]} : <2x4x1x4xf16, 16x4x4x1> -> <2x1x4x4xf16, 16x16x4x1>
     %11 = migraphx.transpose %10 {permutation = [0, 2, 1, 3]} : <2x1x4x4xf16, 16x16x4x1> -> <2x4x1x4xf16, 16x4x16x1>
-    %12 = migraphx.dot %11, %6 : <2x4x1x4xf16, 16x4x16x1>, <2x4x4x8xf16, 128x32x8x1> -> <2x4x1x8xf16, 32x8x8x1>
+    %12 = migraphx.dot %11, %6 : <2x4x1x4xf16, 16x4x16x1>, <2x4x4x8xf16, 128x32x1x4> -> <2x4x1x8xf16, 32x8x8x1>
     %13 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <1xf16, 1> -> <2x4x1x8xf16, 0x0x0x0>
     %14 = migraphx.mul %12, %13 : <2x4x1x8xf16, 32x8x8x1>, <2x4x1x8xf16, 0x0x0x0> -> <2x4x1x8xf16, 32x8x8x1>
     %15 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [2, 4, 1, 8]} : <8xsi32, 1> -> <2x4x1x8xsi32, 0x0x0x1>
@@ -1343,13 +1475,13 @@ module {
     %3 = migraphx.reshape %arg0 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
     %4 = migraphx.transpose %3 {permutation = [0, 1, 2, 4, 3]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x1x4x8xf16, 64x32x32x1x4>
     %5 = migraphx.multibroadcast %4 {out_dyn_dims = [], out_lens = [1, 2, 2, 4, 8]} : <1x2x1x4x8xf16, 64x32x32x1x4> -> <1x2x2x4x8xf16, 64x32x0x1x4>
-    %6 = migraphx.reshape %5 {dims = [1, 4, 4, 8]} : <1x2x2x4x8xf16, 64x32x0x1x4> -> <1x4x4x8xf16, 128x32x8x1>
+    %6 = migraphx.reshape %5 {dims = [1, 4, 4, 8]} : <1x2x2x4x8xf16, 64x32x0x1x4> -> <1x4x4x8xf16, 128x32x1x4>
     %7 = migraphx.reshape %arg3 {dims = [1, 2, 1, 8, 4]} : <1x2x8x4xf16, 64x32x4x1> -> <1x2x1x8x4xf16, 64x32x32x4x1>
     %8 = migraphx.multibroadcast %7 {out_dyn_dims = [], out_lens = [1, 2, 2, 8, 4]} : <1x2x1x8x4xf16, 64x32x32x4x1> -> <1x2x2x8x4xf16, 64x32x0x4x1>
     %9 = migraphx.reshape %8 {dims = [1, 4, 8, 4]} : <1x2x2x8x4xf16, 64x32x0x4x1> -> <1x4x8x4xf16, 128x32x4x1>
     %10 = migraphx.reshape %arg1 {dims = [1, 1, 4, 4]} : <1x4x1x4xf16, 16x4x4x1> -> <1x1x4x4xf16, 16x16x4x1>
     %11 = migraphx.transpose %10 {permutation = [0, 2, 1, 3]} : <1x1x4x4xf16, 16x16x4x1> -> <1x4x1x4xf16, 16x4x16x1>
-    %12 = migraphx.dot %11, %6 : <1x4x1x4xf16, 16x4x16x1>, <1x4x4x8xf16, 128x32x8x1> -> <1x4x1x8xf16, 32x8x8x1>
+    %12 = migraphx.dot %11, %6 : <1x4x1x4xf16, 16x4x16x1>, <1x4x4x8xf16, 128x32x1x4> -> <1x4x1x8xf16, 32x8x8x1>
     %13 = migraphx.multibroadcast %2 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <1xf16, 1> -> <1x4x1x8xf16, 0x0x0x0>
     %14 = migraphx.mul %12, %13 : <1x4x1x8xf16, 32x8x8x1>, <1x4x1x8xf16, 0x0x0x0> -> <1x4x1x8xf16, 32x8x8x1>
     %15 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [1, 4, 1, 8]} : <8xsi32, 1> -> <1x4x1x8xsi32, 0x0x0x1>

@@ -29,10 +29,16 @@
 #include <migraphx/ranges.hpp>
 #include <array>
 #include <cassert>
+#include <cstdlib>
 #include <iostream>
 #include <cstdio>
 
 #ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+// cppcheck-suppress definePrefix
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
 #include <fcntl.h>
 #include <io.h>
 #else
@@ -103,6 +109,15 @@ static bool stdin_is_interactive()
 #endif
 }
 
+[[noreturn]] static void exit_now(int code)
+{
+#ifdef _WIN32
+    // _Exit still runs DLL detach, which can deadlock on compiler-library locks.
+    TerminateProcess(GetCurrentProcess(), static_cast<UINT>(code));
+#endif
+    std::_Exit(code);
+}
+
 int main(int argc, char const* argv[])
 {
     // Request and reply are both msgpack on stdin/stdout, so no arguments are expected in normal
@@ -143,7 +158,8 @@ int main(int argc, char const* argv[])
         if(not quiet)
             std::cerr << err.what() << std::endl;
         // Exit status is the parent's only failure signal.
-        return 1;
+        exit_now(1);
     }
-    return 0;
+    // The reply is flushed; skip compiler-library static teardown.
+    exit_now(0);
 }

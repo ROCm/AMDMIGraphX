@@ -27,6 +27,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <numeric>
 #include <test.hpp>
@@ -104,6 +105,32 @@ TEST_CASE(mlir_compile_key_distinguishes_literals)
         return;
     auto key2 = migraphx::gpu::mlir_compile_key(ctx, m2, shapes, migraphx::value{});
     EXPECT(key1 != key2);
+}
+
+// A kernel compiled with 16-bit accumulation must not be reused for one without it. rocMLIR
+// ignores the attribute unless it is exactly an i64 of 1, so the form is checked too.
+TEST_CASE(mlir_compile_key_distinguishes_float16_accumulation)
+{
+    migraphx::module m;
+    auto arg0 = m.add_parameter("arg0", {migraphx::shape::half_type, {1, 64, 32}});
+    auto arg1 = m.add_parameter("arg1", {migraphx::shape::half_type, {1, 32, 48}});
+    auto dot  = m.add_instruction(migraphx::make_op("dot"), arg0, arg1);
+    m.add_return({dot});
+    std::vector<migraphx::shape> shapes = {{migraphx::shape::half_type, {1, 64, 32}},
+                                           {migraphx::shape::half_type, {1, 32, 48}},
+                                           {migraphx::shape::half_type, {1, 64, 48}}};
+
+    migraphx::gpu::context ctx;
+    auto key_default = migraphx::gpu::mlir_compile_key(ctx, m, shapes, migraphx::value{});
+    // Skip when MLIR is not enabled
+    if(key_default.empty())
+        return;
+    ctx.set_mlir_float16_accumulation(true);
+    auto key_float16 = migraphx::gpu::mlir_compile_key(ctx, m, shapes, migraphx::value{});
+
+    EXPECT(key_default != key_float16);
+    EXPECT(not migraphx::contains(key_default, "rock.float16_accumulation"));
+    EXPECT(migraphx::contains(key_float16, "rock.float16_accumulation = 1 : i64"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

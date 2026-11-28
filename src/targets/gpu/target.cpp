@@ -145,6 +145,9 @@ struct backend_options
     // Longest kv length where head dims past attn_max_head_dim still fuse. 0 picks the
     // device default: 1024 on wave64 devices, no exception on wave32.
     std::size_t attn_wide_head_kv_len = 0;
+    // Let MLIR GEMMs and convolutions accumulate in 16 bits, trading accuracy for speed.
+    // rocMLIR honours it only where the hardware supports it (currently gfx1250).
+    bool mlir_float16_accumulation = false;
     // Problem caches that new tuning solutions are saved back to.
     std::vector<std::string> problem_cache_files = {};
     // System-level problem caches, searched after the writable ones and never written.
@@ -175,6 +178,7 @@ struct backend_options
                     f(self.attn_max_head_dim, "attn_max_head_dim"),
                     f(self.attn_min_q_rows, "attn_min_q_rows"),
                     f(self.attn_wide_head_kv_len, "attn_wide_head_kv_len"),
+                    f(self.mlir_float16_accumulation, "mlir_float16_accumulation"),
                     f(self.hip_graph, "hip_graph"),
                     f(self.convolution_layout, "convolution_layout"),
                     f(self.enable_skinny_dot, "enable_skinny_dot"),
@@ -227,6 +231,15 @@ std::size_t default_attn_wide_head_kv_len(const context& ctx)
 std::size_t option_or(std::size_t option, std::size_t device_default)
 {
     return option == 0 ? device_default : option;
+}
+
+// merge the specific ops because rejection still wins over the requested ops
+std::vector<std::string> force_mlir_ops_for_recompile(std::vector<std::string> use_specific_ops)
+{
+    static const std::vector<std::string> required = {
+        "dot", "fused_dot", "convolution", "fused_convolution", "convolution_backwards", "fused"};
+    use_specific_ops.insert(use_specific_ops.end(), required.begin(), required.end());
+    return use_specific_ops;
 }
 
 // The fused kernel needs enough q rows to fill the device while the separate gemms also
@@ -318,7 +331,8 @@ struct pipeline_factory
             inline_module{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
                         rewrite_pooling{.rewrite_lrn = (not MIGRAPHX_USE_MIOPEN or
-                                                        enabled(MIGRAPHX_REWRITE_LRN{}))}),
+                                                        enabled(MIGRAPHX_REWRITE_LRN{}) or
+                                                        options.recompilable)}),
             dead_code_elimination{},
         };
     }
@@ -482,6 +496,7 @@ setup_context(context& ctx, const compile_options& options, const backend_option
         binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
+    ctx.set_mlir_float16_accumulation(backend_opts.mlir_float16_accumulation);
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
@@ -502,6 +517,7 @@ std::vector<pass> target::get_recompile_passes(migraphx::context& gctx,
             compile_ops{.ctx             = &ctx,
                         .exhaustive_tune = options.exhaustive_tune,
                         .skip_benchmark  = options.compile_mode == compile_modes::eager,
+                        .dump_mxr_dir    = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}),
                         .recompilable    = true},
             dead_code_elimination{},
             eliminate_recompile_anchors{},
@@ -513,7 +529,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 {
     auto backend_v    = backend_options_value(options);
     auto backend_opts = from_value<backend_options>(backend_v);
-    auto& ctx         = any_cast<context>(gctx);
+    if(options.recompilable)
+        backend_opts.mlir_use_specific_ops =
+            force_mlir_ops_for_recompile(backend_opts.mlir_use_specific_ops);
+    auto& ctx = any_cast<context>(gctx);
     setup_context(ctx, options, backend_opts);
 
     pipeline_factory p{&gctx, options, backend_opts};

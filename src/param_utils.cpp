@@ -100,5 +100,17 @@ find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
         map_ins, sub, [&](instruction_ref ins) { return contains(parent_instructions, ins); });
 }
 
+std::vector<instruction_ref>
+find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+            const std::vector<const_module_ref>& scope,
+            const_module_ref sub)
+{
+    return find_inputs_impl(map_ins, sub, [&](instruction_ref ins) {
+        return std::any_of(scope.begin(), scope.end(), [&](const_module_ref m) {
+            return m->has_instruction(ins);
+        });
+    });
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

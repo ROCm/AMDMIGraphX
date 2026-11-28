@@ -51,6 +51,13 @@ find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
             const std::unordered_set<instruction_ref>& parent_instructions,
             const_module_ref sub);
 
+// The inputs may come from any of the modules in scope, such as the modules that enclose a branch
+// of an if
+MIGRAPHX_EXPORT std::vector<instruction_ref>
+find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+            const std::vector<const_module_ref>& scope,
+            const_module_ref sub);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_PARAM_UTILS_HPP

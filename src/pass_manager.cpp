@@ -28,6 +28,7 @@
 #include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/filesystem.hpp>
@@ -97,6 +98,7 @@ struct module_pm : module_pass_manager
     tracer* t             = nullptr;
     module* common_parent = nullptr;
     program* prog         = nullptr;
+    const std::unordered_multimap<module_ref, module_ref>* tree = nullptr;
 
     module_pm(module* pmod = nullptr, tracer* pt = nullptr) : mod(pmod), t(pt) {}
 
@@ -147,6 +149,23 @@ struct module_pm : module_pass_manager
             return root_mod;
         assert(prog);
         return prog->get_main_module();
+    }
+
+    virtual std::vector<module*> get_parent_modules() override
+    {
+        std::vector<module*> result;
+        if(tree == nullptr)
+            return result;
+        fix([&](auto self, module* m) {
+            for(auto&& p : range(tree->equal_range(m)))
+            {
+                if(contains(result, p.second))
+                    continue;
+                result.push_back(p.second);
+                self(p.second);
+            }
+        })(mod);
+        return result;
     }
 
     virtual void run_pass(const pass& p) override
@@ -226,6 +245,7 @@ void run_passes(program& prog, module_ref root_mod, const std::vector<pass>& pas
                 continue;
             module_pm mpm{mod, root_mod, &trace};
             mpm.prog      = &prog;
+            mpm.tree      = &tree;
             auto parents  = range(tree.equal_range(mod));
             auto nparents = distance(parents);
             if(nparents == 0)

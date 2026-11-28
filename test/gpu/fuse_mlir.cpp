@@ -29,6 +29,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/param_utils.hpp>
 #include <basic_ops.hpp>
@@ -143,6 +144,67 @@ TEST_CASE(dot_reshapes_add)
                 return std::make_tuple(dot->get_operator(), add);
             });
         mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_outer_strided_view_in_if_branches)
+{
+    // Each branch multiplies a strided view of the main module; the fused dot reads it after a
+    // contiguous, which has to be in the branch
+    migraphx::shape xs{migraphx::shape::float_type, {1, 2, 16}};
+    migraphx::shape ws{migraphx::shape::float_type, {1, 8, 16}};
+    auto add_inputs = [&](migraphx::module& m) {
+        auto cond = m.add_parameter("cond", migraphx::shape{migraphx::shape::bool_type});
+        auto x    = m.add_parameter("x", xs);
+        auto w    = m.add_parameter("w", ws);
+        auto view =
+            m.add_instruction(migraphx::make_op("step", {{"axes", {2}}, {"steps", {2}}}), x);
+        return std::make_tuple(cond, view, w);
+    };
+    auto add_if = [](migraphx::module& m,
+                     migraphx::instruction_ref cond,
+                     migraphx::module_ref then_mod,
+                     migraphx::module_ref else_mod) {
+        auto ret = m.add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        m.add_return({m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret)});
+    };
+
+    migraphx::program p1;
+    {
+        auto* mm             = p1.get_main_module();
+        auto [cond, view, w] = add_inputs(*mm);
+        auto branch          = [&](const std::string& name) {
+            auto* bm = p1.create_module(name);
+            bm->add_return({bm->add_instruction(migraphx::make_op("dot"), view, w)});
+            return bm;
+        };
+        add_if(*mm, cond, branch("then"), branch("else"));
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm             = p2.get_main_module();
+        auto [cond, view, w] = add_inputs(*mm);
+        auto branch          = [&](const std::string& name) {
+            auto* bm = p2.create_module(name);
+            auto* pm = p2.create_module(name + ":mlir_dot0");
+            pm->set_bypass();
+            auto y0  = pm->add_parameter("y0", view->get_shape().as_standard());
+            auto y1  = pm->add_parameter("y1", ws);
+            auto dot = pm->add_instruction(migraphx::make_op("dot"), y0, y1);
+            pm->add_return({dot});
+            auto packed = bm->add_instruction(migraphx::make_op("contiguous"), view);
+            bm->add_return({bm->add_instruction(
+                migraphx::make_op(
+                    "gpu::mlir_op",
+                    {{"op", migraphx::to_value(dot->get_operator())}, {"tag", "standalone_dot"}}),
+                {packed, w},
+                {pm})});
+            return bm;
+        };
+        add_if(*mm, cond, branch("then"), branch("else"));
     }
     EXPECT(p1.sort() == p2.sort());
 }

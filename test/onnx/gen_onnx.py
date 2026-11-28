@@ -1207,6 +1207,168 @@ def castlike_error_test():
 
 
 @onnx_test()
+def causal_conv_with_state_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 2, 4])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 1, 3])
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         [1, 2, 2])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2, 4])
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            [1, 2, 2])
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        activation='silu',
+        domain='com.microsoft')
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_no_state_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 2, 4])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 1, 3])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2, 4])
+
+    node = onnx.helper.make_node('CausalConvWithState',
+                                 inputs=['input', 'weight'],
+                                 outputs=['output'],
+                                 domain='com.microsoft')
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def causal_conv_with_state_dilation_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT16, [1, 2, 6])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT16, [2, 1, 3])
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [2])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT16,
+                                         [1, 2, 4])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT16, [1, 2, 6])
+    present = helper.make_tensor_value_info('present_state',
+                                            TensorProto.FLOAT16, [1, 2, 4])
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        activation='none',
+        dilation=2,
+        domain='com.microsoft')
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_channels_last_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 3, 2, 2])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [4, 1, 3])
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [4])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         [1, 2, 2, 2])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                      [1, 3, 2, 2])
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        activation='swish',
+        channels_last=1,
+        domain='com.microsoft')
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_window_test():
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, [1, 2, 2])
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 1, 3])
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         [3, 1, 2, 2])
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2, 2])
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            [3, 1, 2, 2])
+
+    node = onnx.helper.make_node('CausalConvWithState',
+                                 inputs=['input', 'weight', '', 'past_state'],
+                                 outputs=['output', 'present_state'],
+                                 state_window=3,
+                                 domain='com.microsoft')
+
+    return ([node], [x, w, past], [y, present])
+
+
+def causal_conv_with_state_error_model(input_dims=[1, 2, 4],
+                                       weight_dims=[2, 1, 3],
+                                       bias_dims=[2],
+                                       past_dims=[1, 2, 2],
+                                       **attrs):
+    x = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_dims)
+    w = helper.make_tensor_value_info('weight', TensorProto.FLOAT, weight_dims)
+    b = helper.make_tensor_value_info('bias', TensorProto.FLOAT, bias_dims)
+    past = helper.make_tensor_value_info('past_state', TensorProto.FLOAT,
+                                         past_dims)
+    y = helper.make_tensor_value_info('output', TensorProto.FLOAT, input_dims)
+    present = helper.make_tensor_value_info('present_state', TensorProto.FLOAT,
+                                            past_dims)
+
+    node = onnx.helper.make_node(
+        'CausalConvWithState',
+        inputs=['input', 'weight', 'bias', 'past_state'],
+        outputs=['output', 'present_state'],
+        domain='com.microsoft',
+        **attrs)
+
+    return ([node], [x, w, b, past], [y, present])
+
+
+@onnx_test()
+def causal_conv_with_state_activation_error_test():
+    return causal_conv_with_state_error_model(activation='relu')
+
+
+@onnx_test()
+def causal_conv_with_state_ndim_error_test():
+    return causal_conv_with_state_error_model(input_dims=[1, 2, 4, 4],
+                                              weight_dims=[2, 1, 3, 3],
+                                              past_dims=[1, 2, 4, 2],
+                                              ndim=2)
+
+
+@onnx_test()
+def causal_conv_with_state_dilation_error_test():
+    return causal_conv_with_state_error_model(dilation=0)
+
+
+@onnx_test()
+def causal_conv_with_state_window_error_test():
+    return causal_conv_with_state_error_model(past_dims=[9, 1, 2, 2],
+                                              state_window=9)
+
+
+@onnx_test()
+def causal_conv_with_state_weight_error_test():
+    return causal_conv_with_state_error_model(weight_dims=[2, 2, 3])
+
+
+@onnx_test()
+def causal_conv_with_state_bias_error_test():
+    return causal_conv_with_state_error_model(bias_dims=[3])
+
+
+@onnx_test()
+def causal_conv_with_state_past_state_error_test():
+    return causal_conv_with_state_error_model(past_dims=[1, 2, 3])
+
+
+@onnx_test()
 def ceil_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -4316,6 +4478,16 @@ def external_data_size_mismatch_test():
         weight_bytes=np.ones(20, dtype=np.float32).tobytes())
 
 
+def external_data_length_zero_test():
+    # length "0" means the whole file. The weight is 10 float32 values (40 bytes);
+    # the parser must load those bytes, not treat 0 as an empty read.
+    _save_external_data_model(
+        'external_data_length_zero_test',
+        [('location', 'external_data_length_zero_test.weight'),
+         ('offset', '0'), ('length', '0')],
+        weight_bytes=np.arange(10, dtype=np.float32).tobytes())
+
+
 @onnx_test()
 def external_data_short_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [16])
@@ -5852,17 +6024,23 @@ def group_norm_test(x_dims,
                     y_dims,
                     num_groups,
                     eps_value=1e-5,
-                    dtype=TensorProto.FLOAT):
+                    dtype=TensorProto.FLOAT,
+                    stash_type=None):
     x = helper.make_tensor_value_info('x', dtype, x_dims)
     scale = helper.make_tensor_value_info('scale', dtype, scale_dims)
     bias = helper.make_tensor_value_info('bias', dtype, bias_dims)
     y = helper.make_tensor_value_info('y', dtype, y_dims)
 
+    attrs = {}
+    if stash_type is not None:
+        attrs['stash_type'] = stash_type
+
     node = onnx.helper.make_node('GroupNormalization',
                                  inputs=['x', 'scale', 'bias'],
                                  outputs=['y'],
                                  num_groups=num_groups,
-                                 epsilon=eps_value)
+                                 epsilon=eps_value,
+                                 **attrs)
 
     return ([node], [x, scale, bias], [y])
 
@@ -5877,6 +6055,21 @@ def group_norm_3d_half_test():
     return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
                            2,
                            dtype=TensorProto.FLOAT16)
+
+
+@onnx_test(opset_version=21)
+def group_norm_v21_fp16_test():
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
+                           2,
+                           dtype=TensorProto.FLOAT16)
+
+
+@onnx_test(opset_version=21)
+def group_norm_v21_fp16_stash_fp16_test():
+    return group_norm_test([1, 4, 2], [4], [4], [1, 4, 2],
+                           2,
+                           dtype=TensorProto.FLOAT16,
+                           stash_type=TensorProto.FLOAT16)
 
 
 @onnx_test()
@@ -9072,6 +9265,118 @@ def loop_test():
                                          TensorProto.FLOAT, [2, 1])
 
     return ([node], [iter, cond, a, b], [b_loop, uout])
+
+
+@onnx_test()
+def loop_outer_scope_unordered_test():
+    # The Loop node comes before the Add that produces a2, which its body reads from the outer
+    # scope without taking it as an input
+    body = helper.make_graph([
+        helper.make_node("Identity", ["keep_going_inp"], ["keep_going"]),
+        helper.make_node("Add", ["a2", "b_in"], ["my_local"]),
+    ], "body", [
+        helper.make_tensor_value_info('iteration_num', TensorProto.INT64, [1]),
+        helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('b_in', TensorProto.FLOAT, [1])
+    ], [
+        helper.make_tensor_value_info('keep_going', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('my_local', TensorProto.FLOAT, [1]),
+    ])
+
+    loop = helper.make_node("Loop",
+                            inputs=["max_trip_count", "keep_going_cond", "b"],
+                            outputs=["b_loop"],
+                            body=body)
+    add = helper.make_node("Add", ["a", "a"], ["a2"])
+
+    iter = helper.make_tensor_value_info('max_trip_count', TensorProto.INT64,
+                                         [1])
+    cond = helper.make_tensor_value_info('keep_going_cond', TensorProto.BOOL,
+                                         [1])
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [1])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [1])
+    b_loop = helper.make_tensor_value_info('b_loop', TensorProto.FLOAT, [1])
+
+    return ([loop, add], [iter, cond, a, b], [b_loop])
+
+
+@onnx_test()
+def loop_outer_scope_nested_unordered_test():
+    # The Loop node comes before the Add that produces a2, which an If inside its body reads
+    then_out = helper.make_tensor_value_info('then_out', TensorProto.FLOAT,
+                                             [1])
+    else_out = helper.make_tensor_value_info('else_out', TensorProto.FLOAT,
+                                             [1])
+    then_body = helper.make_graph(
+        [helper.make_node("Add", ["a2", "b_in"], ["then_out"])], "then_body",
+        [], [then_out])
+    else_body = helper.make_graph(
+        [helper.make_node("Sub", ["a2", "b_in"], ["else_out"])], "else_body",
+        [], [else_out])
+
+    body = helper.make_graph([
+        helper.make_node("Identity", ["keep_going_inp"], ["keep_going"]),
+        helper.make_node("If", ["keep_going_inp"], ["my_local"],
+                         then_branch=then_body,
+                         else_branch=else_body),
+    ], "body", [
+        helper.make_tensor_value_info('iteration_num', TensorProto.INT64, [1]),
+        helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('b_in', TensorProto.FLOAT, [1])
+    ], [
+        helper.make_tensor_value_info('keep_going', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('my_local', TensorProto.FLOAT, [1]),
+    ])
+
+    loop = helper.make_node("Loop",
+                            inputs=["max_trip_count", "keep_going_cond", "b"],
+                            outputs=["b_loop"],
+                            body=body)
+    add = helper.make_node("Add", ["a", "a"], ["a2"])
+
+    iter = helper.make_tensor_value_info('max_trip_count', TensorProto.INT64,
+                                         [1])
+    cond = helper.make_tensor_value_info('keep_going_cond', TensorProto.BOOL,
+                                         [1])
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [1])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [1])
+    b_loop = helper.make_tensor_value_info('b_loop', TensorProto.FLOAT, [1])
+
+    return ([loop, add], [iter, cond, a, b], [b_loop])
+
+
+@onnx_test()
+def loop_outer_scope_forward_ref_test():
+    # Identity reads b_loop before the Loop node produces it, so the nodes have to be sorted, and
+    # the Loop body reads a2 from the outer scope without taking it as an input
+    body = helper.make_graph([
+        helper.make_node("Identity", ["keep_going_inp"], ["keep_going"]),
+        helper.make_node("Add", ["a2", "b_in"], ["my_local"]),
+    ], "body", [
+        helper.make_tensor_value_info('iteration_num', TensorProto.INT64, [1]),
+        helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('b_in', TensorProto.FLOAT, [1])
+    ], [
+        helper.make_tensor_value_info('keep_going', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('my_local', TensorProto.FLOAT, [1]),
+    ])
+
+    identity = helper.make_node("Identity", ["b_loop"], ["b_out"])
+    add = helper.make_node("Add", ["a", "a"], ["a2"])
+    loop = helper.make_node("Loop",
+                            inputs=["max_trip_count", "keep_going_cond", "b"],
+                            outputs=["b_loop"],
+                            body=body)
+
+    iter = helper.make_tensor_value_info('max_trip_count', TensorProto.INT64,
+                                         [1])
+    cond = helper.make_tensor_value_info('keep_going_cond', TensorProto.BOOL,
+                                         [1])
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [1])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [1])
+    b_out = helper.make_tensor_value_info('b_out', TensorProto.FLOAT, [1])
+
+    return ([identity, add, loop], [iter, cond, a, b], [b_out])
 
 
 @onnx_test()

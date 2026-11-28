@@ -12,6 +12,10 @@ Full documentation for MIGraphX is available at
 * Added support for the `gfx1250-strict` offload target. It is a distinct target from `gfx1250`, so it gets its own code objects and kernel caches, and uses the same feature selection as `gfx1250`. Hyphenated processor names are now handled when parsing the GPU generation, when stripping arch flags in CMake, and when verifying offload archs, which previously could not tell `gfx1250` from `gfx1250-strict` (#5601).
 * Added the `mlir_float16_accumulation` GPU backend option, also settable through `MIGRAPHX_GPU_OPTIONS`, which sets the `rock.float16_accumulation` attribute on MLIR kernels so rocMLIR can use WMMA instructions with 16-bit accumulation for GEMMs and convolutions on gfx1250 (#5605).
 
+### Changed
+
+* Changed ONNX `Range` parsing to give a length bounded by the inferred range of a run-time limit (such as a count of selected elements) a symbolic dimension, and to set `dynamic_range`'s `max_output` to the bound of that length, instead of an unbounded length (#5519).
+
 ### Resolved issues
 
 * Fixed `migraphx-driver verify` exiting with code 0 when verification fails, which made scripts and CI that check only the exit code record failed verifications as passing. `verify` now exits with a non-zero code whenever it reports a verification failure, in the default mode and with `--per-instruction`, `--reduce`, `--bisect`, and `--layerwise`. `--reduce` and `--bisect` only compare truncated programs, and `--bisect` does not compare the operation that produces the program output, so a mismatch there is not reported by `--bisect` (AIMIGRAPHX-1316).

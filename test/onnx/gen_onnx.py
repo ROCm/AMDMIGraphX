@@ -15097,6 +15097,148 @@ def randomuniformlike_type_error_test():
 
 
 @onnx_test()
+def range_bounded_limit_test():
+    # The limit is a count of the elements of x above 0.5, only known at run time but at most 8
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('y', TensorProto.INT64, ['M'])
+
+    half = helper.make_tensor('half', TensorProto.FLOAT, [], [0.5])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    start = helper.make_tensor('start', TensorProto.INT64, [], [0])
+    delta = helper.make_tensor('delta', TensorProto.INT64, [], [1])
+
+    nodes = [
+        helper.make_node('Greater', ['x', 'half'], ['above']),
+        helper.make_node('Cast', ['above'], ['above_int'],
+                         to=TensorProto.INT64),
+        helper.make_node('ReduceSum', ['above_int', 'axes'], ['count'],
+                         keepdims=0),
+        helper.make_node('Range', ['start', 'count', 'delta'], ['y']),
+    ]
+
+    return (nodes, [x], [out], [half, axes, start, delta])
+
+
+def range_bounded_limit_graph(limit_nodes,
+                              start_type=TensorProto.INT64,
+                              start_value=0,
+                              inputs=None,
+                              inits=None):
+    # count is the number of elements of x above 0.5, at most 8; limit_nodes compute the limit
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('y', start_type, ['M'])
+
+    half = helper.make_tensor('half', TensorProto.FLOAT, [], [0.5])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    start = helper.make_tensor('start', start_type, [], [start_value])
+    delta = helper.make_tensor('delta', start_type, [], [1])
+
+    nodes = [
+        helper.make_node('Greater', ['x', 'half'], ['above']),
+        helper.make_node('Cast', ['above'], ['above_int'],
+                         to=TensorProto.INT64),
+        helper.make_node('ReduceSum', ['above_int', 'axes'], ['count'],
+                         keepdims=0),
+    ] + limit_nodes + [
+        helper.make_node('Range', ['start', 'limit', 'delta'], ['y'])
+    ]
+
+    return (nodes, [x] + (inputs or []), [out],
+            [half, axes, start, delta] + (inits or []))
+
+
+@onnx_test()
+def range_bounded_limit_start_above_test():
+    # The start is above every value the limit can take, so the range is empty
+    return range_bounded_limit_graph(
+        [helper.make_node('Identity', ['count'], ['limit'])], start_value=10)
+
+
+@onnx_test()
+def range_bounded_limit_unbounded_test():
+    # The limit adds an input without a known range
+    p = helper.make_tensor_value_info('p', TensorProto.INT64, [])
+    return range_bounded_limit_graph(
+        [helper.make_node('Add', ['count', 'p'], ['limit'])], inputs=[p])
+
+
+@onnx_test()
+def range_bounded_limit_sentinel_test():
+    # The limit is count, or INT64_MAX as a no-limit value, cast to int32
+    four = helper.make_tensor('four', TensorProto.INT64, [], [4])
+    big = helper.make_tensor('big', TensorProto.INT64, [],
+                             [9223372036854775807])
+    return range_bounded_limit_graph([
+        helper.make_node('Less', ['count', 'four'], ['cond']),
+        helper.make_node('Where', ['cond', 'count', 'big'], ['wide']),
+        helper.make_node('Cast', ['wide'], ['limit'], to=TensorProto.INT32),
+    ],
+                                     start_type=TensorProto.INT32,
+                                     inits=[four, big])
+
+
+@onnx_test()
+def range_bounded_limit_wrap_test():
+    # count - 1 is -1 when nothing is selected, which a uint8 wraps to 255
+    one = helper.make_tensor('one', TensorProto.INT64, [], [1])
+    return range_bounded_limit_graph([
+        helper.make_node('Sub', ['count', 'one'], ['less_one']),
+        helper.make_node('Cast', ['less_one'], ['narrow'],
+                         to=TensorProto.UINT8),
+        helper.make_node('Cast', ['narrow'], ['limit'], to=TensorProto.INT64),
+    ],
+                                     inits=[one])
+
+
+@onnx_test()
+def range_bounded_limit_fraction_test():
+    # A start of -0.5 gives one more element than the limit's bound
+    return range_bounded_limit_graph(
+        [helper.make_node('Cast', ['count'], ['limit'], to=TensorProto.FLOAT)],
+        start_type=TensorProto.FLOAT,
+        start_value=-0.5)
+
+
+@onnx_test()
+def range_bounded_limit_arith_test():
+    # The limit is computed from a count of the elements of x above 0.5, at most 8, through the ops
+    # whose value ranges are inferred: max(min((count + 1) * 2 - 1, 20), 3) is at most 17, and a
+    # where with 5, a cast to float and back keep that bound
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('y', TensorProto.INT64, ['M'])
+
+    half = helper.make_tensor('half', TensorProto.FLOAT, [], [0.5])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    start = helper.make_tensor('start', TensorProto.INT64, [], [0])
+    one = helper.make_tensor('one', TensorProto.INT64, [], [1])
+    two = helper.make_tensor('two', TensorProto.INT64, [], [2])
+    three = helper.make_tensor('three', TensorProto.INT64, [], [3])
+    five = helper.make_tensor('five', TensorProto.INT64, [], [5])
+    twenty = helper.make_tensor('twenty', TensorProto.INT64, [], [20])
+
+    nodes = [
+        helper.make_node('Greater', ['x', 'half'], ['above']),
+        helper.make_node('Cast', ['above'], ['above_int'],
+                         to=TensorProto.INT64),
+        helper.make_node('ReduceSum', ['above_int', 'axes'], ['count'],
+                         keepdims=0),
+        helper.make_node('Add', ['count', 'one'], ['a']),
+        helper.make_node('Mul', ['a', 'two'], ['b']),
+        helper.make_node('Sub', ['b', 'one'], ['c']),
+        helper.make_node('Min', ['c', 'twenty'], ['d']),
+        helper.make_node('Max', ['d', 'three'], ['e']),
+        helper.make_node('Less', ['e', 'twenty'], ['cond']),
+        helper.make_node('Where', ['cond', 'e', 'five'], ['f']),
+        helper.make_node('Cast', ['f'], ['f_float'], to=TensorProto.FLOAT),
+        helper.make_node('Cast', ['f_float'], ['limit'], to=TensorProto.INT64),
+        helper.make_node('Range', ['start', 'limit', 'one'], ['y']),
+    ]
+
+    return (nodes, [x], [out],
+            [half, axes, start, one, two, three, five, twenty])
+
+
+@onnx_test()
 def range_test():
 
     start_val = np.array([10])

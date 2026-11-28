@@ -24,7 +24,7 @@ RUN zypper -n --gpg-auto-import-keys refresh
 RUN zypper --gpg-auto-import-keys install -y \
     cmake \
     doxygen \
-    gcc-c++ \
+    gcc14-c++ \
     gdb \
     git \
     python311 \

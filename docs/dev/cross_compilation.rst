@@ -15,6 +15,9 @@ loaded and finalized on a machine that has the matching device, where the
 remaining device-side work (allocating and preparing device buffers) is performed.
 NOTE: Only supports rocMLIR and MIGraphX exclusive kernels.
 
+To move an already compiled ``.mxr`` file to another GPU without the original model, see
+:ref:`recompile-mxr`.
+
 Using cross-compilation
 -----------------------
 

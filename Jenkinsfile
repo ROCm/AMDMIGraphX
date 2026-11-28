@@ -69,7 +69,7 @@ def setupdocker(Map conf) {
     return docker_opts
 }
 
-// The driver exits 0 even when verification fails, so check its log as well as
+// The driver exits non-zero when verification fails. Check its log as well as
 // its exit status: a crash or sanitizer error after the success message must fail.
 def driver_test(String driver) {
     return """
@@ -318,7 +318,7 @@ def setuppackage = {
 }
 
 def setupstaticdriver = {
-    sh 'rm -rf ./build/bin'
+    sh 'rm -rf ./build/bin ./build/lib'
     unstash 'migraphx-static-driver'
 }
 
@@ -452,7 +452,14 @@ pipeline {
                         script {
                             rocmtest(skip_also_requires: ['Static Driver Tests']) {
                                 cmake_build(skip_package: true, flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
-                                stash includes: 'build/bin/migraphx-driver', name: 'migraphx-static-driver'
+                                // The driver dlopens libtriton_amd_codegen.so, and rocmlirTriton installs it
+                                // to /usr/local/lib, which does not exist in the ORT image used by Static Driver Tests.
+                                // Copy it into the workspace so the stash can carry it:
+                                sh '''
+                                    mkdir -p build/lib
+                                    cp -L /usr/local/lib/libtriton_amd_codegen.so build/lib/
+                                '''
+                                stash includes: 'build/bin/migraphx-driver,build/lib/libtriton_amd_codegen.so', name: 'migraphx-static-driver'
                             }
                         }
                     }
@@ -601,8 +608,12 @@ pipeline {
                         script {
                             rocmtest(setup: setupstaticdriver, image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
                                 // The ORT image only has ROCm installed, so the static
-                                // driver must run without anything from rbuild or the build tree.
-                                sh driver_test('./build/bin/migraphx-driver')
+                                // driver must run without anything from rbuild or the build tree,
+                                // except libtriton_amd_codegen.so which comes from the stash.
+                                sh """
+                                    export LD_LIBRARY_PATH=\$PWD/build/lib:\$LD_LIBRARY_PATH
+                                    ${driver_test('./build/bin/migraphx-driver')}
+                                """
                             }
                         }
                     }

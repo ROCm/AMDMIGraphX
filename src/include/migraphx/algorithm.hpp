@@ -95,6 +95,29 @@ OutputIterator transform_partial_sum(
     return ++d_first;
 }
 
+/// Same as std::transform_exclusive_scan, which is missing from some standard libraries. Each
+/// output is the accumulation of init with the projection of all the elements before it, so the
+/// last element is never included. The output range may be the same as the input range.
+template <class Iterator, class OutputIterator, class T, class BinaryOperation, class UnaryOp>
+OutputIterator transform_exclusive_scan(Iterator first,
+                                        Iterator last,
+                                        OutputIterator d_first,
+                                        T init,
+                                        BinaryOperation binop,
+                                        UnaryOp unaryop)
+{
+    while(first != last)
+    {
+        // Read the element before writing since the output may alias the input
+        T next   = binop(init, unaryop(*first));
+        *d_first = std::move(init);
+        init     = std::move(next);
+        ++first;
+        ++d_first;
+    }
+    return d_first;
+}
+
 /// Like std::unique but removes all duplicates instead of only adjacent ones, so the
 /// input need not be sorted. The order of first appearance is preserved. Returns the
 /// new logical end; elements in [result, last) are left in a moved-from state.
@@ -142,6 +165,22 @@ Iterator min_element_if(Iterator first, Iterator last, Predicate pred, Compare c
     return last;
 }
 
+/// Groups consecutive elements for as long as pred holds between each
+/// adjacent pair, passing each group's range to out
+template <class Iterator, class Output, class Predicate>
+void group_adjacent(Iterator start, Iterator last, Output out, Predicate pred)
+{
+    while(start != last)
+    {
+        auto it =
+            std::adjacent_find(start, last, [&](auto&& x, auto&& y) { return not pred(x, y); });
+        if(it != last)
+            ++it;
+        out(start, it);
+        start = it;
+    }
+}
+
 template <class Iterator, class Output, class Predicate>
 void group_by(Iterator start, Iterator last, Output out, Predicate pred)
 {
@@ -162,6 +201,16 @@ void group_unique(Iterator start, Iterator last, Output out, Predicate pred)
         out(start, it);
         start = it;
     }
+}
+
+/// Like std::find for a sequence that ends with a sentinel value instead of an end iterator, such
+/// as a C string or environ. Returns the iterator at the sentinel.
+template <class Iterator, class T>
+Iterator find_sentinel(Iterator first, const T& sentinel)
+{
+    while(*first != sentinel)
+        ++first;
+    return first;
 }
 
 template <class Iterator, class Predicate, class Output>

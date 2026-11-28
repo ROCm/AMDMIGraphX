@@ -77,8 +77,11 @@ substitutions_hyperlink_targets_enabled = True
 html_title = f"{project} {version_number}"
 html_theme = "rocm_docs_theme"
 html_theme_options = {
-    "flavor": "ai-ecosystem",
-    "link_main_doc": True,
+    "flavor": "rocm-extras",
+    "header_title": f"ROCm™ MIGraphX {version_number}",
+    "version_list_link":
+    "https://rocm.docs.amd.com/projects/AMDMIGraphX/en/latest/versions.html",
+    "link_main_doc": False,
     "repository_url": "https://github.com/ROCm/AMDMIGraphX",
     "use_repository_button": True,
     "use_issues_button": True,

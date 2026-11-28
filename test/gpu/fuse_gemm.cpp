@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
@@ -47,9 +48,10 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(
-        *p.get_main_module(),
-        {migraphx::auto_contiguous{}, migraphx::gpu::lowering{&ctx, offload_copy}});
+    migraphx::run_passes(*p.get_main_module(),
+                         {migraphx::auto_contiguous{},
+                          migraphx::gpu::lowering{&ctx, offload_copy},
+                          migraphx::gpu::eliminate_device_copy{}});
 }
 
 static void run_fuse_ops(migraphx::program& p)

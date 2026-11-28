@@ -99,8 +99,11 @@ struct convert : unary<convert>
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
                 using output_type = typename decltype(output)::value_type;
+                // The output keeps the input strides, so convert each stored element once;
+                // iterating a broadcast would write the same element from several threads
+                auto n = input.get_shape().element_space();
                 par_transform(
-                    input.begin(), input.end(), output.begin(), [](auto x) -> output_type {
+                    input.data(), input.data() + n, output.data(), [](auto x) -> output_type {
                         double dx = x;
                         if(std::isnan(dx))
                             return std::numeric_limits<output_type>::quiet_NaN();

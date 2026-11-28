@@ -223,6 +223,9 @@ struct MIGRAPHX_EXPORT module
 
     void rename_parameter(instruction_ref ins, const std::string& name);
 
+    /// Give a parameter another shape, keeping its name and its order among the parameters
+    void set_parameter_shape(instruction_ref ins, shape s);
+
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     bool has_instruction(instruction_ref ins) const;

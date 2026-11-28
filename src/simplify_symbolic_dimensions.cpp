@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/simplify_symbolic_dimensions.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/dim_like.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -97,7 +98,13 @@ struct expression_sets
         for(const auto& [root, members] : classes)
         {
             (void)root;
-            auto canonical = members.front();
+            // An expression that the ops compute, such as n + 1, is kept over a plain symbol, as
+            // the ops recompute it from their inputs; the choice then does not depend on the order
+            // of the operands
+            auto computed  = std::find_if(members.begin(), members.end(), [&](auto i) {
+                return expressions[i].name() != "variable";
+            });
+            auto canonical = computed != members.end() ? *computed : members.front();
             auto literal   = std::find_if(
                 members.begin(), members.end(), [&](auto i) { return is_literal(expressions[i]); });
             if(literal != members.end())
@@ -357,7 +364,8 @@ operation_replacement make_operation_replacement(const operation& op, const subs
 
 } // namespace
 
-// Unify mismatched symbolic dimensions that binary pointwise instructions require to be equal.
+// Unify mismatched symbolic dimensions that the inputs of a pointwise instruction require to be
+// equal.
 void simplify_symbolic_dimensions::apply(module& m) const
 {
     // Collect the required dimension relationships into equivalence sets before mutating the
@@ -366,19 +374,23 @@ void simplify_symbolic_dimensions::apply(module& m) const
     for(auto ins : iterator_for(m))
     {
         const auto& inputs = ins->inputs();
-        if(inputs.size() != 2 or not ins->get_operator().attributes().contains("pointwise"))
+        if(inputs.size() < 2 or not ins->get_operator().attributes().contains("pointwise"))
             continue;
         const auto& x = inputs.front()->get_shape();
-        const auto& y = inputs.back()->get_shape();
-        if(not x.symbolic() or not y.symbolic() or x.ndim() != y.ndim())
+        if(not x.symbolic())
             continue;
-        migraphx::for_each(x.dyn_dims().begin(),
-                           x.dyn_dims().end(),
-                           y.dyn_dims().begin(),
-                           [&](const auto& a, const auto& b) {
-                               if(a.sym_expr != b.sym_expr)
-                                   sets.merge(a.sym_expr, b.sym_expr);
-                           });
+        std::for_each(std::next(inputs.begin()), inputs.end(), [&](auto input) {
+            const auto& y = input->get_shape();
+            if(not y.symbolic() or x.ndim() != y.ndim())
+                return;
+            migraphx::for_each(x.dyn_dims().begin(),
+                               x.dyn_dims().end(),
+                               y.dyn_dims().begin(),
+                               [&](const auto& a, const auto& b) {
+                                   if(a.sym_expr != b.sym_expr)
+                                       sets.merge(a.sym_expr, b.sym_expr);
+                               });
+        });
     }
 
     // Choose one canonical expression for each equivalence set and map the other expressions to it.
@@ -390,13 +402,31 @@ void simplify_symbolic_dimensions::apply(module& m) const
     auto instructions = iterator_for(m);
     std::copy(instructions.begin(), instructions.end(), std::back_inserter(original));
 
-    // Keep externally visible inputs and immutable leaves while rebuilding every computation with
-    // canonical attributes and inputs.
+    // Keep the immutable leaves while rebuilding every computation with canonical attributes and
+    // inputs.
     std::unordered_map<instruction_ref, instruction_ref> replacements;
+    bool params_changed = false;
     for(auto ins : original)
     {
-        if(contains({"@literal", "@param", "@outline", "@comment"}, ins->name()))
-            replacements.emplace(ins, ins);
+        if(not contains({"@literal", "@param", "@outline", "@comment"}, ins->name()))
+            continue;
+        // A parameter with a replaced symbol takes the canonical one. Its lengths stay the same,
+        // since the two symbols are equal at run time.
+        const auto& s = ins->get_shape();
+        if(ins->name() == "@param" and s.symbolic())
+        {
+            auto canonical = substitute_shape(s, values);
+            if(canonical != s)
+            {
+                // The strides of a standard shape are recomputed, as a stride may be an
+                // expanded form of a replaced expression
+                if(s.standard())
+                    canonical = shape{s.type(), canonical.dyn_dims()};
+                m.set_parameter_shape(ins, canonical);
+                params_changed = true;
+            }
+        }
+        replacements.emplace(ins, ins);
     }
     auto outputs = m.add_instructions(
         original,
@@ -416,6 +446,9 @@ void simplify_symbolic_dimensions::apply(module& m) const
             m.add_debug_symbols(new_ins, old_ins->get_debug_symbols());
     }
     m.replace_return(outputs);
+    // The instructions that were rebuilt read the parameters with their old shapes
+    if(params_changed)
+        dead_code_elimination{}.apply(m);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

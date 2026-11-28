@@ -47,9 +47,9 @@ bool is_symbolic_broadcast(const operation& op, std::size_t ninputs)
 {
     if(symbolic_broadcast_dims(op).empty())
         return false;
-    if(op.name() == "multibroadcast")
-        return ninputs >= 2;
-    return ninputs == 2;
+    // A multibroadcast may also take its dims from out_dyn_dims alone, as insert_common_args
+    // emits for an input that keeps its own symbols
+    return op.name() == "multibroadcast" or ninputs == 2;
 }
 
 struct analyze_broadcast : analyzer<analyze_broadcast>

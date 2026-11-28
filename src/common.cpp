@@ -54,6 +54,22 @@ bool elementwise_dims_match_without_broadcast(const std::vector<shape::dynamic_d
     });
 }
 
+// The common dims for an input, except that an axis where the input has a different non-literal
+// symbol keeps the input's
+std::vector<shape::dynamic_dimension> own_symbolic_dims(const shape& s,
+                                                        std::vector<shape::dynamic_dimension> dims)
+{
+    if(not s.symbolic())
+        return dims;
+    // The common dims broadcast every input, so they have at least the input's rank
+    const auto& in = s.dyn_dims();
+    auto tail      = dims.begin() + (dims.size() - in.size());
+    std::transform(in.begin(), in.end(), tail, tail, [](const auto& a, const auto& d) {
+        return a != d and not is_symbolic_literal(a) and not is_symbolic_literal(d) ? a : d;
+    });
+    return dims;
+}
+
 } // namespace
 
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
@@ -206,18 +222,30 @@ std::vector<instruction_ref> insert_common_args(module& m,
                 return s.symbolic() and
                        elementwise_dims_match_without_broadcast(s.dyn_dims(), c_dyn_dims);
             });
-            instruction_ref common_input;
+            instruction_ref common_input = m.end();
             if(target == inputs.end())
             {
-                common_input = m.insert_instruction(
-                    ins,
-                    make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                    inputs);
-                inputs.front() = common_input;
+                // An input with its own symbol on an axis is broadcast to its own dims below, so
+                // only the others are broadcast to the common dims
+                std::vector<instruction_ref> sources;
+                std::copy_if(
+                    inputs.begin(), inputs.end(), std::back_inserter(sources), [&](auto input) {
+                        return own_symbolic_dims(input->get_shape(), c_dyn_dims) == c_dyn_dims;
+                    });
+                if(not sources.empty())
+                {
+                    common_input = m.insert_instruction(
+                        ins,
+                        make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                        sources);
+                    *std::find(inputs.begin(), inputs.end(), sources.front()) = common_input;
+                }
             }
             else
             {
                 common_input = *target;
+                // The target may have its own symbol where the common dims have another one
+                c_dyn_dims = common_input->get_shape().dyn_dims();
             }
             std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
                 const auto& s = input->get_shape();
@@ -225,6 +253,12 @@ std::vector<instruction_ref> insert_common_args(module& m,
                    (s.symbolic() and
                     elementwise_dims_match_without_broadcast(s.dyn_dims(), c_dyn_dims)))
                     return input;
+                auto own_dims = own_symbolic_dims(s, c_dyn_dims);
+                if(own_dims != c_dyn_dims)
+                    return m.insert_instruction(
+                        ins,
+                        make_op("multibroadcast", {{"out_dyn_dims", to_value(own_dims)}}),
+                        input);
                 return m.insert_instruction(
                     ins,
                     make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),

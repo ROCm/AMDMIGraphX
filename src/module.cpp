@@ -980,6 +980,16 @@ void module::rename_parameter(instruction_ref ins, const std::string& name)
         ins->add_output(output);
 }
 
+void module::set_parameter_shape(instruction_ref ins, shape s)
+{
+    impl->changed.notify();
+    assert(ins->name() == "@param");
+    auto outputs = ins->outputs();
+    *ins         = instruction{ins->get_operator(), std::move(s), {}};
+    for(auto output : outputs)
+        ins->add_output(output);
+}
+
 std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 {
     std::unordered_map<std::string, shape> result;

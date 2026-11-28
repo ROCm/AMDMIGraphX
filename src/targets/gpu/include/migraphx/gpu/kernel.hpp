@@ -121,6 +121,17 @@ struct MIGRAPHX_GPU_EXPORT kernel
     // kernel node back to this kernel. Null when the kernel is empty.
     hipFunction_t get_function() const;
 
+    // Set the percentage (0 to 100) of the combined L1/LDS storage given to LDS for this
+    // kernel, via hipFuncAttributePreferredSharedMemoryCarveout. The value is stored here and
+    // applied before every launch; -1 (the default) leaves the driver's split alone and makes
+    // no HIP call. Throws if the value is outside -1 to 100.
+    void set_lds_carveout(int percent) const;
+
+    // The workgroup-cluster size to launch with (rocMLIR/Triton's numCTAs). 1 (the default)
+    // launches with hipExtModuleLaunchKernel exactly as before; above 1 launches with
+    // hipDrvLaunchKernelEx and a cluster-dimension launch attribute instead. Throws if size is 0.
+    void set_cluster_size(std::size_t size) const;
+
     void launch(hipStream_t stream,
                 std::size_t global,
                 std::size_t local,

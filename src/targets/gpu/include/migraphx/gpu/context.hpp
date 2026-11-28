@@ -39,6 +39,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/mlir_perf_config.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/device_description.hpp>
 #include <migraphx/gpu/kernel.hpp>
@@ -363,6 +364,31 @@ struct context
 
     void set_disable_processes(bool v) { disable_processes = v; }
 
+    // The percentage (0 to 100) of the combined L1/LDS storage to use as LDS for the kernels
+    // compiled with this context, or -1 to keep the driver's default split. It is recorded on
+    // the kernels that support it and applied before each launch.
+    // Set via compile_options::backend_options["lds_carveout"].
+    int get_lds_carveout() const { return lds_carveout; }
+
+    void set_lds_carveout(int v) { lds_carveout = v; }
+
+    // The workgroup-cluster size requested for MLIR kernels: 0 leaves rocMLIR's own candidate
+    // list alone (clusters only ever appear in exhaustive tuning), 1 (the default) keeps only
+    // single-workgroup kernels, and 2, 4, 8 or 16 rewrites splittable gemm candidates to that
+    // cluster size. Resolved against device support by mlir_program::set_gpu_properties.
+    // Set via compile_options::backend_options["mlir_num_ctas"].
+    int get_mlir_num_ctas() const { return mlir_num_ctas; }
+
+    void set_mlir_num_ctas(int v) { mlir_num_ctas = v; }
+
+    // Whether to request rocMLIR's auto warp-specialization pass for eligible FP16 gemm/
+    // convolution MLIR kernels: off (the default), tune (benchmark decides), or force (always
+    // requested, falling back to the unspecialized kernel if rocMLIR rejects it).
+    // Set via compile_options::backend_options["mlir_warp_specialize"].
+    warp_specialize_mode get_mlir_warp_specialize() const { return mlir_warp_specialize; }
+
+    void set_mlir_warp_specialize(warp_specialize_mode v) { mlir_warp_specialize = v; }
+
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
 
@@ -540,6 +566,9 @@ struct context
     std::vector<shared<hip_event_ptr>> events;
     bool exhaustive_tune   = false;
     bool disable_processes = false;
+    int lds_carveout                          = -1;
+    int mlir_num_ctas                         = 1;
+    warp_specialize_mode mlir_warp_specialize = warp_specialize_mode::off;
     bool measure_perf      = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;

@@ -773,10 +773,29 @@ struct compile_plan
                            problem_string() + "\n\n" + print_modules());
         if(results.size() == 1)
         {
-            if(not results.front()->result.has_value())
-                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string() + "\n\n" + print_modules());
-            return *results.front();
+            if(results.front()->result.has_value())
+                return *results.front();
+            // The sole candidate failed to compile (e.g. rocMLIR rejected it on this device).
+            // add_cells only tries the first of config->solutions in this fast path; retry the
+            // rest in order before giving up, so a preferred-but-unsupported candidate (such as
+            // a clustered or warp-specialized gemm) still falls back to a plain one instead of
+            // aborting the compile.
+            if(config)
+            {
+                for(auto i : range(std::size_t{1}, config->solutions.size()))
+                {
+                    auto result = run_compile(config->solutions[i]);
+                    if(not result.has_value())
+                        continue;
+                    ctx->get_problem_cache().insert(
+                        preop.name(), config->problem, config->solutions[i]);
+                    results.front()->solution = config->solutions[i];
+                    results.front()->result   = std::move(result);
+                    return *results.front();
+                }
+            }
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string() + "\n\n" + print_modules());
         }
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
@@ -868,7 +887,9 @@ struct compile_plan
         {
             if(not results[i]->result.has_value())
                 continue;
-            const auto& solution = config->solutions[i];
+            // Not config->solutions[i]: a retried single-candidate cell (see benchmark()) may
+            // hold a different solution than its original position in config->solutions.
+            const auto& solution = results[i]->solution;
             auto bench_prog      = make_program(*results[i]->result);
             auto* mm             = bench_prog.get_main_module();
 

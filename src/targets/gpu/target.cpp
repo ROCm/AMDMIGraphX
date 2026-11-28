@@ -79,6 +79,7 @@
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/mlir_perf_config.hpp>
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/gpu/eliminate_device_copy.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
@@ -99,6 +100,8 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
+#include <algorithm>
+#include <array>
 #include <limits>
 
 namespace migraphx {
@@ -164,6 +167,23 @@ struct backend_options
     // Size cap, as a percentage of the GPU memory shortfall, up to which literals are staged
     // through scratch largest-first (fewest copies) rather than smallest-first (lowest peak).
     std::size_t literal_staging_peak_percent = 5;
+    // Percentage (0 to 100) of the combined L1/LDS storage to use as LDS on devices with a
+    // configurable split, or -1 to keep the driver's default split (also the default when the
+    // device has no such split). The kernel is compiled against the LDS budget at this carveout
+    // and launched with the same value. Forwarded unconditionally; rocMLIR is responsible for
+    // accepting, ignoring, or rejecting it based on actual device support.
+    int lds_carveout = -1;
+    // Workgroup-cluster size requested for MLIR gemm/convolution kernels on devices with
+    // multi-CTA launch support: 0 lets rocMLIR's own tuner pick (clusters only ever appear in
+    // exhaustive tuning), 1 (the default) keeps single-workgroup kernels, 2/4/8/16 rewrites
+    // splittable candidates to that cluster size. Forwarded unconditionally; rocMLIR is
+    // responsible for accepting, ignoring, or rejecting it based on actual device support.
+    int mlir_num_ctas = 1;
+    // Request rocMLIR's auto warp-specialization pass for eligible FP16 gemm/convolution MLIR
+    // kernels: off (default), tune (benchmark decides), or force (always requested, falling
+    // back to the unspecialized kernel if rocMLIR rejects it). Forwarded unconditionally;
+    // rocMLIR is responsible for rejecting it on devices that cannot run the pass.
+    gpu::warp_specialize_mode mlir_warp_specialize = gpu::warp_specialize_mode::off;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -183,6 +203,9 @@ struct backend_options
                     f(self.hiprtc_disable_processes, "hiprtc_disable_processes"),
                     f(self.eliminate_concat_past_present, "eliminate_concat_past_present"),
                     f(self.literal_staging_peak_percent, "literal_staging_peak_percent"),
+                    f(self.lds_carveout, "lds_carveout"),
+                    f(self.mlir_num_ctas, "mlir_num_ctas"),
+                    f(self.mlir_warp_specialize, "mlir_warp_specialize"),
                     f(self.problem_cache_files, "problem_cache_files"),
                     f(self.read_only_problem_cache_files, "read_only_problem_cache_files"));
     }
@@ -492,6 +515,21 @@ setup_context(context& ctx, const compile_options& options, const backend_option
         binary_cache_settings{backend_opts.binary_cache, backend_opts.binary_cache_verify}));
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.set_disable_processes(backend_opts.hiprtc_disable_processes);
+
+    if(backend_opts.lds_carveout < -1 or backend_opts.lds_carveout > 100)
+        MIGRAPHX_THROW("lds_carveout must be -1 (driver default) or a percentage between 0 and "
+                       "100, got " +
+                       std::to_string(backend_opts.lds_carveout));
+    ctx.set_lds_carveout(backend_opts.lds_carveout);
+
+    static const std::array<int, 6> valid_num_ctas = {0, 1, 2, 4, 8, 16};
+    if(std::find(valid_num_ctas.begin(), valid_num_ctas.end(), backend_opts.mlir_num_ctas) ==
+       valid_num_ctas.end())
+        MIGRAPHX_THROW("mlir_num_ctas must be 0, 1, 2, 4, 8, or 16, got " +
+                       std::to_string(backend_opts.mlir_num_ctas));
+    ctx.set_mlir_num_ctas(backend_opts.mlir_num_ctas);
+
+    ctx.set_mlir_warp_specialize(backend_opts.mlir_warp_specialize);
 
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);

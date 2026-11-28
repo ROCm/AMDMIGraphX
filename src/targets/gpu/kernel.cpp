@@ -67,6 +67,10 @@ struct kernel_impl
 {
     code_module module{};
     hipFunction_t fun = nullptr;
+    // Percentage of the L1/LDS storage given to LDS, applied before every launch; -1 is unset
+    int lds_carveout = -1;
+    // Workgroup-cluster size to launch with; 1 is the default (no cluster).
+    std::size_t cluster_size = 1;
 };
 
 code_module::code_module(const char* image) : impl(std::make_shared<code_module_impl>())
@@ -102,6 +106,24 @@ kernel::kernel(const code_module& m, const std::string& name)
 bool kernel::empty() const { return impl == nullptr; }
 
 hipFunction_t kernel::get_function() const { return impl == nullptr ? nullptr : impl->fun; }
+
+void kernel::set_lds_carveout(int percent) const
+{
+    assert(impl != nullptr);
+    if(percent < -1 or percent > 100)
+        MIGRAPHX_THROW("lds carveout must be -1 (driver default) or a percentage between 0 and "
+                       "100, got " +
+                       std::to_string(percent));
+    impl->lds_carveout = percent;
+}
+
+void kernel::set_cluster_size(std::size_t size) const
+{
+    assert(impl != nullptr);
+    if(size == 0)
+        MIGRAPHX_THROW("cluster size must be at least 1, got 0");
+    impl->cluster_size = size;
+}
 
 namespace {
 // HIP_LAUNCH_PARAM_* expand to C-style pointer casts that clang-tidy rejects,
@@ -194,6 +216,8 @@ unpack_pointer_args(const std::vector<char>& buffer,
 }
 
 static void launch_kernel(hipFunction_t fun,
+                          int lds_carveout,
+                          std::size_t cluster_size,
                           hipStream_t stream,
                           std::size_t global,
                           std::size_t local,
@@ -206,15 +230,74 @@ static void launch_kernel(hipFunction_t fun,
     assert(local > 0);
     auto config = pack_kernel_config(static_cast<char*>(kernargs), &size);
 
-    auto status = hipExtModuleLaunchKernel(
-        fun, global, 1, 1, local, 1, 1, 0, stream, nullptr, config.data(), start, stop);
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
+    // Set before every launch, as Triton does, so the split in effect does not depend on
+    // what another launch of the same function or module did earlier.
+    if(lds_carveout >= 0)
+    {
+        auto attr_status = hipFuncSetAttribute(static_cast<const void*>(fun),
+                                               hipFuncAttributePreferredSharedMemoryCarveout,
+                                               lds_carveout);
+        if(attr_status != hipSuccess)
+            MIGRAPHX_THROW("Failed to set lds carveout to " + std::to_string(lds_carveout) + ": " +
+                           hip_error(attr_status));
+    }
+
+    hipError_t status = hipSuccess;
+    if(cluster_size > 1)
+    {
+        // `global` is the total number of workgroups (clusters * cluster_size); the launch grid
+        // below is in workgroups, with the cluster dimension telling the driver how to group them.
+        if((global / local) % cluster_size != 0)
+            MIGRAPHX_THROW("Failed to launch kernel: " + std::to_string(global / local) +
+                           " workgroups is not a multiple of the cluster size " +
+                           std::to_string(cluster_size));
+        hipLaunchAttribute attr{};
+        attr.id               = hipLaunchAttributeClusterDimension;
+        attr.val.clusterDim.x = static_cast<unsigned int>(cluster_size);
+        attr.val.clusterDim.y = 1;
+        attr.val.clusterDim.z = 1;
+        HIP_LAUNCH_CONFIG cfg{};
+        cfg.gridDimX       = static_cast<unsigned int>(global / local);
+        cfg.gridDimY       = 1;
+        cfg.gridDimZ       = 1;
+        cfg.blockDimX      = static_cast<unsigned int>(local);
+        cfg.blockDimY      = 1;
+        cfg.blockDimZ      = 1;
+        cfg.sharedMemBytes = 0;
+        cfg.hStream        = stream;
+        cfg.attrs          = &attr;
+        cfg.numAttrs       = 1;
+        // kernargs are passed through `extra` (config.data()), the same packed buffer as the
+        // non-clustered path; `params` stays null.
+        if(start != nullptr)
+        {
+            auto start_status = hipEventRecord(start, stream);
+            if(start_status != hipSuccess)
+                MIGRAPHX_THROW("Failed to record start event: " + hip_error(start_status));
+        }
+        status = hipDrvLaunchKernelEx(&cfg, fun, nullptr, config.data());
+        if(stop != nullptr)
+        {
+            auto stop_status = hipEventRecord(stop, stream);
+            if(stop_status != hipSuccess)
+                MIGRAPHX_THROW("Failed to record stop event: " + hip_error(stop_status));
+        }
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to launch kernel with cluster size " +
+                           std::to_string(cluster_size) + ": " + hip_error(status));
+    }
+    else
+    {
+        status = hipExtModuleLaunchKernel(
+            fun, global, 1, 1, local, 1, 1, 0, stream, nullptr, config.data(), start, stop);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
+    }
     if(stop != nullptr)
     {
-        status = hipEventSynchronize(stop);
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to sync event: " + hip_error(status));
+        auto sync_status = hipEventSynchronize(stop);
+        if(sync_status != hipSuccess)
+            MIGRAPHX_THROW("Failed to sync event: " + hip_error(sync_status));
     }
 }
 
@@ -229,7 +312,16 @@ void kernel::launch(hipStream_t stream,
     void* kernargs   = reinterpret_cast<void*>(args.data());
     std::size_t size = args.bytes();
 
-    launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);
+    launch_kernel(impl->fun,
+                  impl->lds_carveout,
+                  impl->cluster_size,
+                  stream,
+                  global,
+                  local,
+                  kernargs,
+                  size,
+                  start,
+                  stop);
 }
 
 void kernel::launch(hipStream_t stream,
@@ -243,7 +335,16 @@ void kernel::launch(hipStream_t stream,
     std::vector<char> kernargs = pack_args(args);
     std::size_t size           = kernargs.size();
 
-    launch_kernel(impl->fun, stream, global, local, kernargs.data(), size, start, stop);
+    launch_kernel(impl->fun,
+                  impl->lds_carveout,
+                  impl->cluster_size,
+                  stream,
+                  global,
+                  local,
+                  kernargs.data(),
+                  size,
+                  start,
+                  stop);
 }
 
 void kernel::launch(hipStream_t stream,
@@ -255,7 +356,16 @@ void kernel::launch(hipStream_t stream,
                     hipEvent_t stop) const
 {
     assert(impl != nullptr);
-    launch_kernel(impl->fun, stream, global, local, kernargs, kernargs_size, start, stop);
+    launch_kernel(impl->fun,
+                  impl->lds_carveout,
+                  impl->cluster_size,
+                  stream,
+                  global,
+                  local,
+                  kernargs,
+                  kernargs_size,
+                  start,
+                  stop);
 }
 
 } // namespace gpu

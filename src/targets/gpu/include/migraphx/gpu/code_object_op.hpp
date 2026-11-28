@@ -49,7 +49,10 @@ struct code_object_op
     std::vector<shape> expected_inputs{};
     shape output{};
     std::int64_t output_arg = -1;
-    // Extra attributes merged into attributes(); see hip_compile_options::annotations.
+    // Extra attributes merged into attributes(); see hip_compile_options::annotations (e.g.
+    // "indexed_inputs", used by write_literals for gather/gathernd kernels). The MLIR-specific
+    // options below (lds_carveout, cluster_size, warp_specialize) are dedicated fields instead,
+    // not kept here.
     value annotations = value::object{};
 
     std::map<std::size_t, kernel_argument_value> kernel_args{};
@@ -63,6 +66,29 @@ struct code_object_op
 
     kernel k{};
 
+    /// The percentage (0 to 100) of the combined L1/LDS storage the kernel is launched with as
+    /// LDS, or -1 for the driver's default split.
+    int lds_carveout = -1;
+
+    int get_lds_carveout() const { return lds_carveout; }
+
+    void set_lds_carveout(int percent) { lds_carveout = percent; }
+
+    /// The workgroup-cluster size the kernel is launched with (rocMLIR/Triton's numCTAs), or 1
+    /// when it is not a clustered kernel.
+    std::size_t cluster_size = 1;
+
+    std::size_t get_cluster_size() const { return cluster_size; }
+
+    void set_cluster_size(std::size_t size) { cluster_size = size; }
+
+    /// Whether rocMLIR's auto warp-specialization pass transformed this kernel.
+    bool warp_specialize = false;
+
+    bool get_warp_specialize() const { return warp_specialize; }
+
+    void set_warp_specialize(bool value) { warp_specialize = value; }
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -74,6 +100,9 @@ struct code_object_op
                     f(self.output, "output"),
                     f(self.output_arg, "output_arg"),
                     f(self.annotations, "annotations"),
+                    f(self.lds_carveout, "lds_carveout"),
+                    f(self.cluster_size, "cluster_size"),
+                    f(self.warp_specialize, "warp_specialize"),
                     f(self.kernel_args, "kernel_args"),
                     f(self.module_id, "module_id"));
     }
@@ -117,6 +146,12 @@ struct code_object_op
             os << "output_arg=" << op.output_arg << ",";
         if(not op.annotations.empty())
             os << "annotations=" << op.annotations << ",";
+        if(op.lds_carveout >= 0)
+            os << "lds_carveout=" << op.lds_carveout << ",";
+        if(op.cluster_size > 1)
+            os << "cluster_size=" << op.cluster_size << ",";
+        if(op.warp_specialize)
+            os << "warp_specialize=1,";
         if(op.module_id != -1)
             os << "module_id=" << op.module_id << ",";
         os << "]";

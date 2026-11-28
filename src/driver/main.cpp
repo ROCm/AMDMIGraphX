@@ -49,6 +49,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
@@ -887,6 +888,13 @@ struct compiler
            ap.help("Keep each kernel's compile recipe, so the recompile command can recompile "
                    "the program for another GPU, of a newer or an older generation"),
            ap.set_value(true));
+        ap(co.weights_file,
+           {"--weights-file"},
+           ap.help("Save the weights to this file instead of in the compiled program, which "
+                   "reads them back when it is loaded. The target decides the format of the "
+                   "file. A relative path is within the directory of the output file (-o), and "
+                   "the compiled program looks for it in the directory it is loaded from. Only "
+                   "applies to targets that support it"));
         ap(co.compile_mode,
            {"--compile-mode"},
            ap.help("Set compilation mode: eager, balanced, max, or an integer 0-100"),
@@ -975,6 +983,21 @@ struct compiler
         }
         log::info() << "Compiling ...";
         timer c{};
+        // Files the program refers to by a relative path go beside the program
+        co.relative_path = fs::path{l.output}.parent_path();
+        if(not co.weights_file.empty() and not l.output.empty())
+        {
+            auto weights_path = fs::path{co.weights_file};
+            if(not weights_path.is_absolute())
+                weights_path = co.relative_path / weights_path;
+            // Made absolute first, as a relative path with no leading part that exists is left
+            // relative
+            if(migraphx::weakly_canonical(fs::absolute(weights_path)) ==
+                   migraphx::weakly_canonical(fs::absolute(l.output)) or
+               (fs::exists(weights_path) and fs::exists(l.output) and
+                fs::equivalent(weights_path, l.output)))
+                MIGRAPHX_THROW("compile: weights file and output file must be different");
+        }
         p.compile(t, co);
         auto r = c.record<std::chrono::milliseconds>();
         log::info() << "Compilation time: " << r << "ms";
@@ -1029,6 +1052,8 @@ struct recompile_cmd : command<recompile_cmd>
         if(not p.is_compiled())
             MIGRAPHX_THROW("recompile: " + l.file + " is not a compiled program");
         apply_backend_options(co, backend_options);
+        // Files the program refers to by a relative path are beside the program being read
+        co.relative_path = fs::path{l.file}.parent_path();
         log::info() << "Recompiling ...";
         timer t{};
         p.recompile(ct.get_target(), co);

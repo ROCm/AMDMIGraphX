@@ -183,7 +183,7 @@ double time_program(const context& ictx,
 {
     std::vector<migraphx::context> ctx_vec = {ictx};
     auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());
-    p.get_main_module()->finalize(ctx_vec);
+    p.finalize_with_context(ctx_vec);
     auto param_map =
         make_parameter_map(p.get_main_module(), generate_program_arguments(ictx, p, fill_map));
     auto run = [&] { p.eval_with_context(ctx_vec, param_map); };
@@ -196,7 +196,7 @@ static program make_finalized_program(std::vector<migraphx::context>& ctx_vec,
 {
     auto p = candidate.make_program();
     candidate.before_run(p);
-    p.get_main_module()->finalize(ctx_vec);
+    p.finalize_with_context(ctx_vec);
     return p;
 }
 

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/compression.hpp>
+#include <migraphx/errors.hpp>
 #include <test.hpp>
 #include <algorithm>
 #include <numeric>
@@ -63,6 +64,32 @@ TEST_CASE(round_trip_incompressible_data)
 {
     auto data = random_bytes(1u << 20u);
     EXPECT(migraphx::zstd_decompress(migraphx::zstd_compress(data)) == data);
+}
+
+TEST_CASE(round_trip_at_each_level)
+{
+    // Every byte value, over and over.
+    std::vector<char> data(1u << 16u);
+    std::iota(data.begin(), data.end(), char{0});
+    auto fast    = migraphx::zstd_compress(data, -5);
+    auto normal  = migraphx::zstd_compress(data, 3);
+    auto highest = migraphx::zstd_compress(data, 19);
+    EXPECT(migraphx::zstd_decompress(fast) == data);
+    EXPECT(migraphx::zstd_decompress(normal) == data);
+    EXPECT(migraphx::zstd_decompress(highest) == data);
+    // The highest level does not do worse than the fastest
+    EXPECT(highest.size() <= fast.size());
+    // Level 3 is the level used when none is given
+    EXPECT(migraphx::zstd_compress(data) == normal);
+}
+
+TEST_CASE(unknown_level_throws)
+{
+    std::vector<char> data = {'x'};
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::zstd_compress(data, 1000); },
+                                             "compression level"));
+    EXPECT(test::throws<migraphx::exception>([&] { migraphx::zstd_compress(data, -100000000); },
+                                             "compression level"));
 }
 
 TEST_CASE(not_a_frame_throws)

@@ -761,6 +761,9 @@ MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_set_file_format(migraphx_file_options_t file_options, const char* format);
 
 MIGRAPHX_C_EXPORT migraphx_status
+migraphx_file_options_set_relative_path(migraphx_file_options_t file_options, const char* path);
+
+MIGRAPHX_C_EXPORT migraphx_status
 migraphx_compile_options_destroy(migraphx_compile_options_t compile_options);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_assign_to(
@@ -783,6 +786,12 @@ migraphx_compile_options_set_compile_mode(migraphx_compile_options_t compile_opt
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_advance_backend_options(
     migraphx_compile_options_t compile_options, const char* options_json, ...);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_weights_file(
+    migraphx_compile_options_t compile_options, const char* path);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_relative_path(
+    migraphx_compile_options_t compile_options, const char* path);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options);
 

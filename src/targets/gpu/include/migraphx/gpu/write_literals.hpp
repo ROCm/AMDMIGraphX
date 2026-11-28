@@ -33,6 +33,8 @@ struct module;
 
 namespace gpu {
 
+struct context;
+
 // Places literals in GPU memory. When they do not fit in max_memory (free GPU memory by default),
 // literals that only feed index-selected kernel inputs are left in host memory for the kernel to
 // read directly, and the rest are staged through scratch (see staging_peak_percent).
@@ -49,6 +51,22 @@ struct MIGRAPHX_GPU_EXPORT write_literals
     // nothing net, so this bounds that waste. Larger literals are staged smallest-first, and only
     // when still needed.
     std::size_t staging_peak_percent = 5;
+    // Path of a SQLite database to save the literal data to. When set, each literal is stored
+    // there under a key of the md5 of its data, its type and its dimensions, and the program
+    // keeps the key, path and shape, loading the data back when it is finalized. Literals with
+    // the same key share one copy when their bytes are equal; a different tensor under a key
+    // that is taken is stored with a counter appended to the key.
+    std::string weights_file{};
+    // Resolves a relative weights_file the same way as when the literals are loaded back. The
+    // program keeps weights_file as it is given. Required when weights_file is set.
+    context* ctx = nullptr;
+    // Largest blob a literal is split into when saved to weights_file. SQLite limits a blob to
+    // 1GB in decimal units and 953.7 MiB by default, and the default here is just under that.
+    std::size_t weights_chunk_bytes = std::size_t{950} * 1024 * 1024;
+    // The zstd level to compress each chunk saved to weights_file with, where that makes it
+    // smaller; 0 does not compress. This trades a smaller file for decompressing the chunks
+    // whenever the program is loaded.
+    int compress_weights_level = 0;
     std::string name() const { return "gpu::write_literals"; }
 
     void apply(module& m) const;

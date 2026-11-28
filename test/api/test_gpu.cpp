@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,11 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
+#include <functional>
 #include <numeric>
+#include <string>
+#include <vector>
 #include <hip/hip_runtime_api.h>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <read_onnx.hpp>
 #include "test.hpp"
 
@@ -50,6 +55,63 @@ TEST_CASE(load_and_run)
     auto outputs = p.eval(pp);
     CHECK(shapes_before.size() == outputs.size());
     CHECK(shapes_before.front() == outputs.front().get_shape());
+}
+
+// Adds a literal to a parameter, so the literal is a weight the compiled program has to keep
+static migraphx::program create_weights_program(const migraphx::shape& s,
+                                                const std::vector<float>& weights)
+{
+    migraphx::program p;
+    migraphx::module m = p.get_main_module();
+    auto x             = m.add_parameter("x", s);
+    auto w             = m.add_literal(s, weights.data());
+    m.add_return({m.add_instruction(migraphx::operation("add"), {x, w})});
+    return p;
+}
+
+static std::vector<float> run_weights_program(const migraphx::program& p, const migraphx::shape& s)
+{
+    migraphx::program_parameters pp;
+    pp.add("x", migraphx::argument::generate(s));
+    return p.eval(pp)[0].as_vector<float>();
+}
+
+TEST_CASE(weights_file_load_and_run)
+{
+    migraphx::tmp_dir td{};
+    auto dir = td.path / "weights";
+    migraphx::fs::create_directories(dir);
+    auto dir_name = dir.string();
+
+    migraphx::shape s{migraphx_shape_float_type, {2, 3}};
+    std::vector<float> weights(s.elements());
+    std::iota(weights.begin(), weights.end(), 1.0f);
+    auto expected = migraphx::argument::generate(s).as_vector<float>();
+    std::transform(
+        expected.begin(), expected.end(), weights.begin(), expected.begin(), std::plus<>{});
+
+    auto p = create_weights_program(s, weights);
+    migraphx::compile_options options;
+    options.set_offload_copy();
+    options.set_weights_file("migraphx_api_weights.db");
+    options.set_relative_path(dir_name.c_str());
+    p.compile(migraphx::target("gpu"), options);
+    // The weights are written within the relative path
+    CHECK(migraphx::fs::exists(dir / "migraphx_api_weights.db"));
+    CHECK(run_weights_program(p, s) == expected);
+
+    // A program saved beside its weights finds them when it is loaded
+    auto beside = (dir / "model.mxr").string();
+    migraphx::save(p, beside.c_str());
+    CHECK(run_weights_program(migraphx::load(beside.c_str()), s) == expected);
+
+    // A program saved elsewhere has to be told where they are
+    auto elsewhere = (td.path / "model.mxr").string();
+    migraphx::save(p, elsewhere.c_str());
+    CHECK(test::throws([&] { migraphx::load(elsewhere.c_str()); }));
+    migraphx::file_options file_options;
+    file_options.set_relative_path(dir_name.c_str());
+    CHECK(run_weights_program(migraphx::load(elsewhere.c_str(), file_options), s) == expected);
 }
 
 using hip_ptr    = MIGRAPHX_MANAGE_PTR(void, hipFree);

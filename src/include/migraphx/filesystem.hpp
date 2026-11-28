@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -72,6 +72,12 @@ namespace fs = ::std::filesystem;
 #elif MIGRAPHX_HAS_FILESYSTEM_TS
 namespace fs = ::std::experimental::filesystem;
 #endif
+
+/// fs::weakly_canonical, which std::experimental::filesystem does not have. The leading part of
+/// the path that exists is resolved as fs::canonical does and the rest is normalized lexically,
+/// so the path itself does not have to exist. Call it as migraphx::weakly_canonical: an
+/// unqualified call is ambiguous where the filesystem library has one of its own.
+MIGRAPHX_EXPORT fs::path weakly_canonical(const fs::path& path);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

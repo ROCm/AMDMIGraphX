@@ -78,6 +78,47 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(group_adjacent_empty, int)
     EXPECT(groups.empty());
 }
 
+template <class Container>
+static std::vector<std::vector<int>> group_n_of(const Container& v, std::ptrdiff_t n)
+{
+    std::vector<std::vector<int>> groups;
+    migraphx::group_n(
+        v.begin(), v.end(), n, [&](auto first, auto last) { groups.emplace_back(first, last); });
+    return groups;
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(group_n_even, int)
+{
+    Container v = {1, 2, 3, 4, 5, 6};
+    EXPECT(group_n_of(v, 2) == std::vector<std::vector<int>>{{1, 2}, {3, 4}, {5, 6}});
+    EXPECT(group_n_of(v, 6) == std::vector<std::vector<int>>{{1, 2, 3, 4, 5, 6}});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(group_n_remainder, int)
+{
+    Container v = {1, 2, 3, 4, 5};
+    EXPECT(group_n_of(v, 2) == std::vector<std::vector<int>>{{1, 2}, {3, 4}, {5}});
+    EXPECT(group_n_of(v, 4) == std::vector<std::vector<int>>{{1, 2, 3, 4}, {5}});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(group_n_larger_than_range, int)
+{
+    Container v = {1, 2, 3};
+    EXPECT(group_n_of(v, 8) == std::vector<std::vector<int>>{{1, 2, 3}});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(group_n_one, int)
+{
+    Container v = {1, 2, 3};
+    EXPECT(group_n_of(v, 1) == std::vector<std::vector<int>>{{1}, {2}, {3}});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(group_n_empty, int)
+{
+    Container v;
+    EXPECT(group_n_of(v, 2).empty());
+}
+
 MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_remove_if1, int)
 {
     Container v = {0, 1, 1, 1, 4, 2, 2, 4, 2};

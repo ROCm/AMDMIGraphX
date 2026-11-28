@@ -714,12 +714,16 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                bool fast_math,
                bool exhaustive_tune,
                migraphx::compile_modes compile_mode,
-               const py::dict& advance_backend_options) {
+               const py::dict& advance_backend_options,
+               const std::string& weights_file,
+               const std::string& relative_path) {
                 migraphx::compile_options options;
                 options.offload_copy    = offload_copy;
                 options.fast_math       = fast_math;
                 options.exhaustive_tune = exhaustive_tune;
                 options.compile_mode    = compile_mode;
+                options.weights_file    = weights_file;
+                options.relative_path   = relative_path;
                 for(auto opt : advance_backend_options)
                 {
                     auto key = py::str(opt.first).cast<std::string>();
@@ -733,7 +737,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("fast_math")               = true,
             py::arg("exhaustive_tune")         = false,
             py::arg("compile_mode")            = migraphx::compile_modes::balanced,
-            py::arg("advance_backend_options") = py::dict())
+            py::arg("advance_backend_options") = py::dict(),
+            py::arg("weights_file")            = "",
+            py::arg("relative_path")           = "")
         .def(
             "finalize",
             [](migraphx::program& p, const migraphx::target& t) { p.finalize(t); },
@@ -974,14 +980,16 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     m.def(
         "load",
-        [](const std::string& name, const std::string& format) {
+        [](const std::string& name, const std::string& format, const std::string& relative_path) {
             migraphx::file_options options;
-            options.format = format;
+            options.format        = format;
+            options.relative_path = relative_path;
             return migraphx::load(name, options);
         },
         "Load MIGraphX program",
         py::arg("filename"),
-        py::arg("format") = "msgpack");
+        py::arg("format")        = "msgpack",
+        py::arg("relative_path") = "");
 
     m.def(
         "save",
@@ -1006,13 +1014,16 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     m.def(
         "load_buffer",
-        [](const py::bytes& b) {
+        [](const py::bytes& b, const std::string& relative_path) {
             std::string_view byte_str{b};
             std::vector<char> char_arr(byte_str.begin(), byte_str.end());
-            return migraphx::load_buffer(char_arr);
+            migraphx::file_options options;
+            options.relative_path = relative_path;
+            return migraphx::load_buffer(char_arr, options);
         },
         "Deserialize MIGraphX program",
-        py::arg("b"));
+        py::arg("b"),
+        py::arg("relative_path") = "");
 
     m.def("get_target", [](const std::string& name, py::kwargs kwargs) {
         if(kwargs.empty())

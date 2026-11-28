@@ -38,10 +38,13 @@
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/sqlite.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/device_description.hpp>
 #include <migraphx/gpu/kernel.hpp>
+#include <map>
 #include <unordered_map>
 #include <memory>
 #include <optional>
@@ -547,6 +550,29 @@ struct context
         return {shared_modules.try_emplace(module_id, code_object).first->second, symbol_name};
     }
 
+    /// Directory that relative paths stored in a program are resolved against.
+    void set_relative_path(const fs::path& path) { relative_path = path; }
+
+    /// Relative paths resolve against relative_path, or the current directory when it is empty.
+    fs::path resolve_path(const fs::path& path) const
+    {
+        return path.is_absolute() ? path : relative_path / path;
+    }
+
+    /// The SQLite database at path, opened read-only on first use and kept open until
+    /// after_finalize, so the ops that read from the same file while finalizing share one handle.
+    sqlite& get_database(const fs::path& path)
+    {
+        auto file = resolve_path(path);
+        auto it   = databases.find(file);
+        if(it == databases.end())
+            it = databases.emplace(file, sqlite::read(file)).first;
+        return it->second;
+    }
+
+    /// Close the databases opened while finalizing, which nothing reads once the program runs.
+    void after_finalize() { databases.clear(); }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -565,6 +591,9 @@ struct context
     std::shared_ptr<binary_cache> bc            = make_binary_cache();
     // Loaded modules keyed by code_object_op::module_id, see load_kernel
     std::unordered_map<std::int64_t, code_module> shared_modules;
+    // Open databases keyed by resolved path, see get_database
+    std::map<fs::path, sqlite> databases;
+    fs::path relative_path;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

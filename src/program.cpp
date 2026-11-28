@@ -235,6 +235,26 @@ static std::vector<context> make_contexts(const std::vector<target>& targets)
     return contexts;
 }
 
+// A target without a context returns an empty one, so each hook is only called where
+// has_context holds
+static void after_finalize(std::vector<context>& contexts)
+{
+    for(auto& ctx : contexts)
+    {
+        if(has_context(ctx))
+            ctx.after_finalize();
+    }
+}
+
+static void set_relative_path(std::vector<context>& contexts, const fs::path& path)
+{
+    for(auto& ctx : contexts)
+    {
+        if(has_context(ctx))
+            ctx.set_relative_path(path);
+    }
+}
+
 // Why m is not valid after the passes of stage, or nothing
 static optional<std::string> module_error(const module& m, const std::string& stage)
 {
@@ -432,23 +452,32 @@ void program::compile(const target& t, compile_options options)
     options.trace();
     auto&& passes = t.get_passes(this->impl->contexts.front(), options);
     run_passes(*this, passes, options.trace);
-    auto mods = this->get_modules();
+    auto mods             = this->get_modules();
+    const bool finalizing = not is_cross_compiling(this->impl->contexts.front());
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {
         if(auto error = module_error(*mod, "compilation"))
             MIGRAPHX_THROW(*error);
-        if(not is_cross_compiling(this->impl->contexts.front()))
+        if(finalizing)
             mod->finalize(this->impl->contexts);
     }
+    if(finalizing)
+        after_finalize(this->impl->contexts);
 }
 
 void program::finalize()
 {
     if(impl->contexts.empty())
         impl->contexts = make_contexts(impl->targets);
+    this->finalize_with_context(this->impl->contexts);
+}
+
+void program::finalize_with_context(std::vector<context>& ctx)
+{
     auto* mm = this->get_main_module();
-    mm->finalize(this->impl->contexts);
+    mm->finalize(ctx);
+    after_finalize(ctx);
 }
 
 void program::finalize(const target& t)
@@ -988,7 +1017,7 @@ static void mod_from_val(module_ref mod,
 
 void program::from_value(const value& v) { this->from_value(v, true); }
 
-void program::from_value(const value& v, bool finalize)
+void program::from_value(const value& v, bool finalize, const fs::path& relative_path)
 {
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
@@ -1020,6 +1049,7 @@ void program::from_value(const value& v, bool finalize)
         assert(ctx_vals.empty() or ctx_vals.size() >= this->impl->contexts.size());
         for(auto i : range(std::min(ctx_vals.size(), this->impl->contexts.size())))
             this->impl->contexts[i].from_value(ctx_vals[i]);
+        set_relative_path(this->impl->contexts, relative_path);
     }
 
     auto module_vals = v.at("modules");

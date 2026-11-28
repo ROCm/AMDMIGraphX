@@ -111,6 +111,32 @@ TEST_CASE(prepared_blob_round_trip)
     }
 }
 
+TEST_CASE(prepared_blob_view_round_trip)
+{
+    const std::vector<char> blob{'\0', 'a', '\'', '\0', static_cast<char>(0xff), 'z'};
+
+    migraphx::tmp_dir td{};
+    auto db_path = td.path / "blob_view.db";
+    auto db      = migraphx::sqlite::write(db_path);
+    db.execute("CREATE TABLE blob_db (name TEXT PRIMARY KEY, data BLOB NOT NULL);");
+
+    auto insert = db.prepare("INSERT INTO blob_db (name, data) VALUES (?, ?);");
+    insert("k1", migraphx::sqlite_blob_view{blob.data(), blob.size()});
+    // A view of part of a buffer stores only that part
+    insert("part", migraphx::sqlite_blob_view{blob.data() + 1, 2});
+    // An empty view has no bytes to point at, and must still be an empty blob rather than NULL
+    insert("empty", migraphx::sqlite_blob_view{});
+
+    auto select = db.prepare("SELECT data FROM blob_db WHERE name = ?;");
+    EXPECT(collect(select("k1")).front().at("data").get_binary() == migraphx::value::binary{blob});
+    EXPECT(collect(select("part")).front().at("data").get_binary() ==
+           migraphx::value::binary{blob.data() + 1, 2});
+    auto empty = collect(select("empty"));
+    EXPECT(empty.size() == 1);
+    EXPECT(empty.front().at("data").is_binary());
+    EXPECT(empty.front().at("data").get_binary().empty());
+}
+
 // A select abandoned after its first row must not keep holding the database. Until the
 // statement is reset it holds a read lock, and a writer on another connection would wait out
 // its busy timeout and then fail.

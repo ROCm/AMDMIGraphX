@@ -34,12 +34,21 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/compression.hpp>
+#include <migraphx/md5.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/par_for.hpp>
+#include <migraphx/sqlite.hpp>
+#include <migraphx/stringutils.hpp>
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <iostream>
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -51,31 +60,242 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_WRITE_LITERALS)
 
+namespace {
+
+// How long to wait for another process writing to the same weights file before failing the
+// compile. A writer holds the lock while it stores every literal of a module.
+constexpr int weights_busy_timeout_ms = 60000;
+
+// The table name carries the schema version, so an incompatible change is a new table rather
+// than a migration.
+//
+// A tensor is split into chunks because SQLite limits the size of a blob (to 1GB in decimal
+// units and 953.7 MiB by default). Every tensor has a chunk 0, even one with no bytes, which
+// tells a stored tensor apart from a missing one.
+//
+// The data of a chunk is a zstd frame when compressed is 1, and the bytes themselves otherwise,
+// so tensors saved with and without compression can be in one file.
+constexpr const char* weights_schema_sql = R"__migraphx__(
+CREATE TABLE IF NOT EXISTS weights_v1 (
+  key        TEXT    NOT NULL,
+  chunk      INTEGER NOT NULL,
+  compressed INTEGER NOT NULL,
+  data       BLOB    NOT NULL,
+  PRIMARY KEY (key, chunk)
+);
+)__migraphx__";
+
+constexpr const char* weights_has_chunk_sql =
+    "SELECT 1 FROM weights_v1 WHERE key = ?1 AND chunk = ?2;";
+
+constexpr const char* weights_equal_chunk_sql =
+    "SELECT 1 FROM weights_v1 WHERE key = ?1 AND chunk = ?2 AND compressed = ?3 AND data = ?4;";
+
+constexpr const char* weights_insert_sql =
+    "INSERT INTO weights_v1 (key, chunk, compressed, data) VALUES (?1, ?2, ?3, ?4);";
+
+constexpr const char* weights_load_sql =
+    "SELECT compressed, data FROM weights_v1 WHERE key = ?1 ORDER BY chunk;";
+
+// Finds the tensors that can share one copy in the weights file. Equal keys do not prove equal
+// tensors, since md5 collisions can be constructed, so the writer compares the bytes as well.
+std::string weights_key(const literal& l)
+{
+    const auto& s = l.get_shape();
+    return md5({l.data(), s.bytes()}) + "-" + s.type_string() + "-" +
+           to_string_range(s.lens(), "x");
+}
+
+// Hashing is most of the cost of saving the weights, so the literals are hashed in parallel
+std::vector<std::string> weights_keys(const std::vector<instruction_ref>& literals)
+{
+    std::vector<std::string> keys(literals.size());
+    // A grain of one literal, since a single large literal can be most of the work
+    par_for(literals.size(), 1, [&](std::size_t i) {
+        keys[i] = weights_key(literals[i]->get_literal());
+    });
+    return keys;
+}
+
+// Saves literals to a weights file in one transaction, which is committed by commit() and rolled
+// back when the writer is destroyed without it, so a failed compile adds nothing to the file.
+struct weights_writer
+{
+    weights_writer(const fs::path& path, std::size_t pchunk_bytes, int pcompress_level)
+        : db(sqlite::write(path)), chunk_bytes(pchunk_bytes), compress_level(pcompress_level)
+    {
+        assert(chunk_bytes > 0);
+        // Opening for writing falls back to read-only on a write-protected file
+        if(db.read_only())
+            MIGRAPHX_THROW("Cannot save weights to read-only database: " + path.string());
+        db.set_busy_timeout(weights_busy_timeout_ms);
+        // IMMEDIATE takes the write lock up front, so no other process can store a key between
+        // the check for it and its insert
+        db.execute("BEGIN IMMEDIATE;");
+        db.execute(weights_schema_sql);
+        has_chunk_stmt   = db.prepare(weights_has_chunk_sql);
+        equal_chunk_stmt = db.prepare(weights_equal_chunk_sql);
+        insert_stmt      = db.prepare(weights_insert_sql);
+    }
+
+    // Stores the literal and returns the key it is stored under: the given key, or the key with
+    // a counter appended when the file has a different tensor under it
+    std::string save(const std::string& key, const literal& l)
+    {
+        auto result   = key;
+        std::size_t n = 0;
+        while(has_chunk(result, 0) and not stored_equal(result, l))
+            result = key + "-" + std::to_string(++n);
+        if(not has_chunk(result, 0))
+            insert(result, l);
+        return result;
+    }
+
+    void commit() { db.execute("COMMIT;"); }
+
+    private:
+    // Calls f with the number of each chunk the literal is stored as, whether it is compressed,
+    // and the data to store for it
+    template <class F>
+    void for_each_chunk(const literal& l, F f) const
+    {
+        std::string_view data{l.data(), l.get_shape().bytes()};
+        std::int64_t chunk = 0;
+        // A literal with no bytes has no groups, and is still stored as an empty chunk 0
+        if(data.empty())
+            f(chunk, std::int64_t{0}, sqlite_blob_view{});
+        group_n(data.begin(), data.end(), chunk_bytes, [&](auto first, auto last) {
+            auto part = data.substr(first - data.begin(), last - first);
+            // A chunk that compression does not shrink is stored as it is, which saves
+            // decompressing it and keeps it within the size limit of a blob
+            bool compress = compress_level != 0;
+            auto packed   = compress ? zstd_compress(part, compress_level) : std::vector<char>{};
+            if(compress and packed.size() < part.size())
+                f(chunk, std::int64_t{1}, sqlite_blob_view{packed.data(), packed.size()});
+            else
+                f(chunk, std::int64_t{0}, sqlite_blob_view{part.data(), part.size()});
+            chunk++;
+        });
+    }
+
+    bool has_chunk(const std::string& key, std::int64_t chunk) const
+    {
+        auto rows = has_chunk_stmt(key, chunk);
+        return rows.begin() != rows.end();
+    }
+
+    // True when the tensor stored under key has the same bytes as the literal. A tensor stored
+    // with another chunk size, or whose chunks another compression level stores differently,
+    // compares as different, which only costs a second copy of it.
+    bool stored_equal(const std::string& key, const literal& l) const
+    {
+        std::int64_t chunks  = 0;
+        std::int64_t matched = 0;
+        for_each_chunk(l, [&](std::int64_t chunk, std::int64_t compressed, sqlite_blob_view part) {
+            auto rows = equal_chunk_stmt(key, chunk, compressed, part);
+            if(rows.begin() != rows.end())
+                matched++;
+            chunks++;
+        });
+        // A further chunk means the stored tensor is longer than the literal
+        return matched == chunks and not has_chunk(key, chunks);
+    }
+
+    void insert(const std::string& key, const literal& l)
+    {
+        for_each_chunk(l, [&](std::int64_t chunk, std::int64_t compressed, sqlite_blob_view part) {
+            insert_stmt(key, chunk, compressed, part);
+        });
+    }
+
+    sqlite db;
+    std::size_t chunk_bytes;
+    // The zstd level chunks are compressed with, or 0 to store them as they are
+    int compress_level;
+    sqlite_stmt has_chunk_stmt{};
+    sqlite_stmt equal_chunk_stmt{};
+    sqlite_stmt insert_stmt{};
+};
+
+} // namespace
+
 struct gpu_literal
 {
     argument data{};
     bool host = false;
+    // Set when the data is in a weights file instead of data; an empty data carries no shape
+    std::string key{};
+    std::string path{};
+    shape external_shape{};
 
     argument gpu_data{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.data, "data"), f(self.host, "host"));
+        return pack(f(self.data, "data"),
+                    f(self.host, "host"),
+                    f(self.key, "key"),
+                    f(self.path, "path"),
+                    f(self.external_shape, "shape"));
     }
 
     std::string name() const { return "gpu::literal"; }
 
-    shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
+    shape compute_shape(const std::vector<shape>&) const
+    {
+        return data.empty() ? external_shape : data.get_shape();
+    }
 
     argument compute(const shape&, const std::vector<argument>&) const { return gpu_data; }
 
-    void finalize(context&, const shape&, const std::vector<shape>&)
+    // Copies the bytes of a chunk to offset in the result and returns the offset after them
+    template <class Chunk>
+    std::size_t append_chunk(const argument& result, std::size_t offset, const Chunk& chunk) const
     {
+        if(chunk.size() > external_shape.bytes() - offset)
+            MIGRAPHX_THROW("gpu::literal: weights for " + key + " in " + path +
+                           " are larger than the literal");
+        std::copy(chunk.begin(), chunk.end(), result.data() + offset);
+        return offset + chunk.size();
+    }
+
+    argument load_data_from_file(context& ctx) const
+    {
+        if(path.empty())
+            MIGRAPHX_THROW("gpu::literal: no data and no weights file to load it from");
+        auto& db = ctx.get_database(path);
+        db.set_busy_timeout(weights_busy_timeout_ms);
+        auto stmt = db.prepare(weights_load_sql);
+        auto rows = stmt(key);
+        if(rows.begin() == rows.end())
+            MIGRAPHX_THROW("gpu::literal: no weights for " + key + " in " + path);
+        argument result{external_shape};
+        auto bytes  = external_shape.bytes();
+        auto loaded = std::accumulate(
+            rows.begin(), rows.end(), std::size_t{0}, [&](std::size_t offset, const value& row) {
+                assert(offset <= bytes);
+                const auto& chunk = row.at("data").get_binary();
+                if(not row.at("compressed").to<bool>())
+                    return append_chunk(result, offset, chunk);
+                // What is left of the literal bounds what the chunk may decompress to
+                return append_chunk(result, offset, zstd_decompress(chunk, bytes - offset));
+            });
+        if(loaded != bytes)
+            MIGRAPHX_THROW("gpu::literal: weights for " + key + " in " + path +
+                           " are smaller than the literal");
+        return result;
+    }
+
+    void finalize(context& ctx, const shape&, const std::vector<shape>&)
+    {
+        auto d = data;
+        if(d.empty())
+            d = load_data_from_file(ctx);
         if(host)
-            gpu_data = register_on_gpu(data);
+            gpu_data = register_on_gpu(d);
         else
-            gpu_data = to_gpu(data);
+            gpu_data = to_gpu(d);
     }
 
     friend std::ostream& operator<<(std::ostream& os, const gpu_literal& x)
@@ -85,6 +305,8 @@ struct gpu_literal
             os << ":host";
         else
             os << ":gpu";
+        if(not x.key.empty())
+            os << "[key=" << x.key << ",path=" << x.path << "]";
         return os;
     }
 };
@@ -161,6 +383,15 @@ static std::size_t extra_needed(std::size_t available, std::size_t used)
 }
 
 static std::size_t literal_bytes(instruction_ref ins) { return ins->get_shape().bytes(); }
+
+static std::vector<instruction_ref> find_literals(const module& m)
+{
+    std::vector<instruction_ref> literals;
+    copy_if(iterator_for(m), std::back_inserter(literals), [](instruction_ref ins) {
+        return ins->name() == "@literal";
+    });
+    return literals;
+}
 
 static std::size_t total_bytes(const std::unordered_set<instruction_ref>& literals)
 {
@@ -327,10 +558,7 @@ static literal_plan plan_literals(const module& m,
     if(needed == 0)
         return plan;
 
-    std::vector<instruction_ref> literals;
-    copy_if(iterator_for(m), std::back_inserter(literals), [](instruction_ref ins) {
-        return ins->name() == "@literal";
-    });
+    auto literals = find_literals(m);
     auto staged_first =
         std::stable_partition(literals.begin(), literals.end(), &is_zero_copy_literal);
     std::stable_sort(literals.begin(), staged_first, by(std::greater<>{}, &literal_bytes));
@@ -397,23 +625,50 @@ void write_literals::apply(module& m) const
                   << " bytes, +" << plan.scratch_growth << " scratch)" << std::endl;
     }
 
-    for(auto ins : iterator_for(m))
+    auto literals = find_literals(m);
+    // The writer is opened only for a module with literals, so one without them does not create
+    // the file, and after the keys are hashed, so the file is not locked while hashing
+    std::vector<std::string> keys;
+    optional<weights_writer> writer;
+    if(not weights_file.empty() and not literals.empty())
     {
-        if(ins->name() != "@literal")
-            continue;
-        auto data = ins->get_literal().get_argument();
-        if(enabled(MIGRAPHX_COPY_LITERALS{}) or contains(plan.staged, ins))
+        assert(ctx != nullptr);
+        keys = weights_keys(literals);
+        // The literals keep weights_file as given; only the file written here is resolved
+        writer.emplace(
+            ctx->resolve_path(weights_file), weights_chunk_bytes, compress_weights_level);
+    }
+    assert(not writer.has_value() or keys.size() == literals.size());
+
+    for(auto i : range(literals.size()))
+    {
+        auto ins    = literals[i];
+        bool staged = enabled(MIGRAPHX_COPY_LITERALS{}) or contains(plan.staged, ins);
+        auto s      = ins->get_shape();
+        gpu_literal lit{.host = staged or contains(plan.zero_copy, ins)};
+        if(writer.has_value())
         {
-            auto lit = m.insert_instruction(ins, gpu_literal{.data = data, .host = true});
-            auto a   = m.insert_instruction(ins, hip_allocate{data.get_shape()});
-            m.replace_instruction(ins, hip_copy{}, lit, a);
+            lit.key            = writer->save(keys[i], ins->get_literal());
+            lit.path           = weights_file;
+            lit.external_shape = s;
         }
         else
         {
-            m.replace_instruction(ins,
-                                  gpu_literal{.data = data, .host = contains(plan.zero_copy, ins)});
+            lit.data = ins->get_literal().get_argument();
+        }
+        if(staged)
+        {
+            auto host_lit = m.insert_instruction(ins, lit);
+            auto a        = m.insert_instruction(ins, hip_allocate{s});
+            m.replace_instruction(ins, hip_copy{}, host_lit, a);
+        }
+        else
+        {
+            m.replace_instruction(ins, lit);
         }
     }
+    if(writer.has_value())
+        writer->commit();
 }
 
 } // namespace gpu

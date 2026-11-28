@@ -38,6 +38,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/execution_environment.hpp>
+#include <migraphx/filesystem.hpp>
 #include <algorithm>
 #include <iostream>
 
@@ -132,6 +133,10 @@ struct MIGRAPHX_EXPORT program
     // instructions.
     void finalize(const target& t);
 
+    /// Finalize the instructions with the given contexts instead of the program's own. The
+    /// program keeps its targets and contexts; run it with eval_with_context and these contexts.
+    void finalize_with_context(std::vector<context>& ctx);
+
     void perf_report(std::ostream& os,
                      std::size_t n,
                      parameter_map params,
@@ -144,7 +149,9 @@ struct MIGRAPHX_EXPORT program
     void from_value(const value& v);
     /// When `finalize` is false the contexts are not restored and the kernels are not loaded, so a
     /// program compiled for another device can be opened. The contexts are created on first use.
-    void from_value(const value& v, bool finalize);
+    /// When finalizing, relative paths the program refers to are resolved against
+    /// `relative_path`, or the current directory when it is empty.
+    void from_value(const value& v, bool finalize, const fs::path& relative_path = {});
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;

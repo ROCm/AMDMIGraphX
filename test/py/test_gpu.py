@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import migraphx
+import migraphx, os, tempfile
 
 
 def test_conv_relu():
@@ -175,7 +175,56 @@ def test_dyn_batch():
     run_prog(4)
 
 
+def test_weights_file():
+    def create_program():
+        p = migraphx.program()
+        mm = p.get_main_module()
+        x = mm.add_parameter("x", migraphx.shape(lens=[2, 3], type="float"))
+        w = mm.add_literal(
+            migraphx.create_argument(migraphx.shape(lens=[2, 3], type="float"),
+                                     [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
+        mm.add_return([mm.add_instruction(migraphx.op("add"), [x, w])])
+        return p
+
+    def run(p):
+        x = migraphx.create_argument(migraphx.shape(lens=[2, 3], type="float"),
+                                     [10.0] * 6)
+        return p.run({"x": x})[-1].tolist()
+
+    expected = [11.0, 12.0, 13.0, 14.0, 15.0, 16.0]
+    weights = "migraphx_py_weights.db"
+    with tempfile.TemporaryDirectory() as d:
+        p = create_program()
+        p.compile(migraphx.get_target("gpu"),
+                  weights_file=weights,
+                  relative_path=d)
+        # The weights are written within the relative path
+        assert os.path.exists(os.path.join(d, weights))
+        assert run(p) == expected
+
+        # A program saved beside its weights finds them when it is loaded
+        filename = os.path.join(d, "model.mxr")
+        migraphx.save(p, filename)
+        assert run(migraphx.load(filename)) == expected
+
+        # A program loaded from memory has to be told where they are
+        buffer = migraphx.save_buffer(p)
+        try:
+            migraphx.load_buffer(buffer)
+            assert False, "expected the weights to be missing"
+        except RuntimeError:
+            pass
+        assert run(migraphx.load_buffer(buffer, relative_path=d)) == expected
+
+        # A directory given to load is used instead of the directory of the file
+        with tempfile.TemporaryDirectory() as other:
+            moved = os.path.join(other, "model.mxr")
+            migraphx.save(p, moved)
+            assert run(migraphx.load(moved, relative_path=d)) == expected
+
+
 test_conv_relu()
+test_weights_file()
 test_sub_uint64()
 test_neg_int64()
 test_fp16_imagescaler()

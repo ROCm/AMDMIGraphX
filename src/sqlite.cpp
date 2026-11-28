@@ -196,15 +196,31 @@ void sqlite_stmt::bind(int i, std::int64_t x) const
         MIGRAPHX_THROW(impl->error_message());
 }
 
+// As with text, the data of an empty blob may be null, which would bind SQL NULL; a zero-length
+// zeroblob is an empty BLOB instead. The 64-bit form is used because the plain one takes the size
+// as an int.
+static int
+bind_blob(sqlite3_stmt* stmt, int i, sqlite_blob_view blob, sqlite3_destructor_type lifetime)
+{
+    assert(blob.size == 0 or blob.data != nullptr);
+    if(blob.size == 0)
+        return sqlite3_bind_zeroblob(stmt, i, 0);
+    return sqlite3_bind_blob64(stmt, i, blob.data, blob.size, lifetime);
+}
+
 void sqlite_stmt::bind(int i, const std::vector<char>& blob) const
 {
-    // As with text, an empty vector's data() may be null, which would bind SQL NULL; a
-    // zero-length zeroblob is an empty BLOB instead. The 64-bit form is used because the
-    // plain one takes the size as an int, and SQLITE_TRANSIENT copies before returning so
-    // callers can bind temporaries.
-    int rc = blob.empty()
-                 ? sqlite3_bind_zeroblob(impl->get(), i, 0)
-                 : sqlite3_bind_blob64(impl->get(), i, blob.data(), blob.size(), SQLITE_TRANSIENT);
+    // SQLITE_TRANSIENT copies before returning so callers can bind temporaries.
+    int rc = bind_blob(impl->get(), i, {blob.data(), blob.size()}, SQLITE_TRANSIENT);
+    if(rc != SQLITE_OK)
+        MIGRAPHX_THROW(impl->error_message());
+}
+
+void sqlite_stmt::bind(int i, sqlite_blob_view blob) const
+{
+    // SQLITE_STATIC makes sqlite read the caller's bytes when the statement is stepped rather
+    // than copy them here.
+    int rc = bind_blob(impl->get(), i, blob, SQLITE_STATIC);
     if(rc != SQLITE_OK)
         MIGRAPHX_THROW(impl->error_message());
 }

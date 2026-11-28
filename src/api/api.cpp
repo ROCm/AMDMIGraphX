@@ -264,6 +264,22 @@ static void set_backend_options(compile_options& options, const char* options_js
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
 
+static void set_weights_file(compile_options& options, const char* path)
+{
+    if(path == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Weights file path cannot be null");
+    options.weights_file = path;
+}
+
+// For both compile_options and file_options
+template <class Options>
+static void set_relative_path(Options& options, const char* path)
+{
+    if(path == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Relative path cannot be null");
+    options.relative_path = path;
+}
+
 // Parse an expression string and bind each provided symbol name to the bounds/optimals
 // carried by its range dynamic_dimension, producing a symbolic dynamic_dimension.
 static shape::dynamic_dimension make_symbolic_dynamic_dimension(
@@ -2857,6 +2873,17 @@ migraphx_file_options_set_file_format(migraphx_file_options_t file_options, cons
 }
 
 extern "C" migraphx_status
+migraphx_file_options_set_relative_path(migraphx_file_options_t file_options, const char* path)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(file_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter file_options: Null pointer");
+        migraphx::set_relative_path((file_options->object), (path));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
 migraphx_compile_options_destroy(migraphx_compile_options_t compile_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((compile_options)); });
@@ -2942,6 +2969,32 @@ extern "C" migraphx_status migraphx_compile_options_set_advance_backend_options(
         migraphx::set_backend_options((compile_options->object), (options_json), (vlist));
     });
     va_end(vlist);
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_compile_options_set_weights_file(migraphx_compile_options_t compile_options,
+                                          const char* path)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_weights_file((compile_options->object), (path));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_compile_options_set_relative_path(migraphx_compile_options_t compile_options,
+                                           const char* path)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_relative_path((compile_options->object), (path));
+    });
     return api_error_result;
 }
 

@@ -60,6 +60,25 @@ TEST_CASE(compile_options_flags)
     run_and_check(p, s);
 }
 
+TEST_CASE(compile_options_weights_file)
+{
+    migraphx::shape s{migraphx_shape_float_type, {3, 3}};
+    auto p = create_add_program(s);
+
+    // The ref target keeps its weights in the program, so the options are accepted and unused
+    migraphx::compile_options options;
+    options.set_weights_file("weights.db");
+    options.set_relative_path("models");
+    p.compile(migraphx::target("ref"), options);
+    run_and_check(p, s);
+
+    EXPECT(test::throws([&] { options.set_weights_file(nullptr); }));
+    EXPECT(test::throws([&] { options.set_relative_path(nullptr); }));
+    migraphx::file_options file_options;
+    file_options.set_relative_path("models");
+    EXPECT(test::throws([&] { file_options.set_relative_path(nullptr); }));
+}
+
 TEST_CASE(compile_options_backend_option_scalar)
 {
     migraphx::shape s{migraphx_shape_float_type, {3, 3}};

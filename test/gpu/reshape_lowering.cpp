@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/errors.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/make_op.hpp>
@@ -29,7 +28,7 @@
 #include <migraphx/module.hpp>
 #include <test.hpp>
 
-TEST_CASE(two_input_reshape_is_rejected)
+TEST_CASE(two_input_reshape_is_deferred)
 {
     migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}};
     migraphx::shape output_shape{migraphx::shape::float_type, {6, 4}};
@@ -40,10 +39,10 @@ TEST_CASE(two_input_reshape_is_rejected)
     auto result = m.add_instruction(migraphx::make_op("reshape"), input, output);
     m.add_return({result});
 
+    auto expected = m;
     auto ctx = migraphx::gpu::context{};
-    EXPECT(test::throws<migraphx::exception>(
-        [&] { migraphx::run_passes(m, {migraphx::gpu::lowering{&ctx, false}}); },
-        "gpu::lowering: two-input reshape must be eliminated before lowering"));
+    migraphx::run_passes(m, {migraphx::gpu::lowering{&ctx, false}});
+    EXPECT(m == expected);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

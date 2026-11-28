@@ -53,6 +53,13 @@ struct find_device_memory_op
         auto ins = r.result;
         if(ins->get_shape().dynamic())
             return;
+        if(ins->get_shape().type() != shape::tuple_type and ins->get_shape().elements() == 0)
+        {
+            auto output = ins->inputs().back();
+            assert(output->get_shape() == ins->get_shape());
+            m.replace_instruction(ins, output);
+            return;
+        }
         m.replace_instruction(ins, precompiled(ins), ins->inputs());
     }
 };

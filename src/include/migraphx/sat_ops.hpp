@@ -89,6 +89,12 @@ constexpr T mul_sat(T a, T b) noexcept
     return std::numeric_limits<T>::max();
 }
 
+template <class T, class... Ts, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
+constexpr T mul_sat(T a, T b, T c, Ts... xs) noexcept
+{
+    return mul_sat(mul_sat(a, b), c, xs...);
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

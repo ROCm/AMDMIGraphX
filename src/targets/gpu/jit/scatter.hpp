@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,6 +41,18 @@ struct scatter_compiler : compiler<Derived>
     {
         const auto inputs =
             to_shapes(std::vector<instruction_ref>{ins->inputs().begin() + 1, ins->inputs().end()});
+
+        // Scatter with no updates is only the required input-to-output copy.
+        if(inputs.at(1).elements() == 0)
+        {
+            return {std::vector<operation>{},
+                    [](module& m, instruction_ref scatter, const std::vector<operation>&) {
+                        auto args   = scatter->inputs();
+                        auto output = m.insert_instruction(
+                            scatter, make_op("hip::copy"), args.front(), args.back());
+                        m.replace_instruction(scatter, output);
+                    }};
+        }
 
         hip_compile_options options;
         options.set_launch_params(op.to_value(), compute_global_for(ctx, inputs.at(1).elements()));

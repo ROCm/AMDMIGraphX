@@ -28,6 +28,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/raw_data.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/sym.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 #include <algorithm>
@@ -507,7 +508,7 @@ TEST_CASE(select_module_compute_maps_parameters_by_name)
     migraphx::argument output_arg{max_s, output_vec.data()};
     std::unordered_map<std::string, migraphx::argument> seen;
     migraphx::context ctx;
-    op.finalize(ctx, {}, {}, {&small, &submod});
+    op.finalize(ctx, {}, {dyn_s, max_s}, {&small, &submod});
     auto result = op.compute(migraphx::shape{std::vector<migraphx::shape>{s}},
                              {data_arg, output_arg},
                              {&small, &submod},
@@ -522,6 +523,216 @@ TEST_CASE(select_module_compute_maps_parameters_by_name)
     EXPECT(seen.at("sub:#output_0").data() == output_arg.data());
     EXPECT(result.get_sub_objects().size() == 1);
     EXPECT(result.get_sub_objects().front().get_shape() == s);
+}
+
+TEST_CASE(select_module_empty_logical_output_returns_output_allocation)
+{
+    auto n        = migraphx::sym::var("n", {0, 4});
+    auto target_n = migraphx::sym::var("target_n", {0, 4});
+    migraphx::shape candidate_s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape empty_s{migraphx::shape::float_type, {2, 0}};
+    migraphx::shape output_s{migraphx::shape::float_type,
+                             {migraphx::shape::dynamic_dimension{migraphx::sym::lit(2)},
+                              migraphx::shape::dynamic_dimension{n}},
+                             {target_n, migraphx::sym::lit(1)}};
+    migraphx::shape input_s{migraphx::shape::float_type,
+                            {migraphx::shape::dynamic_dimension{migraphx::sym::lit(2)},
+                             migraphx::shape::dynamic_dimension{n}}};
+    migraphx::module submod{"sub"};
+    submod.add_parameter("data", candidate_s);
+    auto output = submod.add_parameter("sub:#output_0", candidate_s);
+    submod.add_return({output});
+
+    auto op = migraphx::make_op(
+        "select_module",
+        {{"output_dyn_shapes",
+          migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{output_s}})}});
+    std::vector<float> output_data(candidate_s.elements());
+    migraphx::argument data_arg{empty_s, nullptr};
+    migraphx::argument output_arg{candidate_s, output_data.data()};
+    migraphx::context ctx;
+    op.finalize(ctx, {}, {input_s, candidate_s}, {&submod});
+    bool invoked = false;
+    auto result  = op.compute(migraphx::shape{std::vector<migraphx::shape>{output_s}},
+                              {data_arg, output_arg},
+                              {&submod},
+                              [&](const migraphx::module_ref&, const auto&) {
+                                 invoked = true;
+                                 return std::vector<migraphx::argument>{};
+                              });
+
+    EXPECT(not invoked);
+    EXPECT(result.get_sub_objects().size() == 1);
+    EXPECT(result.get_sub_objects().front().get_shape() == empty_s);
+    EXPECT(result.get_sub_objects().front().data() == output_arg.data());
+}
+
+TEST_CASE(select_module_empty_logical_output_builds_empty_arguments)
+{
+    auto n = migraphx::sym::var("n", {0, 2});
+    migraphx::shape candidate_s{migraphx::shape::float_type, {1, 2}};
+    migraphx::shape candidate_leaf_s{migraphx::shape::int32_type, {1}};
+    migraphx::shape candidate_nested_leaf_s{migraphx::shape::float_type, {1, 1}};
+    migraphx::shape candidate_tuple_s{
+        {candidate_leaf_s, migraphx::shape{{candidate_nested_leaf_s}}}};
+    migraphx::module submod{"sub"};
+    auto guard        = submod.add_parameter("guard", candidate_s);
+    auto tuple_output = submod.add_parameter("tuple_output", candidate_tuple_s);
+    submod.add_return({guard, tuple_output});
+
+    auto dim = migraphx::shape::dynamic_dimension{n};
+    migraphx::shape output_s{migraphx::shape::float_type,
+                             {dim, migraphx::shape::dynamic_dimension{migraphx::sym::lit(2)}}};
+    migraphx::shape output_leaf_s{migraphx::shape::int32_type, {dim}};
+    migraphx::shape output_nested_leaf_s{
+        migraphx::shape::float_type,
+        {dim, migraphx::shape::dynamic_dimension{migraphx::sym::lit(1)}}};
+    migraphx::shape output_tuple_s{{output_leaf_s, migraphx::shape{{output_nested_leaf_s}}}};
+    std::vector<migraphx::shape> output_shapes = {output_s, output_tuple_s};
+    auto op                                    = migraphx::make_op(
+        "select_module",
+        {{"output_dyn_shapes", migraphx::to_value(migraphx::shape{output_shapes})}});
+    migraphx::argument empty_arg{{migraphx::shape::float_type, {0, 2}}, nullptr};
+    migraphx::argument tuple_arg{candidate_tuple_s};
+    migraphx::context ctx;
+    op.finalize(ctx, {}, {output_s, candidate_tuple_s}, {&submod});
+    bool invoked = false;
+    auto result  = op.compute(migraphx::shape{output_shapes},
+                              {empty_arg, tuple_arg},
+                              {&submod},
+                              [&](const migraphx::module_ref&, const auto&) {
+                                 invoked = true;
+                                 return std::vector<migraphx::argument>{};
+                              });
+
+    EXPECT(not invoked);
+    auto outputs = result.get_sub_objects();
+    EXPECT(outputs.size() == 2);
+    EXPECT(outputs.front().get_shape() == migraphx::shape{migraphx::shape::float_type, {0, 2}});
+    migraphx::shape expected_tuple_s{
+        {migraphx::shape{migraphx::shape::int32_type, {0}},
+         migraphx::shape{{migraphx::shape{migraphx::shape::float_type, {0, 1}}}}}};
+    EXPECT(outputs.back().get_shape() == expected_tuple_s);
+}
+
+TEST_CASE(select_module_returns_logical_view_of_physical_output)
+{
+    auto n        = migraphx::sym::var("n", {1, 4});
+    auto target_n = migraphx::sym::var("target_n", {1, 4}, {1, 2, 4});
+    migraphx::shape input_s{migraphx::shape::float_type,
+                            {migraphx::shape::dynamic_dimension{migraphx::sym::lit(2)},
+                             migraphx::shape::dynamic_dimension{n}}};
+    migraphx::shape candidate_input_s{migraphx::shape::float_type, {{2, 2}, {3, 4}}};
+    migraphx::shape candidate_output_s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape output_s{migraphx::shape::float_type,
+                             {migraphx::shape::dynamic_dimension{migraphx::sym::lit(2)},
+                              migraphx::shape::dynamic_dimension{n}},
+                             {target_n, migraphx::sym::lit(1)}};
+    migraphx::module submod{"sub"};
+    submod.add_parameter("data", candidate_input_s);
+    auto output = submod.add_parameter("sub:#output_0", candidate_output_s);
+    submod.add_return({output});
+
+    auto op = migraphx::make_op(
+        "select_module",
+        {{"output_dyn_shapes",
+          migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{output_s}})}});
+    std::vector<float> input_data(6);
+    std::vector<float> output_data(candidate_output_s.elements());
+    migraphx::argument input_arg{{migraphx::shape::float_type, {2, 3}}, input_data.data()};
+    migraphx::argument output_arg{candidate_output_s, output_data.data()};
+    migraphx::context ctx;
+    op.finalize(ctx, {}, {input_s, candidate_output_s}, {&submod});
+    auto result         = op.compute(migraphx::shape{std::vector<migraphx::shape>{output_s}},
+                                     {input_arg, output_arg},
+                                     {&submod},
+                                     [&](const migraphx::module_ref&, const auto& params) {
+                                 return std::vector<migraphx::argument>{params.at("sub:#output_0")};
+                                     });
+    auto logical_output = result.get_sub_objects().front();
+    EXPECT(logical_output.get_shape() ==
+           migraphx::shape{migraphx::shape::float_type, {2, 3}, {4, 1}});
+    EXPECT(logical_output.data() == output_arg.data());
+}
+
+TEST_CASE(select_module_compound_logical_expression)
+{
+    auto expression = migraphx::sym::min(migraphx::sym::var("n", {0, 8}), migraphx::sym::lit(4));
+    auto dim        = migraphx::shape::dynamic_dimension{expression};
+    migraphx::shape input_s{migraphx::shape::float_type, {dim, dim}};
+    migraphx::shape logical_output_s{
+        migraphx::shape::float_type,
+        {dim, migraphx::shape::dynamic_dimension{migraphx::sym::lit(1)}}};
+    migraphx::shape candidate_s{migraphx::shape::float_type, {1, 1}};
+    migraphx::module submod{"sub"};
+    auto input = submod.add_parameter("data", candidate_s);
+    submod.add_return({input});
+
+    auto op = migraphx::make_op(
+        "select_module",
+        {{"output_dyn_shapes",
+          migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{logical_output_s}})}});
+    migraphx::context ctx;
+    op.finalize(ctx, {}, {input_s}, {&submod});
+    bool invoked = false;
+    auto result  = op.compute(migraphx::shape{std::vector<migraphx::shape>{candidate_s}},
+                              {migraphx::argument{{migraphx::shape::float_type, {0, 0}}, nullptr}},
+                              {&submod},
+                              [&](const migraphx::module_ref&, const auto&) {
+                                 invoked = true;
+                                 return std::vector<migraphx::argument>{};
+                              });
+    EXPECT(not invoked);
+    EXPECT(result.get_sub_objects().front().get_shape() ==
+           migraphx::shape{migraphx::shape::float_type, {0, 1}});
+    EXPECT(test::throws([&] {
+        std::ignore =
+            op.compute(migraphx::shape{std::vector<migraphx::shape>{candidate_s}},
+                       {migraphx::argument{{migraphx::shape::float_type, {0, 1}}, nullptr}},
+                       {&submod},
+                       [&](const migraphx::module_ref&, const auto&) {
+                           return std::vector<migraphx::argument>{};
+                       });
+    }));
+}
+
+TEST_CASE(select_module_mixed_logical_outputs_runs)
+{
+    auto n = migraphx::sym::var("n", {0, 1});
+    migraphx::shape data_s{migraphx::shape::float_type, {1, 4}};
+    migraphx::shape empty_s{migraphx::shape::float_type, {0, 4}};
+    migraphx::shape empty_dyn_s{migraphx::shape::float_type,
+                                {migraphx::shape::dynamic_dimension{n},
+                                 migraphx::shape::dynamic_dimension{migraphx::sym::lit(4)}}};
+    migraphx::module submod{"sub"};
+    submod.add_parameter("data", data_s);
+    submod.add_parameter("empty", empty_s);
+    auto output = submod.add_parameter("sub:#output_0", data_s);
+    submod.add_return({output});
+
+    auto op = migraphx::make_op(
+        "select_module",
+        {{"output_dyn_shapes",
+          migraphx::to_value(migraphx::shape{std::vector<migraphx::shape>{data_s}})}});
+    std::vector<float> data(data_s.elements());
+    std::vector<float> output_data(data_s.elements());
+    migraphx::argument data_arg{data_s, data.data()};
+    migraphx::argument empty_arg{empty_s, nullptr};
+    migraphx::argument output_arg{data_s, output_data.data()};
+    migraphx::context ctx;
+    op.finalize(ctx, {}, {data_s, empty_dyn_s, data_s}, {&submod});
+    bool invoked = false;
+    auto result  = op.compute(migraphx::shape{std::vector<migraphx::shape>{data_s}},
+                              {data_arg, empty_arg, output_arg},
+                              {&submod},
+                              [&](const migraphx::module_ref&, const auto& params) {
+                                 invoked = true;
+                                 return std::vector<migraphx::argument>{params.at("sub:#output_0")};
+                              });
+
+    EXPECT(invoked);
+    EXPECT(result.get_sub_objects().size() == 1);
+    EXPECT(result.get_sub_objects().front().data() == output_arg.data());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -31,6 +31,7 @@
 #include <migraphx/common.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/tensor_view.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,6 +62,89 @@ struct find_broadcast_with_dims_static : match::supports_dynamic_shapes
 
         m.replace_instruction(
             ins, make_op("multibroadcast", {{"out_lens", sizes_vec}}), inputs.at(0));
+    }
+};
+
+// A dyn_concat is an ordinary concat when every data input has a static shape and every count is
+// provably the full extent of that input. Rewrite its tuple projections and canonical prefix slice
+// so dead-code elimination can remove the tuple operation and its count computations.
+struct find_static_dyn_concat : match::supports_dynamic_shapes
+{
+    auto matcher() const { return match::name("dyn_concat"); }
+
+    static bool is_full_prefix_slice(instruction_ref ins,
+                                     instruction_ref buffer,
+                                     const std::vector<instruction_ref>& counts,
+                                     std::size_t axis)
+    {
+        if(ins->name() != "dyn_slice" or ins->inputs().size() != 3 or
+           ins->inputs().front() != buffer or not contains(counts, ins->inputs().back()))
+            return false;
+        auto axes = ins->get_operator().to_value().at("axes").to_vector<int64_t>();
+        if(axes.size() != 1 or
+           tune_axis(buffer->get_shape().ndim(), axes.front(), ins->name()) != axis)
+            return false;
+        auto starts = ins->inputs().at(1)->eval(false);
+        return not starts.empty() and
+               all_of(starts.to_vector<int64_t>(), [](auto start) { return start == 0; });
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
+        std::vector<instruction_ref> data(inputs.begin() + 1, inputs.end());
+        if(any_of(data, [](auto input) { return input->get_shape().dynamic(); }))
+            return;
+
+        auto axis         = tune_axis(data.front()->get_shape().ndim(),
+                                      ins->get_operator().to_value().at("axis").to<int64_t>(),
+                                      ins->name());
+        auto count_values = inputs.front()->sym_eval();
+        if(count_values.empty())
+            return;
+        auto fixed_counts = sym::fixed_values<int64_t>(count_values.get());
+        if(not fixed_counts.has_value() or
+           not std::equal(fixed_counts->begin(),
+                          fixed_counts->end(),
+                          data.begin(),
+                          data.end(),
+                          [&](int64_t count, instruction_ref input) {
+                              const int64_t len = input->get_shape().lens().at(axis);
+                              return count == len;
+                          }))
+            return;
+        // Every count is the full extent of its input, so the total is the output capacity.
+        auto total = ins->get_shape().sub_shapes().front().lens().at(axis);
+
+        auto concat = data.size() == 1
+                          ? data.front()
+                          : m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), data);
+        auto total_literal = m.insert_literal(ins, literal{{shape::int64_type, {1}}, {total}});
+
+        std::vector<instruction_ref> buffers;
+        std::vector<instruction_ref> counts;
+        auto outputs = ins->outputs();
+        for(auto output : outputs)
+        {
+            if(output->name() != "get_tuple_elem")
+                continue;
+            auto index = output->get_operator().to_value().at("index").to<std::size_t>();
+            if(index == 0)
+                buffers.push_back(output);
+            else if(index == 1)
+                counts.push_back(output);
+        }
+        for(auto buffer : buffers)
+        {
+            auto consumers = buffer->outputs();
+            for(auto consumer : consumers)
+                if(is_full_prefix_slice(consumer, buffer, counts, axis))
+                    m.replace_instruction(consumer, concat);
+            m.replace_instruction(buffer, concat);
+        }
+        for(auto count_output : counts)
+            m.replace_instruction(count_output, total_literal);
     }
 };
 
@@ -599,11 +683,10 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
             }
         }
         auto tuple_shape = shape{dyn_shapes};
+        auto attributes                 = sm_ins->get_operator().to_value();
+        attributes["output_dyn_shapes"] = to_value(tuple_shape);
         m.replace_instruction(
-            sm_ins,
-            make_op("select_module", {{"output_dyn_shapes", to_value(tuple_shape)}}),
-            sm_ins->inputs(),
-            sm_module_inputs);
+            sm_ins, make_op("select_module", attributes), sm_ins->inputs(), sm_module_inputs);
     }
 
     std::vector<std::size_t> get_shapes_ndim(const std::vector<shape>& shapes) const
@@ -690,6 +773,7 @@ void simplify_dyn_ops::apply(module& m) const
 {
     match::find_matches(m,
                         find_broadcast_with_dims_static{},
+                        find_static_dyn_concat{},
                         find_resize_static{},
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},

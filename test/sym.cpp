@@ -3759,6 +3759,29 @@ TEST_CASE(provable_equal_indeterminate)
     EXPECT(not provable_equal(expr{}, expr{}).has_value());
 }
 
+TEST_CASE(provable_less_equal_results)
+{
+    EXPECT(provable_less_equal(lit(2), lit(5)).value_or(false));
+    EXPECT(provable_less_equal(lit(5), lit(5)).value_or(false));
+    EXPECT(not provable_less_equal(lit(7), lit(5)).value_or(true));
+
+    auto x = var("x", interval{int64_t{1}, int64_t{10}});
+    auto y = var("y", interval{int64_t{5}, int64_t{15}});
+    EXPECT(not provable_less_equal(x, y).has_value());
+    EXPECT(not provable_less_equal(expr{}, expr{}).has_value());
+    EXPECT(provable_less_equal(var("unbounded"), lit(20), interval{int64_t{1}, int64_t{10}})
+               .value_or(false));
+}
+
+TEST_CASE(provable_less_equal_nested_min)
+{
+    auto x      = var("x");
+    auto y      = var("y");
+    auto z      = var("z");
+    auto result = provable_less_equal(min(y, min(z, x)), x);
+    EXPECT(result.has_value() and *result);
+}
+
 // ---- strict_less tests ----
 
 TEST_CASE(strict_less_literals_true)
@@ -3790,6 +3813,37 @@ TEST_CASE(strict_less_self)
     auto x = var("x");
     auto r = strict_less(x, x);
     EXPECT(r.has_value() and not *r);
+}
+
+TEST_CASE(strict_less_nested_min_max)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto z = var("z");
+
+    auto x_less_nested_min = strict_less(x, min(y, min(z, x)));
+    EXPECT(x_less_nested_min.has_value() and not *x_less_nested_min);
+
+    auto nested_max_less_x = strict_less(max(y, max(z, x)), x);
+    EXPECT(nested_max_less_x.has_value() and not *nested_max_less_x);
+
+    auto low0 = var("low0", {1, 2});
+    auto low1 = var("low1", {1, 2});
+
+    auto min_less_three = strict_less(min(x, low0), lit(3));
+    EXPECT(min_less_three.has_value() and *min_less_three);
+    auto min_less_zero = strict_less(min(low0, low1), lit(0));
+    EXPECT(min_less_zero.has_value() and not *min_less_zero);
+
+    auto max_less_three = strict_less(max(low0, low1), lit(3));
+    EXPECT(max_less_three.has_value() and *max_less_three);
+    auto three_less_max = strict_less(lit(3), max(low0, low1));
+    EXPECT(three_less_max.has_value() and not *three_less_max);
+
+    auto zero_less_min = strict_less(lit(0), min(low0, low1));
+    EXPECT(zero_less_min.has_value() and *zero_less_min);
+    auto zero_less_max = strict_less(lit(0), max(x, low0));
+    EXPECT(zero_less_max.has_value() and *zero_less_max);
 }
 
 TEST_CASE(strict_less_var_plus_one)
@@ -3838,6 +3892,13 @@ TEST_CASE(strict_less_overlapping_ranges_indeterminate)
     auto y = var("y", interval{int64_t{5}, int64_t{15}});
     auto r = strict_less(x, y);
     EXPECT(not r.has_value());
+}
+
+TEST_CASE(strict_less_truncated_ratio_indeterminate)
+{
+    auto x = var("x", interval{int64_t{2}, int64_t{4}});
+    EXPECT(not strict_less(lit(3), x).has_value());
+    EXPECT(not strict_less(x, lit(3)).has_value());
 }
 
 TEST_CASE(strict_less_touching_ranges_indeterminate)

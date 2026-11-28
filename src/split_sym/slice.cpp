@@ -38,8 +38,7 @@ struct dyn_slice_bounds
     std::vector<sym::expr> ends;
 };
 
-// A dyn_slice keeps a prefix on every axis when each start is a non-negative constant and each
-// end is a non-negative constant or the full input extent.
+// Prefix bounds remain valid when inputs are padded to a larger specialization target.
 std::optional<dyn_slice_bounds> prefix_stable_dyn_slice_bounds(instruction_ref ins)
 {
     const auto& inputs = ins->inputs();
@@ -68,10 +67,16 @@ std::optional<dyn_slice_bounds> prefix_stable_dyn_slice_bounds(instruction_ref i
         if(not axis.has_value() or not sym::find_variables(start).empty() or
            sym::strict_less(start, zero).value_or(false))
             return std::nullopt;
-        const auto& end = ends.at(i);
-        if(sym::strict_less(end, zero).value_or(false) or
-           (not sym::find_variables(end).empty() and not(end == input_dims.at(*axis).sym_expr)))
+        const auto& end       = ends.at(i);
+        const auto& input_end = input_dims.at(*axis).sym_expr;
+        if(sym::strict_less(end, zero).value_or(false))
             return std::nullopt;
+        if(not sym::find_variables(end).empty() and not(end == input_end))
+        {
+            auto input_less_end = sym::strict_less(input_end, end);
+            if(not input_less_end.has_value() or *input_less_end)
+                return std::nullopt;
+        }
     }
     return dyn_slice_bounds{std::move(starts), std::move(ends)};
 }
@@ -109,13 +114,16 @@ struct analyze_slice : analyzer<analyze_slice>
                           is_variable_axis(input.dyn_dims().at(*normalized));
                }))
                 return symbolic_op_info{ins};
-            return analyze_axes(ins);
+            auto result                    = analyze_axes(ins);
+            result.force_static_parameters = true;
+            return result;
         }
 
         auto bounds = prefix_stable_dyn_slice_bounds(ins);
         if(not bounds.has_value())
             return symbolic_op_info{ins};
-        auto result    = analyze_axes(ins);
+        auto result                    = analyze_axes(ins);
+        result.force_static_parameters = true;
         result.freezer = [bounds = std::move(*bounds)](
                              module& m,
                              instruction_ref source,

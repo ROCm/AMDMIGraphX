@@ -54,6 +54,30 @@ static auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltyp
     return c.erase(pos, last);
 }
 
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(group_adjacent_runs, int)
+{
+    Container v = {1, 2, 3, 7, 8, 10};
+    std::vector<std::vector<int>> groups;
+    migraphx::group_adjacent(
+        v.begin(),
+        v.end(),
+        [&](auto first, auto last) { groups.emplace_back(first, last); },
+        [](int x, int y) { return y == x + 1; });
+    EXPECT(groups == std::vector<std::vector<int>>{{1, 2, 3}, {7, 8}, {10}});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(group_adjacent_empty, int)
+{
+    Container v;
+    std::vector<std::vector<int>> groups;
+    migraphx::group_adjacent(
+        v.begin(),
+        v.end(),
+        [&](auto first, auto last) { groups.emplace_back(first, last); },
+        [](int x, int y) { return y == x + 1; });
+    EXPECT(groups.empty());
+}
+
 MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_remove_if1, int)
 {
     Container v = {0, 1, 1, 1, 4, 2, 2, 4, 2};
@@ -226,6 +250,88 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_if_two_range_empty, int)
         [](int, int flag) { return flag != 0; },
         [](int x, int) { return x; });
     EXPECT(result.empty());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_exclusive_scan_basic, int)
+{
+    Container v = {1, 2, 3, 4};
+    std::vector<int> result;
+    migraphx::transform_exclusive_scan(
+        v.begin(), v.end(), std::back_inserter(result), 0, std::plus<>{}, [](int x) {
+            return x * 2;
+        });
+    EXPECT(result == std::vector<int>{0, 2, 6, 12});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_exclusive_scan_init, int)
+{
+    Container v = {1, 2, 3, 4};
+    std::vector<int> result;
+    migraphx::transform_exclusive_scan(
+        v.begin(), v.end(), std::back_inserter(result), 10, std::plus<>{}, [](int x) { return x; });
+    EXPECT(result == std::vector<int>{10, 11, 13, 16});
+}
+
+// The projection and the accumulated value can have a different type than the input
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_exclusive_scan_different_type, int)
+{
+    Container v = {1, 2, 3};
+    std::vector<std::string> result;
+    migraphx::transform_exclusive_scan(
+        v.begin(), v.end(), std::back_inserter(result), std::string{"x"}, std::plus<>{}, [](int x) {
+            return std::to_string(x);
+        });
+    EXPECT(result == std::vector<std::string>{"x", "x1", "x12"});
+}
+
+// The accumulated value is always the left operand
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_exclusive_scan_non_commutative, int)
+{
+    Container v = {1, 2, 3};
+    std::vector<int> result;
+    migraphx::transform_exclusive_scan(
+        v.begin(), v.end(), std::back_inserter(result), 100, std::minus<>{}, [](int x) {
+            return x * 10;
+        });
+    EXPECT(result == std::vector<int>{100, 90, 70});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_exclusive_scan_in_place, int)
+{
+    Container v = {1, 2, 3, 4};
+    auto last   = migraphx::transform_exclusive_scan(
+        v.begin(), v.end(), v.begin(), 0, std::plus<>{}, [](int x) { return x * 2; });
+    EXPECT(last == v.end());
+    EXPECT(v == Container{0, 2, 6, 12});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_exclusive_scan_output_iterator, int)
+{
+    Container v = {1, 2, 3};
+    std::vector<int> result(5, -1);
+    auto last = migraphx::transform_exclusive_scan(
+        v.begin(), v.end(), result.begin(), 0, std::plus<>{}, [](int x) { return x; });
+    EXPECT(last == result.begin() + 3);
+    EXPECT(result == std::vector<int>{0, 1, 3, -1, -1});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_exclusive_scan_single, int)
+{
+    Container v = {7};
+    std::vector<int> result;
+    migraphx::transform_exclusive_scan(
+        v.begin(), v.end(), std::back_inserter(result), 5, std::plus<>{}, [](int x) { return x; });
+    EXPECT(result == std::vector<int>{5});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(transform_exclusive_scan_empty, int)
+{
+    Container v;
+    std::vector<int> result(2, -1);
+    auto last = migraphx::transform_exclusive_scan(
+        v.begin(), v.end(), result.begin(), 5, std::plus<>{}, [](int x) { return x; });
+    EXPECT(last == result.begin());
+    EXPECT(result == std::vector<int>{-1, -1});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

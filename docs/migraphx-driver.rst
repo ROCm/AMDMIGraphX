@@ -34,6 +34,8 @@ The table below summarizes the MIGraphX driver commands.
       - Loads and prints input graph
    *  - compile
       - Compiles and prints input graph
+   *  - recompile
+      - Recompiles the GPU kernels of a compiled program for the same or another GPU (see :ref:`recompile-mxr`)
    *  - verify
       - Runs reference and GPU implementations and checks outputs for consistency
    *  - perf
@@ -116,13 +118,15 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --gpu-num-chiplets
       - Number of chiplets (XCCs) to assume for cross-compilation (Default: 1, only used when ``--gpu-arch`` is set)
    *  - --gpu-arch-params
-      - Device properties to assume for cross-compilation as a JSON object, e.g. ``"{arch:gfx942, num_cu:120, num_chiplets:1, max_threads_per_cu:2048, max_threads_per_block:1024}"`` (overrides ``--gpu-arch``, ``--gpu-num-cus`` and ``--gpu-num-chiplets``; specifying ``arch`` here enables cross-compilation without ``--gpu-arch``)
+      - Device properties to assume for cross-compilation as a JSON object, e.g. ``"{arch:gfx942, num_cu:120, num_chiplets:1, max_threads_per_cu:2048, max_threads_per_block:1024, max_shared_memory_per_block:65536}"`` (overrides ``--gpu-arch``, ``--gpu-num-cus`` and ``--gpu-num-chiplets``; specifying ``arch`` here enables cross-compilation without ``--gpu-arch``)
    *  - --enable-offload-copy
       - Enables implicit offload copying
    *  - --disable-fast-math
       - Disables fast math optimization
    *  - --exhaustive-tune
       - Enables exhaustive search to find the fastest kernel
+   *  - --recompilable
+      - Keeps each kernel's compile recipe, so the ``recompile`` command can recompile the program for another GPU
    *  - --fp16
       - Quantizes for fp16
    *  - --bf16

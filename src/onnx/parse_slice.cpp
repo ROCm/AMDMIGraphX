@@ -27,12 +27,94 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/functional.hpp>
+#include <algorithm>
 #include <numeric>
 #include <optional>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+// The extent dyn_slice gives for a bound on an axis of length len
+static int64_t clipped_bound(int64_t bound, int64_t len)
+{
+    if(bound < 0)
+        bound += len;
+    return std::clamp<int64_t>(bound, 0, len);
+}
+
+// The comparisons in `e` whose operands have none
+static std::vector<sym::expr> innermost_comparisons(const sym::expr& e)
+{
+    std::vector<sym::expr> result;
+    fix<bool>([&](auto self, const sym::expr& x) {
+        bool nested = false;
+        for(const auto& child : x.children())
+            nested = self(child) or nested;
+        const bool comparison = contains({"less_than", "equal_to"}, std::string{x.name()});
+        if(comparison and not nested and not contains(result, x))
+            result.push_back(x);
+        return comparison or nested;
+    })(e);
+    return result;
+}
+
+// Whether `len` is the only symbol in `e`
+static bool depends_only_on(const sym::expr& len, const sym::expr& e)
+{
+    const auto allowed = sym::find_variables(len);
+    const auto vars    = sym::find_variables(e);
+    return std::all_of(
+        vars.begin(), vars.end(), [&](const auto& v) { return contains(allowed, v); });
+}
+
+// The symbolic value of a bound, with a comparison of the axis length resolved: a bound such as
+// `n > 100 ? 100 : -1` for a clip to 100, computed with arithmetic as tf2onnx exports TF's
+// pad_or_clip, becomes an expression of the length when one candidate gives the same extent as the
+// bound for every length the axis can have
+static std::optional<sym::expr> resolve_bound(const sym::expr& bound,
+                                              const shape::dynamic_dimension& dim)
+{
+    const auto comparisons = innermost_comparisons(bound);
+    if(comparisons.empty())
+        return bound;
+    if(comparisons.size() != 1 or not dim.is_symbolic() or dim.sym_expr.name() != "variable")
+        return std::nullopt;
+    // Only the axis length may vary, so checking each of its values covers every case
+    const auto& len   = dim.sym_expr;
+    const auto bounds = dim.get_interval();
+    if(bounds.max - bounds.min > (1u << 16) or not depends_only_on(len, bound))
+        return std::nullopt;
+
+    std::vector<sym::expr> branches;
+    for(int64_t outcome : {0, 1})
+    {
+        auto branch = bound.subs({{comparisons.front(), sym::lit(outcome)}});
+        if(not innermost_comparisons(branch).empty())
+            return std::nullopt;
+        branches.push_back(branch);
+    }
+    std::vector<sym::expr> candidates = {
+        sym::min(len, branches[0]), sym::min(len, branches[1]), branches[0], branches[1]};
+    auto matches = [&](const sym::expr& candidate) {
+        const int64_t lo = bounds.min;
+        const int64_t hi = bounds.max;
+        for(auto n = lo; n <= hi; ++n)
+        {
+            std::unordered_map<sym::expr, sym::scalar> vars = {{len, sym::scalar{n}}};
+            if(clipped_bound(sym::to<int64_t>(candidate.eval(vars)), n) !=
+               clipped_bound(sym::to<int64_t>(bound.eval(vars)), n))
+                return false;
+        }
+        return true;
+    };
+    auto found = std::find_if(candidates.begin(), candidates.end(), matches);
+    if(found == candidates.end())
+        return std::nullopt;
+    return *found;
+}
 
 struct parse_slice : op_parser<parse_slice>
 {
@@ -68,7 +150,7 @@ struct parse_slice : op_parser<parse_slice>
     };
 
     instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
+                          onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
@@ -100,17 +182,37 @@ struct parse_slice : op_parser<parse_slice>
             {
                 steps.emplace(axes->size(), int64_t{1});
             }
-            if(not starts.empty() and not ends.empty() and axes.has_value() and
-               steps.has_value() and starts.get_shape().elements() == axes->size() and
-               ends.get_shape().elements() == axes->size() and steps->size() == axes->size() and
-               all_of(*steps, [](auto step) { return step == 1; }))
+            // Each bound is its symbolic value, or a new symbol bounded by the axis length where it
+            // is only known at run time or depends on a comparison that does not resolve, since
+            // dyn_slice clips it to the axis
+            if(axes.has_value() and steps.has_value() and steps->size() == axes->size() and
+               all_of(*steps, [](auto step) { return step == 1; }) and
+               args[1]->get_shape().elements() == axes->size() and
+               args[2]->get_shape().elements() == axes->size())
             {
-                const auto starts_values = starts.get().to_vector();
-                const auto ends_values   = ends.get().to_vector();
+                const auto& dims = args[0]->get_shape().dyn_dims();
+                auto bounds      = [&](const sym_argument& value, const std::string& suffix) {
+                    const auto values =
+                        value.empty() ? std::vector<sym::expr>{} : value.get().to_vector();
+                    std::vector<sym::expr> result;
+                    for(std::size_t i = 0; i < axes->size(); ++i)
+                    {
+                        auto axis       = axes->at(i);
+                        const auto& dim = dims.at(axis < 0 ? axis + dims.size() : axis);
+                        std::optional<sym::expr> bound;
+                        if(i < values.size())
+                            bound = resolve_bound(values[i], dim);
+                        if(not bound.has_value())
+                            bound = sym::var(parser.symbol_names.allocate(info.name + suffix),
+                                             {0, static_cast<int64_t>(dim.get_interval().max)});
+                        result.push_back(*bound);
+                    }
+                    return result;
+                };
                 return info.add_instruction(make_op("dyn_slice",
                                                     {{"axes", *axes},
-                                                     {"starts", to_value(starts_values)},
-                                                     {"ends", to_value(ends_values)}}),
+                                                     {"starts", to_value(bounds(starts, "_start"))},
+                                                     {"ends", to_value(bounds(ends, "_end"))}}),
                                             args[0],
                                             args[1],
                                             args[2]);

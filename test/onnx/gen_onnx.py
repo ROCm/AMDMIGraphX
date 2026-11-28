@@ -12657,6 +12657,48 @@ def nms_dynamic_classes_test():
 
 
 @onnx_test()
+def nms_pad_int32_test():
+    # Pads the selected indices with zeros to 10 entries, with the pad size computed in int32 the
+    # way tf2onnx exports it
+    b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 6, 4])
+    s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 6])
+    mo = helper.make_tensor_value_info('max_output_boxes_per_class',
+                                       TensorProto.INT64, [1])
+    iou = helper.make_tensor_value_info('iou_threshold', TensorProto.FLOAT,
+                                        [1])
+    st = helper.make_tensor_value_info('score_threshold', TensorProto.FLOAT,
+                                       [1])
+    out = helper.make_tensor_value_info('y', TensorProto.INT64, [10])
+
+    starts = helper.make_tensor('starts', TensorProto.INT64, [1], [2])
+    ends = helper.make_tensor('ends', TensorProto.INT64, [1], [3])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [1])
+    size = helper.make_tensor('size', TensorProto.INT32, [1], [10])
+    zero = helper.make_tensor('zero', TensorProto.INT64, [], [0])
+
+    nodes = [
+        helper.make_node('NonMaxSuppression', [
+            'boxes', 'scores', 'max_output_boxes_per_class', 'iou_threshold',
+            'score_threshold'
+        ], ['selected_indices']),
+        helper.make_node('Slice',
+                         ['selected_indices', 'starts', 'ends', 'axes'],
+                         ['box_column']),
+        helper.make_node('Squeeze', ['box_column', 'axes'], ['box_indices']),
+        helper.make_node('Shape', ['box_indices'], ['num_selected']),
+        helper.make_node('Cast', ['num_selected'], ['num_selected_int32'],
+                         to=TensorProto.INT32),
+        helper.make_node('Sub', ['size', 'num_selected_int32'], ['pad_int32']),
+        helper.make_node('Cast', ['pad_int32'], ['pad'], to=TensorProto.INT64),
+        helper.make_node('Expand', ['zero', 'pad'], ['zeros']),
+        helper.make_node('Concat', ['box_indices', 'zeros'], ['y'], axis=0),
+    ]
+
+    return (nodes, [b, s, mo, iou,
+                    st], [out], [starts, ends, axes, size, zero])
+
+
+@onnx_test()
 def nonmaxsuppression_zero_boxes_test():
     b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 6, 4])
     s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 6])
@@ -15094,6 +15136,35 @@ def randomuniformlike_type_error_test():
                                  seed=seed)
 
     return ([node], [input], [output])
+
+
+@onnx_test()
+def range_float_min_test():
+    # Range over min(5, len(x)), computed in float the way tf2onnx exports a TensorFlow minimum
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N'])
+    out = helper.make_tensor_value_info('y', TensorProto.INT32, ['M'])
+
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+    one = helper.make_tensor('one', TensorProto.INT64, [1], [1])
+    limit = helper.make_tensor('limit', TensorProto.FLOAT, [], [5.0])
+    start = helper.make_tensor('start', TensorProto.INT32, [], [0])
+    delta = helper.make_tensor('delta', TensorProto.INT32, [], [1])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['x_shape']),
+        helper.make_node('Cast', ['x_shape'], ['x_shape_int32'],
+                         to=TensorProto.INT32),
+        helper.make_node('Slice', ['x_shape_int32', 'zero', 'one'], ['n']),
+        helper.make_node('Squeeze', ['n', 'zero'], ['n_scalar']),
+        helper.make_node('Cast', ['n_scalar'], ['n_float'],
+                         to=TensorProto.FLOAT),
+        helper.make_node('Min', ['limit', 'n_float'], ['count_float']),
+        helper.make_node('Cast', ['count_float'], ['count'],
+                         to=TensorProto.INT32),
+        helper.make_node('Range', ['start', 'count', 'delta'], ['y']),
+    ]
+
+    return (nodes, [x], [out], [zero, one, limit, start, delta])
 
 
 @onnx_test()
@@ -18446,6 +18517,174 @@ def skip_layer_normalization_invalid_input_test():
                                  domain="com.microsoft")
 
     return ([node], [x, skip, gamma], [y])
+
+
+def slice_select_end_graph(cond_nodes, true_end, false_end, inputs=None):
+    # x has a symbolic length N; the end of axis 0 is cond ? true_end : false_end computed with
+    # arithmetic, as tf2onnx exports a select, where cond_nodes compute the bool `cond`
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 4])
+
+    zero = helper.make_tensor('zero', TensorProto.INT64, [], [0])
+    zerov = helper.make_tensor('zerov', TensorProto.INT64, [1], [0])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    t = helper.make_tensor('t', TensorProto.INT64, [], [true_end])
+    f = helper.make_tensor('f', TensorProto.INT64, [], [false_end])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['shape']),
+        helper.make_node('Gather', ['shape', 'zero'], ['n'], axis=0),
+    ] + cond_nodes + [
+        helper.make_node('Cast', ['cond'], ['condi'], to=TensorProto.INT64),
+        helper.make_node('Not', ['cond'], ['ncond']),
+        helper.make_node('Cast', ['ncond'], ['ncondi'], to=TensorProto.INT64),
+        helper.make_node('Mul', ['condi', 't'], ['a']),
+        helper.make_node('Mul', ['ncondi', 'f'], ['b']),
+        helper.make_node('Add', ['a', 'b'], ['end']),
+        helper.make_node('Unsqueeze', ['end', 'axes'], ['endv']),
+        helper.make_node('Slice', ['x', 'zerov', 'endv', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x] + (inputs or []), [out], [zero, zerov, axes, t, f])
+
+
+@onnx_test()
+def slice_select_less_symbolic_test():
+    # The end is to the end of the axis while N < 50, and 50 otherwise: min(N, 50)
+    fifty = helper.make_tensor('fifty', TensorProto.INT64, [], [50])
+    graph = slice_select_end_graph(
+        [helper.make_node('Less', ['n', 'fifty'], ['cond'])], 2147483647, 50)
+    return (graph[0], graph[1], graph[2], graph[3] + [fifty])
+
+
+@onnx_test()
+def slice_select_other_symbol_test():
+    # The condition compares the length of another input, so it is not a function of N
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['K'])
+    hundred = helper.make_tensor('hundred', TensorProto.INT64, [], [100])
+    graph = slice_select_end_graph([
+        helper.make_node('Shape', ['y'], ['yshape']),
+        helper.make_node('Gather', ['yshape', 'zero'], ['k'], axis=0),
+        helper.make_node('Greater', ['k', 'hundred'], ['cond']),
+    ],
+                                   100,
+                                   2147483647,
+                                   inputs=[y])
+    return (graph[0], graph[1], graph[2], graph[3] + [hundred])
+
+
+@onnx_test()
+def slice_float_end_symbolic_test():
+    # The end is half the length, computed in float and truncated back to int64
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 4])
+
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    half = helper.make_tensor('half', TensorProto.FLOAT, [1], [0.5])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['shape']),
+        helper.make_node('Gather', ['shape', 'zero'], ['n'], axis=0),
+        helper.make_node('Cast', ['n'], ['nf'], to=TensorProto.FLOAT),
+        helper.make_node('Mul', ['nf', 'half'], ['endf']),
+        helper.make_node('Cast', ['endf'], ['end'], to=TensorProto.INT64),
+        helper.make_node('Slice', ['x', 'zero', 'end', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x], [out], [zero, axes, half])
+
+
+@onnx_test()
+def slice_runtime_start_symbolic_test():
+    # x has a symbolic length and the start is a count computed from y, only known at run time
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 4])
+
+    half = helper.make_tensor('half', TensorProto.FLOAT, [], [0.5])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    big = helper.make_tensor('big', TensorProto.INT64, [1], [2147483647])
+
+    nodes = [
+        helper.make_node('Greater', ['y', 'half'], ['above']),
+        helper.make_node('Cast', ['above'], ['above_int'],
+                         to=TensorProto.INT64),
+        helper.make_node('ReduceSum', ['above_int', 'axes'], ['count'],
+                         keepdims=1),
+        helper.make_node('Slice', ['x', 'count', 'big', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x, y], [out], [half, axes, big])
+
+
+@onnx_test()
+def slice_runtime_end_symbolic_test():
+    # x has a symbolic length and the end is a count computed from y, only known at run time
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 4])
+
+    half = helper.make_tensor('half', TensorProto.FLOAT, [], [0.5])
+    axes = helper.make_tensor('axes', TensorProto.INT64, [1], [0])
+    zero = helper.make_tensor('zero', TensorProto.INT64, [1], [0])
+
+    nodes = [
+        helper.make_node('Greater', ['y', 'half'], ['above']),
+        helper.make_node('Cast', ['above'], ['above_int'],
+                         to=TensorProto.INT64),
+        helper.make_node('ReduceSum', ['above_int', 'axes'], ['count'],
+                         keepdims=1),
+        helper.make_node('Slice', ['x', 'zero', 'count', 'axes'], ['out']),
+    ]
+
+    return (nodes, [x, y], [out], [half, axes, zero])
+
+
+@onnx_test()
+def slice_pad_or_clip_symbolic_test():
+    # TF pad_or_clip: the size of axis 0 is 100 when the length N is over 100 and -1 (to the end)
+    # otherwise, and the size of axis 1 is -1; a size of -1 becomes INT_MAX before the end
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['N', 91])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, ['M', 91])
+
+    zero = helper.make_tensor('zero', TensorProto.INT32, [], [0])
+    hundred = helper.make_tensor('hundred', TensorProto.INT32, [], [100])
+    zerof = helper.make_tensor('zerof', TensorProto.FLOAT, [], [0.0])
+    minus1 = helper.make_tensor('minus1', TensorProto.INT32, [], [-1])
+    axes0 = helper.make_tensor('axes0', TensorProto.INT64, [1], [0])
+    minus1v = helper.make_tensor('minus1v', TensorProto.INT32, [1], [-1])
+    minus1v2 = helper.make_tensor('minus1v2', TensorProto.INT32, [2], [-1, -1])
+    intmax = helper.make_tensor('intmax', TensorProto.INT32, [2],
+                                [2147483647, 2147483647])
+    begin = helper.make_tensor('begin', TensorProto.INT32, [2], [0, 0])
+
+    nodes = [
+        helper.make_node('Shape', ['x'], ['shape64']),
+        helper.make_node('Cast', ['shape64'], ['shape'], to=TensorProto.INT32),
+        helper.make_node('Gather', ['shape', 'zero'], ['n'], axis=0),
+        helper.make_node('Sub', ['n', 'hundred'], ['over']),
+        helper.make_node('Cast', ['over'], ['overf'], to=TensorProto.FLOAT),
+        helper.make_node('Greater', ['overf', 'zerof'], ['clip']),
+        helper.make_node('Cast', ['clip'], ['clipi'], to=TensorProto.INT32),
+        helper.make_node('Mul', ['clipi', 'hundred'], ['a']),
+        helper.make_node('Not', ['clip'], ['keep']),
+        helper.make_node('Cast', ['keep'], ['keepi'], to=TensorProto.INT32),
+        helper.make_node('Mul', ['minus1', 'keepi'], ['b']),
+        helper.make_node('Add', ['a', 'b'], ['size0']),
+        helper.make_node('Unsqueeze', ['size0', 'axes0'], ['size0v']),
+        helper.make_node('Concat', ['size0v', 'minus1v'], ['size'], axis=0),
+        helper.make_node('Equal', ['minus1v2', 'size'], ['full']),
+        helper.make_node('Cast', ['full'], ['fulli'], to=TensorProto.INT32),
+        helper.make_node('Mul', ['intmax', 'fulli'], ['extra']),
+        helper.make_node('Add', ['size', 'extra'], ['size2']),
+        helper.make_node('Add', ['begin', 'size2'], ['end']),
+        helper.make_node('Slice', ['x', 'begin', 'end'], ['out']),
+    ]
+
+    return (nodes, [x], [out], [
+        zero, hundred, zerof, minus1, axes0, minus1v, minus1v2, intmax, begin
+    ])
 
 
 @onnx_test()

@@ -364,6 +364,11 @@ std::optional<std::vector<T>> fixed_values(const Range& expressions)
 // `min`/`max` that collapse to one operand when `strict_less` proves the ordering.
 MIGRAPHX_EXPORT expr resolve_min(const expr& a, const expr& b);
 MIGRAPHX_EXPORT expr resolve_max(const expr& a, const expr& b);
+// 1 when a < b (or a == b) and 0 otherwise. The result is a literal when `strict_less` (or
+// `provable_equal`) decides it, so an expression remains only for a comparison of symbols whose
+// outcome depends on their values.
+MIGRAPHX_EXPORT expr less_than(expr a, expr b);
+MIGRAPHX_EXPORT expr equal_to(expr a, expr b);
 // Pattern matching rewrite DSL
 MIGRAPHX_EXPORT expr pvar(int id);
 

@@ -342,11 +342,16 @@ static std::size_t hash_scalar(scalar s)
     return visit(
         [](auto x) -> std::size_t {
             using t = std::decay_t<decltype(x)>;
+            // A whole number within int64 hashes as that integer, so it matches the integer
+            // literal of the same value
             if constexpr(std::is_floating_point<t>{})
             {
-                int64_t i = x;
-                if(float_equal(x, i))
-                    return hash_value(i);
+                if(std::isfinite(x) and std::abs(x) < 0x1p63)
+                {
+                    int64_t i = x;
+                    if(float_equal(x, i))
+                        return hash_value(i);
+                }
             }
             return hash_value(x);
         },
@@ -1423,6 +1428,35 @@ expr resolve_max(const expr& a, const expr& b)
     return max(a, b);
 }
 
+static interval boolean_interval(bool can_be_false, bool can_be_true)
+{
+    return {int64_t{can_be_true and not can_be_false ? 1 : 0}, int64_t{can_be_true ? 1 : 0}};
+}
+
+expr less_than(expr a, expr b)
+{
+    if(auto result = strict_less(a, b))
+        return lit(*result ? 1 : 0);
+    return call(
+        "less_than",
+        [](auto x, auto y) -> int64_t { return x < y ? 1 : 0; },
+        [](interval x, interval y) { return boolean_interval(not(x < y), not(x >= y)); })(
+        std::move(a), std::move(b));
+}
+
+expr equal_to(expr a, expr b)
+{
+    if(auto result = provable_equal(a, b))
+        return lit(*result ? 1 : 0);
+    return call(
+        "equal_to",
+        [](auto x, auto y) -> int64_t { return std::equal_to<>{}(x, y) ? 1 : 0; },
+        [](interval x, interval y) {
+            const bool same_value = scalar_equal(x.min, x.max) and x == y;
+            return boolean_interval(not same_value, not(x < y or y < x));
+        })(std::move(a), std::move(b));
+}
+
 bool operator==(const expr& a, const expr& b)
 {
     if(a.pimpl == b.pimpl)
@@ -2402,6 +2436,8 @@ static expr call_function(const std::string& name, const std::vector<expr>& args
             MIGRAPHX_CALL_FUNC(abs),
             MIGRAPHX_CALL_FUNC(floor),
             MIGRAPHX_CALL_FUNC(ceil),
+            MIGRAPHX_CALL_FUNC(less_than),
+            MIGRAPHX_CALL_FUNC(equal_to),
         };
 #undef MIGRAPHX_CALL_FUNC
     auto it = functions.find(name);

@@ -179,6 +179,9 @@ struct registered_host_buffer
 
 argument register_on_gpu(const argument& arg)
 {
+    // An empty argument, such as a KV cache of length 0, has no host memory to register
+    if(arg.get_shape().bytes() == 0)
+        return arg;
     auto r          = std::make_shared<registered_host_buffer>();
     r->host         = arg.share();
     r->registration = register_on_gpu(r->host.data(), r->host.get_shape().bytes());
@@ -276,6 +279,9 @@ hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpy
 
 void gpu_copy(context& ctx, const argument& src, const argument& dst)
 {
+    // Launching the copy kernel on an empty argument fails
+    if(src.get_shape().elements() == 0)
+        return;
     // Workaround: Use contiguous as hip's memcpy is broken
     device::contiguous(ctx.get_stream().get(), dst, src);
     // hip_async_copy(ctx, src, dst, hipMemcpyDeviceToDevice);

@@ -71,6 +71,27 @@ TEST_CASE(host_same_buffer_copy)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_vec));
 }
 
+TEST_CASE(host_empty_copy_to_gpu)
+{
+    // An empty input has no host memory to register; the copy is skipped
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape ss{migraphx::shape::float_type, {2, 0}};
+    auto a     = mm->add_parameter("a", ss);
+    auto alloc = mm->add_instruction(
+        migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ss)}}));
+    auto gpu_in = mm->add_instruction(migraphx::make_op("hip::copy_to_gpu"), a, alloc);
+    mm->add_return({gpu_in});
+    migraphx::compile_options options;
+    options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), options);
+    std::vector<float> a_vec(1);
+    migraphx::parameter_map pp;
+    pp["a"]     = migraphx::argument(ss, a_vec.data());
+    auto result = p.eval(pp).back();
+    EXPECT(result.get_shape().lens() == ss.lens());
+}
+
 TEST_CASE(arguments_lifetime)
 {
     auto use_on_gpu = [](const migraphx::argument& arg, int c) {

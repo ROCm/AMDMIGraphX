@@ -28,6 +28,8 @@
 #include <migraphx/value.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/module_ref.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 #include <map>
@@ -88,6 +90,10 @@ struct code_object_op
 
     std::string name() const { return "gpu::code_object"; }
     shape compute_shape(std::vector<shape> inputs) const;
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
+    {
+        return compute_shape(inputs);
+    }
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     void finalize(context&, const shape&, const std::vector<shape>&);

@@ -40,11 +40,13 @@ namespace builtin {
 struct comment
 {
     std::string text;
+    /// Category of the comment, so a pass can find the comments it wrote
+    std::string tag = "";
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.text, "text"));
+        return pack(f(self.text, "text"), f(self.tag, "tag"));
     }
 
     std::string name() const { return "@comment"; }
@@ -56,7 +58,10 @@ struct comment
 
     friend std::ostream& operator<<(std::ostream& os, const comment& op)
     {
-        os << op.name() << ": " << op.text;
+        os << op.name();
+        if(not op.tag.empty())
+            os << "[" << op.tag << "]";
+        os << ": " << op.text;
         return os;
     }
 };

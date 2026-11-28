@@ -259,12 +259,20 @@ TEST_CASE(propagate_no_crossover_through_bool_int_chain)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x       = m2.add_parameter("x", s1);
-        auto sig     = m2.add_instruction(migraphx::make_op("sigmoid"), x);
+        // The convert to bool maps every nonzero sigmoid output to 1, so it stays: a convert of
+        // the sigmoid straight to int64 would truncate it to 0 and flip the result of the not
+        auto x        = m2.add_parameter("x", s1);
+        auto sig      = m2.add_instruction(migraphx::make_op("sigmoid"), x);
+        auto cvt_bool = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), sig);
         auto cvt_int = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), sig);
-        auto n    = m2.add_instruction(migraphx::make_op("not"), cvt_int);
-        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), n);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), cvt_bool);
+        auto n      = m2.add_instruction(migraphx::make_op("not"), cvt_int);
+        auto n_bool = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), n);
+        auto n_int = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), n_bool);
+        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), n_int);
         m2.add_return({rsum});
     }
     EXPECT(m1.sort() == m2.sort());

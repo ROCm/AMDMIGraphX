@@ -20661,6 +20661,29 @@ def tile_test_3x2():
 
 
 @onnx_test()
+def tile_shape_repeats_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 1, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, None])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 3, 4])
+
+    starts = helper.make_tensor('starts', TensorProto.INT64, [1], [0])
+    ends = helper.make_tensor('ends', TensorProto.INT64, [1], [1])
+    rest = helper.make_tensor('rest', TensorProto.INT64, [2], [3, 2])
+
+    shape = onnx.helper.make_node('Shape', inputs=['y'], outputs=['s'])
+    first = onnx.helper.make_node('Slice',
+                                  inputs=['s', 'starts', 'ends'],
+                                  outputs=['s0'])
+    repeats = onnx.helper.make_node('Concat',
+                                    inputs=['s0', 'rest'],
+                                    outputs=['r'],
+                                    axis=0)
+    node = onnx.helper.make_node('Tile', inputs=['x', 'r'], outputs=['z'])
+
+    return ([shape, first, repeats, node], [x, y], [z], [starts, ends, rest])
+
+
+@onnx_test()
 def topk_attrk_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 5, 3, 2])
     val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, 2, 3, 2])

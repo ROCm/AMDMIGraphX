@@ -39,10 +39,26 @@ struct parse_tile : op_parser<parse_tile>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        migraphx::argument arg_s = args[1]->eval();
-        check_arg_empty(arg_s, "PARSE_TILE: dynamic shape is not supported");
         std::vector<std::int64_t> repeats;
-        arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
+        migraphx::argument arg_s = args[1]->eval();
+        if(not arg_s.empty())
+        {
+            arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
+        }
+        else
+        {
+            // Repeats read from the shape of a dynamic input can still have fixed values
+            const auto symbolic_repeats = args[1]->sym_eval();
+            if(symbolic_repeats.empty())
+                MIGRAPHX_THROW("PARSE_TILE: dynamic shape is not supported");
+            for(const auto& r : symbolic_repeats.get().to_vector())
+            {
+                const auto range = r.eval_interval();
+                if(range.min != range.max)
+                    MIGRAPHX_THROW("PARSE_TILE: dynamic shape is not supported");
+                repeats.push_back(sym::to<std::int64_t>(range.min));
+            }
+        }
 
         return op::builder::add("tile", *info.mod, args, {{"repeats", repeats}}).at(0);
     }

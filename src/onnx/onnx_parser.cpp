@@ -412,8 +412,16 @@ parse_inputs(onnx_parser& parser,
     for(auto&& input : graph.input())
     {
         const std::string& name = input.name();
-        // input not in initializer_data, so it is a real input
-        if(not contains(mod_insts, name))
+        // An input with an initializer has a default value, which a given value replaces
+        bool has_default = contains(mod_insts, name);
+        if(has_default and not contains(parser.map_input_values, name))
+            continue;
+        shape s;
+        if(has_default)
+        {
+            s = mod_insts.at(name)->get_shape();
+        }
+        else
         {
             if(contains(parser.instructions, name))
             {
@@ -421,7 +429,6 @@ parse_inputs(onnx_parser& parser,
                                "\" existing in parent graph!");
             }
 
-            shape s;
             if(parser.map_input_dims.count(name) > 0)
             {
                 std::vector<std::size_t> dims = parser.map_input_dims.at(name);
@@ -446,8 +453,21 @@ parse_inputs(onnx_parser& parser,
             {
                 s = parser.parse_param_shape(input.type(), name);
             }
-            mod_insts[name] = mod->add_parameter(name, s);
         }
+        if(contains(parser.map_input_values, name))
+        {
+            const auto& values = parser.map_input_values.at(name);
+            if(s.dynamic())
+                MIGRAPHX_THROW("PARSE_INPUTS: input \"" + name +
+                               "\" with given values must have a static shape");
+            if(values.size() != s.elements())
+                MIGRAPHX_THROW("PARSE_INPUTS: input \"" + name + "\" has " +
+                               std::to_string(s.elements()) + " elements, but " +
+                               std::to_string(values.size()) + " values are given");
+            mod_insts[name] = mod->add_literal(literal{s, values});
+            continue;
+        }
+        mod_insts[name] = mod->add_parameter(name, s);
     }
     return mod_insts;
 }

@@ -215,6 +215,7 @@ struct loader
     std::string output;
     std::string default_dyn_dim;
     std::vector<std::string> param_dims;
+    std::vector<std::string> param_values;
     std::vector<std::string> dim_params;
     std::vector<std::string> dyn_param_dims;
     std::vector<std::string> output_names;
@@ -265,6 +266,12 @@ struct loader
         ap(param_dims,
            {"--input-dim"},
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
+           ap.append(),
+           ap.nargs(2));
+        ap(param_values,
+           {"--input-value"},
+           ap.help("Use these values for an input instead of making it a parameter, so an If on it "
+                   "only parses the branch it takes (format: \"@name v1 v2 vn\")"),
            ap.append(),
            ap.nargs(2));
         ap(dim_params,
@@ -440,6 +447,20 @@ struct loader
         return map_dim_params;
     }
 
+    static auto parse_param_values(const std::vector<std::string>& param_values_info)
+    {
+        std::unordered_map<std::string, std::vector<double>> map_input_values;
+        std::string name = "";
+        for(auto&& x : param_values_info)
+        {
+            if(x[0] == '@')
+                name = x.substr(1);
+            else
+                map_input_values[name].push_back(value_parser<double>::apply(x));
+        }
+        return map_input_values;
+    }
+
     static auto parse_output_names(const std::vector<std::string>& output_names_info)
     {
         std::vector<std::string> output_node_names;
@@ -488,6 +509,7 @@ struct loader
         options.use_symbolic_shapes    = use_symbolic;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
+        options.map_input_values       = parse_param_values(param_values);
         options.dim_params             = map_dim_params;
         return options;
     }

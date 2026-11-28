@@ -47,6 +47,9 @@ struct onnx_options
     /// Explicitly specify dynamic dims of an input (if both map_input_dims and map_dyn_input_dims
     /// set parser throws)
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims = {};
+    /// Use these values for an input instead of making it a parameter. An `If` whose condition is
+    /// such an input then only parses the branch it takes.
+    std::unordered_map<std::string, std::vector<double>> map_input_values = {};
     /// Continue parsing onnx file if an unknown operator is found
     bool skip_unknown_operators = false;
     /// Print program if an error occurs

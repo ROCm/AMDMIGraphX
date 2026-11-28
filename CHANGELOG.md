@@ -10,6 +10,7 @@ Full documentation for MIGraphX is available at
 * The binary cache is compressed with zstd, which makes a directory cache about half and a SQLite cache about 40% of the uncompressed size. MIGraphX now requires zstd to build.
 * Added MXR recompiling: `migraphx-driver compile --recompilable` stores each GPU kernel's compile recipe in the MXR, and `migraphx-driver recompile` (`program::recompile`) recompiles the kernels of a compiled MXR for another GPU, of a newer or an older generation, including cross-compiling with `--gpu-arch` and exhaustive tuning, without the original model. MXR files can be opened without loading their kernels (`file_options::finalize`). Setting `MIGRAPHX_GPU_DUMP_BENCHMARK_MXR` also dumps the unresolved benchmark candidates of a recompile as standalone MXRs for external tuning (#5466, #5581).
 * Added support for the `gfx1250-strict` offload target. It is a distinct target from `gfx1250`, so it gets its own code objects and kernel caches, and uses the same feature selection as `gfx1250`. Hyphenated processor names are now handled when parsing the GPU generation, when stripping arch flags in CMake, and when verifying offload archs, which previously could not tell `gfx1250` from `gfx1250-strict` (#5601).
+* Added `onnx_options::map_input_values` and the driver option `--input-value` to give an ONNX input values instead of making it a parameter, so an `If` on that input only parses the branch it takes, for example the merged decoder of a model with KV cache (#5548).
 
 ### Resolved issues
 

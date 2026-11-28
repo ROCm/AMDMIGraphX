@@ -50,6 +50,7 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/external_data.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
 #include <migraphx/env.hpp>
@@ -70,10 +71,14 @@
 #include <migraphx/time.hpp>
 #include <migraphx/netron_output.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <fstream>
+#include <limits>
 #include <optional>
 #include <set>
 #include <sstream>
+#include <system_error>
 
 namespace {
 
@@ -220,6 +225,12 @@ struct loader
     std::vector<std::string> output_names;
     std::vector<std::string> passes;
 
+    std::optional<std::size_t> external_weights;
+    std::string external_weights_file;
+    bool reuse_external_data     = false;
+    bool verify_external_weights = false;
+    std::vector<std::string> external_data_allow;
+
     void parse(argument_parser& ap)
     {
         ap(file, {}, ap.metavar("<input file>"), ap.file_exist(), ap.required(), ap.group("input"));
@@ -339,6 +350,72 @@ struct loader
            ap.help("Print out program as ONNX protobuf binary viewable in Netron."),
            ap.set_value("netron"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
+        ap(external_weights,
+           {"--external-weights"},
+           ap.help("Save literals of at least N bytes to an external weights file (default N: "
+                   "128K; K, M and G suffixes are accepted). Requires binary or json output to a "
+                   "file. Without N, follow the flag with another flag or put it last, since the "
+                   "next value is taken as N."),
+           ap.write_action([](auto&, auto& x, const auto& params) {
+               x = params.empty() ? default_external_data_threshold
+                                  : parse_external_weights_size(params.back());
+           }));
+        ap(external_weights_file,
+           {"--external-weights-file"},
+           ap.help("Base name of the weights file written by --external-weights; each save "
+                   "writes a new <stem>.<id><extension> beside it (default: <output>.data)"));
+        ap(reuse_external_data,
+           {"--reuse-external-data"},
+           ap.help("Save a reference to the weights file each literal of a loaded MIGraphX "
+                   "program was read from instead of its data. Weights changed by compilation "
+                   "(layout, quantization) are saved inline, or to the weights file with "
+                   "--external-weights."),
+           ap.set_value(true));
+        ap(verify_external_weights,
+           {"--verify-external-weights"},
+           ap.help("Check the checksum of each external literal when loading a MIGraphX program"),
+           ap.set_value(true));
+        ap(external_data_allow,
+           {"--external-data-allow"},
+           ap.help("Directory outside the program file's directory that the external data of a "
+                   "loaded MIGraphX program may be read from; repeat for several"),
+           ap.append());
+    }
+
+    // The flag's optional value precedes the input file, which would otherwise be taken as it
+    static std::size_t parse_external_weights_size(const std::string& s)
+    {
+        std::error_code ec;
+        if(fs::is_regular_file(s, ec))
+            throw std::runtime_error("Invalid size: " + s +
+                                     " (--external-weights takes the next value as its size; put "
+                                     "it after the input file)");
+        return parse_byte_size(s);
+    }
+
+    // Bytes with an optional K, M or G suffix (base 1024)
+    static std::size_t parse_byte_size(const std::string& s)
+    {
+        std::size_t multiplier = 1;
+        if(not s.empty())
+        {
+            switch(std::toupper(static_cast<unsigned char>(s.back())))
+            {
+            case 'K': multiplier = std::size_t{1024}; break;
+            case 'M': multiplier = std::size_t{1024} * 1024; break;
+            case 'G': multiplier = std::size_t{1024} * 1024 * 1024; break;
+            default: break;
+            }
+        }
+        auto digits = multiplier == 1 ? s : s.substr(0, s.size() - 1);
+        if(digits.empty() or not std::all_of(digits.begin(), digits.end(), [](unsigned char c) {
+               return std::isdigit(c);
+           }))
+            throw std::runtime_error("Invalid size: " + s);
+        auto n = std::stoull(digits);
+        if(n > std::numeric_limits<std::size_t>::max() / multiplier)
+            throw std::runtime_error("Size too large: " + s);
+        return n * multiplier;
     }
 
     static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
@@ -529,7 +606,12 @@ struct loader
             log::info() << "Reading: " << file;
             if(file_type == "json")
             {
-                p = migraphx::load(file, {.format = "json", .finalize = finalize});
+                file_options options;
+                options.format                      = "json";
+                options.finalize                    = finalize;
+                options.verify_external_weights     = verify_external_weights;
+                options.external_data_allowed_paths = external_data_allow;
+                p                                   = migraphx::load(file, options);
             }
 #ifdef MIGRAPHX_ENABLE_ONNX
             else if(file_type == "onnx")
@@ -551,7 +633,11 @@ struct loader
 #endif
             else if(file_type == "migraphx")
             {
-                p = migraphx::load(file, {.finalize = finalize});
+                file_options options;
+                options.verify_external_weights     = verify_external_weights;
+                options.external_data_allowed_paths = external_data_allow;
+                options.finalize                    = finalize;
+                p                                   = migraphx::load(file, options);
             }
         }
         if(trim > 0)
@@ -606,9 +692,23 @@ struct loader
                 type = "binary";
         }
 
-        if(output.empty() and type == "text")
+        if(output.empty() and type == "text" and not external_weights.has_value())
         {
             std::cout << p << std::endl;
+            return;
+        }
+
+        bool file_format = not output.empty() and (type == "binary" or type == "json");
+        if(external_weights.has_value() and not file_format)
+            MIGRAPHX_THROW("--external-weights requires binary or json output to a file (-o)");
+        if(external_weights.has_value() or (reuse_external_data and file_format))
+        {
+            file_options options;
+            options.format                     = type == "json" ? "json" : "msgpack";
+            options.external_weights_threshold = external_weights;
+            options.external_weights_file      = external_weights_file;
+            options.reuse_external_data        = reuse_external_data;
+            migraphx::save(p, output, options);
             return;
         }
 

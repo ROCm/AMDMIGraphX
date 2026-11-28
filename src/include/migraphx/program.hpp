@@ -141,10 +141,12 @@ struct MIGRAPHX_EXPORT program
     void mark(const parameter_map& params, marker m);
 
     value to_value() const;
+    value to_value(const serialize_context& sctx) const;
     void from_value(const value& v);
     /// When `finalize` is false the contexts are not restored and the kernels are not loaded, so a
     /// program compiled for another device can be opened. The contexts are created on first use.
     void from_value(const value& v, bool finalize);
+    void from_value(const value& v, bool finalize, const serialize_context& sctx);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;

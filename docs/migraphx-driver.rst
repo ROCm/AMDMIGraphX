@@ -95,6 +95,16 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Prints the program as ONNX protobuf binary viewable in Netron
    *  - --output | -o
       - Writes output in a file
+   *  - --external-weights
+      - Saves literals of at least the given size in bytes (Default: 128K; ``K``, ``M`` and ``G`` suffixes accepted) to a separate weights file, at 64-byte aligned offsets. Requires ``--binary`` or ``--json`` output to a file
+   *  - --external-weights-file
+      - Sets the base name of the weights file used by ``--external-weights`` (Default: ``<output>.data``). Each save writes a new file ``<stem>.<id><extension>`` beside it and deletes the weights files of the program it replaces that are no longer referenced
+   *  - --reuse-external-data
+      - Saves references to the weights files the literals of a loaded MIGraphX program were read from instead of their data
+   *  - --verify-external-weights
+      - Checks the MD5 checksum of each externally stored literal when loading a MIGraphX program, and rejects literals saved without one. MD5 is an integrity check against corruption, not against tampering
+   *  - --external-data-allow
+      - Also accepts external data files under the given directory when loading a MIGraphX program; otherwise files whose real location (after following symbolic links) is outside the program file's directory are rejected. Can be repeated
    *  - --fill0
       - Fills parameter with 0s
    *  - --fill1

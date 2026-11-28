@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import migraphx, array, tempfile, sys
+import migraphx, array, os, tempfile, sys
 
 
 def test_conv_relu(format):
@@ -39,6 +39,25 @@ def test_conv_relu(format):
 
         assert s1 == s2
         assert p1.sort() == p2.sort()
+
+
+def test_external_weights(format):
+    p1 = migraphx.parse_onnx("group_query_attention_test.onnx")
+
+    with tempfile.TemporaryDirectory() as d:
+        name = os.path.join(d, "model.mxr")
+        migraphx.save(p1, name, format=format, external_weights=1)
+        # Each save writes a new generation named model.mxr.<id>.data
+        generations = [
+            f for f in os.listdir(d)
+            if f.startswith("model.mxr.") and f.endswith(".data")
+        ]
+        assert len(generations) == 1
+        assert not os.path.exists(name + ".data")
+
+        p2 = migraphx.load(name, format=format, verify_external_weights=True)
+        assert p1.sort() == p2.sort()
+        del p2
 
 
 def test_save_load_buffer():
@@ -81,4 +100,6 @@ if __name__ == "__main__":
     test_load_save_arg()
     test_conv_relu('msgpack')
     test_conv_relu('json')
+    test_external_weights('msgpack')
+    test_external_weights('json')
     test_save_load_buffer()

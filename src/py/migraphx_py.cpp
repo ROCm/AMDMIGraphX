@@ -974,26 +974,47 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     m.def(
         "load",
-        [](const std::string& name, const std::string& format) {
+        [](const std::string& name,
+           const std::string& format,
+           const std::string& external_data_path,
+           bool verify_external_weights,
+           const std::vector<std::string>& external_data_allowed_paths) {
             migraphx::file_options options;
-            options.format = format;
+            options.format                      = format;
+            options.external_data_path          = external_data_path;
+            options.verify_external_weights     = verify_external_weights;
+            options.external_data_allowed_paths = external_data_allowed_paths;
             return migraphx::load(name, options);
         },
         "Load MIGraphX program",
         py::arg("filename"),
-        py::arg("format") = "msgpack");
+        py::arg("format")                      = "msgpack",
+        py::arg("external_data_path")          = "",
+        py::arg("verify_external_weights")     = false,
+        py::arg("external_data_allowed_paths") = std::vector<std::string>{});
 
     m.def(
         "save",
-        [](const migraphx::program& p, const std::string& name, const std::string& format) {
+        [](const migraphx::program& p,
+           const std::string& name,
+           const std::string& format,
+           std::optional<std::size_t> external_weights,
+           const std::string& external_weights_file,
+           bool reuse_external_data) {
             migraphx::file_options options;
-            options.format = format;
+            options.format                     = format;
+            options.external_weights_threshold = external_weights;
+            options.external_weights_file      = external_weights_file;
+            options.reuse_external_data        = reuse_external_data;
             return migraphx::save(p, name, options);
         },
         "Save MIGraphX program",
         py::arg("p"),
         py::arg("filename"),
-        py::arg("format") = "msgpack");
+        py::arg("format")                = "msgpack",
+        py::arg("external_weights")      = std::nullopt,
+        py::arg("external_weights_file") = "",
+        py::arg("reuse_external_data")   = false);
 
     m.def(
         "save_buffer",

@@ -1647,6 +1647,48 @@ struct file_options : MIGRAPHX_HANDLE_BASE(file_options)
     {
         call(&migraphx_file_options_set_file_format, this->get_handle_ptr(), format);
     }
+
+    /// Save literals of at least value bytes to an external weights file
+    void set_external_weights_threshold(size_t value)
+    {
+        call(&migraphx_file_options_set_external_weights_threshold, this->get_handle_ptr(), value);
+    }
+
+    /// Base name of the weights file; each save writes a new <stem>.<id><extension> beside it. By
+    /// default the program file name with ".data" appended
+    void set_external_weights_file(const std::string& path)
+    {
+        call(
+            &migraphx_file_options_set_external_weights_file, this->get_handle_ptr(), path.c_str());
+    }
+
+    /// Save references to the files literals were read from instead of their data
+    void set_reuse_external_data(bool value = true)
+    {
+        call(&migraphx_file_options_set_reuse_external_data, this->get_handle_ptr(), value);
+    }
+
+    /// Directory relative external references resolve against, and which every reference must
+    /// lie within, when loading
+    void set_external_data_path(const std::string& path)
+    {
+        call(&migraphx_file_options_set_external_data_path, this->get_handle_ptr(), path.c_str());
+    }
+
+    /// Further directory external references may point into when loading
+    void add_external_data_allowed_path(const std::string& path)
+    {
+        call(&migraphx_file_options_add_external_data_allowed_path,
+             this->get_handle_ptr(),
+             path.c_str());
+    }
+
+    /// Check the md5 checksum of each external literal when loading, rejecting literals that
+    /// have none; this detects corruption, not tampering
+    void set_verify_external_weights(bool value = true)
+    {
+        call(&migraphx_file_options_set_verify_external_weights, this->get_handle_ptr(), value);
+    }
 };
 
 /// Load a saved migraphx program from a file

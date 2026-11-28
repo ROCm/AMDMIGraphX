@@ -23,21 +23,30 @@
  */
 
 #include <migraphx/program.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/external_data.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/msgpack.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <migraphx/value.hpp>
 #include <test.hpp>
 
 #include <algorithm>
+#include <iterator>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -190,6 +199,38 @@ static migraphx::program reload(const migraphx::program& p, bool finalize)
 static std::string context_device(const migraphx::program& p)
 {
     return p.get_context().to_value().at("device").to<std::string>();
+}
+
+// The external references of the main module's literals in a saved msgpack program
+static std::vector<migraphx::external_data> saved_external_refs(const std::string& file)
+{
+    auto v            = migraphx::from_msgpack(migraphx::read_buffer(file));
+    const auto& nodes = v.at("modules").at("main").at("nodes");
+    std::vector<migraphx::external_data> result;
+    migraphx::transform_if(
+        nodes.begin(),
+        nodes.end(),
+        std::back_inserter(result),
+        [](const migraphx::value& node) {
+            return node.contains("literal") and node.at("literal").contains("external");
+        },
+        [](const migraphx::value& node) {
+            return migraphx::from_value<migraphx::external_data>(node.at("literal").at("external"));
+        });
+    return result;
+}
+
+static std::vector<migraphx::literal> main_literals(const migraphx::program& p)
+{
+    const auto* mm = p.get_main_module();
+    std::vector<migraphx::literal> result;
+    migraphx::transform_if(
+        mm->begin(),
+        mm->end(),
+        std::back_inserter(result),
+        [](const migraphx::instruction& ins) { return ins.name() == "@literal"; },
+        [](const migraphx::instruction& ins) { return ins.get_literal(); });
+    return result;
 }
 
 TEST_CASE(recompile_requires_compiled_program)
@@ -454,6 +495,157 @@ TEST_CASE(older_program_version_refused)
     v["version"] = 7;
     migraphx::program p;
     EXPECT(test::throws<migraphx::exception>([&] { p.from_value(v); }, "version mismatch"));
+}
+
+TEST_CASE(recompile_external_weights)
+{
+    migraphx::tmp_dir td{"recompile-external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::shape s{migraphx::shape::float_type, {64}};
+    auto weights = migraphx::generate_literal(s, 1);
+    migraphx::program c;
+    auto* mm = c.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    auto w   = mm->add_literal(weights);
+    mm->add_return({mm->add_instruction(migraphx::make_op("add"), x, w)});
+    current_device() = "dev_a";
+    c.compile(make_recompile_target());
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(c, filename, options);
+    auto refs = saved_external_refs(filename);
+    EXPECT(refs.size() == 1);
+    EXPECT(migraphx::is_weights_generation(td.path / "model.mxr.data",
+                                           td.path / refs.front().file_path));
+    EXPECT(migraphx::fs::exists(td.path / refs.front().file_path));
+
+    // Opening the program without its kernels still maps the weights
+    auto p      = migraphx::load(filename, {.finalize = false});
+    auto loaded = main_literals(p);
+    EXPECT(loaded.size() == 1);
+    EXPECT(loaded.front().is_external());
+    EXPECT(loaded.front().get_mapped_file() != nullptr);
+
+    last_recompile() = {};
+    current_device() = "dev_b";
+    p.recompile(make_recompile_target());
+    EXPECT(last_recompile().runs == 1);
+    EXPECT(last_recompile().from == "dev_a");
+    EXPECT(recorded_device(*p.get_main_module()) == "dev_b");
+    auto recompiled = main_literals(p);
+    EXPECT(recompiled.size() == 1);
+    EXPECT(recompiled.front().is_external());
+    const auto& ext = *recompiled.front().get_external_data();
+    EXPECT(ext.offset == refs.front().offset);
+    EXPECT(ext.size == refs.front().size);
+    EXPECT(ext.checksum == refs.front().checksum);
+    EXPECT(recompiled.front() == weights);
+}
+
+TEST_CASE(recompile_shares_external_weights)
+{
+    migraphx::tmp_dir td{"recompile-external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::shape s{migraphx::shape::float_type, {64}};
+    auto weights = migraphx::generate_literal(s, 1);
+    migraphx::program c;
+    auto* mm = c.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    auto w   = mm->add_literal(weights);
+    mm->add_return({mm->add_instruction(migraphx::make_op("add"), x, w)});
+    current_device() = "dev_a";
+    c.compile(make_recompile_target());
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(c, filename, options);
+    auto original_refs = saved_external_refs(filename);
+    auto weights_file  = td.path / original_refs.front().file_path;
+    auto weights_bytes = migraphx::read_buffer(weights_file);
+
+    auto p           = migraphx::load(filename, {.finalize = false});
+    auto original    = p;
+    current_device() = "dev_b";
+    p.recompile(make_recompile_target());
+
+    // The recompiled program reads the weights from the original's mapping, not from a copy
+    auto before = main_literals(original);
+    auto after  = main_literals(p);
+    EXPECT(before.size() == 1);
+    EXPECT(after.size() == 1);
+    EXPECT(after.front().get_mapped_file() != nullptr);
+    EXPECT(after.front().get_mapped_file() == before.front().get_mapped_file());
+    EXPECT(after.front().data() == before.front().data());
+
+    // Saved with reuse, it references the original weights file instead of writing its own
+    auto recompiled = (td.path / "recompiled.mxr").string();
+    migraphx::file_options reuse;
+    reuse.reuse_external_data = true;
+    migraphx::save(p, recompiled, reuse);
+    EXPECT(not migraphx::fs::exists(recompiled + ".data"));
+    auto recompiled_refs = saved_external_refs(recompiled);
+    EXPECT(recompiled_refs.size() == 1);
+    EXPECT(recompiled_refs.front().file_path == original_refs.front().file_path);
+    EXPECT(migraphx::to_value(recompiled_refs) == migraphx::to_value(original_refs));
+    EXPECT(migraphx::read_buffer(weights_file) == weights_bytes);
+    auto q = migraphx::load(recompiled, {.finalize = false});
+    EXPECT(recorded_device(*q.get_main_module()) == "dev_b");
+    EXPECT(main_literals(q).front().get_external_data()->offset == original_refs.front().offset);
+    EXPECT(main_literals(q).front() == weights);
+
+    // Without reuse the weights are stored inline
+    auto inline_file = (td.path / "inline.mxr").string();
+    migraphx::save(p, inline_file);
+    EXPECT(not migraphx::fs::exists(inline_file + ".data"));
+    EXPECT(saved_external_refs(inline_file).empty());
+    auto r = migraphx::load(inline_file, {.finalize = false});
+    EXPECT(not main_literals(r).front().is_external());
+    EXPECT(main_literals(r).front() == weights);
+}
+
+TEST_CASE(recompile_in_place_shares_external_weights)
+{
+    migraphx::tmp_dir td{"recompile-external-weights"};
+    auto filename = (td.path / "model.mxr").string();
+    migraphx::shape s{migraphx::shape::float_type, {64}};
+    auto weights = migraphx::generate_literal(s, 1);
+    migraphx::program c;
+    auto* mm = c.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    auto w   = mm->add_literal(weights);
+    mm->add_return({mm->add_instruction(migraphx::make_op("add"), x, w)});
+    current_device() = "dev_a";
+    c.compile(make_recompile_target());
+
+    migraphx::file_options options;
+    options.external_weights_threshold = 1;
+    migraphx::save(c, filename, options);
+    auto original_refs = saved_external_refs(filename);
+    auto weights_file  = td.path / original_refs.front().file_path;
+    auto weights_bytes = migraphx::read_buffer(weights_file);
+    {
+        auto p           = migraphx::load(filename, {.finalize = false});
+        current_device() = "dev_b";
+        p.recompile(make_recompile_target());
+
+        // New weights go to a new generation, and the one the program maps is kept
+        migraphx::save(p, filename, options);
+        auto written = td.path / saved_external_refs(filename).front().file_path;
+        EXPECT(written != weights_file);
+        EXPECT(migraphx::read_buffer(weights_file) == weights_bytes);
+
+        // Saved with reuse, the unreferenced new generation is removed again
+        migraphx::file_options reuse;
+        reuse.reuse_external_data = true;
+        migraphx::save(p, filename, reuse);
+        EXPECT(not migraphx::fs::exists(written));
+    }
+    EXPECT(migraphx::read_buffer(weights_file) == weights_bytes);
+    EXPECT(migraphx::to_value(saved_external_refs(filename)) == migraphx::to_value(original_refs));
+    auto q = migraphx::load(filename, {.finalize = false});
+    EXPECT(recorded_device(*q.get_main_module()) == "dev_b");
+    EXPECT(main_literals(q).front() == weights);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

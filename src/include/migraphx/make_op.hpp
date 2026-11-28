@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,6 +37,9 @@ MIGRAPHX_EXPORT operation make_op(const std::string& name);
 MIGRAPHX_EXPORT operation make_op(const std::string& name,
                                   const std::initializer_list<std::pair<std::string, value>>& v);
 MIGRAPHX_EXPORT operation make_op_from_value(const std::string& name, const value& v);
+MIGRAPHX_EXPORT operation make_op_from_value(const std::string& name,
+                                             const value& v,
+                                             const serialize_context& sctx);
 
 // A template overload is added for migraphx::value so the initializer_list
 // cannot be passed in directly. This is to enforce at compile-time that all

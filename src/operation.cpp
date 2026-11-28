@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,15 @@ void migraphx_to_value(value& v, const operation& op)
 void migraphx_from_value(const value& v, operation& op)
 {
     op = make_op(v.at("name").to<std::string>(), v.at("operator"));
+}
+void migraphx_to_value(value& v, const operation& op, const serialize_context& sctx)
+{
+    v["name"]     = op.name();
+    v["operator"] = op.to_value(sctx);
+}
+void migraphx_from_value(const value& v, operation& op, const serialize_context& sctx)
+{
+    op = make_op_from_value(v.at("name").to<std::string>(), v.at("operator"), sctx);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

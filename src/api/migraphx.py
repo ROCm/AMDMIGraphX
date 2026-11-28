@@ -602,6 +602,24 @@ def file_options(h):
     h.method('set_file_format',
              api.params(format='const char*'),
              invoke='migraphx::set_file_format($@)')
+    h.method('set_external_weights_threshold',
+             api.params(value='size_t'),
+             invoke='migraphx::set_external_weights_threshold($@)')
+    h.method('set_external_weights_file',
+             api.params(path='const char*'),
+             invoke='migraphx::set_external_weights_file($@)')
+    h.method('set_reuse_external_data',
+             api.params(value='bool'),
+             invoke='migraphx::set_reuse_external_data($@)')
+    h.method('set_external_data_path',
+             api.params(path='const char*'),
+             invoke='migraphx::set_external_data_path($@)')
+    h.method('add_external_data_allowed_path',
+             api.params(path='const char*'),
+             invoke='migraphx::add_external_data_allowed_path($@)')
+    h.method('set_verify_external_weights',
+             api.params(value='bool'),
+             invoke='migraphx::set_verify_external_weights($@)')
 
 
 @auto_handle()

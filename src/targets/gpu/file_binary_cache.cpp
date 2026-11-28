@@ -30,8 +30,6 @@
 #include <migraphx/md5.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
-#include <migraphx/tmp_dir.hpp>
-#include <system_error>
 #include <type_traits>
 
 namespace migraphx {
@@ -54,27 +52,6 @@ entry_dir(const fs::path& root, const std::string& version, const std::string& d
 static fs::path entry_path(const fs::path& dir, const std::string& key)
 {
     return dir / (md5(key) + ".mxr");
-}
-
-/// Publish by rename so a reader never sees a half-written file. The temporary stays beside
-/// the destination since the rename is only atomic within one filesystem. Its short random
-/// suffix keeps concurrent writers of the same entry apart without lengthening an already deep
-/// path, which on Windows must stay under MAX_PATH for std::ofstream to open it.
-static void write_atomically(const fs::path& dest, const std::vector<char>& content)
-{
-    auto suffix = md5(unique_string("cache")).substr(0, 16);
-    auto tmp    = dest.parent_path() / (dest.stem().string() + "." + suffix + ".tmp");
-    try
-    {
-        write_buffer(tmp, content);
-        fs::rename(tmp, dest);
-    }
-    catch(...)
-    {
-        std::error_code ec;
-        fs::remove(tmp, ec);
-        throw;
-    }
 }
 
 optional<binary_cache_entry> file_binary_cache::load(const std::string& version,

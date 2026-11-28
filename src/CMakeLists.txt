@@ -76,6 +76,7 @@ add_library(migraphx
     eliminate_identity.cpp
     eliminate_pad.cpp
     env.cpp
+    external_data.cpp
     file_buffer.cpp
     fileutils.cpp
     fp_to_double.cpp
@@ -98,9 +99,11 @@ add_library(migraphx
     json.cpp
     layout_convolution.cpp
     lexing.cpp
+    literal.cpp
     load_save.cpp
     logger.cpp
     make_op.cpp
+    mapped_file.cpp
     md5.cpp
     memory_coloring.cpp
     module.cpp

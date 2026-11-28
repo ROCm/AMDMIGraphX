@@ -44,6 +44,7 @@
 #include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/serialize.hpp>
 
 #include <iostream>
 #include <queue>
@@ -852,7 +853,9 @@ static std::string get_migraphx_version()
     return ss.str();
 }
 
-value program::to_value() const
+value program::to_value() const { return this->to_value(serialize_context{}); }
+
+value program::to_value(const serialize_context& sctx) const
 {
     value result;
     result["version"]          = get_program_file_version();
@@ -874,8 +877,8 @@ value program::to_value() const
                 node["shape"]      = migraphx::to_value(ins->get_shape());
                 node["normalized"] = ins->is_normalized();
                 if(ins->name() == "@literal")
-                    node["literal"] = migraphx::to_value(ins->get_literal());
-                node["operator"] = ins->get_operator().to_value();
+                    node["literal"] = migraphx::to_value(ins->get_literal(), sctx);
+                node["operator"] = ins->get_operator().to_value(sctx);
                 std::vector<std::string> inputs;
                 std::transform(ins->inputs().begin(),
                                ins->inputs().end(),
@@ -916,7 +919,8 @@ value program::to_value() const
 static void mod_from_val(module_ref mod,
                          const value& v,
                          std::unordered_map<std::string, instruction_ref>& instructions,
-                         const std::unordered_map<std::string, module_ref>& map_mods)
+                         const std::unordered_map<std::string, module_ref>& map_mods,
+                         const serialize_context& sctx)
 {
     const auto& module_val = v.at(mod->name());
     for(const value& node : module_val.at("nodes"))
@@ -934,12 +938,12 @@ static void mod_from_val(module_ref mod,
         }
         else if(name == "@literal")
         {
-            output =
-                mod->insert_literal(mod->end(), migraphx::from_value<literal>(node.at("literal")));
+            output = mod->insert_literal(mod->end(),
+                                         migraphx::from_value<literal>(node.at("literal"), sctx));
         }
         else
         {
-            auto op = make_op(name, fields);
+            auto op = make_op_from_value(name, fields, sctx);
             std::vector<instruction_ref> inputs;
             std::transform(node.at("inputs").begin(),
                            node.at("inputs").end(),
@@ -960,7 +964,7 @@ static void mod_from_val(module_ref mod,
 
                 for(const auto& smod : module_inputs)
                 {
-                    mod_from_val(smod, v, instructions, map_mods);
+                    mod_from_val(smod, v, instructions, map_mods, sctx);
                 }
             }
 
@@ -989,6 +993,11 @@ static void mod_from_val(module_ref mod,
 void program::from_value(const value& v) { this->from_value(v, true); }
 
 void program::from_value(const value& v, bool finalize)
+{
+    this->from_value(v, finalize, serialize_context{});
+}
+
+void program::from_value(const value& v, bool finalize, const serialize_context& sctx)
 {
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
@@ -1044,7 +1053,7 @@ void program::from_value(const value& v, bool finalize)
 
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto* mm = get_main_module();
-    mod_from_val(mm, module_vals, map_insts, map_mods);
+    mod_from_val(mm, module_vals, map_insts, map_mods, sctx);
 
     // Finalize a compiled model
     if(finalize and not this->impl->contexts.empty())

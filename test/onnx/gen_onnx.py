@@ -4557,6 +4557,28 @@ def external_data_shape_large_test():
 
 
 @onnx_test()
+def external_data_scalar_test():
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [])
+
+    weight_file = 'external_data_scalar_test.weight'
+    np.array([2.5], dtype=np.float32).tofile(weight_file)
+
+    tensor = onnx.TensorProto()
+    tensor.name = 'x'
+    tensor.data_type = TensorProto.FLOAT
+    tensor.data_location = TensorProto.EXTERNAL
+    for key, value in [('location', weight_file), ('offset', '0'),
+                       ('length', '4')]:
+        entry = tensor.external_data.add()
+        entry.key = key
+        entry.value = value
+
+    node = onnx.helper.make_node('Identity', inputs=['x'], outputs=['y'])
+
+    return ([node], [], [y], [tensor])
+
+
+@onnx_test()
 def raw_data_short_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1024, 1024])
 

@@ -253,4 +253,55 @@ TEST_CASE(to_value_initializer_list_roundtrip)
     EXPECT(vec == std::vector<int>{5, 10, 15, 20});
 }
 
+TEST_CASE(serialize_default_context_matches_context_free)
+{
+    reflectable_type t1{{1, 2},
+                        "hello",
+                        1.0,
+                        {},
+                        reflectable_type::simple2,
+                        reflectable_type::class_enum::class3,
+                        {{1}, {2}},
+                        {5, {4}, "hello"},
+                        {3}};
+    migraphx::serialize_context sctx;
+    migraphx::value v1  = migraphx::to_value(t1, sctx);
+    reflectable_type t2 = migraphx::from_value<reflectable_type>(v1, sctx);
+    EXPECT(v1 == migraphx::to_value(t1));
+    EXPECT(migraphx::to_value(t2) == v1);
+    EXPECT(migraphx::to_value(empty_struct{}, sctx) == migraphx::to_value(empty_struct{}));
+    EXPECT(migraphx::to_value(std::vector<int>{1, 2}, sctx) ==
+           migraphx::to_value(std::vector<int>{1, 2}));
+}
+
+struct reflect_and_member_value
+{
+    int x = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.x, "x"));
+    }
+
+    migraphx::value to_value() const
+    {
+        migraphx::value result;
+        result["member"] = x;
+        return result;
+    }
+    void from_value(const migraphx::value& v) { x = v.at("member").to<int>() + 1; }
+};
+
+TEST_CASE(serialize_context_member_outranks_reflection)
+{
+    migraphx::serialize_context sctx;
+    reflect_and_member_value r{3};
+    auto v = migraphx::to_value(r, sctx);
+    EXPECT(v == migraphx::to_value(r));
+    EXPECT(v.contains("member"));
+    EXPECT(not v.contains("x"));
+    EXPECT(migraphx::from_value<reflect_and_member_value>(v, sctx).x == 4);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

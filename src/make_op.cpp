@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 operation make_op(const std::string& name) { return load_op(name); }
 
 template <class F>
-static operation make_op_generic(const std::string& name, F for_each)
+static operation make_op_generic(const std::string& name, F for_each, const serialize_context& sctx)
 {
     auto op = load_op(name);
     // Merge values
@@ -41,27 +41,38 @@ static operation make_op_generic(const std::string& name, F for_each)
             MIGRAPHX_THROW("No key '" + key + "' in " + name);
         w.at(key) = x;
     });
-    op.from_value(w);
+    op.from_value(w, sctx);
     return op;
 }
 
 operation make_op(const std::string& name,
                   const std::initializer_list<std::pair<std::string, value>>& v)
 {
-    return make_op_generic(name, [&](auto f) {
-        for(auto&& [key, x] : v)
-            f(key, x);
-    });
+    return make_op_generic(
+        name,
+        [&](auto f) {
+            for(auto&& [key, x] : v)
+                f(key, x);
+        },
+        serialize_context{});
 }
 
 operation make_op_from_value(const std::string& name, const value& v)
 {
+    return make_op_from_value(name, v, serialize_context{});
+}
+
+operation make_op_from_value(const std::string& name, const value& v, const serialize_context& sctx)
+{
     if(not(v.is_object() or (v.empty() and v.is_array())))
         MIGRAPHX_THROW("Value is not an object for make_op: " + name);
-    return make_op_generic(name, [&](auto f) {
-        for(auto&& x : v)
-            f(x.get_key(), x.without_key());
-    });
+    return make_op_generic(
+        name,
+        [&](auto f) {
+            for(auto&& x : v)
+                f(x.get_key(), x.without_key());
+        },
+        sctx);
 }
 
 operation make_json_op(const std::string& name, const std::string& s)

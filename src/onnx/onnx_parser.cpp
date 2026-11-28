@@ -35,6 +35,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/external_data.hpp>
 #include <migraphx/checked_ops.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
@@ -894,39 +895,6 @@ static std::size_t parse_external_size(const std::string& value, const char* fie
     }
 }
 
-// Lexically resolve '.' and '..' without touching the filesystem. The
-// Filesystem TS (std::experimental::filesystem, used on some older toolchains)
-// lacks weakly_canonical and path::lexically_relative, so normalize by hand.
-static fs::path lexically_normalize(const fs::path& p)
-{
-    auto parts = std::accumulate(
-        p.begin(), p.end(), std::vector<fs::path>{}, [](auto acc, const fs::path& part) {
-            if(part == ".")
-                return acc;
-            if(part == ".." and not acc.empty() and acc.back() != "..")
-                acc.pop_back();
-            else
-                acc.push_back(part);
-            return acc;
-        });
-    return std::accumulate(parts.begin(),
-                           parts.end(),
-                           fs::path{},
-                           [](fs::path acc, const auto& part) { return acc /= part; });
-}
-
-static fs::path resolve_external_data_path(const fs::path& base_dir, const fs::path& relative)
-{
-    const fs::path base     = lexically_normalize(base_dir);
-    const fs::path resolved = lexically_normalize(base_dir / relative);
-    // resolved must stay within base: base's components must be a strict prefix
-    // of resolved's. A '..' that climbs out of base breaks the prefix match.
-    const auto m = std::mismatch(base.begin(), base.end(), resolved.begin(), resolved.end());
-    if(m.first != base.end() or m.second == resolved.end())
-        MIGRAPHX_THROW("ONNX external data path escapes model directory: " + relative.string());
-    return resolved;
-}
-
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
     auto tensor_shape         = parse_tensor_shape(t);
@@ -936,13 +904,15 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
     if(not external_data.empty())
     {
-        if(tensor_shape.elements() == 0)
+        // A rank-zero tensor holds one element, which the shape without lens would not
+        const shape ext_shape = dims.empty() ? shape{type} : tensor_shape;
+        if(ext_shape.elements() == 0)
             return literal{type};
 
         const std::string& data_file = external_data.at(0).value();
         size_t num_data_fields       = external_data.size();
         size_t offset                = 0;
-        size_t nbytes                = tensor_shape.bytes();
+        size_t nbytes                = ext_shape.bytes();
 
         if(num_data_fields > 1) // if offset field is present
         {
@@ -956,12 +926,12 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
             // and the plugin EP copies that 0 into the proto. The tensor's own size
             // is the number of bytes to read.
             if(nbytes == 0)
-                nbytes = tensor_shape.bytes();
+                nbytes = ext_shape.bytes();
         }
-        if(nbytes != tensor_shape.bytes())
+        if(nbytes != ext_shape.bytes())
             MIGRAPHX_THROW("PARSE_TENSOR: external data length " + std::to_string(nbytes) + " of " +
                            t.name() + " does not match tensor bytes " +
-                           std::to_string(tensor_shape.bytes()));
+                           std::to_string(ext_shape.bytes()));
 
         const fs::path base_dir  = external_data_path.empty() ? path : fs::path{external_data_path};
         const fs::path data_path = resolve_external_data_path(base_dir, data_file);

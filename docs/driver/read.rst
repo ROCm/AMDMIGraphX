@@ -114,3 +114,62 @@ Print out program using python API.
 
 Output to file.
 
+.. option::  --external-weights [size] (Default: 128K)
+
+Save literals of at least ``size`` bytes to a separate weights file instead of inside the program
+file. ``size`` accepts ``K``, ``M`` and ``G`` suffixes (powers of 1024). Each literal starts at an
+offset aligned to 64 bytes and is recorded with its offset, size and MD5 checksum. This requires
+``--binary`` or ``--json`` output to a file with ``--output``.
+
+Without ``size``, follow the flag with another flag or put it last, since a value right after it
+is taken as the size; a value that names an existing file is rejected with a hint instead of being
+misread as a size. For example::
+
+    migraphx-driver compile model.onnx --gpu --binary -o model.mxr --external-weights 1M
+    migraphx-driver compile --external-weights --gpu --binary -o model.mxr model.onnx
+
+.. option::  --external-weights-file [std::string] (Default: <output>.data)
+
+Base name of the weights file used by ``--external-weights``. Each save writes a new file beside
+it named ``<stem>.<id><extension>``, where ``<id>`` is 16 hexadecimal digits; for example
+``model.mxr.data`` becomes ``model.mxr.0123456789abcdef.data``. The weights file is written
+before the program file, so a failed save leaves the previous program and its weights intact, and
+a program that is still loaded keeps reading its own file. After the new program is in place, the
+weights files that the replaced program referenced are deleted unless the new program still
+references them or a loaded program maps them. Weights files shared with another program file
+that is saved separately are not tracked, so keep such programs in different directories or
+save them with ``--reuse-external-data``.
+
+References to the weights file are stored relative to the program file's directory when it is
+inside that directory, so the two files can be moved together. Otherwise the reference is
+absolute, a warning is printed, and loading the program needs ``--external-data-allow``.
+
+.. option::  --reuse-external-data
+
+When saving, store a reference to the weights file each literal of a loaded MIGraphX program was
+read from instead of its data, so the program file points at the original weights file. Weights
+that compilation changes, such as by a layout change or quantization, are saved inline, or to the
+weights file when ``--external-weights`` is also given.
+
+With ``recompile``, the recompiled program references the weights file of the program it was
+recompiled from instead of storing the weights inline. Without the flag, ``recompile`` stores every
+weight inside the output file. For example::
+
+    migraphx-driver recompile model.mxr --reuse-external-data -o recompiled.mxr
+
+.. option::  --verify-external-weights
+
+When loading a MIGraphX program, check the MD5 checksum of each externally stored literal and fail
+on a mismatch or on a literal saved without a checksum. Without it only the offsets and sizes are
+checked against the file size. MD5 detects accidental corruption, such as a truncated or replaced
+weights file; it is not a defense against a deliberately crafted file.
+
+.. option::  --external-data-allow [std::string]
+
+When loading a MIGraphX program, also accept external data files under this directory. Loading
+resolves symbolic links and rejects any external data file whose real location is outside the
+program file's directory, so a program cannot read arbitrary files through ``..`` or an absolute
+reference. Repeat the option to allow several directories. For example::
+
+    migraphx-driver perf out/model.mxr --external-data-allow /models/onnx
+

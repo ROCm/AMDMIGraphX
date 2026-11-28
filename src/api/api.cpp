@@ -324,6 +324,14 @@ static void set_external_data_path(onnx_options& options, const char* external_d
     options.external_data_path = std::string(external_data_path);
 }
 
+static void
+set_external_initializer(onnx_options& options, const char* name, const void* data, size_t size)
+{
+    if(name == nullptr)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter name: Null pointer");
+    options.external_initializers[name] = {data, size};
+}
+
 static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 {
     options.limit_max_iterations = value;
@@ -2771,6 +2779,17 @@ migraphx_onnx_options_set_external_data_path(migraphx_onnx_options_t onnx_option
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
         migraphx::set_external_data_path((onnx_options->object), (external_data_path));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_onnx_options_set_external_initializer(
+    migraphx_onnx_options_t onnx_options, const char* name, const void* data, size_t size)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        migraphx::set_external_initializer((onnx_options->object), (name), (data), (size));
     });
     return api_error_result;
 }

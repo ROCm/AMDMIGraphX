@@ -1044,6 +1044,29 @@ TEST_CASE(as_shape_sym)
         target, migraphx::make_op("as_shape", {{"shape", migraphx::to_value(target)}}), input);
 }
 
+TEST_CASE(as_shape_sym_keeps_input_type)
+{
+    // A pass may narrow the input after the as_shape was made; the result keeps its type
+    auto n = var("N", {1, 64});
+    auto m = var("M", {1, 64});
+    migraphx::shape input{migraphx::shape::int32_type, {dd{lit(1)}, dd{n}}};
+    migraphx::shape target{migraphx::shape::int64_type, {dd{lit(1)}, dd{m}}};
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {dd{lit(1)}, dd{m}}},
+                 migraphx::make_op("as_shape", {{"shape", migraphx::to_value(target)}}),
+                 input);
+}
+
+TEST_CASE(as_shape_sym_run_time_static_input)
+{
+    // At run time the input is static and the target takes its dims
+    auto m = var("M", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {1, 9}};
+    migraphx::shape target{migraphx::shape::float_type, {dd{lit(1)}, dd{m}}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 9}},
+                 migraphx::make_op("as_shape", {{"shape", migraphx::to_value(target)}}),
+                 input);
+}
+
 TEST_CASE(as_shape_dyn_target_throws)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 4}};
